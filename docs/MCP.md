@@ -39,8 +39,19 @@ already in `PATH`, but an MCP host may use a different process environment.
 
 ### Codex
 
-The Codex desktop app, CLI, and IDE extension use the same MCP configuration on
-one machine. The most direct desktop setup is:
+The Codex desktop app, CLI, and IDE extension use the same plugin and MCP
+configuration on one machine. The recommended setup installs the Rel plugin
+from this repository's marketplace:
+
+```sh
+codex plugin marketplace add gabriel/rel-tools
+codex plugin add rel@rel
+```
+
+Start a new Codex task after installation so Codex loads the plugin's MCP server
+and `rel-browser` skill.
+
+To configure only the MCP server without installing the plugin:
 
 1. Open **Codex Settings → MCP servers**.
 2. Add a STDIO server named `rel`.
