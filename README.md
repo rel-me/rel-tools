@@ -12,6 +12,8 @@ session storage, proxy credentials, or internal service code.
 
 - [`rel-cli`](crates/rel-cli): the `rel` command and its stdio MCP adapter.
 - [`rel-client`](crates/rel-client): a typed synchronous Rust client for RPC v1.
+- [`plugins/rel`](plugins/rel): the Rel plugin for Codex, distributed through
+  this repository's marketplace.
 - [`docs`](docs): the canonical CLI, MCP, RPC, and Rust SDK documentation that
   powers [docs.rel.me](https://docs.rel.me).
 
@@ -37,6 +39,20 @@ rel health
 rel navigate https://example.com
 rel capture > example.html
 ```
+
+## Install the Codex plugin
+
+The repository is also a Codex plugin marketplace. Add it once, then install
+the Rel plugin:
+
+```sh
+codex plugin marketplace add gabriel/rel-tools
+codex plugin add rel@rel
+```
+
+Start a new Codex task after installation. The plugin configures the bundled
+`rel mcp` adapter and adds guidance for safe use of persistent browser sessions.
+Rel.app must be installed in `/Applications`.
 
 ## Use the Rust client
 

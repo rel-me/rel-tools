@@ -1,0 +1,20 @@
+{
+  "name": "rel",
+  "interface": {
+    "displayName": "Rel"
+  },
+  "plugins": [
+    {
+      "name": "rel",
+      "source": {
+        "source": "local",
+        "path": "./plugins/rel"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Engineering"
+    }
+  ]
+}
