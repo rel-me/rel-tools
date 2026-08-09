@@ -40,7 +40,7 @@ export default defineConfig({
           ],
         },
         {
-          label: "Agent access",
+          label: "API access",
           items: [
             { label: "MCP server", slug: "mcp" },
             { label: "RPC v1", slug: "rpc" },

@@ -8,21 +8,21 @@ Related documents: [CLI](CLI.md), [MCP](MCP.md), and [Rust SDK](SDK.md).
 ## Transport
 
 - Base URL: `http://127.0.0.1:17319/v1`
-- `REL_AGENT_PORT` overrides port `17319`.
+- `REL_API_PORT` overrides port `17319`.
 - HTTP/1.1, one request per connection, `Connection: close`.
 - JSON request limit: 16 MiB.
 - Ordinary responses use `application/json`.
 - Capture streams use `application/x-ndjson` and terminate at connection close.
-- The agent is loopback-only but currently has no client authentication.
+- The API service is loopback-only but currently has no client authentication.
 
 Every parsed request receives an opaque ID. Ordinary responses include it in the
 `X-Request-Id` header and body. Every capture-stream line includes the same ID.
 
 Closing a browser operation's HTTP connection before its response finishes
-cancels that operation. The agent also sends cancellation through its private
+cancels that operation. The API service also sends cancellation through its private
 Chromium bridge, so navigation, waits, and actions stop instead of continuing
 in the background. Cancellation is request-scoped: the persistent browser
-session, the REL app, and the resident agent remain running for other clients.
+session, the REL app, and the resident API service remain running for other clients.
 
 By default, a browser operation selects its target tab when REL is inactive, so
 the affected page is visible the next time the app is viewed. REL is not
@@ -93,7 +93,7 @@ repeat.
 | `10205` | `RATE_LIMITED` | yes | REL itself is rate limiting the caller |
 | `10300` | `UPSTREAM_UNAVAILABLE` | yes | Navigation received a target HTTP error or the browser/proxy received an invalid upstream result |
 | `10301` | `BROWSER_UNAVAILABLE` | yes | Required Chromium service is unavailable |
-| `10302` | `AGENT_UNHEALTHY` | yes | The serialized control worker missed its health deadline |
+| `10302` | `API_UNHEALTHY` | yes | The serialized control worker missed its health deadline |
 | `10303` | `TIMEOUT` | yes | REL's operation deadline expired |
 | `10304` | `PROXY_CONFIGURATION_FAILED` | no | Chromium could not apply the session proxy configuration |
 | `10305` | `BROWSER_CREATION_FAILED` | no | Chromium could not create the session browser |
@@ -113,8 +113,8 @@ navigation. The error details contain the final `url` and exact
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/v1/health` | Readiness of the agent control worker |
-| `GET` | `/v1/status` | App, agent, proxy, and Chromium diagnostic report |
+| `GET` | `/v1/health` | Readiness of the API service control worker |
+| `GET` | `/v1/status` | App, API service, proxy, and Chromium diagnostic report |
 | `POST` | `/v1/navigate` | Navigate and select the current shorthand page |
 | `POST` | `/v1/perform` | Perform actions on the current shorthand page |
 | `POST` | `/v1/capture` | Capture the current shorthand page |
@@ -170,7 +170,7 @@ HTTP 200 while the worker is ready or operating within its deadline:
 ```
 
 Worker state is `starting`, `idle`, or `busy`. A startup/operation deadline
-violation or failed worker returns `AGENT_UNHEALTHY`, with the worker
+violation or failed worker returns `API_UNHEALTHY`, with the worker
 snapshot in `error.details.worker`. Health deadlines diagnose stalls; they do not
 cancel the active request.
 
@@ -188,8 +188,8 @@ The diagnostic call succeeds with HTTP 200 even when a component is down:
     "total_count": 4,
     "checks": [
       {
-        "id": "agent",
-        "name": "Agent",
+        "id": "api",
+        "name": "API Service",
         "kind": "service",
         "running": true,
         "status": "running",
@@ -201,7 +201,7 @@ The diagnostic call succeeds with HTTP 200 even when a component is down:
 }
 ```
 
-Check IDs are `rel_app`, `agent`, `browser_proxy`, and `chromium_bridge`.
+Check IDs are `rel_app`, `api`, `browser_proxy`, and `chromium_bridge`.
 
 ## Captures
 
@@ -266,7 +266,7 @@ shorthand page.
 Without `session_id`, they use the most recently navigated shorthand page for
 compatibility. `perform` and singular `capture` return `ACTIVE_PAGE_NOT_FOUND`
 with `ACTIVE_PAGE_NOT_FOUND` until a matching page has been selected by
-navigation. This registry is process-local and is cleared by an agent restart
+navigation. This registry is process-local and is cleared by an API service restart
 or when its session closes. Concurrent work within one session should use
 explicit page IDs.
 
@@ -337,8 +337,8 @@ caller did not request a specific output URI.
 
 | Field | Contract |
 | --- | --- |
-| `url` | Required HTTP(S) URL; scheme-less input is normalized by the agent. |
-| `output` | Optional nonempty filesystem path or null; generated when absent. Relative input is resolved against the agent process directory. Responses always contain an absolute `output_path`. |
+| `url` | Required HTTP(S) URL; scheme-less input is normalized by the API service. |
+| `output` | Optional nonempty filesystem path or null; generated when absent. Relative input is resolved against the API service process directory. Responses always contain an absolute `output_path`. |
 | `timeout` | Finite seconds greater than zero; default 90. |
 | `wait` | Finite seconds at least zero; default 1. |
 | `actions` | Optional array of canonical action objects. |
@@ -433,7 +433,7 @@ normalized browser URL must equal the requested URL. Success data:
 }
 ```
 
-Page IDs are process-local and disappear when the agent restarts.
+Page IDs are process-local and disappear when the API service restarts.
 
 ### `POST /v1/pages/{page_id}/actions`
 

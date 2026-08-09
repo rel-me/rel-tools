@@ -29,14 +29,14 @@ println!("{}", status.data.overall_status);
 ```
 
 `RelClient::local()` connects to `http://127.0.0.1:17319/v1` and honors
-`REL_AGENT_PORT`. `RelClient::new(base_url)` accepts an explicit RPC v1 base
+`REL_API_PORT`. `RelClient::new(base_url)` accepts an explicit RPC v1 base
 URL. `with_request_timeout(Duration)` changes the ten-second timeout used by
 ordinary requests. Capture and page methods derive longer deadlines from their
 operation timeout, wait, retry count, and retry delay.
 
 The SDK is transport-only: it never launches the REL app, reads REL's SQLite
 database, or tails log files. The caller is responsible for ensuring that the
-installed app and agent are running. The bundled CLI adds app-launch behavior
+installed app and API service are running. The bundled CLI adds app-launch behavior
 for Chromium and mutation commands around this same client.
 
 SDK browser methods inherit the [RPC tab-selection behavior](RPC.md#transport):
@@ -87,7 +87,7 @@ validates `CaptureStream` before returning one aggregated MCP result.
 
 ## Shorthand page workflow
 
-The singular page methods can share the agent's process-local current page. Set
+The singular page methods can share the API service's process-local current page. Set
 the same `session_id` on each request to scope that page to one browser session:
 
 ```rust
@@ -147,7 +147,7 @@ selected.
 The first navigation without a session ID reuses the first persisted session,
 creating one only when none exists; later unscoped requests use the most recent
 shorthand page. Session-scoped shorthand pages let clients operate concurrently
-across sessions. The state is cleared when the agent restarts or the session
+across sessions. The state is cleared when the API service restarts or the session
 closes. Use explicit page methods for concurrent work within one session.
 
 ## Capture streaming
@@ -186,8 +186,8 @@ adapter maps these paths to `file:///` URIs; the Rust SDK preserves the native
 RPC path contract.
 
 Dropping `CaptureStream` before `capture.finished` closes its HTTP connection
-and cancels the matching agent and Chromium operation. The persistent session
-and resident agent remain available.
+and cancels the matching API-service operation and Chromium work. The persistent
+session and resident API service remain available.
 
 ## Canonical actions
 
@@ -241,7 +241,7 @@ update.
 
 ## Session creation defaults
 
-`SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
+`SessionCreateRequest::default()` serializes to `{}`, so the API service copies the
 Session defaults configured in the REL app. Use `Change::Set("alias".into())` to override the
 default proxy or `Change::Clear` to create a direct session:
 
@@ -277,7 +277,7 @@ SDK failures use one `ClientError` type:
 
 | Variant | Meaning |
 | --- | --- |
-| `Transport` | The agent could not be reached or the HTTP exchange failed. |
+| `Transport` | The API service could not be reached or the HTTP exchange failed. |
 | `Protocol` | Content type, request ID, envelope, or event shape violated RPC v1. |
 | `Rpc(RpcFailure)` | REL returned the standard structured RPC error envelope. |
 | `Io` | Reading a response or capture stream failed. |

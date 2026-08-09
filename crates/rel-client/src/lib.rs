@@ -12,7 +12,7 @@ use std::fmt;
 use std::io::{self, BufRead, BufReader, Lines, Read};
 use std::time::Duration;
 
-const DEFAULT_AGENT_PORT: u16 = 17_319;
+const DEFAULT_API_PORT: u16 = 17_319;
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Stable application error codes for Rel RPC v1.
@@ -44,7 +44,7 @@ pub mod rpc_error_codes {
 
     pub const UPSTREAM_UNAVAILABLE: u32 = 10_300;
     pub const BROWSER_UNAVAILABLE: u32 = 10_301;
-    pub const AGENT_UNHEALTHY: u32 = 10_302;
+    pub const API_UNHEALTHY: u32 = 10_302;
     pub const TIMEOUT: u32 = 10_303;
     pub const PROXY_CONFIGURATION_FAILED: u32 = 10_304;
     pub const BROWSER_CREATION_FAILED: u32 = 10_305;
@@ -72,7 +72,7 @@ pub mod rpc_error_codes {
             "RATE_LIMITED" => RATE_LIMITED,
             "UPSTREAM_UNAVAILABLE" => UPSTREAM_UNAVAILABLE,
             "BROWSER_UNAVAILABLE" => BROWSER_UNAVAILABLE,
-            "AGENT_UNHEALTHY" => AGENT_UNHEALTHY,
+            "API_UNHEALTHY" => API_UNHEALTHY,
             "TIMEOUT" => TIMEOUT,
             "PROXY_CONFIGURATION_FAILED" => PROXY_CONFIGURATION_FAILED,
             "BROWSER_CREATION_FAILED" => BROWSER_CREATION_FAILED,
@@ -98,11 +98,11 @@ pub struct RelClient {
 impl RelClient {
     /// Connect to the standard loopback Rel RPC v1 endpoint.
     pub fn local() -> Self {
-        let port = std::env::var("REL_AGENT_PORT")
+        let port = std::env::var("REL_API_PORT")
             .ok()
             .and_then(|value| value.parse::<u16>().ok())
             .filter(|port| *port > 0)
-            .unwrap_or(DEFAULT_AGENT_PORT);
+            .unwrap_or(DEFAULT_API_PORT);
         Self::new(format!("http://127.0.0.1:{port}/v1"))
     }
 
@@ -1254,7 +1254,7 @@ mod tests {
             rpc_error_codes::RATE_LIMITED,
             rpc_error_codes::UPSTREAM_UNAVAILABLE,
             rpc_error_codes::BROWSER_UNAVAILABLE,
-            rpc_error_codes::AGENT_UNHEALTHY,
+            rpc_error_codes::API_UNHEALTHY,
             rpc_error_codes::TIMEOUT,
             rpc_error_codes::PROXY_CONFIGURATION_FAILED,
             rpc_error_codes::BROWSER_CREATION_FAILED,
@@ -1477,7 +1477,7 @@ mod tests {
                 }),
                 ("GET", "/v1/status") => json!({
                     "overall_status":"ok", "running_count":1, "total_count":1,
-                    "checks":[{"id":"agent","name":"Agent","kind":"service","running":true,
+                    "checks":[{"id":"api","name":"API Service","kind":"service","running":true,
                         "status":"running","detail":"ready","pids":[123]}]
                 }),
                 ("POST", "/v1/navigate")

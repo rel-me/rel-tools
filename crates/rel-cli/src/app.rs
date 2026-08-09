@@ -5,28 +5,28 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-const DEFAULT_AGENT_PORT: u16 = 17319;
-const REL_AGENT_PORT_ENV: &str = "REL_AGENT_PORT";
+const DEFAULT_API_PORT: u16 = 17319;
+const REL_API_PORT_ENV: &str = "REL_API_PORT";
 
-pub(crate) fn ensure_agent_running() -> Result<(), String> {
-    let port = agent_port();
-    if agent_is_healthy(port) {
+pub(crate) fn ensure_api_service_running() -> Result<(), String> {
+    let port = api_service_port();
+    if api_service_is_healthy(port) {
         return Ok(());
     }
 
     launch_app()?;
-    wait_for_agent(port, Duration::from_secs(8))
+    wait_for_api_service(port, Duration::from_secs(8))
 }
 
-fn agent_port() -> u16 {
-    env::var(REL_AGENT_PORT_ENV)
+fn api_service_port() -> u16 {
+    env::var(REL_API_PORT_ENV)
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
         .filter(|port| *port != 0)
-        .unwrap_or(DEFAULT_AGENT_PORT)
+        .unwrap_or(DEFAULT_API_PORT)
 }
 
-fn agent_is_healthy(port: u16) -> bool {
+fn api_service_is_healthy(port: u16) -> bool {
     let response = ureq::get(&format!("http://127.0.0.1:{port}/v1/health"))
         .timeout(Duration::from_millis(300))
         .call();
@@ -39,16 +39,16 @@ fn agent_is_healthy(port: u16) -> bool {
         .unwrap_or(false)
 }
 
-fn wait_for_agent(port: u16, timeout: Duration) -> Result<(), String> {
+fn wait_for_api_service(port: u16, timeout: Duration) -> Result<(), String> {
     let started = Instant::now();
     while started.elapsed() < timeout {
-        if agent_is_healthy(port) {
+        if api_service_is_healthy(port) {
             return Ok(());
         }
         thread::sleep(Duration::from_millis(150));
     }
     Err(format!(
-        "Rel agent did not become ready on 127.0.0.1:{port}"
+        "Rel API service did not become ready on 127.0.0.1:{port}"
     ))
 }
 

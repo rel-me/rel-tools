@@ -45,7 +45,7 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
     }
 
     if command.starts_app() {
-        if let Err(error) = app::ensure_agent_running() {
+        if let Err(error) = app::ensure_api_service_running() {
             return print_cli_error(CliError::Message(error));
         }
     }
