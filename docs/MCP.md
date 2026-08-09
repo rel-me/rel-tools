@@ -84,7 +84,7 @@ Use the Rel MCP server. Call rel_status, then rel_list_sessions. Do not navigate
 ```
 
 Codex should discover the six tools listed below, and `rel_status` should report
-the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
+the installed app, local API service, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
 For an end-to-end browser test, use:
@@ -114,10 +114,10 @@ The server writes three JSON-RPC responses: initialization information, the
 tool list, and the status result. Protocol messages use standard output;
 diagnostics use standard error.
 
-`rel mcp` accepts no options. At startup it checks the local agent and launches
+`rel mcp` accepts no options. At startup it checks the local API service and launches
 Rel.app in the background once when needed. It then keeps serving its original
 stdin/stdout connection until the MCP client closes stdin or the process is
-terminated. `REL_AGENT_PORT` changes the loopback RPC port from its default,
+terminated. `REL_API_PORT` changes the loopback RPC port from its default,
 `17319`.
 
 Browser tool calls also use the [RPC tab-selection behavior](RPC.md#transport):
@@ -148,8 +148,8 @@ stdio messages. `notifications/cancelled` suppresses the cancelled MCP result.
 The current adapter keeps that tool's RPC connection open until its worker
 finishes, so the notification alone does not stop browser work. Closing the MCP
 client's stdin makes the adapter exit immediately. Process exit closes all
-outstanding RPC connections and cancels the matching agent and Chromium
-operations.
+outstanding RPC connections and cancels the matching API-service operation and
+Chromium work.
 
 ## Tools
 
@@ -157,7 +157,7 @@ The server exposes exactly six tools:
 
 | Tool | RPC operation | Purpose |
 | --- | --- | --- |
-| `rel_status` | `GET /v1/status` | Read app, agent, Browser Proxy, and Chromium status. |
+| `rel_status` | `GET /v1/status` | Read app, API service, Browser Proxy, and Chromium status. |
 | `rel_capture` | `POST /v1/captures` | Load a page, perform optional actions, and save its rendered HTML. |
 | `rel_page_attach` | `POST /v1/pages` | Attach an ephemeral automation page to a persistent browser session. |
 | `rel_page_action` | `POST /v1/pages/{page_id}/actions` | Perform one action on an attached page. |
@@ -191,7 +191,7 @@ local `file:///` URI.
 
 `page_id` and one canonical `action` object are required. Optional fields are
 `output_uri`, `timeout`, and `wait`. The attached page remains pinned to the URL,
-session, and proxy selected by `rel_page_attach`; page IDs expire when the agent
+session, and proxy selected by `rel_page_attach`; page IDs expire when the API service
 restarts. `output_uri`, when present, must be an absolute local `file:///` URI.
 
 ## Results and errors
@@ -253,7 +253,7 @@ them up to 15 seconds to continue before returning their target error.
 Malformed JSON-RPC messages, unsupported methods, and unknown tools use
 JSON-RPC errors. Invalid arguments or another failure while executing a known
 tool produce a tool result with `isError:true`, with the same complete error
-JSON in its text and `structuredContent`. When the agent returned a structured
+JSON in its text and `structuredContent`. When the API service returned a structured
 RPC error, that value preserves its high numeric code, stable error ID,
 retryability, message, and optional details. Clients should branch on the code
 or stable ID rather than parse the message.
@@ -261,8 +261,8 @@ or stable ID rather than parse the message.
 ## Runtime and trust boundary
 
 The MCP process is a transient adapter owned by the MCP client. It is separate
-from the app-supervised `rel --agent` process and from the private framed stdio
-bridge between that agent and Rel.app. There is no MCP HTTP route and no second
+from the app-supervised `rel --api` process and from the private framed stdio
+bridge between that API service and Rel.app. There is no MCP HTTP route and no second
 browser backend.
 
 The stdio connection is private to the launching MCP client, but forwarded RPC

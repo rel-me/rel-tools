@@ -5,7 +5,7 @@ versioned API exposed by Rel.app. It contains no browser runtime, session
 storage, proxy credentials, or proprietary app implementation.
 
 Rel.app must be installed in `/Applications`. The CLI starts it when a command
-requires the local agent.
+requires the local API service.
 
 ```sh
 cargo install --git https://github.com/gabriel/rel-tools --package rel-cli

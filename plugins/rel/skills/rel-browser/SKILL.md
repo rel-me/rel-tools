@@ -32,7 +32,7 @@ the MCP adapter only forwards supported calls through the local versioned API.
   website. State what changed, especially for submissions, purchases, deletes,
   or other consequential actions.
 - Use absolute local `file:///` URIs for `output_uri`.
-- Keep page IDs within the current MCP process; they expire when the Rel agent
+- Keep page IDs within the current MCP process; they expire when the Rel API service
   restarts.
 - Do not read Rel's SQLite database, logs, Chromium storage, or proxy secrets.
 - Do not launch a second Chrome or substitute another browser backend when Rel
@@ -40,7 +40,7 @@ the MCP adapter only forwards supported calls through the local versioned API.
 
 ## Tools
 
-- `rel_status`: inspect app, agent, Browser Proxy, and Chromium readiness.
+- `rel_status`: inspect app, API service, Browser Proxy, and Chromium readiness.
 - `rel_list_sessions`: list persistent sessions and canonical IDs.
 - `rel_list_proxies`: list proxy aliases and non-secret configuration.
 - `rel_capture`: load a URL, optionally act, and save rendered HTML.

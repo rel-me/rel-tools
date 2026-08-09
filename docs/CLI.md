@@ -48,14 +48,14 @@ rel --help | -h
 rel --version
 ```
 
-`rel --agent` exists only in the proprietary binary bundled with Rel.app. It is
+`rel --api` exists only in the proprietary binary bundled with Rel.app. It is
 not part of the public `rel-cli` package.
 
-`health` and `status` inspect the currently running agent without launching the
+`health` and `status` inspect the currently running API service without launching the
 app. Every other command, including `mcp`, proxy reads, and session reads,
-starts Rel.app in the background when its agent is unavailable. `rel mcp`
+starts Rel.app in the background when its API service is unavailable. `rel mcp`
 performs that startup check once, then serves its original stdio connection.
-`REL_AGENT_PORT` overrides the default local port, `17319`.
+`REL_API_PORT` overrides the default local port, `17319`.
 
 When a browser command targets a tab while Rel is in the background, Rel selects
 that tab by default without activating the app. Turn off **Rel → Settings… →
@@ -150,8 +150,8 @@ rel https://example.com > example.html 2> capture.ndjson
 
 The CLI verifies response content types and request IDs through `rel-client`.
 Pressing Ctrl-C terminates the foreground CLI and closes its RPC connection.
-If a browser operation is still active, the resident agent cancels the matching
-Chromium work; Rel.app, the agent, and the persistent browser session remain
+If a browser operation is still active, the resident API service cancels the matching
+Chromium work; Rel.app, the API service, and the persistent browser session remain
 available for later commands.
 
 `rel mcp` is a protocol process rather than an ordinary one-shot command. Its
@@ -201,10 +201,10 @@ rel health
 rel status
 ```
 
-`health` calls `GET /v1/health` and reports agent worker readiness. `status`
-calls `GET /v1/status` and reports the app, agent, Browser Proxy, and Chromium
+`health` calls `GET /v1/health` and reports API service worker readiness. `status`
+calls `GET /v1/status` and reports the app, API service, Browser Proxy, and Chromium
 bridge checks. Neither command synthesizes a local process report when the
-agent is unavailable.
+API service is unavailable.
 
 ## Shorthand page workflow
 
@@ -246,10 +246,10 @@ options such as `--action`, `--proxy`, or `--retry`. It also accepts
 `--session-id`.
 
 For `navigate`, `perform`, and argument-free `capture`, `--session-id` defaults
-to `REL_SESSION_ID` when set. The agent keeps a distinct current shorthand page
+to `REL_SESSION_ID` when set. The API service keeps a distinct current shorthand page
 for each session, so embedded terminals can use these commands concurrently.
 An explicit option always wins. The shorthand registry is process-local and a
-session's entry disappears when the agent restarts or that session closes.
+session's entry disappears when the API service restarts or that session closes.
 Concurrent work within the same session should use `page attach` and
 `page action` with explicit page IDs.
 
@@ -357,7 +357,7 @@ rel page action page_... \
 
 `page action` requires exactly one `--action` and also accepts `--output`,
 `--timeout`, and `--wait`. The page remains pinned to the session, URL, and
-proxy selected by `page attach`. Page IDs disappear when the agent restarts.
+proxy selected by `page attach`. Page IDs disappear when the API service restarts.
 
 ## Proxies
 

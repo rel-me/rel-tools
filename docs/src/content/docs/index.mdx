@@ -20,7 +20,7 @@ The bundled `rel` CLI is the quickest way to capture a rendered page and the bes
 rel capture https://example.com --output ./example.html
 ```
 
-Rel keeps Chromium inside the installed macOS app. The CLI asks the local agent to use that browser, waits for the rendered result, and writes the HTML to disk.
+Rel keeps Chromium inside the installed macOS app. The CLI asks the local API service to use that browser, waits for the rendered result, and writes the HTML to disk.
 
 [Read the CLI guide →](/cli/)
 
@@ -46,4 +46,4 @@ Rel keeps Chromium inside the installed macOS app. The CLI asks the local agent 
 
 ## Supported runtime
 
-Rel has one supported path: the installed `/Applications/Rel.app` owns Chromium and supervises its bundled local agent. CLI, SDK, and MCP adapter calls connect to that agent; the agent routes browser work back into the visible app.
+Rel has one supported path: the installed `/Applications/Rel.app` owns Chromium and supervises its bundled local API service. CLI, SDK, and MCP adapter calls connect to that API service; the API service routes browser work back into the visible app.

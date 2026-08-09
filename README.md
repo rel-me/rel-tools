@@ -5,7 +5,7 @@ Open-source command-line, MCP, and Rust clients for
 
 Rel is not an open-source product. This repository intentionally contains only
 clients and documentation for integrating with the proprietary macOS app. It
-does not contain Rel.app, the local agent implementation, Chromium integration,
+does not contain Rel.app, the local API service implementation, Chromium integration,
 session storage, proxy credentials, or internal service code.
 
 ## What is here

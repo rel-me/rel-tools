@@ -502,7 +502,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_status",
             "Rel Status",
-            "Inspect the installed Rel app, local agent, browser proxy, and Chromium bridge.",
+            "Inspect the installed Rel app, local API service, browser proxy, and Chromium bridge.",
             empty_object_schema(),
             read_annotations(),
         ),
