@@ -93,20 +93,20 @@ Use rel_take_screenshot to take a full-page WebP screenshot and describe the ima
 
 ### Direct protocol smoke test
 
-An MCP host is not required to verify the adapter. This legacy handshake lists
-the tools and calls the read-only status tool over the STDIO transport:
+An MCP host is not required to verify the adapter. This current protocol flow
+discovers the server, lists the tools, and calls the read-only status tool over
+the STDIO transport:
 
 ```sh
 printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"rel-smoke-test","version":"1"}}}' \
-  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
-  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rel_status","arguments":{}}}' \
+  '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}' \
+  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"rel_status","arguments":{}}}' \
   | /Applications/Rel.app/Contents/Resources/rel mcp
 ```
 
-The server writes three JSON-RPC responses: initialization information, the
-tool list, and the status result. Protocol messages use standard output;
+The server writes three JSON-RPC responses: discovery information, the tool
+list, and the status result. Protocol messages use standard output;
 diagnostics use standard error.
 
 `rel mcp` accepts no options. At startup it checks the local API service and launches
@@ -126,14 +126,11 @@ is one UTF-8 JSON-RPC 2.0 object on one physical line. Standard output is
 reserved for protocol messages; diagnostics go to standard error. Notifications
 do not receive responses.
 
-REL supports both MCP protocol eras used by current clients:
+REL supports MCP revision `2026-07-28`. The client calls `server/discover`, and
+every request carries the revision and client capabilities in per-request MCP
+metadata. Older initialize/initialized flows are not supported.
 
-| Protocol revision | Connection flow |
-| --- | --- |
-| `2026-07-28` | The client calls `server/discover`; subsequent requests carry the current per-request MCP metadata. |
-| `2024-11-05`, `2025-03-26`, `2025-06-18`, or `2025-11-25` | The client sends `initialize`, receives the selected legacy revision, then sends `notifications/initialized`. |
-
-Discovery and initialization advertise only the `tools` capability. REL does
+Discovery advertises only the `tools` capability. REL does
 not expose MCP resources or prompts, and its fixed tool list does not emit
 list-changed notifications. `ping`, `tools/list`, and `tools/call` are available
 after the client's protocol flow is established.

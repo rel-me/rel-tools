@@ -15,8 +15,6 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 const CURRENT_PROTOCOL_VERSION: &str = "2026-07-28";
-const LATEST_LEGACY_PROTOCOL_VERSION: &str = "2025-11-25";
-const LEGACY_PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const MAX_MCP_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
 const TOOL_LIST_TTL_MS: u64 = 3_600_000;
 
@@ -32,7 +30,7 @@ fn serve<R: BufRead, W: Write + Send + 'static>(
     client: RelClient,
     server_version: &str,
 ) -> Result<(), String> {
-    let mut state = ServerState::new(server_version);
+    let server_version = server_version.to_string();
     let writer = Arc::new(Mutex::new(writer));
     let active_requests = Arc::new(Mutex::new(HashMap::new()));
     let mut workers = Vec::new();
@@ -82,10 +80,10 @@ fn serve<R: BufRead, W: Write + Send + 'static>(
                 continue;
             }
         };
-        match handle_message(&mut state, &active_requests, message) {
+        match handle_message(&server_version, &active_requests, message) {
             MessageAction::Notification => {}
             MessageAction::Response(response) => write_message(&writer, &response)?,
-            MessageAction::ToolCall { id, params, era } => {
+            MessageAction::ToolCall { id, params } => {
                 let key = request_id_key(&id).expect("validated request ID has a key");
                 let cancellation = Arc::new(AtomicBool::new(false));
                 {
@@ -106,17 +104,13 @@ fn serve<R: BufRead, W: Write + Send + 'static>(
                 let worker_active_requests = active_requests.clone();
                 let worker_client = client.clone();
                 let worker_cancellation = cancellation.clone();
-                let worker_server_version = state.server_version.clone();
+                let worker_server_version = server_version.clone();
                 let handle = thread::spawn(move || {
-                    let result = match handle_tool_call(
-                        &worker_client,
-                        &params,
-                        era,
-                        &worker_server_version,
-                    ) {
-                        Ok(result) => rpc_result(id.clone(), result),
-                        Err(error) => with_rpc_id(id, error),
-                    };
+                    let result =
+                        match handle_tool_call(&worker_client, &params, &worker_server_version) {
+                            Ok(result) => rpc_result(id.clone(), result),
+                            Err(error) => with_rpc_id(id, error),
+                        };
                     if !cancellation.load(Ordering::Acquire) {
                         if let Err(error) = write_message(&worker_writer, &result) {
                             eprintln!("rel MCP response failed: {error}");
@@ -213,40 +207,16 @@ fn write_message<W: Write>(writer: &Arc<Mutex<W>>, message: &Value) -> Result<()
         .map_err(|error| format!("Could not write MCP stdout: {error}"))
 }
 
-struct ServerState {
-    legacy_protocol_version: Option<String>,
-    server_version: String,
-}
-
-impl ServerState {
-    fn new(server_version: &str) -> Self {
-        Self {
-            legacy_protocol_version: None,
-            server_version: server_version.to_string(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum ProtocolEra {
-    Legacy,
-    Modern,
-}
-
 type ActiveRequests = Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>;
 
 enum MessageAction {
     Notification,
     Response(Value),
-    ToolCall {
-        id: Value,
-        params: Value,
-        era: ProtocolEra,
-    },
+    ToolCall { id: Value, params: Value },
 }
 
 fn handle_message(
-    state: &mut ServerState,
+    server_version: &str,
     active_requests: &ActiveRequests,
     message: Value,
 ) -> MessageAction {
@@ -280,36 +250,33 @@ fn handle_message(
         return MessageAction::Notification;
     }
 
-    if method == "initialize" {
-        return MessageAction::Response(handle_legacy_initialize(state, response_id, &params));
+    if !matches!(
+        method,
+        "server/discover" | "ping" | "tools/list" | "tools/call"
+    ) {
+        return MessageAction::Response(rpc_error(
+            response_id,
+            -32601,
+            "Method not found",
+            Some(json!({"method": method})),
+        ));
     }
 
-    let era = match request_era(state, &params) {
-        Ok(era) => era,
-        Err(error) => return MessageAction::Response(with_rpc_id(response_id, error)),
-    };
+    if let Err(error) = validate_request_metadata(&params) {
+        return MessageAction::Response(with_rpc_id(response_id, error));
+    }
 
     let result = match method {
-        "server/discover" if era == ProtocolEra::Modern => {
-            modern_discover_result(&state.server_version)
-        }
+        "server/discover" => discover_result(server_version),
         "ping" => json!({}),
-        "tools/list" => tools_list_result(era, &state.server_version),
+        "tools/list" => tools_list_result(server_version),
         "tools/call" => {
             return MessageAction::ToolCall {
                 id: response_id,
                 params,
-                era,
             }
         }
-        _ => {
-            return MessageAction::Response(rpc_error(
-                response_id,
-                -32601,
-                "Method not found",
-                Some(json!({"method": method})),
-            ))
-        }
+        _ => unreachable!("method was validated"),
     };
     MessageAction::Response(rpc_result(response_id, result))
 }
@@ -342,97 +309,59 @@ fn handle_notification(method: &str, params: &Value, active_requests: &ActiveReq
     }
 }
 
-fn request_era(state: &ServerState, params: &Value) -> Result<ProtocolEra, Value> {
-    let metadata = params.get("_meta").and_then(Value::as_object);
-    if let Some(metadata) = metadata {
-        if metadata.contains_key("io.modelcontextprotocol/protocolVersion") {
-            let version = metadata
-                .get("io.modelcontextprotocol/protocolVersion")
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    rpc_error_without_id(
-                        -32602,
-                        "io.modelcontextprotocol/protocolVersion must be a string",
-                        None,
-                    )
-                })?;
-            if metadata
-                .get("io.modelcontextprotocol/clientCapabilities")
-                .and_then(Value::as_object)
-                .is_none()
-            {
-                return Err(rpc_error_without_id(
-                    -32602,
-                    "io.modelcontextprotocol/clientCapabilities must be an object",
-                    None,
-                ));
-            }
-            if metadata
-                .get("io.modelcontextprotocol/clientInfo")
-                .is_some_and(|client_info| !valid_implementation(client_info))
-            {
-                return Err(rpc_error_without_id(
-                    -32602,
-                    "io.modelcontextprotocol/clientInfo must contain string name and version fields",
-                    None,
-                ));
-            }
-            if version != CURRENT_PROTOCOL_VERSION {
-                return Err(rpc_error_without_id(
-                    -32022,
-                    "Unsupported protocol version",
-                    Some(json!({
-                        "supported": supported_protocol_versions(),
-                        "requested": version
-                    })),
-                ));
-            }
-            return Ok(ProtocolEra::Modern);
-        }
-    }
-    if state.legacy_protocol_version.is_some() {
-        Ok(ProtocolEra::Legacy)
-    } else {
-        Err(rpc_error_without_id(
-            -32602,
-            "Missing MCP request metadata; modern clients must send protocolVersion and clientCapabilities, while legacy clients must initialize first",
-            Some(json!({"supported": supported_protocol_versions()})),
-        ))
-    }
-}
-
-fn handle_legacy_initialize(state: &mut ServerState, id: Value, params: &Value) -> Value {
-    let Some(requested) = params.get("protocolVersion").and_then(Value::as_str) else {
-        return rpc_error(id, -32602, "protocolVersion is required", None);
-    };
-    if params
-        .get("capabilities")
+fn validate_request_metadata(params: &Value) -> Result<(), Value> {
+    let metadata = params
+        .get("_meta")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            rpc_error_without_id(
+                -32602,
+                "Missing MCP request metadata; requests must send protocolVersion and clientCapabilities",
+                Some(json!({"supported": supported_protocol_versions()})),
+            )
+        })?;
+    let version = metadata
+        .get("io.modelcontextprotocol/protocolVersion")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            rpc_error_without_id(
+                -32602,
+                "io.modelcontextprotocol/protocolVersion must be a string",
+                None,
+            )
+        })?;
+    if metadata
+        .get("io.modelcontextprotocol/clientCapabilities")
         .and_then(Value::as_object)
         .is_none()
-        || !params.get("clientInfo").is_some_and(valid_implementation)
     {
-        return rpc_error(
-            id,
+        return Err(rpc_error_without_id(
             -32602,
-            "capabilities must be an object and clientInfo must contain string name and version fields",
+            "io.modelcontextprotocol/clientCapabilities must be an object",
             None,
-        );
+        ));
     }
-    let selected = if LEGACY_PROTOCOL_VERSIONS.contains(&requested) {
-        requested
-    } else {
-        LATEST_LEGACY_PROTOCOL_VERSION
-    };
-    state.legacy_protocol_version = Some(selected.to_string());
-    rpc_result(
-        id,
-        json!({
-            "protocolVersion": selected,
-            "capabilities": {"tools": {"listChanged": false}},
-            "serverInfo": server_info(&state.server_version),
-            "instructions": server_instructions()
-        }),
-    )
+    if metadata
+        .get("io.modelcontextprotocol/clientInfo")
+        .is_some_and(|client_info| !valid_implementation(client_info))
+    {
+        return Err(rpc_error_without_id(
+            -32602,
+            "io.modelcontextprotocol/clientInfo must contain string name and version fields",
+            None,
+        ));
+    }
+    if version != CURRENT_PROTOCOL_VERSION {
+        return Err(rpc_error_without_id(
+            -32022,
+            "Unsupported protocol version",
+            Some(json!({
+                "supported": supported_protocol_versions(),
+                "requested": version
+            })),
+        ));
+    }
+    Ok(())
 }
 
 fn valid_implementation(value: &Value) -> bool {
@@ -446,10 +375,8 @@ fn valid_implementation(value: &Value) -> bool {
             .is_some()
 }
 
-fn supported_protocol_versions() -> Vec<&'static str> {
-    std::iter::once(CURRENT_PROTOCOL_VERSION)
-        .chain(LEGACY_PROTOCOL_VERSIONS.iter().copied())
-        .collect()
+fn supported_protocol_versions() -> [&'static str; 1] {
+    [CURRENT_PROTOCOL_VERSION]
 }
 
 fn server_info(server_version: &str) -> Value {
@@ -470,7 +397,7 @@ fn server_instructions() -> &'static str {
     "Use Rel to capture rendered pages, attach an ephemeral page for follow-up actions, and take visual screenshots. Reuse returned page and session IDs explicitly; all browser work runs through the installed Rel app."
 }
 
-fn modern_discover_result(server_version: &str) -> Value {
+fn discover_result(server_version: &str) -> Value {
     json!({
         "resultType": "complete",
         "supportedVersions": supported_protocol_versions(),
@@ -482,21 +409,19 @@ fn modern_discover_result(server_version: &str) -> Value {
     })
 }
 
-fn tools_list_result(era: ProtocolEra, server_version: &str) -> Value {
+fn tools_list_result(server_version: &str) -> Value {
     let mut result = json!({"tools": tool_definitions()});
-    if era == ProtocolEra::Modern {
-        let object = result.as_object_mut().expect("tools result is an object");
-        object.insert(
-            "resultType".to_string(),
-            Value::String("complete".to_string()),
-        );
-        object.insert("ttlMs".to_string(), Value::from(TOOL_LIST_TTL_MS));
-        object.insert(
-            "cacheScope".to_string(),
-            Value::String("public".to_string()),
-        );
-        object.insert("_meta".to_string(), response_metadata(server_version));
-    }
+    let object = result.as_object_mut().expect("tools result is an object");
+    object.insert(
+        "resultType".to_string(),
+        Value::String("complete".to_string()),
+    );
+    object.insert("ttlMs".to_string(), Value::from(TOOL_LIST_TTL_MS));
+    object.insert(
+        "cacheScope".to_string(),
+        Value::String("public".to_string()),
+    );
+    object.insert("_meta".to_string(), response_metadata(server_version));
     result
 }
 
@@ -721,7 +646,6 @@ fn screenshot_schema() -> Value {
 fn handle_tool_call(
     client: &RelClient,
     params: &Value,
-    era: ProtocolEra,
     server_version: &str,
 ) -> Result<Value, Value> {
     let Some(name) = params.get("name").and_then(Value::as_str) else {
@@ -800,7 +724,6 @@ fn handle_tool_call(
                     Vec::new(),
                     Vec::new(),
                     true,
-                    era,
                     server_version,
                 ));
             }
@@ -818,7 +741,6 @@ fn handle_tool_call(
         additional_content,
         resource_links,
         is_error,
-        era,
         server_version,
     ))
 }
@@ -1067,7 +989,6 @@ fn tool_result(
     additional_content: Vec<Value>,
     resource_links: Vec<Value>,
     is_error: bool,
-    era: ProtocolEra,
     server_version: &str,
 ) -> Value {
     let text = serde_json::to_string_pretty(&structured)
@@ -1080,14 +1001,12 @@ fn tool_result(
         "structuredContent": structured,
         "isError": is_error
     });
-    if era == ProtocolEra::Modern {
-        let object = result.as_object_mut().expect("tool result is an object");
-        object.insert(
-            "resultType".to_string(),
-            Value::String("complete".to_string()),
-        );
-        object.insert("_meta".to_string(), response_metadata(server_version));
-    }
+    let object = result.as_object_mut().expect("tool result is an object");
+    object.insert(
+        "resultType".to_string(),
+        Value::String("complete".to_string()),
+    );
+    object.insert("_meta".to_string(), response_metadata(server_version));
     result
 }
 
@@ -1427,7 +1346,7 @@ mod tests {
     }
 
     #[test]
-    fn serves_legacy_initialize_ping_and_silent_notifications() {
+    fn rejects_removed_initialization_and_ignores_unknown_notifications() {
         let output = run_messages(&[
             json!({
                 "jsonrpc": "2.0",
@@ -1440,18 +1359,18 @@ mod tests {
                 }
             }),
             json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
-            json!({"jsonrpc": "2.0", "id": 2, "method": "ping"}),
-            json!({"jsonrpc": "2.0", "id": 3, "method": "tools/list"}),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "ping",
+                "params": {"_meta": modern_metadata()}
+            }),
         ]);
 
-        assert_eq!(output.len(), 3);
-        assert_eq!(output[0]["result"]["protocolVersion"], "2025-11-25");
-        assert_eq!(
-            output[0]["result"]["serverInfo"]["version"],
-            TEST_SERVER_VERSION
-        );
+        assert_eq!(output.len(), 2);
+        assert_eq!(output[0]["error"]["code"], -32601);
+        assert_eq!(output[0]["error"]["data"]["method"], "initialize");
         assert_eq!(output[1], json!({"jsonrpc": "2.0", "id": 2, "result": {}}));
-        assert!(output[2]["result"].get("resultType").is_none());
     }
 
     #[test]
@@ -1501,7 +1420,7 @@ mod tests {
                 "clientInfo": {}
             }
         })]);
-        assert_eq!(output[0]["error"]["code"], -32602);
+        assert_eq!(output[0]["error"]["code"], -32601);
     }
 
     #[test]
@@ -1727,34 +1646,23 @@ mod tests {
     #[test]
     fn output_uri_requires_an_absolute_file_uri() {
         for output_uri in ["https://example.com/result.html", "file:result.html"] {
-            let output = run_messages(&[
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": "2025-11-25",
-                        "capabilities": {},
-                        "clientInfo": {"name": "test", "version": "1"}
+            let output = run_messages(&[json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "_meta": modern_metadata(),
+                    "name": "rel_capture",
+                    "arguments": {
+                        "url": "https://example.com",
+                        "output_uri": output_uri
                     }
-                }),
-                json!({
-                    "jsonrpc": "2.0",
-                    "id": 2,
-                    "method": "tools/call",
-                    "params": {
-                        "name": "rel_capture",
-                        "arguments": {
-                            "url": "https://example.com",
-                            "output_uri": output_uri
-                        }
-                    }
-                }),
-            ]);
+                }
+            })]);
 
-            assert_eq!(output[1]["result"]["isError"], true);
+            assert_eq!(output[0]["result"]["isError"], true);
             assert_eq!(
-                output[1]["result"]["structuredContent"]["error"]["id"],
+                output[0]["result"]["structuredContent"]["error"]["id"],
                 "INVALID_OUTPUT_URI"
             );
         }
@@ -1762,31 +1670,20 @@ mod tests {
 
     #[test]
     fn bad_tool_arguments_are_actionable_tool_errors() {
-        let output = run_messages(&[
-            json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2025-11-25",
-                    "capabilities": {},
-                    "clientInfo": {"name": "test", "version": "1"}
-                }
-            }),
-            json!({
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "tools/call",
-                "params": {
-                    "name": "rel_capture",
-                    "arguments": {"url": "https://example.com", "unexpected": true}
-                }
-            }),
-        ]);
+        let output = run_messages(&[json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "_meta": modern_metadata(),
+                "name": "rel_capture",
+                "arguments": {"url": "https://example.com", "unexpected": true}
+            }
+        })]);
 
-        assert_eq!(output[1]["result"]["isError"], true);
+        assert_eq!(output[0]["result"]["isError"], true);
         assert_eq!(
-            output[1]["result"]["structuredContent"]["error"]["id"],
+            output[0]["result"]["structuredContent"]["error"]["id"],
             "INVALID_ARGUMENTS"
         );
     }
@@ -1812,21 +1709,20 @@ mod tests {
             &[
                 json!({
                     "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "initialize",
+                    "id": "slow",
+                    "method": "tools/call",
                     "params": {
-                        "protocolVersion": "2025-11-25",
-                        "capabilities": {},
-                        "clientInfo": {"name": "test", "version": "1"}
+                        "_meta": modern_metadata(),
+                        "name": "rel_status",
+                        "arguments": {}
                     }
                 }),
                 json!({
                     "jsonrpc": "2.0",
-                    "id": "slow",
-                    "method": "tools/call",
-                    "params": {"name": "rel_status", "arguments": {}}
+                    "id": "ping",
+                    "method": "ping",
+                    "params": {"_meta": modern_metadata()}
                 }),
-                json!({"jsonrpc": "2.0", "id": "ping", "method": "ping"}),
                 json!({
                     "jsonrpc": "2.0",
                     "method": "notifications/cancelled",
@@ -1837,10 +1733,9 @@ mod tests {
         );
         server.join().unwrap();
 
-        assert_eq!(output.len(), 2);
-        assert_eq!(output[0]["id"], 1);
-        assert_eq!(output[1]["id"], "ping");
-        assert_eq!(output[1]["result"], json!({}));
+        assert_eq!(output.len(), 1);
+        assert_eq!(output[0]["id"], "ping");
+        assert_eq!(output[0]["result"], json!({}));
         assert!(output.iter().all(|response| response["id"] != "slow"));
     }
 
@@ -1861,24 +1756,16 @@ mod tests {
             http_response("application/json", "req_slow_status", &body),
             Duration::from_millis(500),
         );
-        let input = [
-            json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2025-11-25",
-                    "capabilities": {},
-                    "clientInfo": {"name": "test", "version": "1"}
-                }
-            }),
-            json!({
-                "jsonrpc": "2.0",
-                "id": "slow",
-                "method": "tools/call",
-                "params": {"name": "rel_status", "arguments": {}}
-            }),
-        ]
+        let input = [json!({
+            "jsonrpc": "2.0",
+            "id": "slow",
+            "method": "tools/call",
+            "params": {
+                "_meta": modern_metadata(),
+                "name": "rel_status",
+                "arguments": {}
+            }
+        })]
         .iter()
         .map(Value::to_string)
         .collect::<Vec<_>>()

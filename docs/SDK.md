@@ -295,5 +295,5 @@ against the envelope or every NDJSON event.
 
 ## Stability
 
-The SDK targets RPC v1 only. Removing legacy CLI syntax does not change this
-wire contract. SDK versions are distributed alongside compatible REL releases.
+The SDK targets the single current RPC v1 wire contract. SDK versions are
+distributed alongside compatible REL releases.

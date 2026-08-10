@@ -412,12 +412,12 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "page" => parse_page(args),
         "proxy" => parse_proxy(args),
         "session" | "tab" => parse_session(args),
-        legacy
-            if matches!(legacy, "ping" | "logs")
-                || legacy.starts_with("--rotate-proxy-session") =>
+        removed
+            if matches!(removed, "ping" | "logs")
+                || removed.starts_with("--rotate-proxy-session") =>
         {
             Err(CliError::Message(format!(
-                "unsupported legacy command {legacy:?}; run `rel --help` for the RPC v1 CLI"
+                "unsupported command {removed:?}; run `rel --help` for the RPC v1 CLI"
             )))
         }
         option if option.starts_with('-') => Err(CliError::Message(format!(
