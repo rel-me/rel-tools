@@ -98,16 +98,20 @@ discovers the server, lists the tools, and calls the read-only status tool over
 the STDIO transport:
 
 ```sh
-printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}' \
-  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"rel_status","arguments":{}}}' \
-  | /Applications/Rel.app/Contents/Resources/rel mcp
+{
+  printf '%s\n' \
+    '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}' \
+    '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}' \
+    '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"rel-smoke-test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}},"name":"rel_status","arguments":{}}}'
+  sleep 1
+} | /Applications/Rel.app/Contents/Resources/rel mcp
 ```
 
 The server writes three JSON-RPC responses: discovery information, the tool
 list, and the status result. Protocol messages use standard output;
-diagnostics use standard error.
+diagnostics use standard error. The brief delay keeps stdin open for the
+asynchronous status response; an MCP host naturally keeps the subprocess pipe
+open for its whole session.
 
 `rel mcp` accepts no options. At startup it checks the local API service and launches
 the REL app in the background once when needed. It then keeps serving its
