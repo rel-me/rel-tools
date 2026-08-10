@@ -1,7 +1,7 @@
 use rel_client::{
     self as client, Action, CaptureEvent, CaptureRequest, Change, ImageBlockingMode,
     NavigateRequest, PageActionRequest, PageAttachRequest, PageCaptureRequest, PerformRequest,
-    ProxyCreateRequest, ProxyUpdateRequest, RelClient, SessionCreateRequest, SessionUpdateRequest,
+    ProxyCreateRequest, ProxyUpdateRequest, RELClient, SessionCreateRequest, SessionUpdateRequest,
 };
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -50,7 +50,7 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
         }
     }
 
-    match run_command(RelClient::local(), command, product_version) {
+    match run_command(RELClient::local(), command, product_version) {
         Ok(exit_code) => exit_code,
         Err(error) => print_cli_error(error),
     }
@@ -73,7 +73,7 @@ fn print_cli_error(error: CliError) -> i32 {
 }
 
 fn run_command(
-    client: RelClient,
+    client: RELClient,
     command: CliCommand,
     product_version: &str,
 ) -> Result<i32, CliError> {

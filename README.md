@@ -64,9 +64,9 @@ rel-client = { git = "https://github.com/gabriel/rel-tools", tag = "v0.1.1" }
 ```
 
 ```rust,no_run
-use rel_client::RelClient;
+use rel_client::RELClient;
 
-let client = RelClient::local();
+let client = RELClient::local();
 let status = client.status()?;
 println!("{}", status.data.overall_status);
 # Ok::<(), rel_client::ClientError>(())

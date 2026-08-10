@@ -20,16 +20,16 @@ rel-client = { git = "https://github.com/gabriel/rel-tools", tag = "v0.1.1" }
 ```
 
 ```rust
-use rel_client::RelClient;
+use rel_client::RELClient;
 
-let client = RelClient::local();
+let client = RELClient::local();
 let status = client.status()?;
 println!("{}", status.data.overall_status);
 # Ok::<(), rel_client::ClientError>(())
 ```
 
-`RelClient::local()` connects to `http://127.0.0.1:17319/v1` and honors
-`REL_AGENT_PORT`. `RelClient::new(base_url)` accepts an explicit RPC v1 base
+`RELClient::local()` connects to `http://127.0.0.1:17319/v1` and honors
+`REL_AGENT_PORT`. `RELClient::new(base_url)` accepts an explicit RPC v1 base
 URL. `with_request_timeout(Duration)` changes the ten-second timeout used by
 ordinary requests. Capture and page methods derive longer deadlines from their
 operation timeout, wait, retry count, and retry delay.
@@ -90,10 +90,10 @@ the same `session_id` on each request to scope that page to one browser session:
 
 ```rust
 use rel_client::{
-    Action, NavigateRequest, PageCaptureRequest, PerformRequest, RelClient,
+    Action, NavigateRequest, PageCaptureRequest, PerformRequest, RELClient,
 };
 
-let client = RelClient::local();
+let client = RELClient::local();
 let session_id = "Session1".to_string();
 let mut navigate = NavigateRequest::new("https://example.com");
 navigate.session_id = Some(session_id.clone());
@@ -136,9 +136,9 @@ closes. Use explicit page methods for concurrent work within one session.
 `Result<CaptureEvent, ClientError>` values:
 
 ```rust
-use rel_client::{Action, CaptureRequest, RelClient};
+use rel_client::{Action, CaptureRequest, RELClient};
 
-let client = RelClient::local();
+let client = RELClient::local();
 let mut request = CaptureRequest::new("https://example.com");
 request.output = Some("/tmp/example.html".into());
 request.actions.push(Action::Wait { seconds: 0.5 });
@@ -200,14 +200,14 @@ JSON `null`. Those fields are proxy username, password, and Oxylabs location,
 plus the `proxy_alias` for a session or Session defaults.
 
 ```rust
-use rel_client::{Change, RelClient, SessionUpdateRequest};
+use rel_client::{Change, RELClient, SessionUpdateRequest};
 
 let request = SessionUpdateRequest {
     name: Some("Research".into()),
     proxy_alias: Change::Clear,
     ..SessionUpdateRequest::default()
 };
-RelClient::local().update_session("Session12", &request)?;
+RELClient::local().update_session("Session12", &request)?;
 # Ok::<(), rel_client::ClientError>(())
 ```
 
@@ -226,13 +226,13 @@ Session defaults configured in REL app. Use `Change::Set("alias".into())` to ove
 default proxy or `Change::Clear` to create a direct session:
 
 ```rust
-use rel_client::{Change, RelClient, SessionCreateRequest};
+use rel_client::{Change, RELClient, SessionCreateRequest};
 
 let request = SessionCreateRequest {
     proxy_alias: Change::Clear,
     ..SessionCreateRequest::default()
 };
-RelClient::local().create_session(&request)?;
+RELClient::local().create_session(&request)?;
 # Ok::<(), rel_client::ClientError>(())
 ```
 

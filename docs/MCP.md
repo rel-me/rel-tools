@@ -19,7 +19,7 @@ interactive shell's `PATH`:
 {
   "mcpServers": {
     "rel": {
-      "command": "/Applications/Rel.app/Contents/Resources/rel",
+      "command": "/Applications/REL.app/Contents/Resources/rel",
       "args": ["mcp"]
     }
   }
@@ -30,7 +30,7 @@ For clients that use TOML configuration:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/Rel.app/Contents/Resources/rel"
+command = "/Applications/REL.app/Contents/Resources/rel"
 args = ["mcp"]
 ```
 
@@ -56,7 +56,7 @@ To configure only the MCP server without installing the plugin:
 1. Open **Codex Settings → MCP servers**.
 2. Add a STDIO server named `rel`.
 3. Set the command to
-   `/Applications/Rel.app/Contents/Resources/rel` and add `mcp` as its only
+   `/Applications/REL.app/Contents/Resources/rel` and add `mcp` as its only
    argument.
 4. Save the server and restart Codex.
 
@@ -64,7 +64,7 @@ The equivalent global entry in `~/.codex/config.toml` is:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/Rel.app/Contents/Resources/rel"
+command = "/Applications/REL.app/Contents/Resources/rel"
 args = ["mcp"]
 ```
 
@@ -73,7 +73,7 @@ available in that project. If the `codex` command is installed in the shell's
 `PATH`, it can create and inspect the same configuration:
 
 ```sh
-codex mcp add rel -- /Applications/Rel.app/Contents/Resources/rel mcp
+codex mcp add rel -- /Applications/REL.app/Contents/Resources/rel mcp
 codex mcp list
 ```
 
@@ -107,7 +107,7 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
   '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rel_status","arguments":{}}}' \
-  | /Applications/Rel.app/Contents/Resources/rel mcp
+  | /Applications/REL.app/Contents/Resources/rel mcp
 ```
 
 The server writes three JSON-RPC responses: initialization information, the

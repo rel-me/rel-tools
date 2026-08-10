@@ -1,5 +1,5 @@
 use rel_client::{
-    self as client, Action, CaptureRequest, PageActionRequest, PageAttachRequest, RelClient,
+    self as client, Action, CaptureRequest, PageActionRequest, PageAttachRequest, RELClient,
 };
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -17,7 +17,7 @@ const LEGACY_PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2025-06-18", "2025-03
 const MAX_MCP_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
 const TOOL_LIST_TTL_MS: u64 = 3_600_000;
 
-pub(crate) fn serve_stdio(client: RelClient, server_version: &str) -> Result<(), String> {
+pub(crate) fn serve_stdio(client: RELClient, server_version: &str) -> Result<(), String> {
     let stdin = io::stdin();
     let stdout = io::stdout();
     serve(BufReader::new(stdin), stdout, client, server_version)
@@ -26,7 +26,7 @@ pub(crate) fn serve_stdio(client: RelClient, server_version: &str) -> Result<(),
 fn serve<R: BufRead, W: Write + Send + 'static>(
     mut reader: R,
     writer: W,
-    client: RelClient,
+    client: RELClient,
     server_version: &str,
 ) -> Result<(), String> {
     let mut state = ServerState::new(server_version);
@@ -692,7 +692,7 @@ fn page_action_schema() -> Value {
 }
 
 fn handle_tool_call(
-    client: &RelClient,
+    client: &RELClient,
     params: &Value,
     era: ProtocolEra,
     server_version: &str,
@@ -780,7 +780,7 @@ fn to_json_value<T: serde::Serialize>(value: T) -> Result<Value, Value> {
     })
 }
 
-fn capture_tool(client: &RelClient, request: &CaptureRequest) -> Result<Value, Value> {
+fn capture_tool(client: &RELClient, request: &CaptureRequest) -> Result<Value, Value> {
     let mut stream = client.capture(request).map_err(client_error_value)?;
     let request_id = stream.request_id().to_string();
     let mut events = Vec::new();
@@ -1125,10 +1125,10 @@ mod tests {
     }
 
     fn run_messages(messages: &[Value]) -> Vec<Value> {
-        run_messages_with_client(messages, RelClient::new("http://127.0.0.1:1/v1"))
+        run_messages_with_client(messages, RELClient::new("http://127.0.0.1:1/v1"))
     }
 
-    fn run_messages_with_client(messages: &[Value], client: RelClient) -> Vec<Value> {
+    fn run_messages_with_client(messages: &[Value], client: RELClient) -> Vec<Value> {
         let input = messages
             .iter()
             .map(Value::to_string)
@@ -1278,7 +1278,7 @@ mod tests {
         serve(
             Cursor::new(b"not-json\n".to_vec()),
             output.clone(),
-            RelClient::new("http://127.0.0.1:1/v1"),
+            RELClient::new("http://127.0.0.1:1/v1"),
             TEST_SERVER_VERSION,
         )
         .unwrap();
@@ -1357,7 +1357,7 @@ mod tests {
                     "arguments": {}
                 }
             })],
-            RelClient::new(base_url),
+            RELClient::new(base_url),
         );
         let request = server.join().unwrap();
 
@@ -1431,7 +1431,7 @@ mod tests {
                     }
                 }
             })],
-            RelClient::new(base_url),
+            RELClient::new(base_url),
         );
         let request = server.join().unwrap();
 
@@ -1586,7 +1586,7 @@ mod tests {
                     "params": {"requestId": "slow", "reason": "test cancellation"}
                 }),
             ],
-            RelClient::new(base_url),
+            RELClient::new(base_url),
         );
         server.join().unwrap();
 
@@ -1651,7 +1651,7 @@ mod tests {
         serve(
             BufReader::new(input),
             output,
-            RelClient::new(base_url),
+            RELClient::new(base_url),
             TEST_SERVER_VERSION,
         )
         .unwrap();

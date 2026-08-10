@@ -81,7 +81,7 @@ fn app_path() -> Option<PathBuf> {
         }
     }
 
-    let installed_app = PathBuf::from("/Applications/Rel.app");
+    let installed_app = PathBuf::from("/Applications/REL.app");
     installed_app.is_dir().then_some(installed_app)
 }
 
@@ -98,8 +98,8 @@ mod tests {
     #[test]
     fn finds_an_app_bundle_ancestor() {
         assert_eq!(
-            app_bundle_ancestor(Path::new("/Applications/Rel.app/Contents/Resources/rel")),
-            Some(PathBuf::from("/Applications/Rel.app"))
+            app_bundle_ancestor(Path::new("/Applications/REL.app/Contents/Resources/rel")),
+            Some(PathBuf::from("/Applications/REL.app"))
         );
         assert_eq!(app_bundle_ancestor(Path::new("/usr/local/bin/rel")), None);
     }

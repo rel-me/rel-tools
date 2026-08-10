@@ -5,7 +5,7 @@ description: Use REL's local MCP server to inspect service health, reuse persist
 
 # Use REL Browser
 
-Use the MCP server bundled with `/Applications/Rel.app`. REL app owns Chromium;
+Use the MCP server bundled with `/Applications/REL.app`. REL app owns Chromium;
 the MCP adapter only forwards supported calls through the local versioned API.
 
 ## Workflow

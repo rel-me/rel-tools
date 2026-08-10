@@ -4,9 +4,9 @@
 app lifecycle, SQLite, browser runtime, or local log-file code.
 
 ```rust,no_run
-use rel_client::{CaptureRequest, RelClient};
+use rel_client::{CaptureRequest, RELClient};
 
-let client = RelClient::local();
+let client = RELClient::local();
 let mut capture = client.capture(&CaptureRequest::new("https://example.com"))?;
 for event in capture.by_ref() {
     println!("{:?}", event?);

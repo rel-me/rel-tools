@@ -90,12 +90,12 @@ pub mod rpc_error_codes {
 }
 
 #[derive(Clone, Debug)]
-pub struct RelClient {
+pub struct RELClient {
     base_url: String,
     request_timeout: Duration,
 }
 
-impl RelClient {
+impl RELClient {
     /// Connect to the standard loopback REL RPC v1 endpoint.
     pub fn local() -> Self {
         let port = std::env::var("REL_AGENT_PORT")
@@ -1419,7 +1419,7 @@ mod tests {
                 json!({"status":"ok", "request_id":request_id, "data":data}),
             )
         });
-        let client = RelClient::new(base_url);
+        let client = RELClient::new(base_url);
 
         client.health().unwrap();
         client.status().unwrap();
@@ -1582,7 +1582,7 @@ mod tests {
                 }),
             )
         });
-        let error = RelClient::new(base_url)
+        let error = RELClient::new(base_url)
             .get_session("machine-a.Session999")
             .unwrap_err();
         let failure = error.rpc_failure().unwrap();
@@ -1612,7 +1612,7 @@ mod tests {
             )
         });
         assert!(matches!(
-            RelClient::new(base_url).get_session("machine-a.Session999"),
+            RELClient::new(base_url).get_session("machine-a.Session999"),
             Err(ClientError::Protocol(message)) if message.contains("unknown field `http_code`")
         ));
         server.join().unwrap();
@@ -1634,7 +1634,7 @@ mod tests {
             )
         });
         assert!(matches!(
-            RelClient::new(base_url).get_session("machine-a.Session999"),
+            RELClient::new(base_url).get_session("machine-a.Session999"),
             Err(ClientError::Protocol(message)) if message.contains("incomplete error object")
         ));
         server.join().unwrap();
@@ -1656,7 +1656,7 @@ mod tests {
             )
         });
         assert!(matches!(
-            RelClient::new(base_url).get_session("machine-a.Session999"),
+            RELClient::new(base_url).get_session("machine-a.Session999"),
             Err(ClientError::Protocol(message)) if message.contains("incomplete error object")
         ));
         server.join().unwrap();
@@ -1670,7 +1670,7 @@ mod tests {
             )
         });
         assert!(matches!(
-            RelClient::new(base_url).list_proxies(),
+            RELClient::new(base_url).list_proxies(),
             Err(ClientError::Protocol(message)) if message.contains("Content-Type")
         ));
         server.join().unwrap();
@@ -1683,7 +1683,7 @@ mod tests {
             )
         });
         assert!(matches!(
-            RelClient::new(base_url).list_proxies(),
+            RELClient::new(base_url).list_proxies(),
             Err(ClientError::Protocol(message)) if message.contains("request ID mismatch")
         ));
         server.join().unwrap();
@@ -1701,7 +1701,7 @@ mod tests {
                 + "\n";
             http_response(200, "application/x-ndjson", Some("req_capture"), &body)
         });
-        let client = RelClient::new(base_url);
+        let client = RELClient::new(base_url);
         let mut stream = client.capture(&CaptureRequest::new("example.com")).unwrap();
         let events = stream
             .by_ref()
