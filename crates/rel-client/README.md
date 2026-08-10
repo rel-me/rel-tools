@@ -1,6 +1,6 @@
 # rel-client
 
-`rel-client` is the typed synchronous Rust client for Rel RPC v1. It contains no
+`rel-client` is the typed synchronous Rust client for REL RPC v1. It contains no
 app lifecycle, SQLite, browser runtime, or local log-file code.
 
 ```rust,no_run

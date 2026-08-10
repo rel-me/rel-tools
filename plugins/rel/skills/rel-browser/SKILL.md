@@ -1,17 +1,17 @@
 ---
 name: rel-browser
-description: Use Rel's local MCP server to inspect service health, reuse persistent embedded Chromium sessions, capture rendered HTML, attach to pages, perform browser actions, and select configured proxy aliases. Use when a request explicitly mentions Rel or asks Codex to browse through an existing Rel session, keep browser state on the local Mac, or automate a page with Rel rather than another browser backend.
+description: Use REL's local MCP server to inspect service health, reuse persistent embedded Chromium sessions, capture rendered HTML, attach to pages, perform browser actions, and select configured proxy aliases. Use when a request explicitly mentions REL or asks Codex to browse through an existing REL session, keep browser state on the local Mac, or automate a page with REL rather than another browser backend.
 ---
 
-# Use Rel Browser
+# Use REL Browser
 
-Use the MCP server bundled with `/Applications/Rel.app`. Rel.app owns Chromium;
+Use the MCP server bundled with `/Applications/Rel.app`. REL app owns Chromium;
 the MCP adapter only forwards supported calls through the local versioned API.
 
 ## Workflow
 
 1. Call `rel_status` before the first browser operation. If a required service is
-   unhealthy, report the returned error and stop the Rel workflow.
+   unhealthy, report the returned error and stop the REL workflow.
 2. When the user names a session, preserve its canonical `Session<number>` ID.
    Otherwise call `rel_list_sessions` before reusing browser state. Do not omit
    `session_id` merely to inspect existing state because omission can create a
@@ -22,7 +22,7 @@ the MCP adapter only forwards supported calls through the local versioned API.
 4. Call `rel_list_proxies` when a proxy alias is requested or needs selection.
    Pass only the alias; do not seek or expose stored credentials.
 5. Summarize the outcome and surface returned `file:///` resource links. Preserve
-   structured Rel errors instead of reducing them to a generic failure.
+   structured REL errors instead of reducing them to a generic failure.
 
 ## Guardrails
 
@@ -32,10 +32,10 @@ the MCP adapter only forwards supported calls through the local versioned API.
   website. State what changed, especially for submissions, purchases, deletes,
   or other consequential actions.
 - Use absolute local `file:///` URIs for `output_uri`.
-- Keep page IDs within the current MCP process; they expire when the Rel agent
+- Keep page IDs within the current MCP process; they expire when the REL agent
   restarts.
-- Do not read Rel's SQLite database, logs, Chromium storage, or proxy secrets.
-- Do not launch a second Chrome or substitute another browser backend when Rel
+- Do not read REL's SQLite database, logs, Chromium storage, or proxy secrets.
+- Do not launch a second Chrome or substitute another browser backend when REL
   fails. Surface the supported-path error clearly.
 
 ## Tools

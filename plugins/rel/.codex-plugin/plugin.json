@@ -1,9 +1,9 @@
 {
   "name": "rel",
   "version": "0.1.0",
-  "description": "Use Rel's persistent embedded Chromium sessions from Codex.",
+  "description": "Use REL's persistent embedded Chromium sessions from Codex.",
   "author": {
-    "name": "Rel",
+    "name": "REL",
     "url": "https://rel.me"
   },
   "homepage": "https://docs.rel.me/mcp/",
@@ -18,10 +18,10 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "Rel",
+    "displayName": "REL",
     "shortDescription": "Browse with persistent local Chromium sessions.",
-    "longDescription": "Control Rel's app-owned Chromium sessions from Codex. Inspect service health, reuse persistent sessions, capture rendered HTML, and perform page actions through Rel's local MCP adapter.",
-    "developerName": "Rel",
+    "longDescription": "Control REL's app-owned Chromium sessions from Codex. Inspect service health, reuse persistent sessions, capture rendered HTML, and perform page actions through REL's local MCP adapter.",
+    "developerName": "REL",
     "category": "Engineering",
     "capabilities": [
       "Interactive",
@@ -33,9 +33,9 @@
     "composerIcon": "./assets/rel-mark.svg",
     "logo": "./assets/rel-mark.svg",
     "defaultPrompt": [
-      "Check Rel's health and list my browser sessions.",
-      "Capture this URL with Rel and summarize the page.",
-      "Use my existing Rel session to inspect the current page."
+      "Check REL's health and list my browser sessions.",
+      "Capture this URL with REL and summarize the page.",
+      "Use my existing REL session to inspect the current page."
     ]
   },
   "mcpServers": "./.mcp.json"

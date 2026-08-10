@@ -48,14 +48,14 @@ fn wait_for_agent(port: u16, timeout: Duration) -> Result<(), String> {
         thread::sleep(Duration::from_millis(150));
     }
     Err(format!(
-        "Rel agent did not become ready on 127.0.0.1:{port}"
+        "REL agent did not become ready on 127.0.0.1:{port}"
     ))
 }
 
 fn launch_app() -> Result<(), String> {
     let Some(app_path) = app_path() else {
         return Err(
-            "Rel.app was not found. Install Rel in /Applications from https://rel.me.".to_string(),
+            "REL app was not found. Install REL in /Applications from https://rel.me.".to_string(),
         );
     };
     let status = Command::new("/usr/bin/open")
@@ -68,7 +68,7 @@ fn launch_app() -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "Could not launch Rel.app at {}",
+            "Could not launch REL app at {}",
             app_path.display()
         ))
     }

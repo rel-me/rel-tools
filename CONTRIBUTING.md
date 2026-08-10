@@ -16,6 +16,6 @@ npm ci
 npm run check
 ```
 
-API behavior is implemented by the proprietary Rel.app runtime. Proposals for
+API behavior is implemented by the proprietary REL app runtime. Proposals for
 new routes or runtime behavior may be discussed here, but the implementation is
 not part of this repository.

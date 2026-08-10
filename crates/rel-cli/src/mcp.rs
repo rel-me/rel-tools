@@ -452,9 +452,9 @@ fn supported_protocol_versions() -> Vec<&'static str> {
 fn server_info(server_version: &str) -> Value {
     json!({
         "name": "rel",
-        "title": "Rel",
+        "title": "REL",
         "version": server_version,
-        "description": "Browser capture and automation through Rel's embedded Chromium runtime",
+        "description": "Browser capture and automation through REL's embedded Chromium runtime",
         "websiteUrl": "https://rel.me"
     })
 }
@@ -464,7 +464,7 @@ fn response_metadata(server_version: &str) -> Value {
 }
 
 fn server_instructions() -> &'static str {
-    "Use Rel to capture rendered pages or attach an ephemeral page for follow-up actions. Reuse returned page and session IDs explicitly; all browser work runs through the installed Rel app."
+    "Use REL to capture rendered pages or attach an ephemeral page for follow-up actions. Reuse returned page and session IDs explicitly; all browser work runs through the installed REL app."
 }
 
 fn modern_discover_result(server_version: &str) -> Value {
@@ -501,15 +501,15 @@ fn tool_definitions() -> Vec<Value> {
     vec![
         tool_definition(
             "rel_status",
-            "Rel Status",
-            "Inspect the installed Rel app, local agent, browser proxy, and Chromium bridge.",
+            "REL Status",
+            "Inspect the installed REL app, local agent, browser proxy, and Chromium bridge.",
             empty_object_schema(),
             read_annotations(),
         ),
         tool_definition(
             "rel_capture",
             "Capture Rendered Page",
-            "Load a URL in Rel's embedded Chromium, optionally perform ordered actions, and save rendered HTML. Returns the complete validated capture event stream and an output file URI.",
+            "Load a URL in REL's embedded Chromium, optionally perform ordered actions, and save rendered HTML. Returns the complete validated capture event stream and an output file URI.",
             capture_schema(),
             json!({
                 "readOnlyHint": false,
@@ -521,7 +521,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_page_attach",
             "Attach Browser Page",
-            "Create or attach an ephemeral Rel automation page and return its page ID for later rel_page_action calls.",
+            "Create or attach an ephemeral REL automation page and return its page ID for later rel_page_action calls.",
             page_attach_schema(),
             json!({
                 "readOnlyHint": false,
@@ -545,14 +545,14 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_list_sessions",
             "List Browser Sessions",
-            "List persistent Rel browser sessions and their canonical Session<number> IDs, proxy assignments, and filtering settings.",
+            "List persistent REL browser sessions and their canonical Session<number> IDs, proxy assignments, and filtering settings.",
             empty_object_schema(),
             read_annotations(),
         ),
         tool_definition(
             "rel_list_proxies",
             "List Proxies",
-            "List configured Rel proxy aliases and non-secret connection metadata.",
+            "List configured REL proxy aliases and non-secret connection metadata.",
             empty_object_schema(),
             read_annotations(),
         ),
@@ -775,7 +775,7 @@ fn to_json_value<T: serde::Serialize>(value: T) -> Result<Value, Value> {
     serde_json::to_value(value).map_err(|error| {
         tool_error_value(
             "MCP_ENCODING_ERROR",
-            &format!("Could not encode Rel response: {error}"),
+            &format!("Could not encode REL response: {error}"),
         )
     })
 }
@@ -803,7 +803,7 @@ fn capture_tool(client: &RelClient, request: &CaptureRequest) -> Result<Value, V
             "request_id": request_id,
             "error": {
                 "id": "INCOMPLETE_CAPTURE_STREAM",
-                "message": "Rel capture stream ended before capture.finished"
+                "message": "REL capture stream ended before capture.finished"
             },
             "events": events
         }));
@@ -894,19 +894,19 @@ fn normalize_output_uris_in_value(
         Value::Object(object) => {
             if let Some(output_path) = object.remove("output_path") {
                 let output_path = output_path.as_str().ok_or_else(|| {
-                    tool_error_value("INVALID_OUTPUT_PATH", "Rel output_path must be a string")
+                    tool_error_value("INVALID_OUTPUT_PATH", "REL output_path must be a string")
                 })?;
                 let path = Path::new(output_path);
                 if !path.is_absolute() {
                     return Err(tool_error_value(
                         "INVALID_OUTPUT_PATH",
-                        &format!("Rel returned a relative output path: {output_path}"),
+                        &format!("REL returned a relative output path: {output_path}"),
                     ));
                 }
                 let uri = url::Url::from_file_path(path).map_err(|()| {
                     tool_error_value(
                         "INVALID_OUTPUT_PATH",
-                        &format!("Could not convert Rel output path to a file URI: {output_path}"),
+                        &format!("Could not convert REL output path to a file URI: {output_path}"),
                     )
                 })?;
                 let uri = uri.to_string();
@@ -920,7 +920,7 @@ fn normalize_output_uris_in_value(
                         "type": "resource_link",
                         "uri": uri,
                         "name": name,
-                        "description": "Rendered HTML captured by Rel",
+                        "description": "Rendered HTML captured by REL",
                         "mimeType": "text/html"
                     }));
                 }
@@ -947,7 +947,7 @@ fn tool_result(
     server_version: &str,
 ) -> Value {
     let text = serde_json::to_string_pretty(&structured)
-        .unwrap_or_else(|_| "Could not encode Rel tool result".to_string());
+        .unwrap_or_else(|_| "Could not encode REL tool result".to_string());
     let mut content = vec![json!({"type": "text", "text": text})];
     content.extend(resource_links);
     let mut result = json!({
