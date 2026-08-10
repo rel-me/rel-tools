@@ -63,10 +63,11 @@ General → Follow browser commands** to keep the current tab selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
-If the tab strip is too crowded to show its close controls, use **Rel →
-Settings… → General → Close All Tabs…**. After confirmation, Rel deletes every
-current session and its private browser data, creates one new default tab, and
-keeps the shared asset cache.
+Close buttons remain available when tabs compress: the selected tab keeps its
+close button visible, and other tabs reveal theirs on hover. To discard every
+current session at once, use **Rel → Settings… → General → Close All Tabs…**.
+After confirmation, Rel deletes every current session and its private browser
+data, creates one new default tab, and keeps the shared asset cache.
 
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free
