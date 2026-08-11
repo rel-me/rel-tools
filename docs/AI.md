@@ -24,29 +24,30 @@ The file never contains provider credentials.
 ## Use Chat
 
 Open the bottom panel in a browser tab and select **Chat**. Each tab owns an
-independent conversation and Textual terminal process. The ordinary Terminal
-tab has a separate PTY and is not reused or interrupted.
+independent native conversation view and Rust harness process. The ordinary
+Terminal tab has a separate PTY and is not reused or interrupted.
 
 The harness keeps structured conversation history until it is cleared or
 restarted. Browser tool calls are pinned to the immutable session ID of the tab
 where Chat was opened, even if a model attempts to supply another session ID.
+Assistant responses render as rich, selectable Markdown through the Textual
+Swift package.
 
-Keyboard controls inside Chat are:
+Chat controls are:
 
-| Shortcut | Action |
+| Control | Action |
 | --- | --- |
 | `Return` | Send the prompt |
-| `Ctrl+L` | Clear conversation history without changing browser state |
-| `Ctrl+R` | Restart the model harness |
-| `Ctrl+Q` | Exit the Textual process; use Restart Chat in the panel header to reopen it |
+| Clear button | Clear conversation history without changing browser state |
+| Restart button | Restart the model harness |
 
 ## Process boundary
 
-The installed app bundles a standalone `rel-chat-ui` Textual executable and the
-Rust `rel-ai-service`; no system Python installation is required. Textual owns
-only presentation and exchanges strict newline-delimited JSON with the Rust
-harness. Rig owns the provider conversation and tool loop, and its tools reach
-Chromium only through the supported [RPC v1](RPC.md) client boundary.
+The installed app uses native SwiftUI for Chat and bundles the Textual Swift
+package for Markdown rendering. REL launches the Rust `rel-ai-service`
+directly and exchanges strict newline-delimited JSON over its standard streams.
+Rig owns the provider conversation and tool loop, and its tools reach Chromium
+only through the supported [RPC v1](RPC.md) client boundary.
 
 For protocol diagnostics, the bundled harness can be run directly. `chat`
 requires `--session-id` or `REL_SESSION_ID`, reads requests from stdin, and
