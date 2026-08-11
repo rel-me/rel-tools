@@ -22,7 +22,7 @@ Closing a browser operation's HTTP connection before its response finishes
 cancels that operation. The agent also sends cancellation through its private
 Chromium bridge, so navigation, waits, and actions stop instead of continuing
 in the background. Cancellation is request-scoped: the persistent browser
-session, Rel.app, and the resident agent remain running for other clients.
+session, REL.app, and the resident agent remain running for other clients.
 
 By default, a browser operation selects its target tab when Rel is inactive, so
 the affected page is visible the next time the app is viewed. Rel is not

@@ -1,6 +1,6 @@
 # Rel CLI
 
-The recommended CLI is the `rel` binary bundled in `/Applications/Rel.app` and
+The recommended CLI is the `rel` binary bundled in `/Applications/REL.app` and
 linked from a writable directory already in `PATH`. Use **Rel → Settings… →
 General → Install Command Line** to create the link. If no safe destination is
 available, Rel leaves the filesystem unchanged so you can create the link
@@ -48,12 +48,12 @@ rel --help | -h
 rel --version
 ```
 
-`rel --agent` exists only in the proprietary binary bundled with Rel.app. It is
+`rel --agent` exists only in the proprietary binary bundled with REL.app. It is
 not part of the public `rel-cli` package.
 
 `health` and `status` inspect the currently running agent without launching the
 app. Every other command, including `mcp`, proxy reads, and session reads,
-starts Rel.app in the background when its agent is unavailable. `rel mcp`
+starts REL.app in the background when its agent is unavailable. `rel mcp`
 performs that startup check once, then serves its original stdio connection.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
 
@@ -151,7 +151,7 @@ rel https://example.com > example.html 2> capture.ndjson
 The CLI verifies response content types and request IDs through `rel-client`.
 Pressing Ctrl-C terminates the foreground CLI and closes its RPC connection.
 If a browser operation is still active, the resident agent cancels the matching
-Chromium work; Rel.app, the agent, and the persistent browser session remain
+Chromium work; REL.app, the agent, and the persistent browser session remain
 available for later commands.
 
 `rel mcp` is a protocol process rather than an ordinary one-shot command. Its
@@ -178,7 +178,7 @@ exits unsuccessfully.
 ## MCP server
 
 ```sh
-/Applications/Rel.app/Contents/Resources/rel mcp
+/Applications/REL.app/Contents/Resources/rel mcp
 ```
 
 The command accepts no options. MCP clients normally launch it and own its
@@ -426,7 +426,7 @@ rel session create \
 ```
 
 Every create option is optional. Omitted proxy and filtering options use the
-Session defaults configured in Rel.app. Use `--direct` to force a direct
+Session defaults configured in REL.app. Use `--direct` to force a direct
 connection instead of the default proxy. `--image-blocking-mode` is `all` or
 `over_limit`. `--id-only` changes successful output to the new canonical
 session ID and a trailing newline instead of the JSON response envelope. Errors

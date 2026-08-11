@@ -19,7 +19,7 @@ interactive shell's `PATH`:
 {
   "mcpServers": {
     "rel": {
-      "command": "/Applications/Rel.app/Contents/Resources/rel",
+      "command": "/Applications/REL.app/Contents/Resources/rel",
       "args": ["mcp"]
     }
   }
@@ -30,7 +30,7 @@ For clients that use TOML configuration:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/Rel.app/Contents/Resources/rel"
+command = "/Applications/REL.app/Contents/Resources/rel"
 args = ["mcp"]
 ```
 
@@ -56,7 +56,7 @@ To configure only the MCP server without installing the plugin:
 1. Open **Codex Settings → MCP servers**.
 2. Add a STDIO server named `rel`.
 3. Set the command to
-   `/Applications/Rel.app/Contents/Resources/rel` and add `mcp` as its only
+   `/Applications/REL.app/Contents/Resources/rel` and add `mcp` as its only
    argument.
 4. Save the server and restart Codex.
 
@@ -64,7 +64,7 @@ The equivalent global entry in `~/.codex/config.toml` is:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/Rel.app/Contents/Resources/rel"
+command = "/Applications/REL.app/Contents/Resources/rel"
 args = ["mcp"]
 ```
 
@@ -73,7 +73,7 @@ available in that project. If the `codex` command is installed in the shell's
 `PATH`, it can create and inspect the same configuration:
 
 ```sh
-codex mcp add rel -- /Applications/Rel.app/Contents/Resources/rel mcp
+codex mcp add rel -- /Applications/REL.app/Contents/Resources/rel mcp
 codex mcp list
 ```
 
@@ -107,7 +107,7 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
   '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rel_status","arguments":{}}}' \
-  | /Applications/Rel.app/Contents/Resources/rel mcp
+  | /Applications/REL.app/Contents/Resources/rel mcp
 ```
 
 The server writes three JSON-RPC responses: initialization information, the
@@ -115,7 +115,7 @@ tool list, and the status result. Protocol messages use standard output;
 diagnostics use standard error.
 
 `rel mcp` accepts no options. At startup it checks the local agent and launches
-Rel.app in the background once when needed. It then keeps serving its original
+REL.app in the background once when needed. It then keeps serving its original
 stdin/stdout connection until the MCP client closes stdin or the process is
 terminated. `REL_AGENT_PORT` changes the loopback RPC port from its default,
 `17319`.
@@ -262,7 +262,7 @@ or stable ID rather than parse the message.
 
 The MCP process is a transient adapter owned by the MCP client. It is separate
 from the app-supervised `rel --agent` process and from the private framed stdio
-bridge between that agent and Rel.app. There is no MCP HTTP route and no second
+bridge between that agent and REL.app. There is no MCP HTTP route and no second
 browser backend.
 
 The stdio connection is private to the launching MCP client, but forwarded RPC

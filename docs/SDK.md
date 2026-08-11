@@ -34,7 +34,7 @@ URL. `with_request_timeout(Duration)` changes the ten-second timeout used by
 ordinary requests. Capture and page methods derive longer deadlines from their
 operation timeout, wait, retry count, and retry delay.
 
-The SDK is transport-only: it never launches Rel.app, reads Rel's SQLite
+The SDK is transport-only: it never launches REL.app, reads Rel's SQLite
 database, or tails log files. The caller is responsible for ensuring that the
 installed app and agent are running. The bundled CLI adds app-launch behavior
 for Chromium and mutation commands around this same client.
@@ -222,7 +222,7 @@ update.
 ## Session creation defaults
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
-Session defaults configured in Rel.app. Use `Change::Set("alias".into())` to override the
+Session defaults configured in REL.app. Use `Change::Set("alias".into())` to override the
 default proxy or `Change::Clear` to create a direct session:
 
 ```rust

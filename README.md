@@ -5,7 +5,7 @@ Open-source command-line, MCP, and Rust clients for
 
 Rel is not an open-source product. This repository intentionally contains only
 clients and documentation for integrating with the proprietary macOS app. It
-does not contain Rel.app, the local agent implementation, Chromium integration,
+does not contain REL.app, the local agent implementation, Chromium integration,
 session storage, proxy credentials, or internal service code.
 
 ## What is here
@@ -17,7 +17,7 @@ session storage, proxy credentials, or internal service code.
 - [`docs`](docs): the canonical CLI, MCP, RPC, and Rust SDK documentation that
   powers [docs.rel.me](https://docs.rel.me).
 
-All clients require Rel.app in `/Applications`; they connect only to its
+All clients require REL.app in `/Applications`; they connect only to its
 loopback API. Download the app from [rel.me](https://rel.me).
 
 ## Install the CLI
@@ -52,7 +52,7 @@ codex plugin add rel@rel
 
 Start a new Codex task after installation. The plugin configures the bundled
 `rel mcp` adapter and adds guidance for safe use of persistent browser sessions.
-Rel.app must be installed in `/Applications`.
+REL.app must be installed in `/Applications`.
 
 ## Use the Rust client
 
@@ -86,5 +86,5 @@ npm ci
 npm run check
 ```
 
-The source code in this repository is MIT licensed. Rel.app and the Rel brand
+The source code in this repository is MIT licensed. REL.app and the Rel brand
 are not covered by that license.
