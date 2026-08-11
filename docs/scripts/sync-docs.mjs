@@ -7,6 +7,12 @@ const contentRoot = resolve(docsRoot, "src/content/docs");
 
 const pages = [
   {
+    source: "AI.md",
+    output: "ai.md",
+    title: "Chat and models",
+    description: "Configure model providers and use REL's session-scoped Textual Chat interface.",
+  },
+  {
     source: "CLI.md",
     output: "cli.md",
     title: "CLI",
@@ -33,6 +39,7 @@ const pages = [
 ];
 
 const siteLinks = new Map([
+  ["AI.md", "/ai/"],
   ["CLI.md", "/cli/"],
   ["MCP.md", "/mcp/"],
   ["RPC.md", "/rpc/"],
@@ -41,7 +48,7 @@ const siteLinks = new Map([
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((CLI|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((AI|CLI|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

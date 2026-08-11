@@ -37,6 +37,7 @@ export default defineConfig({
           items: [
             { label: "Overview", slug: "index" },
             { label: "CLI", slug: "cli" },
+            { label: "Chat and models", slug: "ai" },
           ],
         },
         {

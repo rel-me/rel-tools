@@ -4,6 +4,7 @@ The public guides in this directory are the canonical source for the repository
 and [docs.rel.me](https://docs.rel.me):
 
 - `CLI.md` → `/cli/`
+- `AI.md` → `/ai/`
 - `MCP.md` → `/mcp/`
 - `RPC.md` → `/rpc/`
 - `SDK.md` → `/sdk/`
