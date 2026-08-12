@@ -100,13 +100,26 @@ canonical ID, then use that ID for the complete stateful workflow:
 session_id="$(rel session create --name Research --id-only)"
 
 rel navigate https://rel.me --session-id="$session_id"
-rel perform '[{"action":"wait-for","selector":"body"}]' --session-id="$session_id"
+rel perform '[{"action":"wait","seconds":0.5}]' --session-id="$session_id"
 rel capture --session-id="$session_id" > rel.html
 ```
 
 The final argument-free `rel capture` reads the page selected by `rel navigate`
 after `rel perform` finishes. `rel tab create` is equivalent to
 `rel session create` if tab-oriented terminology is more natural.
+
+For a sequence of commands, export the ID under REL's standard environment
+variable and omit the repeated options:
+
+```sh
+export REL_SESSION_ID="$session_id"
+
+rel navigate https://example.com
+rel perform '[{"action":"wait","seconds":0.5}]'
+rel capture > example.html
+```
+
+An explicit `--session-id` always takes precedence over `REL_SESSION_ID`.
 
 ## Output and errors
 
@@ -198,7 +211,7 @@ For sequential automation that does not need to manage page or session IDs:
 
 ```sh
 rel navigate https://example.com
-rel perform '[{"action":"click","selector":"button.more"},{"action":"wait-for","selector":"#results"}]'
+rel perform '[{"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1}},{"action":"wait","seconds":0.5}]'
 rel capture > final.html
 ```
 
@@ -214,8 +227,8 @@ load, that main frame finishes, and its rendered source is available. Subframe
 and page-initiated background loading does not delay completion. `--wait`
 applies a bounded settling delay after main-frame readiness; if another
 main-frame navigation starts during that delay, REL waits for it and restarts
-the delay. Use a `wait-for` action when a site has a more specific live-DOM
-readiness condition.
+the delay. Use a timed `wait` action when the workflow needs additional
+settling time before its next step.
 
 If the main frame returns HTTP 4xx or 5xx, `navigate` normally exits
 unsuccessfully as soon as Chromium commits that response instead of waiting for
@@ -296,15 +309,15 @@ rel https://example.com/ --proxy=oxylabs
 Canonical actions are:
 
 ```json
-{"action":"click","selector":"button.more"}
-{"action":"wait-for","selector":"#loaded-content"}
 {"action":"wait","seconds":0.5}
 {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":0.9}}
 ```
 
-`wait-for` polls the live DOM until its CSS selector is present. It uses the
-capture or page action's overall `--timeout` deadline, then continues with the
-next action.
+`click-link` resolves a visible link through Chromium's always-on native macOS
+accessibility tree and sends mouse input through CEF. REL does not execute page
+JavaScript, invoke an accessibility action, or use Chrome DevTools Protocol for
+interaction targeting or dispatch. If the native tree does not expose a
+matching visible link, the action fails without a fallback.
 
 Function-style action strings and legacy action object shapes are rejected.
 `--action` and `--actions` may be combined; actions execute in command-line
@@ -345,7 +358,7 @@ Perform one canonical action on that attachment:
 
 ```sh
 rel page action page_... \
-  --action '{"action":"click","selector":"button.more"}' \
+  --action '{"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1}}' \
   --output /tmp/after-click.html
 ```
 

@@ -97,7 +97,8 @@ the same `session_id` on each request to scope that page to one browser session:
 
 ```rust
 use rel_client::{
-    Action, NavigateRequest, PageCaptureRequest, PerformRequest, RelClient,
+    Action, FuzzyLinkMatch, NavigateRequest, PageCaptureRequest, PerformRequest,
+    RelClient,
 };
 
 let client = RelClient::local();
@@ -106,12 +107,11 @@ let mut navigate = NavigateRequest::new("https://example.com");
 navigate.session_id = Some(session_id.clone());
 client.navigate(&navigate)?;
 let mut perform = PerformRequest::new(vec![
-    Action::Click {
-        selector: "button.more".into(),
+    Action::ClickLink {
+        link: "https://example.com/more".into(),
+        match_rule: FuzzyLinkMatch::new(1.0),
     },
-    Action::WaitFor {
-        selector: "#results".into(),
-    },
+    Action::Wait { seconds: 0.5 },
 ]);
 perform.session_id = Some(session_id.clone());
 client.perform(&perform)?;
@@ -127,8 +127,8 @@ println!("{}", capture.data.capture.output_path);
 `navigate` becomes ready after the requested HTTP(S) main frame starts,
 finishes, and has nonempty rendered source. Subframe and page-initiated
 background loading does not hold the request open. Its `wait` value is a
-bounded settling delay after final main-frame readiness; use `Action::WaitFor`
-for a site-specific live-DOM readiness condition.
+bounded settling delay after final main-frame readiness. Use `Action::Wait`
+when a workflow needs additional settling time.
 
 Take a visual capture from the same current page with `ScreenshotRequest`, or
 use `PageScreenshotRequest` with an explicit attached page ID:
@@ -207,12 +207,6 @@ The public `Action` enum serializes directly to the RPC v1 object shapes:
 ```rust
 use rel_client::{Action, FuzzyLinkMatch};
 
-let click = Action::Click {
-    selector: "button.more".into(),
-};
-let wait_for = Action::WaitFor {
-    selector: "#loaded-content".into(),
-};
 let wait = Action::Wait { seconds: 0.5 };
 let link = Action::ClickLink {
     link: "https://example.com/more".into(),
@@ -221,7 +215,9 @@ let link = Action::ClickLink {
 ```
 
 There are no function-style action strings or compatibility action shapes in
-the SDK.
+the SDK. Link clicks use read-only native accessibility metadata for targeting
+and CEF mouse input for dispatch; they do not use page JavaScript,
+accessibility actions, or Chrome DevTools Protocol.
 
 ## Partial updates
 

@@ -605,24 +605,6 @@ fn action_schema() -> Value {
             {
                 "type": "object",
                 "properties": {
-                    "action": {"const": "click"},
-                    "selector": {"type": "string", "minLength": 1}
-                },
-                "required": ["action", "selector"],
-                "additionalProperties": false
-            },
-            {
-                "type": "object",
-                "properties": {
-                    "action": {"const": "wait-for"},
-                    "selector": {"type": "string", "minLength": 1}
-                },
-                "required": ["action", "selector"],
-                "additionalProperties": false
-            },
-            {
-                "type": "object",
-                "properties": {
                     "action": {"const": "wait"},
                     "seconds": {"type": "number", "minimum": 0}
                 },

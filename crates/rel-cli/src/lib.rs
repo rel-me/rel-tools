@@ -1158,6 +1158,7 @@ Options:\n  \
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rel_client::FuzzyLinkMatch;
 
     fn parse(args: &[&str]) -> Result<CliCommand, CliError> {
         parse_command(args.iter().map(|value| value.to_string()).collect())
@@ -1329,7 +1330,7 @@ mod tests {
 
         let CliCommand::Perform(perform) = parse(&[
             "perform",
-            r##"[{"action":"click","selector":"#more"},{"action":"wait","seconds":0.25}]"##,
+            r##"[{"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1}},{"action":"wait","seconds":0.25}]"##,
             "--session-id=machine-x.Session2",
             "--timeout=15",
         ])
@@ -1339,8 +1340,9 @@ mod tests {
         assert_eq!(
             perform.actions,
             vec![
-                Action::Click {
-                    selector: "#more".to_string()
+                Action::ClickLink {
+                    link: "https://example.com/more".to_string(),
+                    match_rule: FuzzyLinkMatch::new(1.0)
                 },
                 Action::Wait { seconds: 0.25 }
             ]
@@ -1381,8 +1383,7 @@ mod tests {
             "--actions",
             r##"[
                 {"action":"wait","seconds":2},
-                {"action":"wait-for","selector":"#loaded"},
-                {"action":"click","selector":"#more"},
+                {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":0.9}},
                 {"action":"wait","seconds":0.5}
             ]"##,
         ])
@@ -1394,11 +1395,9 @@ mod tests {
             request.actions,
             vec![
                 Action::Wait { seconds: 2.0 },
-                Action::WaitFor {
-                    selector: "#loaded".to_string()
-                },
-                Action::Click {
-                    selector: "#more".to_string()
+                Action::ClickLink {
+                    link: "https://example.com/more".to_string(),
+                    match_rule: FuzzyLinkMatch::new(0.9)
                 },
                 Action::Wait { seconds: 0.5 }
             ]

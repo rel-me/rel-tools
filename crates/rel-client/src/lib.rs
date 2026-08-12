@@ -751,12 +751,6 @@ impl NavigateRequest {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "action", rename_all = "kebab-case")]
 pub enum Action {
-    Click {
-        selector: String,
-    },
-    WaitFor {
-        selector: String,
-    },
     ClickLink {
         link: String,
         #[serde(rename = "match")]
@@ -1461,16 +1455,16 @@ mod tests {
                 "match":{"type":"fuzzy-link", "threshold":0.9}
             })
         );
-        assert_eq!(
-            serde_json::to_value(Action::WaitFor {
-                selector: "#loaded".to_string(),
-            })
-            .unwrap(),
-            serde_json::json!({
-                "action":"wait-for",
-                "selector":"#loaded"
-            })
-        );
+        assert!(serde_json::from_value::<Action>(serde_json::json!({
+            "action": "click",
+            "selector": "button.more"
+        }))
+        .is_err());
+        assert!(serde_json::from_value::<Action>(serde_json::json!({
+            "action": "wait-for",
+            "selector": "#loaded"
+        }))
+        .is_err());
     }
 
     #[test]
@@ -1546,8 +1540,9 @@ mod tests {
             .navigate(&NavigateRequest::new("example.com"))
             .unwrap();
         let mut perform = PerformRequest::new(vec![
-            Action::Click {
-                selector: "button.more".to_string(),
+            Action::ClickLink {
+                link: "https://example.com/more".to_string(),
+                match_rule: FuzzyLinkMatch::new(1.0),
             },
             Action::Wait { seconds: 0.0 },
         ]);
@@ -1676,7 +1671,7 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Value>(&requests[3].body).unwrap(),
             json!({"session_id":"machine-a.Session1","actions":[
-                {"action":"click","selector":"button.more"},
+                {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1.0}},
                 {"action":"wait","seconds":0.0}
             ]})
         );

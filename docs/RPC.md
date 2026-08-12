@@ -249,8 +249,12 @@ Perform one or more canonical actions with `POST /v1/perform`:
 ```json
 {
   "actions": [
-    { "action": "click", "selector": "button.more" },
-    { "action": "wait-for", "selector": "#results" }
+    {
+      "action": "click-link",
+      "link": "https://example.com/more",
+      "match": { "type": "fuzzy-link", "threshold": 1 }
+    },
+    { "action": "wait", "seconds": 0.5 }
   ],
   "session_id": "Session12",
   "output": "/optional/after-click.html",
@@ -278,8 +282,8 @@ session's current shorthand page; `perform` and singular `capture` target it.
 Navigation becomes ready after the requested HTTP(S) main frame starts,
 finishes, and has nonempty rendered source. Subframe and page-initiated
 background loading does not delay completion. The `wait` delay begins after
-main-frame readiness and restarts if another main-frame navigation begins; use
-`wait-for` for a site-specific live-DOM readiness condition.
+main-frame readiness and restarts if another main-frame navigation begins. Use
+a timed `wait` action when a workflow needs additional settling time.
 If navigation commits an HTTP 4xx or 5xx main-frame response, it returns
 `UPSTREAM_UNAVAILABLE` instead of waiting for unrelated background loading to
 become idle. A detected Cloudflare Turnstile or managed challenge receives the
@@ -373,8 +377,6 @@ caller did not request a specific output URI.
 The RPC accepts only action objects:
 
 ```json
-{ "action": "click", "selector": "button.more" }
-{ "action": "wait-for", "selector": "#loaded-content" }
 { "action": "wait", "seconds": 0.5 }
 {
   "action": "click-link",
@@ -383,8 +385,11 @@ The RPC accepts only action objects:
 }
 ```
 
-`wait-for` completes when the CSS selector is present in the live DOM and uses
-the enclosing operation's `timeout` as its deadline.
+`click-link` reads only visible native macOS accessibility link metadata and
+dispatches CEF mouse input. Interaction targeting and dispatch do not execute
+page JavaScript, invoke accessibility actions, or use Chrome DevTools Protocol.
+If the native tree has no matching visible link, REL returns a target-not-found
+error without a fallback.
 
 The legacy `output_mode` field and function-like action strings are rejected.
 
@@ -462,7 +467,11 @@ Page IDs are process-local and disappear when the agent restarts.
 
 ```json
 {
-  "action": { "action": "click", "selector": "button" },
+  "action": {
+    "action": "click-link",
+    "link": "https://example.com/more",
+    "match": { "type": "fuzzy-link", "threshold": 1 }
+  },
   "output": "/optional/page.html",
   "timeout": 90,
   "wait": 1
