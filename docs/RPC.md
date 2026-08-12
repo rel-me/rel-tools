@@ -257,6 +257,11 @@ Capture HTML without another action with `POST /v1/capture`:
 All three return the same page-operation envelope documented under attached
 pages. When `session_id` is supplied, `navigate` selects and updates that
 session's current shorthand page; `perform` and singular `capture` target it.
+Navigation becomes ready after the requested HTTP(S) main frame starts,
+finishes, and has nonempty rendered source. Subframe and page-initiated
+background loading does not delay completion. The `wait` delay begins after
+main-frame readiness and restarts if another main-frame navigation begins; use
+`wait-for` for a site-specific live-DOM readiness condition.
 If navigation commits an HTTP 4xx or 5xx main-frame response, it returns
 `UPSTREAM_UNAVAILABLE` instead of waiting for unrelated background loading to
 become idle. A detected Cloudflare Turnstile or managed challenge receives the
@@ -340,7 +345,7 @@ caller did not request a specific output URI.
 | `url` | Required HTTP(S) URL; scheme-less input is normalized by the agent. |
 | `output` | Optional nonempty filesystem path or null; generated when absent. Relative input is resolved against the agent process directory. Responses always contain an absolute `output_path`. |
 | `timeout` | Finite seconds greater than zero; default 90. |
-| `wait` | Finite seconds at least zero; default 1. |
+| `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical action objects. |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
