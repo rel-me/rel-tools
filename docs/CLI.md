@@ -237,7 +237,9 @@ and final URL. The rendered page remains selected in the session.
 canonical action objects. Actions run in array order. It accepts `--session-id`,
 `--output`, `--timeout`, and `--wait`, then prints the JSON response envelope
 containing the page and capture metadata. A single action must still be wrapped
-in an array.
+in an array. If embedded Chromium stops responding, the agent enforces the
+operation deadline; the CLI prints the structured, retryable `TIMEOUT` error to
+standard error and exits unsuccessfully.
 
 Argument-free `capture` calls `POST /v1/capture`. Without `--output`, it writes
 the current rendered HTML to stdout. With `--output`, it prints the JSON response

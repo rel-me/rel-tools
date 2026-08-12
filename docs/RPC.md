@@ -239,6 +239,9 @@ Perform one or more canonical actions with `POST /v1/perform`:
 ```
 
 `actions` must be a non-empty array. Rel runs the actions in array order.
+The operation deadline is enforced by the agent even when the embedded
+Chromium bridge stops responding. When that deadline expires, the endpoint
+returns HTTP 504 with the structured `TIMEOUT` error and `retryable: true`.
 
 Capture without another action with `POST /v1/capture`:
 
