@@ -188,8 +188,9 @@ rel status
 
 `health` calls `GET /v1/health` and reports agent worker readiness. `status`
 calls `GET /v1/status` and reports the app, agent, Browser Proxy, and Chromium
-bridge checks. Neither command synthesizes a local process report when the
-agent is unavailable.
+bridge checks. Both responses include the installed build identity when the
+agent was launched by a metadata-bearing app bundle. Neither command
+synthesizes a local process report when the agent is unavailable.
 
 ## Shorthand page workflow
 

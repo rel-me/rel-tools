@@ -164,12 +164,22 @@ HTTP 200 while the worker is ready or operating within its deadline:
     "version": "0.1.8",
     "pid": 123,
     "browser_proxy_port": 17400,
+    "build": {
+      "id": "ba49-deadbeef-a1b2c3d4",
+      "configuration": "Debug",
+      "worktree": "ba49",
+      "branch": "codex/example",
+      "commit": "deadbeef",
+      "dirty": true
+    },
     "worker": { "state": "idle" }
   }
 }
 ```
 
-Worker state is `starting`, `idle`, or `busy`. A startup/operation deadline
+`build` identifies the installed worktree build and is `null` for agents that
+were not launched from a metadata-bearing app bundle. Worker state is
+`starting`, `idle`, or `busy`. A startup/operation deadline
 violation or failed worker returns `AGENT_UNHEALTHY`, with the worker
 snapshot in `error.details.worker`. Health deadlines diagnose stalls; they do not
 cancel the active request.
@@ -186,6 +196,14 @@ The diagnostic call succeeds with HTTP 200 even when a component is down:
     "overall_status": "ok",
     "running_count": 4,
     "total_count": 4,
+    "build": {
+      "id": "ba49-deadbeef-a1b2c3d4",
+      "configuration": "Debug",
+      "worktree": "ba49",
+      "branch": "codex/example",
+      "commit": "deadbeef",
+      "dirty": true
+    },
     "checks": [
       {
         "id": "agent",

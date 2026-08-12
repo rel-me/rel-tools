@@ -79,6 +79,11 @@ and the typed `data` resource. Resources include `Health`, `StatusReport`,
 `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
 match RPC v1.
 
+`Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
+with the installed bundle's ID, configuration, worktree, branch, commit, and
+dirty state. The field is `None` when the agent was not launched by a
+metadata-bearing app bundle.
+
 The bundled [MCP adapter](MCP.md) uses this same client for all seven tools. It
 calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
 methods, `list_sessions`, and `list_proxies`; it does not maintain alternate
