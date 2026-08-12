@@ -55,6 +55,18 @@ Open the bottom panel in a browser tab and select **Chat**. Each tab owns an
 independent native conversation view and Rust harness process. The ordinary
 Terminal tab has a separate PTY and is not reused or interrupted.
 
+The composer’s model menu starts with a curated set of OpenAI chat models that
+use `OPENAI_API_KEY`. Profiles from **Settings → Models** are merged into that
+list, so custom providers and endpoints are available beside the built-in
+choices. New tabs begin with the configured default profile, or the first
+built-in model when no default exists, while each open tab can select its own
+model. Choose **Add or Manage Models…** at the bottom of the menu to configure
+another provider model and add it to the list.
+
+Changing models before sending the first message is immediate. Changing models
+after a conversation has started asks for confirmation because it starts a new
+conversation in that tab.
+
 The harness keeps structured conversation history until it is cleared or
 restarted. Browser tool calls are pinned to the immutable session ID of the tab
 where Chat was opened, even if a model attempts to supply another session ID.
@@ -66,6 +78,7 @@ Chat controls are:
 | Control | Action |
 | --- | --- |
 | `Return` | Send the prompt |
+| Model menu | Choose the model for this tab or configure more models |
 | Clear button | Clear conversation history without changing browser state |
 | Restart button | Restart the model harness |
 
