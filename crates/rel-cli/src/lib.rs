@@ -411,7 +411,7 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "capture" => parse_capture(args),
         "page" => parse_page(args),
         "proxy" => parse_proxy(args),
-        "session" => parse_session(args),
+        "session" | "tab" => parse_session(args),
         legacy
             if matches!(legacy, "ping" | "logs")
                 || legacy.starts_with("--rotate-proxy-session") =>
@@ -883,10 +883,11 @@ fn parse_proxy_selector(value: &str) -> String {
 
 fn parse_image_mode(value: &str) -> Result<ImageBlockingMode, CliError> {
     match value {
+        "none" => Ok(ImageBlockingMode::None),
         "all" => Ok(ImageBlockingMode::All),
         "over_limit" => Ok(ImageBlockingMode::OverLimit),
         _ => Err(CliError::Message(
-            "--image-blocking-mode must be all or over_limit".to_string(),
+            "--image-blocking-mode must be none, all, or over_limit".to_string(),
         )),
     }
 }
@@ -1058,6 +1059,7 @@ rel page attach URL [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
 rel proxy <list|get|create|update|delete|rotate> ...\n  \
 rel session <list|get|create|update|delete> ...\n  \
+rel tab <list|get|create|update|delete> ...    Alias for rel session\n  \
 rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
@@ -1065,8 +1067,9 @@ stdout unless --output is supplied, and writes validated NDJSON events to stderr
 `rel mcp` serves MCP over stdio for model and agent clients.\n\
 Run `rel navigate --help`, `rel perform --help`, `rel capture --help`,\n\
 `rel page --help`, `rel proxy --help`, or\n\
-`rel session --help` for resource options. Commands that accept --session-id
-use $REL_SESSION_ID when the option is omitted; an explicit option wins."
+`rel session --help` for resource options. Every `rel session ...` command is
+also available as `rel tab ...`. Commands that accept --session-id use
+$REL_SESSION_ID when the option is omitted; an explicit option wins."
         .to_string()
 }
 
@@ -1145,9 +1148,10 @@ rel session update SESSION_ID [options]\n  \
 rel session delete SESSION_ID\n\n\
 Options:\n  \
 --name NAME --proxy ALIAS --adblock-enabled true|false\n  \
---image-blocking-mode all|over_limit --image-size-limit-kb KB\n  \
+--image-blocking-mode none|all|over_limit --image-size-limit-kb KB\n  \
 --direct                       Use a direct connection instead of the default proxy\n  \
---id-only                     For create, print only the new session ID"
+--id-only                     For create, print only the new session ID\n\n\
+`rel tab` is an alias for `rel session`."
         .to_string()
 }
 
@@ -1495,6 +1499,39 @@ mod tests {
             parse(&["session", "delete", "machine-x.Session4"]).unwrap(),
             CliCommand::SessionDelete("machine-x.Session4".to_string())
         );
+        assert_eq!(parse(&["tab", "list"]).unwrap(), CliCommand::SessionList);
+        assert_eq!(
+            parse(&["tab", "get", "machine-x.Session4"]).unwrap(),
+            CliCommand::SessionGet("machine-x.Session4".to_string())
+        );
+        assert_eq!(
+            parse(&["tab", "delete", "machine-x.Session4"]).unwrap(),
+            CliCommand::SessionDelete("machine-x.Session4".to_string())
+        );
+        assert_eq!(
+            parse(&["tab", "update", "machine-x.Session4", "--name", "Research"]).unwrap(),
+            parse(&[
+                "session",
+                "update",
+                "machine-x.Session4",
+                "--name",
+                "Research",
+            ])
+            .unwrap()
+        );
+        let CliCommand::SessionCreate { request, .. } = parse(&[
+            "session",
+            "create",
+            "--adblock-enabled",
+            "true",
+            "--image-blocking-mode",
+            "none",
+        ])
+        .unwrap() else {
+            panic!("expected session create");
+        };
+        assert_eq!(request.adblock_enabled, Some(true));
+        assert_eq!(request.image_blocking_mode, Some(ImageBlockingMode::None));
     }
 
     #[test]
@@ -1538,6 +1575,14 @@ mod tests {
             serde_json::to_value(request).unwrap(),
             serde_json::json!({"proxy_alias": null})
         );
+
+        let CliCommand::SessionCreate { request, id_only } =
+            parse(&["tab", "create", "--name", "Research", "--id-only"]).unwrap()
+        else {
+            panic!("expected tab create alias");
+        };
+        assert!(id_only);
+        assert_eq!(request.name.as_deref(), Some("Research"));
 
         assert!(parse(&["session", "create", "--proxy", "work-proxy", "--direct",]).is_err());
     }

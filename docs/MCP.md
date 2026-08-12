@@ -1,6 +1,6 @@
-# Rel MCP server
+# REL MCP server
 
-Rel includes a local Model Context Protocol server for agents that support MCP.
+REL includes a local Model Context Protocol server for agents that support MCP.
 Run `rel mcp` as a stdio subprocess; the adapter exposes a focused set of
 browser tools and forwards every tool call through the public
 [`rel-client`](SDK.md) crate and [RPC v1](RPC.md). It does not read SQLite,
@@ -68,7 +68,7 @@ command = "/Applications/Rel.app/Contents/Resources/rel"
 args = ["mcp"]
 ```
 
-Use `.codex/config.toml` in a trusted project instead when Rel should only be
+Use `.codex/config.toml` in a trusted project instead when REL should only be
 available in that project. If the `codex` command is installed in the shell's
 `PATH`, it can create and inspect the same configuration:
 
@@ -80,10 +80,10 @@ codex mcp list
 After restarting Codex, start with a read-only prompt:
 
 ```text
-Use the Rel MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
+Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the six tools listed below, and `rel_status` should report
+Codex should discover the seven tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -94,7 +94,13 @@ Use rel_capture to capture https://example.com and report the saved output URI.
 ```
 
 Unlike the first check, this loads a website and saves rendered HTML. Omitting
-`session_id` can also create a persistent Rel browser session.
+`session_id` can also create a persistent REL browser session.
+
+After a page is attached or selected, verify visual output with:
+
+```text
+Use rel_take_screenshot to take a full-page WebP screenshot and describe the image.
+```
 
 ### Direct protocol smoke test
 
@@ -115,13 +121,13 @@ tool list, and the status result. Protocol messages use standard output;
 diagnostics use standard error.
 
 `rel mcp` accepts no options. At startup it checks the local agent and launches
-Rel.app in the background once when needed. It then keeps serving its original
-stdin/stdout connection until the MCP client closes stdin or the process is
-terminated. `REL_AGENT_PORT` changes the loopback RPC port from its default,
-`17319`.
+the REL app in the background once when needed. It then keeps serving its
+original stdin/stdout connection until the MCP client closes stdin or the
+process is terminated. `REL_AGENT_PORT` changes the loopback RPC port from its
+default, `17319`.
 
 Browser tool calls also use the [RPC tab-selection behavior](RPC.md#transport):
-while Rel is inactive, their target tab is selected by default without bringing
+while REL is inactive, their target tab is selected by default without bringing
 the app forward. The General setting **Follow browser commands** controls this.
 
 ## Transport and protocol versions
@@ -131,14 +137,14 @@ is one UTF-8 JSON-RPC 2.0 object on one physical line. Standard output is
 reserved for protocol messages; diagnostics go to standard error. Notifications
 do not receive responses.
 
-Rel supports both MCP protocol eras used by current clients:
+REL supports both MCP protocol eras used by current clients:
 
 | Protocol revision | Connection flow |
 | --- | --- |
 | `2026-07-28` | The client calls `server/discover`; subsequent requests carry the current per-request MCP metadata. |
 | `2024-11-05`, `2025-03-26`, `2025-06-18`, or `2025-11-25` | The client sends `initialize`, receives the selected legacy revision, then sends `notifications/initialized`. |
 
-Discovery and initialization advertise only the `tools` capability. Rel does
+Discovery and initialization advertise only the `tools` capability. REL does
 not expose MCP resources or prompts, and its fixed tool list does not emit
 list-changed notifications. `ping`, `tools/list`, and `tools/call` are available
 after the client's protocol flow is established.
@@ -153,7 +159,7 @@ operations.
 
 ## Tools
 
-The server exposes exactly six tools:
+The server exposes exactly seven tools:
 
 | Tool | RPC operation | Purpose |
 | --- | --- | --- |
@@ -161,6 +167,7 @@ The server exposes exactly six tools:
 | `rel_capture` | `POST /v1/captures` | Load a page, perform optional actions, and save its rendered HTML. |
 | `rel_page_attach` | `POST /v1/pages` | Attach an ephemeral automation page to a persistent browser session. |
 | `rel_page_action` | `POST /v1/pages/{page_id}/actions` | Perform one action on an attached page. |
+| `rel_take_screenshot` | `POST /v1/screenshot` or `POST /v1/pages/{page_id}/screenshot` | Capture a viewport or full-page PNG, JPEG, or WebP image. |
 | `rel_list_sessions` | `GET /v1/sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
 | `rel_list_proxies` | `GET /v1/proxies` | List configured proxy aliases and non-secret configuration. |
 
@@ -194,6 +201,48 @@ local `file:///` URI.
 session, and proxy selected by `rel_page_attach`; page IDs expire when the agent
 restarts. `output_uri`, when present, must be an absolute local `file:///` URI.
 
+### `rel_take_screenshot`
+
+All fields are optional. `page_id` targets an explicit attached page;
+`session_id` targets that session's current shorthand page; omitting both uses
+the current shorthand page. The two identifiers cannot be combined.
+
+`format` is `png` (the default), `jpeg`, or `webp`. `quality` is an integer from
+0 through 100 and applies to JPEG and WebP; PNG ignores it. `full_page` defaults
+to false and captures the visible viewport; true captures beyond the viewport.
+`timeout` and `wait` use the ordinary page-operation rules.
+
+When `output_uri` is omitted, the result includes standard MCP `image` content
+so a multimodal agent can inspect the pixels directly. Supplying an absolute
+local `file:///` `output_uri` saves the file and returns only its resource link,
+which avoids embedding a large image in model context.
+
+## Chrome DevTools MCP comparison
+
+REL's screenshot contract matches the official Chrome DevTools MCP's essential
+`take_screenshot` behavior: viewport or full-page capture, PNG/JPEG/WebP,
+JPEG/WebP quality, optional file output, and inline MCP image content. REL uses
+`output_uri` instead of `filePath` and persistent REL page/session identity
+instead of Chrome's selected-target model.
+
+The broader servers are not feature-identical. The
+[official Chrome DevTools MCP tool reference](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md)
+currently includes these additional DevTools-oriented categories:
+
+| Capability | REL MCP |
+| --- | --- |
+| Navigation and persistent browser identity | Available through capture, page attachment, sessions, and proxies. |
+| Click and wait automation | Available through canonical page actions; drag, hover, keyboard, form fill, upload, and dialog tools are not yet exposed. |
+| Visual screenshots | Available with inline image content and file resources. |
+| Accessibility text snapshots and element UIDs | Not exposed; rendered HTML capture is available instead. |
+| Script evaluation, console, and network inspection | Not exposed. |
+| Emulation, Lighthouse, performance traces, and heap snapshots | Not exposed. |
+| Extensions, screencast, third-party tools, and WebMCP | Not exposed. |
+
+REL intentionally keeps its current MCP surface focused on its supported
+embedded-session architecture. New capabilities must flow through RPC v1 and
+the installed app rather than introducing a second Chrome or CDP backend.
+
 ## Results and errors
 
 Every tool execution result contains its complete JSON value in two forms:
@@ -201,11 +250,21 @@ Every tool execution result contains its complete JSON value in two forms:
 - `content` contains a text block whose text is the serialized JSON;
 - `structuredContent` contains the same value as structured JSON.
 
-When a result contains captured HTML, every RPC `output_path` is exposed at the
+When a result contains a captured file, every RPC `output_path` is exposed at the
 MCP boundary as an absolute percent-encoded `output_uri`. `content` also includes
-one standard MCP `resource_link` block per unique file, with `mimeType` set to
-`text/html`. Rel deliberately keeps native filesystem paths inside RPC and uses
-file URIs for MCP.
+one standard MCP `resource_link` block per unique file, with the matching HTML
+or image MIME type. REL deliberately keeps native filesystem paths inside RPC
+and uses file URIs for MCP.
+
+Screenshot calls without `output_uri` additionally include an MCP image block:
+
+```json
+{
+  "type": "image",
+  "data": "<base64 image bytes>",
+  "mimeType": "image/webp"
+}
+```
 
 Status, page, session-list, and proxy-list tools preserve the ordinary RPC v1
 success envelope with `status`, `request_id`, and `data`.
@@ -245,9 +304,9 @@ block links the file directly:
 `events`
 includes the terminal `capture.finished` event, and `exit_code` is taken from
 that event. A target website status such as 404 remains capture data and can
-produce exit code 1 and `isError:true`; it is not a Rel RPC or MCP protocol
-error. With **Rel → Settings… → General → Wait for Cloudflare Turnstile** on by
-default, Rel detects Turnstile and managed Cloudflare challenge pages and gives
+produce exit code 1 and `isError:true`; it is not a REL RPC or MCP protocol
+error. With **REL → Settings… → General → Wait for Cloudflare Turnstile** on by
+default, REL detects Turnstile and managed Cloudflare challenge pages and gives
 them up to 15 seconds to continue before returning their target error.
 
 Malformed JSON-RPC messages, unsupported methods, and unknown tools use
@@ -262,7 +321,7 @@ or stable ID rather than parse the message.
 
 The MCP process is a transient adapter owned by the MCP client. It is separate
 from the app-supervised `rel --agent` process and from the private framed stdio
-bridge between that agent and Rel.app. There is no MCP HTTP route and no second
+bridge between that agent and the REL app. There is no MCP HTTP route and no second
 browser backend.
 
 The stdio connection is private to the launching MCP client, but forwarded RPC

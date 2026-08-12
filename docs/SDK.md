@@ -1,11 +1,11 @@
-# Rel Rust SDK
+# REL Rust SDK
 
-`rel-client` is the typed Rust client for every public Rel RPC v1 operation.
+`rel-client` is the typed Rust client for every public REL RPC v1 operation.
 The `rel` CLI uses this crate rather than maintaining a separate transport or
 request model.
 
 The SDK source is available under the MIT license in
-[`gabriel/rel-tools`](https://github.com/gabriel/rel-tools). Rel's application
+[`gabriel/rel-tools`](https://github.com/gabriel/rel-tools). REL's application
 source and internal runtime implementation are not publicly distributed.
 
 Related documents: [CLI](CLI.md), [MCP](MCP.md), and [RPC](RPC.md).
@@ -34,13 +34,13 @@ URL. `with_request_timeout(Duration)` changes the ten-second timeout used by
 ordinary requests. Capture and page methods derive longer deadlines from their
 operation timeout, wait, retry count, and retry delay.
 
-The SDK is transport-only: it never launches Rel.app, reads Rel's SQLite
+The SDK is transport-only: it never launches the REL app, reads REL's SQLite
 database, or tails log files. The caller is responsible for ensuring that the
 installed app and agent are running. The bundled CLI adds app-launch behavior
 for Chromium and mutation commands around this same client.
 
 SDK browser methods inherit the [RPC tab-selection behavior](RPC.md#transport):
-when Rel is inactive, the target tab is selected by default without activating
+when REL is inactive, the target tab is selected by default without activating
 the app. Users can disable this with the General setting **Follow browser
 commands**.
 
@@ -55,9 +55,11 @@ Each method maps to one public RPC route:
 | `navigate(&NavigateRequest)` | `POST /v1/navigate` |
 | `perform(&PerformRequest)` | `POST /v1/perform` |
 | `capture_current_page(&PageCaptureRequest)` | `POST /v1/capture` |
+| `screenshot_current_page(&ScreenshotRequest)` | `POST /v1/screenshot` |
 | `capture(&CaptureRequest)` | `POST /v1/captures` |
 | `attach_page(&PageAttachRequest)` | `POST /v1/pages` |
 | `perform_page_action(page_id, &PageActionRequest)` | `POST /v1/pages/{page_id}/actions` |
+| `take_page_screenshot(page_id, &PageScreenshotRequest)` | `POST /v1/pages/{page_id}/screenshot` |
 | `list_proxies()` | `GET /v1/proxies` |
 | `get_proxy(alias)` | `GET /v1/proxies/{alias}` |
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
@@ -77,11 +79,16 @@ and the typed `data` resource. Resources include `Health`, `StatusReport`,
 `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
 match RPC v1.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all six tools. It
-calls `status`, `capture`, `attach_page`, `perform_page_action`, `list_sessions`,
-and `list_proxies`; it does not maintain alternate request types or bypass the
-RPC transport. For capture, it exhausts and validates `CaptureStream` before
-returning one aggregated MCP result.
+`Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
+with the installed bundle's ID, configuration, worktree, branch, commit, and
+dirty state. The field is `None` when the agent was not launched by a
+metadata-bearing app bundle.
+
+The bundled [MCP adapter](MCP.md) uses this same client for all seven tools. It
+calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
+methods, `list_sessions`, and `list_proxies`; it does not maintain alternate
+request types or bypass the RPC transport. For capture, it exhausts and
+validates `CaptureStream` before returning one aggregated MCP result.
 
 ## Shorthand page workflow
 
@@ -117,10 +124,34 @@ println!("{}", capture.data.capture.output_path);
 # Ok::<(), rel_client::ClientError>(())
 ```
 
+`navigate` becomes ready after the requested HTTP(S) main frame starts,
+finishes, and has nonempty rendered source. Subframe and page-initiated
+background loading does not hold the request open. Its `wait` value is a
+bounded settling delay after final main-frame readiness; use `Action::WaitFor`
+for a site-specific live-DOM readiness condition.
+
+Take a visual capture from the same current page with `ScreenshotRequest`, or
+use `PageScreenshotRequest` with an explicit attached page ID:
+
+```rust
+use rel_client::{RelClient, ScreenshotFormat, ScreenshotRequest};
+
+let client = RelClient::local();
+let screenshot = client.screenshot_current_page(&ScreenshotRequest {
+    session_id: Some("Session1".into()),
+    format: Some(ScreenshotFormat::Webp),
+    quality: Some(80),
+    full_page: true,
+    ..ScreenshotRequest::default()
+})?;
+println!("{}", screenshot.data.screenshot.output_path);
+# Ok::<(), rel_client::ClientError>(())
+```
+
 `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame commits an HTTP 4xx or 5xx response. By default, detected Cloudflare
 Turnstile and managed challenge pages first receive up to 15 seconds to
-continue; this can be disabled in Rel's General settings. Error details include
+continue; this can be disabled in REL's General settings. Error details include
 the final `url` and exact `target_http_status`; the navigated session remains
 selected.
 
@@ -222,7 +253,7 @@ update.
 ## Session creation defaults
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
-Session defaults configured in Rel.app. Use `Change::Set("alias".into())` to override the
+Session defaults configured in the REL app. Use `Change::Set("alias".into())` to override the
 default proxy or `Change::Clear` to create a direct session:
 
 ```rust
@@ -237,8 +268,9 @@ RelClient::local().create_session(&request)?;
 ```
 
 The `SessionDefaults` resource contains `proxy_alias`, `adblock_enabled`,
-`image_blocking_mode`, and `image_size_limit_kb`. Proxy and filter updates
-affect only subsequently created sessions. Rel does not impose a maximum
+`image_blocking_mode`, and `image_size_limit_kb`. `ImageBlockingMode::None`
+allows every image without disabling AdBlock. Proxy and filter updates
+affect only subsequently created sessions. REL does not impose a maximum
 session count.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
@@ -258,7 +290,7 @@ SDK failures use one `ClientError` type:
 | --- | --- |
 | `Transport` | The agent could not be reached or the HTTP exchange failed. |
 | `Protocol` | Content type, request ID, envelope, or event shape violated RPC v1. |
-| `Rpc(RpcFailure)` | Rel returned the standard structured RPC error envelope. |
+| `Rpc(RpcFailure)` | REL returned the standard structured RPC error envelope. |
 | `Io` | Reading a response or capture stream failed. |
 | `Json` | JSON serialization or deserialization failed. |
 
@@ -275,4 +307,4 @@ against the envelope or every NDJSON event.
 ## Stability
 
 The SDK targets RPC v1 only. Removing legacy CLI syntax does not change this
-wire contract. SDK versions are distributed alongside compatible Rel releases.
+wire contract. SDK versions are distributed alongside compatible REL releases.

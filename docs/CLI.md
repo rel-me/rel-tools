@@ -1,9 +1,9 @@
-# Rel CLI
+# REL CLI
 
 The recommended CLI is the `rel` binary bundled in `/Applications/Rel.app` and
-linked from a writable directory already in `PATH`. Use **Rel → Settings… →
+linked from a writable directory already in `PATH`. Use **REL → Settings… →
 General → Install Command Line** to create the link. If no safe destination is
-available, Rel leaves the filesystem unchanged so you can create the link
+available, REL leaves the filesystem unchanged so you can create the link
 manually. The matching public client can also be installed from source:
 
 ```sh
@@ -43,22 +43,23 @@ rel session get SESSION_ID
 rel session create [options]
 rel session update SESSION_ID [options]
 rel session delete SESSION_ID
+rel tab <list|get|create|update|delete> ...
 rel mcp
 rel --help | -h
 rel --version
 ```
 
-`rel --agent` exists only in the proprietary binary bundled with Rel.app. It is
-not part of the public `rel-cli` package.
+`rel --agent` exists only in the proprietary binary bundled with the REL app.
+It is not part of the public `rel-cli` package.
 
 `health` and `status` inspect the currently running agent without launching the
 app. Every other command, including `mcp`, proxy reads, and session reads,
-starts Rel.app in the background when its agent is unavailable. `rel mcp`
+starts the REL app in the background when its agent is unavailable. `rel mcp`
 performs that startup check once, then serves its original stdio connection.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
 
-When a browser command targets a tab while Rel is in the background, Rel selects
-that tab by default without activating the app. Turn off **Rel → Settings… →
+When a browser command targets a tab while REL is in the background, REL selects
+that tab by default without activating the app. Turn off **REL → Settings… →
 General → Follow browser commands** to keep the current tab selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
@@ -66,7 +67,8 @@ the selection.
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free
 `rel capture` instead captures the current shorthand page selected by
-`rel navigate`. The removed `ping`, `logs`, and
+`rel navigate`. `rel tab` is an alias for the complete `rel session` command
+family. The removed `ping`, `logs`, and
 `--rotate-proxy-session` interfaces have no compatibility aliases; use
 `status`, the app's Logs view, and `proxy rotate`, respectively.
 
@@ -74,56 +76,37 @@ The explicit `rel capture URL [options]` form is equivalent. Argument-free
 
 ### Like curl, but from a real browser
 
-Give Rel a URL to load it in embedded Chromium and write the rendered HTML to
+Give REL a URL to load it in embedded Chromium and write the rendered HTML to
 standard output:
 
 ```sh
-rel https://example.com
+rel https://rel.me
 ```
 
-Redirect it just like curl when saving the page is more useful:
+It follows the same output model as curl: page data goes to standard output and
+capture events go to standard error. Redirect either stream independently when
+saving them is more useful:
 
 ```sh
-rel https://example.com > example.html
+rel https://rel.me > rel.html 2> capture.ndjson
 ```
 
-### Create a proxied session and keep using it
+### Navigate, perform, and capture in one session
 
-Create the named proxy first:
+Create a session with `--id-only` so command substitution receives only its
+canonical ID, then use that ID for the complete stateful workflow:
 
 ```sh
-rel proxy create \
-  --alias office \
-  --upstream-host proxy.example.com \
-  --upstream-port 8000 \
-  --username account \
-  --password secret
+session_id="$(rel session create --name Research --id-only)"
+
+rel navigate https://rel.me --session-id="$session_id"
+rel perform '[{"action":"wait-for","selector":"body"}]' --session-id="$session_id"
+rel capture --session-id="$session_id" > rel.html
 ```
 
-By default, `session create` returns the ordinary JSON response envelope. Add
-`--id-only` to print just the canonical `Session<number>` ID for shell command
-substitution, then
-quote the variable when passing it to later commands:
-
-```sh
-session_id="$(rel session create --name Research --proxy=office --id-only)"
-
-rel navigate https://example.com --session-id="$session_id"
-rel capture --session-id="$session_id" > example.html
-```
-
-For a sequence of commands, export the ID under Rel's standard environment
-variable and omit the repeated options:
-
-```sh
-export REL_SESSION_ID="$session_id"
-
-rel navigate https://example.com
-rel perform '[{"action":"wait-for","selector":"body"}]'
-rel capture > example.html
-```
-
-An explicit `--session-id` always takes precedence over `REL_SESSION_ID`.
+The final argument-free `rel capture` reads the page selected by `rel navigate`
+after `rel perform` finishes. `rel tab create` is equivalent to
+`rel session create` if tab-oriented terminology is more natural.
 
 ## Output and errors
 
@@ -151,7 +134,7 @@ rel https://example.com > example.html 2> capture.ndjson
 The CLI verifies response content types and request IDs through `rel-client`.
 Pressing Ctrl-C terminates the foreground CLI and closes its RPC connection.
 If a browser operation is still active, the resident agent cancels the matching
-Chromium work; Rel.app, the agent, and the persistent browser session remain
+Chromium work; the REL app, agent, and persistent browser session remain
 available for later commands.
 
 `rel mcp` is a protocol process rather than an ordinary one-shot command. Its
@@ -184,15 +167,17 @@ exits unsuccessfully.
 The command accepts no options. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly six tools: `rel_status`, `rel_capture`,
-`rel_page_attach`, `rel_page_action`, `rel_list_sessions`, and
-`rel_list_proxies`.
+`2025-11-25`, and exposes exactly seven tools: `rel_status`, `rel_capture`,
+`rel_page_attach`, `rel_page_action`, `rel_take_screenshot`,
+`rel_list_sessions`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
 validated NDJSON stream into `{request_id, exit_code, events}`. Every tool
 execution result includes its complete JSON in both a text content block and
 `structuredContent`. Captured files use absolute `file:///` URIs at the MCP
 boundary and are also returned as standard MCP `resource_link` content blocks.
+Screenshot calls without an explicit output URI additionally return standard
+MCP `image` content for multimodal agents.
 
 ## Health and status
 
@@ -203,8 +188,9 @@ rel status
 
 `health` calls `GET /v1/health` and reports agent worker readiness. `status`
 calls `GET /v1/status` and reports the app, agent, Browser Proxy, and Chromium
-bridge checks. Neither command synthesizes a local process report when the
-agent is unavailable.
+bridge checks. Both responses include the installed build identity when the
+agent was launched by a metadata-bearing app bundle. Neither command
+synthesizes a local process report when the agent is unavailable.
 
 ## Shorthand page workflow
 
@@ -223,12 +209,20 @@ creating a session only when none exists. Later calls without a session ID reuse
 the current page and session. It accepts `--session-id`, `--proxy`, `--output`,
 `--timeout`, and `--wait`.
 
+Navigation becomes ready after REL observes the requested HTTP(S) main-frame
+load, that main frame finishes, and its rendered source is available. Subframe
+and page-initiated background loading does not delay completion. `--wait`
+applies a bounded settling delay after main-frame readiness; if another
+main-frame navigation starts during that delay, REL waits for it and restarts
+the delay. Use a `wait-for` action when a site has a more specific live-DOM
+readiness condition.
+
 If the main frame returns HTTP 4xx or 5xx, `navigate` normally exits
 unsuccessfully as soon as Chromium commits that response instead of waiting for
-all background loading to stop. By default, Rel first detects Cloudflare
+all background loading to stop. By default, REL first detects Cloudflare
 Turnstile and managed challenge pages and gives them up to 15 seconds to
 continue. A successful redirect completes normally; otherwise the original
-target error is returned. Turn off **Rel → Settings… → General → Wait for
+target error is returned. Turn off **REL → Settings… → General → Wait for
 Cloudflare Turnstile** to restore immediate failure for every HTTP error. The
 `UPSTREAM_UNAVAILABLE` error message and details include the exact target status
 and final URL. The rendered page remains selected in the session.
@@ -267,7 +261,7 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | --- | --- | --- |
 | `--output PATH` | `output` | Write HTML to this path instead of stdout. |
 | `--timeout SECONDS` | `timeout` | Positive finite Chromium-operation timeout; default `90`. |
-| `--wait SECONDS` | `wait` | Nonnegative finite delay after main-frame readiness; default `1`. |
+| `--wait SECONDS` | `wait` | Nonnegative finite settling delay after the final main-frame readiness; default `1`. Background loading does not restart it. |
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set; otherwise create a persistent session. |
@@ -291,7 +285,7 @@ Session<ID>
 For a new session, `--proxy oxylabs` is shorthand for creating a persistent
 session assigned to `oxylabs`, then capturing with it. Its canonical ID is
 returned as `data.session_id` in the NDJSON capture events. Omitting `--proxy`
-uses Rel’s configured Session defaults.
+uses REL’s configured Session defaults.
 For an existing session, omission preserves its current assignment; an explicit
 proxy updates the assignment.
 
@@ -323,7 +317,7 @@ A normal capture emits `capture.started`, `capture.browser_requested`,
 CLI exit code. When stdout is the destination, `capture.writing` and
 `capture.completed` report `output_path:"-"`; the CLI's private staging path is
 never exposed. A target website response such as HTTP 404 or 429 is reported
-as `target_http_status`; it is not a Rel RPC error.
+as `target_http_status`; it is not a REL RPC error.
 
 Example:
 
@@ -406,6 +400,9 @@ rel proxy rotate office
 
 ## Sessions
 
+`rel tab` is an alias for `rel session`; every subcommand and option below works
+with either spelling.
+
 Read and delete persistent browser sessions by their canonical session IDs:
 
 ```sh
@@ -426,13 +423,14 @@ rel session create \
 ```
 
 Every create option is optional. Omitted proxy and filtering options use the
-Session defaults configured in Rel.app. Use `--direct` to force a direct
-connection instead of the default proxy. `--image-blocking-mode` is `all` or
-`over_limit`. `--id-only` changes successful output to the new canonical
+Session defaults configured in the REL app. Use `--direct` to force a direct
+connection instead of the default proxy. `--image-blocking-mode` is `none`,
+`all`, or `over_limit`; `none` allows every image without changing AdBlock.
+`--id-only` changes successful output to the new canonical
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
 
-Rel does not impose a maximum session count. Sessions remain open until you
+REL does not impose a maximum session count. Sessions remain open until you
 explicitly delete them.
 
 Partially update a session:

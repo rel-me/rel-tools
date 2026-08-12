@@ -36,9 +36,12 @@ Then try:
 
 ```sh
 rel health
-rel navigate https://example.com
-rel capture > example.html
+rel https://rel.me
 ```
+
+Capture writes page data to standard output and events to standard error. Use
+`rel navigate`, `rel perform`, and argument-free `rel capture` for a stateful
+page workflow. `rel tab` is an alias for `rel session`.
 
 ## Install the Codex plugin
 
