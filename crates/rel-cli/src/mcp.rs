@@ -1522,6 +1522,7 @@ mod tests {
                 "overall_status": "ok",
                 "running_count": 4,
                 "total_count": 4,
+                "build": null,
                 "checks": []
             }
         })
@@ -1559,6 +1560,7 @@ mod tests {
                     "overall_status": "ok",
                     "running_count": 4,
                     "total_count": 4,
+                    "build": null,
                     "checks": []
                 }
             })

@@ -79,6 +79,11 @@ and the typed `data` resource. Resources include `Health`, `StatusReport`,
 `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
 match RPC v1.
 
+`Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
+with the installed bundle's ID, configuration, worktree, branch, commit, and
+dirty state. The field is `None` when the agent was not launched by a
+metadata-bearing app bundle.
+
 The bundled [MCP adapter](MCP.md) uses this same client for all seven tools. It
 calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
 methods, `list_sessions`, and `list_proxies`; it does not maintain alternate
@@ -118,6 +123,12 @@ let capture = client.capture_current_page(&PageCaptureRequest {
 println!("{}", capture.data.capture.output_path);
 # Ok::<(), rel_client::ClientError>(())
 ```
+
+`navigate` becomes ready after the requested HTTP(S) main frame starts,
+finishes, and has nonempty rendered source. Subframe and page-initiated
+background loading does not hold the request open. Its `wait` value is a
+bounded settling delay after final main-frame readiness; use `Action::WaitFor`
+for a site-specific live-DOM readiness condition.
 
 Take a visual capture from the same current page with `ScreenshotRequest`, or
 use `PageScreenshotRequest` with an explicit attached page ID:

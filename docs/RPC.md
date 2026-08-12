@@ -164,12 +164,22 @@ HTTP 200 while the worker is ready or operating within its deadline:
     "version": "0.1.8",
     "pid": 123,
     "browser_proxy_port": 17400,
+    "build": {
+      "id": "ba49-deadbeef-a1b2c3d4",
+      "configuration": "Debug",
+      "worktree": "ba49",
+      "branch": "codex/example",
+      "commit": "deadbeef",
+      "dirty": true
+    },
     "worker": { "state": "idle" }
   }
 }
 ```
 
-Worker state is `starting`, `idle`, or `busy`. A startup/operation deadline
+`build` identifies the installed worktree build and is `null` for agents that
+were not launched from a metadata-bearing app bundle. Worker state is
+`starting`, `idle`, or `busy`. A startup/operation deadline
 violation or failed worker returns `AGENT_UNHEALTHY`, with the worker
 snapshot in `error.details.worker`. Health deadlines diagnose stalls; they do not
 cancel the active request.
@@ -186,6 +196,14 @@ The diagnostic call succeeds with HTTP 200 even when a component is down:
     "overall_status": "ok",
     "running_count": 4,
     "total_count": 4,
+    "build": {
+      "id": "ba49-deadbeef-a1b2c3d4",
+      "configuration": "Debug",
+      "worktree": "ba49",
+      "branch": "codex/example",
+      "commit": "deadbeef",
+      "dirty": true
+    },
     "checks": [
       {
         "id": "agent",
@@ -257,6 +275,11 @@ Capture HTML without another action with `POST /v1/capture`:
 All three return the same page-operation envelope documented under attached
 pages. When `session_id` is supplied, `navigate` selects and updates that
 session's current shorthand page; `perform` and singular `capture` target it.
+Navigation becomes ready after the requested HTTP(S) main frame starts,
+finishes, and has nonempty rendered source. Subframe and page-initiated
+background loading does not delay completion. The `wait` delay begins after
+main-frame readiness and restarts if another main-frame navigation begins; use
+`wait-for` for a site-specific live-DOM readiness condition.
 If navigation commits an HTTP 4xx or 5xx main-frame response, it returns
 `UPSTREAM_UNAVAILABLE` instead of waiting for unrelated background loading to
 become idle. A detected Cloudflare Turnstile or managed challenge receives the
@@ -340,7 +363,7 @@ caller did not request a specific output URI.
 | `url` | Required HTTP(S) URL; scheme-less input is normalized by the agent. |
 | `output` | Optional nonempty filesystem path or null; generated when absent. Relative input is resolved against the agent process directory. Responses always contain an absolute `output_path`. |
 | `timeout` | Finite seconds greater than zero; default 90. |
-| `wait` | Finite seconds at least zero; default 1. |
+| `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical action objects. |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |

@@ -188,8 +188,9 @@ rel status
 
 `health` calls `GET /v1/health` and reports agent worker readiness. `status`
 calls `GET /v1/status` and reports the app, agent, Browser Proxy, and Chromium
-bridge checks. Neither command synthesizes a local process report when the
-agent is unavailable.
+bridge checks. Both responses include the installed build identity when the
+agent was launched by a metadata-bearing app bundle. Neither command
+synthesizes a local process report when the agent is unavailable.
 
 ## Shorthand page workflow
 
@@ -207,6 +208,14 @@ persisted session unless `--session-id` or `REL_SESSION_ID` supplies one,
 creating a session only when none exists. Later calls without a session ID reuse
 the current page and session. It accepts `--session-id`, `--proxy`, `--output`,
 `--timeout`, and `--wait`.
+
+Navigation becomes ready after REL observes the requested HTTP(S) main-frame
+load, that main frame finishes, and its rendered source is available. Subframe
+and page-initiated background loading does not delay completion. `--wait`
+applies a bounded settling delay after main-frame readiness; if another
+main-frame navigation starts during that delay, REL waits for it and restarts
+the delay. Use a `wait-for` action when a site has a more specific live-DOM
+readiness condition.
 
 If the main frame returns HTTP 4xx or 5xx, `navigate` normally exits
 unsuccessfully as soon as Chromium commits that response instead of waiting for
@@ -252,7 +261,7 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | --- | --- | --- |
 | `--output PATH` | `output` | Write HTML to this path instead of stdout. |
 | `--timeout SECONDS` | `timeout` | Positive finite Chromium-operation timeout; default `90`. |
-| `--wait SECONDS` | `wait` | Nonnegative finite delay after main-frame readiness; default `1`. |
+| `--wait SECONDS` | `wait` | Nonnegative finite settling delay after the final main-frame readiness; default `1`. Background loading does not restart it. |
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set; otherwise create a persistent session. |

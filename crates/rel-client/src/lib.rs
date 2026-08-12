@@ -1157,7 +1157,18 @@ pub struct Health {
     pub version: String,
     pub pid: u32,
     pub browser_proxy_port: u16,
+    pub build: Option<BuildIdentity>,
     pub worker: Worker,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BuildIdentity {
+    pub id: String,
+    pub configuration: String,
+    pub worktree: String,
+    pub branch: String,
+    pub commit: String,
+    pub dirty: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1172,6 +1183,7 @@ pub struct StatusReport {
     pub overall_status: String,
     pub running_count: usize,
     pub total_count: usize,
+    pub build: Option<BuildIdentity>,
     pub checks: Vec<StatusCheck>,
 }
 
@@ -1473,10 +1485,16 @@ mod tests {
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
                     "version":"0.1.7", "pid":123, "browser_proxy_port":17400,
+                    "build":{"id":"ba49-deadbeef-a1b2c3d4","configuration":"Debug",
+                        "worktree":"ba49","branch":"codex/example","commit":"deadbeef",
+                        "dirty":true},
                     "worker":{"state":"idle"}
                 }),
                 ("GET", "/v1/status") => json!({
                     "overall_status":"ok", "running_count":1, "total_count":1,
+                    "build":{"id":"ba49-deadbeef-a1b2c3d4","configuration":"Debug",
+                        "worktree":"ba49","branch":"codex/example","commit":"deadbeef",
+                        "dirty":true},
                     "checks":[{"id":"agent","name":"Agent","kind":"service","running":true,
                         "status":"running","detail":"ready","pids":[123]}]
                 }),
@@ -1520,8 +1538,10 @@ mod tests {
         });
         let client = RelClient::new(base_url);
 
-        client.health().unwrap();
-        client.status().unwrap();
+        let health = client.health().unwrap();
+        assert_eq!(health.data.build.as_ref().unwrap().worktree, "ba49");
+        let status = client.status().unwrap();
+        assert_eq!(status.data.build, health.data.build);
         client
             .navigate(&NavigateRequest::new("example.com"))
             .unwrap();
