@@ -1,20 +1,20 @@
 # REL Chat and models
 
 REL includes a session-scoped Chat interface in every browser tab's bottom
-panel. Chat uses the model profile configured in **REL → Settings… → Models**
+panel. Chat uses the provider connections configured in **REL → Settings… → Models**
 and can inspect, navigate, and act through REL's typed browser tools.
 
-## Configure a model
+## Configure a provider
 
-Add a profile in **Settings → Models** and choose a provider. REL checks the
-configured credential and automatically loads the models available from that
-provider. The model picker remains editable, so you can enter an exact model ID
-when a provider cannot list models or a newly released model is not returned.
+Choose **Add Provider…** in **Settings → Models** and configure the provider,
+credential environment variable, and any custom endpoint. A model is not
+required in Settings. REL checks the connection and automatically adds the
+models returned by that provider to the model picker in Chat.
 
-REL suggests a profile name from the provider and selected model, and makes the
-first profile the default. Additional profiles can be made the default from the
-same sheet. Advanced settings contain the profile name, API-key variable,
-bounded maximum turn count, and optional endpoint overrides.
+REL suggests a profile name from the provider and makes the first connection
+the default. Additional connections can be made the default from the same
+sheet. Advanced settings contain the profile name, API-key variable, bounded
+maximum turn count, and optional endpoint overrides.
 
 Supported provider kinds are OpenAI, OpenAI-compatible endpoints, Anthropic,
 Google Gemini, and Ollama. OpenAI-compatible endpoints are a distinct provider
@@ -33,8 +33,9 @@ stored with the profile in:
 The file never contains provider credentials.
 
 If discovery fails, confirm that the variable shown in the sheet is available
-to REL, then select **Refresh Models**. You can inspect the same normalized
-model listing from Terminal without printing the credential:
+to REL, then select **Refresh Models**. The curated OpenAI choices remain
+available in Chat. You can inspect the same normalized model listing from
+Terminal without printing the credential:
 
 ```sh
 /Applications/REL.app/Contents/Resources/rel-ai-service \
@@ -55,17 +56,18 @@ Open the bottom panel in a browser tab and select **Chat**. Each tab owns an
 independent native conversation view and Rust harness process. The ordinary
 Terminal tab has a separate PTY and is not reused or interrupted.
 
-The composer’s model menu starts with a curated set of OpenAI chat models that
-use `OPENAI_API_KEY`. Profiles from **Settings → Models** are merged into that
-list, so custom providers and endpoints are available beside the built-in
-choices. New tabs begin with the configured default profile, or the first
-built-in model when no default exists, while each open tab can select its own
-model. Choose **Add or Manage Models…** at the bottom of the menu to configure
-another provider model and add it to the list.
+The composer menu starts with a curated set of OpenAI chat models that use
+`OPENAI_API_KEY`. Models discovered through connections in **Settings →
+Models** are merged into that list, so custom providers and endpoints are
+available beside the built-in choices. Each browser tab keeps its own Model,
+Effort, and Speed selection. Open **Model → Configure Providers…** to add
+another provider connection.
 
-Changing models before sending the first message is immediate. Changing models
-after a conversation has started asks for confirmation because it starts a new
-conversation in that tab.
+Effort offers Minimal, Low, Medium, High, and Extra High reasoning for OpenAI
+models. Speed chooses the Standard, Priority, or Flex OpenAI service tier.
+Changing Model, Effort, or Speed before sending the first message is immediate.
+Changing any of them after a conversation has started asks for confirmation
+because it starts a new conversation in that tab.
 
 The harness keeps structured conversation history until it is cleared or
 restarted. Browser tool calls are pinned to the immutable session ID of the tab
@@ -78,7 +80,7 @@ Chat controls are:
 | Control | Action |
 | --- | --- |
 | `Return` | Send the prompt |
-| Model menu | Choose the model for this tab or configure more models |
+| Chat configuration menu | Choose Model, Effort, or Speed for this tab |
 | Clear button | Clear conversation history without changing browser state |
 | Restart button | Restart the model harness |
 
@@ -97,7 +99,8 @@ writes one `ready`, `assistant`, `cleared`, or `error` event per stdout line:
 ```sh
 printf '%s\n' '{"type":"clear"}' | \
   /Applications/REL.app/Contents/Resources/rel-ai-service \
-    chat --provider ollama --model qwen3 --session-id Session1
+    chat --provider openai --model gpt-5.6-sol \
+    --effort xhigh --speed standard --session-id Session1
 ```
 
 Diagnostics use stderr. The conversation process is created on demand and does
