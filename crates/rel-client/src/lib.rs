@@ -751,6 +751,12 @@ impl NavigateRequest {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "action", rename_all = "kebab-case")]
 pub enum Action {
+    Click {
+        selector: String,
+    },
+    WaitFor {
+        selector: String,
+    },
     ClickLink {
         link: String,
         #[serde(rename = "match")]
@@ -1455,16 +1461,20 @@ mod tests {
                 "match":{"type":"fuzzy-link", "threshold":0.9}
             })
         );
-        assert!(serde_json::from_value::<Action>(serde_json::json!({
-            "action": "click",
-            "selector": "button.more"
-        }))
-        .is_err());
-        assert!(serde_json::from_value::<Action>(serde_json::json!({
-            "action": "wait-for",
-            "selector": "#loaded"
-        }))
-        .is_err());
+        assert_eq!(
+            serde_json::to_value(Action::Click {
+                selector: "button.more".to_string(),
+            })
+            .unwrap(),
+            serde_json::json!({"action":"click", "selector":"button.more"})
+        );
+        assert_eq!(
+            serde_json::to_value(Action::WaitFor {
+                selector: "#loaded".to_string(),
+            })
+            .unwrap(),
+            serde_json::json!({"action":"wait-for", "selector":"#loaded"})
+        );
     }
 
     #[test]

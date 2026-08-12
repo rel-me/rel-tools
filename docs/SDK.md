@@ -97,8 +97,7 @@ the same `session_id` on each request to scope that page to one browser session:
 
 ```rust
 use rel_client::{
-    Action, FuzzyLinkMatch, NavigateRequest, PageCaptureRequest, PerformRequest,
-    RelClient,
+    Action, NavigateRequest, PageCaptureRequest, PerformRequest, RelClient,
 };
 
 let client = RelClient::local();
@@ -107,9 +106,11 @@ let mut navigate = NavigateRequest::new("https://example.com");
 navigate.session_id = Some(session_id.clone());
 client.navigate(&navigate)?;
 let mut perform = PerformRequest::new(vec![
-    Action::ClickLink {
-        link: "https://example.com/more".into(),
-        match_rule: FuzzyLinkMatch::new(1.0),
+    Action::WaitFor {
+        selector: "button.more".into(),
+    },
+    Action::Click {
+        selector: "button.more".into(),
     },
     Action::Wait { seconds: 0.5 },
 ]);
@@ -207,6 +208,12 @@ The public `Action` enum serializes directly to the RPC v1 object shapes:
 ```rust
 use rel_client::{Action, FuzzyLinkMatch};
 
+let click = Action::Click {
+    selector: "button.more".into(),
+};
+let wait_for = Action::WaitFor {
+    selector: "#loaded-content".into(),
+};
 let wait = Action::Wait { seconds: 0.5 };
 let link = Action::ClickLink {
     link: "https://example.com/more".into(),
@@ -215,9 +222,12 @@ let link = Action::ClickLink {
 ```
 
 There are no function-style action strings or compatibility action shapes in
-the SDK. Link clicks use read-only native accessibility metadata for targeting
-and CEF mouse input for dispatch; they do not use page JavaScript,
-accessibility actions, or Chrome DevTools Protocol.
+the SDK. Selector actions use CEF's read-only renderer DOM snapshot; selector
+clicks require visible bounds and use CEF mouse input. Link clicks use read-only
+native accessibility metadata and the same input path. Interaction targeting
+and dispatch do not use page JavaScript, DOM mutation, accessibility actions,
+or Chrome DevTools Protocol. The selector subset and fail-closed behavior are
+defined in the [CLI guide](CLI.md#capture).
 
 ## Partial updates
 

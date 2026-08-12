@@ -211,7 +211,7 @@ For sequential automation that does not need to manage page or session IDs:
 
 ```sh
 rel navigate https://example.com
-rel perform '[{"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1}},{"action":"wait","seconds":0.5}]'
+rel perform '[{"action":"wait-for","selector":"button.more"},{"action":"click","selector":"button.more"},{"action":"wait","seconds":0.5}]'
 rel capture > final.html
 ```
 
@@ -309,15 +309,25 @@ rel https://example.com/ --proxy=oxylabs
 Canonical actions are:
 
 ```json
+{"action":"click","selector":"button.more"}
+{"action":"wait-for","selector":"#loaded-content"}
 {"action":"wait","seconds":0.5}
 {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":0.9}}
 ```
 
-`click-link` resolves a visible link through Chromium's always-on native macOS
-accessibility tree and sends mouse input through CEF. REL does not execute page
-JavaScript, invoke an accessibility action, or use Chrome DevTools Protocol for
-interaction targeting or dispatch. If the native tree does not expose a
-matching visible link, the action fails without a fallback.
+`click` and `wait-for` resolve selectors through CEF's read-only renderer DOM
+snapshot API. `wait-for` checks only for presence; `click` reads the first
+match's bounds, requires it to be visible, and sends mouse input through CEF.
+Supported selectors are comma-separated lists composed of tag, universal, ID,
+class, presence or value attribute selectors, plus descendant, child (`>`),
+adjacent-sibling (`+`), and general-sibling (`~`) combinators. Pseudo-classes,
+pseudo-elements, namespaces, and CSS escapes are rejected.
+
+`click-link` instead resolves a visible link through Chromium's always-on
+native macOS accessibility tree and sends the same CEF mouse input. Interaction
+targeting and dispatch never execute page JavaScript, mutate the DOM, invoke an
+accessibility action, or use Chrome DevTools Protocol. A missing, invisible, or
+unsupported target fails without a fallback.
 
 Function-style action strings and legacy action object shapes are rejected.
 `--action` and `--actions` may be combined; actions execute in command-line
@@ -358,7 +368,7 @@ Perform one canonical action on that attachment:
 
 ```sh
 rel page action page_... \
-  --action '{"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1}}' \
+  --action '{"action":"click","selector":"button.more"}' \
   --output /tmp/after-click.html
 ```
 

@@ -249,11 +249,8 @@ Perform one or more canonical actions with `POST /v1/perform`:
 ```json
 {
   "actions": [
-    {
-      "action": "click-link",
-      "link": "https://example.com/more",
-      "match": { "type": "fuzzy-link", "threshold": 1 }
-    },
+    { "action": "wait-for", "selector": "button.more" },
+    { "action": "click", "selector": "button.more" },
     { "action": "wait", "seconds": 0.5 }
   ],
   "session_id": "Session12",
@@ -377,6 +374,8 @@ caller did not request a specific output URI.
 The RPC accepts only action objects:
 
 ```json
+{ "action": "click", "selector": "button.more" }
+{ "action": "wait-for", "selector": "#loaded-content" }
 { "action": "wait", "seconds": 0.5 }
 {
   "action": "click-link",
@@ -385,11 +384,19 @@ The RPC accepts only action objects:
 }
 ```
 
-`click-link` reads only visible native macOS accessibility link metadata and
-dispatches CEF mouse input. Interaction targeting and dispatch do not execute
-page JavaScript, invoke accessibility actions, or use Chrome DevTools Protocol.
-If the native tree has no matching visible link, REL returns a target-not-found
-error without a fallback.
+`click` and `wait-for` use CEF's read-only renderer DOM snapshot. `wait-for`
+checks presence without requesting layout bounds. `click` reads the first
+match's bounds, requires a visible intersection with the viewport, and
+dispatches CEF mouse input. Supported selectors are lists composed of tag,
+universal, ID, class, presence or value attribute selectors, and descendant,
+child, adjacent-sibling, or general-sibling combinators. Pseudo-classes,
+pseudo-elements, namespaces, and CSS escapes are rejected.
+
+`click-link` reads visible native macOS accessibility link metadata and uses the
+same CEF mouse dispatch. Interaction targeting and dispatch do not execute page
+JavaScript, mutate the DOM, invoke accessibility actions, or use Chrome
+DevTools Protocol. Missing, invisible, and unsupported targets fail without a
+fallback.
 
 The legacy `output_mode` field and function-like action strings are rejected.
 
@@ -468,9 +475,8 @@ Page IDs are process-local and disappear when the agent restarts.
 ```json
 {
   "action": {
-    "action": "click-link",
-    "link": "https://example.com/more",
-    "match": { "type": "fuzzy-link", "threshold": 1 }
+    "action": "click",
+    "selector": "button.more"
   },
   "output": "/optional/page.html",
   "timeout": 90,
