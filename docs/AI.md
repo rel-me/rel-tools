@@ -6,20 +6,48 @@ and can inspect, navigate, and act through REL's typed browser tools.
 
 ## Configure a model
 
-Add a profile in **Settings → Models**, choose its provider and model ID, then
-make it the default. Supported provider kinds are OpenAI and compatible
-endpoints, Anthropic, Google Gemini, and Ollama.
+Add a profile in **Settings → Models** and choose a provider. REL checks the
+configured credential and automatically loads the models available from that
+provider. The model picker remains editable, so you can enter an exact model ID
+when a provider cannot list models or a newly released model is not returned.
+
+REL suggests a profile name from the provider and selected model, and makes the
+first profile the default. Additional profiles can be made the default from the
+same sheet. Advanced settings contain the profile name, API-key variable,
+bounded maximum turn count, and optional endpoint overrides.
+
+Supported provider kinds are OpenAI, OpenAI-compatible endpoints, Anthropic,
+Google Gemini, and Ollama. OpenAI-compatible endpoints are a distinct provider
+type and require an explicit endpoint; their API key is optional. Ollama does
+not require an API key.
 
 Hosted profiles store the name of an API-key environment variable, not the key.
-That variable must be present in REL's process environment before Chat starts.
-Ollama profiles do not require an API key. Endpoint overrides and the bounded
-maximum turn count are stored with the profile in:
+That variable must be present in REL's process environment before model
+discovery or Chat starts. Endpoint overrides and other non-secret settings are
+stored with the profile in:
 
 ```text
 ~/Library/Application Support/Rel/Data/ai-providers.toml
 ```
 
 The file never contains provider credentials.
+
+If discovery fails, confirm that the variable shown in the sheet is available
+to REL, then select **Refresh Models**. You can inspect the same normalized
+model listing from Terminal without printing the credential:
+
+```sh
+/Applications/REL.app/Contents/Resources/rel-ai-service \
+  models --provider openai --api-key-env OPENAI_API_KEY
+
+/Applications/REL.app/Contents/Resources/rel-ai-service \
+  models --provider openai-compatible \
+  --base-url http://127.0.0.1:1234/v1
+```
+
+The command returns JSON with credential availability, discovered model IDs and
+display names, and any provider error. For OpenAI-compatible services, the
+endpoint must expose the usual `/models` API beneath the configured base URL.
 
 ## Use Chat
 
