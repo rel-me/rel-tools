@@ -753,6 +753,8 @@ impl NavigateRequest {
 pub enum Action {
     Click {
         selector: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        mouse_move: Option<bool>,
     },
     WaitFor {
         selector: String,
@@ -761,6 +763,8 @@ pub enum Action {
         link: String,
         #[serde(rename = "match")]
         match_rule: FuzzyLinkMatch,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        mouse_move: Option<bool>,
     },
     Wait {
         seconds: f64,
@@ -1452,6 +1456,7 @@ mod tests {
         let action = Action::ClickLink {
             link: "https://example.com/next".to_string(),
             match_rule: FuzzyLinkMatch::new(0.9),
+            mouse_move: None,
         };
         assert_eq!(
             serde_json::to_value(action).unwrap(),
@@ -1464,9 +1469,22 @@ mod tests {
         assert_eq!(
             serde_json::to_value(Action::Click {
                 selector: "button.more".to_string(),
+                mouse_move: None,
             })
             .unwrap(),
             serde_json::json!({"action":"click", "selector":"button.more"})
+        );
+        assert_eq!(
+            serde_json::to_value(Action::Click {
+                selector: "button.more".to_string(),
+                mouse_move: Some(false),
+            })
+            .unwrap(),
+            serde_json::json!({
+                "action":"click",
+                "selector":"button.more",
+                "mouse_move":false
+            })
         );
         assert_eq!(
             serde_json::to_value(Action::WaitFor {
@@ -1553,6 +1571,7 @@ mod tests {
             Action::ClickLink {
                 link: "https://example.com/more".to_string(),
                 match_rule: FuzzyLinkMatch::new(1.0),
+                mouse_move: None,
             },
             Action::Wait { seconds: 0.0 },
         ]);

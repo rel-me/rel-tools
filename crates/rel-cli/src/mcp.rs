@@ -606,7 +606,11 @@ fn action_schema() -> Value {
                 "type": "object",
                 "properties": {
                     "action": {"const": "click"},
-                    "selector": {"type": "string", "minLength": 1}
+                    "selector": {"type": "string", "minLength": 1},
+                    "mouse_move": {
+                        "type": "boolean",
+                        "description": "Whether to send a Chromium-local mouse-move event before button-down and button-up. Defaults to true."
+                    }
                 },
                 "required": ["action", "selector"],
                 "additionalProperties": false
@@ -642,6 +646,10 @@ fn action_schema() -> Value {
                         },
                         "required": ["type", "threshold"],
                         "additionalProperties": false
+                    },
+                    "mouse_move": {
+                        "type": "boolean",
+                        "description": "Whether to send a Chromium-local mouse-move event before button-down and button-up. Defaults to true."
                     }
                 },
                 "required": ["action", "link", "match"],

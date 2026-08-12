@@ -111,6 +111,7 @@ let mut perform = PerformRequest::new(vec![
     },
     Action::Click {
         selector: "button.more".into(),
+        mouse_move: None,
     },
     Action::Wait { seconds: 0.5 },
 ]);
@@ -210,6 +211,7 @@ use rel_client::{Action, FuzzyLinkMatch};
 
 let click = Action::Click {
     selector: "button.more".into(),
+    mouse_move: None,
 };
 let wait_for = Action::WaitFor {
     selector: "#loaded-content".into(),
@@ -218,13 +220,17 @@ let wait = Action::Wait { seconds: 0.5 };
 let link = Action::ClickLink {
     link: "https://example.com/more".into(),
     match_rule: FuzzyLinkMatch::new(0.9),
+    mouse_move: Some(false),
 };
 ```
 
 There are no function-style action strings or compatibility action shapes in
 the SDK. Selector actions use CEF's read-only renderer DOM snapshot; selector
 clicks require visible bounds and use CEF mouse input. Link clicks use read-only
-native accessibility metadata and the same input path. Interaction targeting
+native accessibility metadata and the same input path. Set `mouse_move` to
+`None` or `Some(true)` for the default Chromium-local move followed by
+button-down and button-up; use `Some(false)` for button-down and button-up only.
+Neither choice moves the macOS cursor. Interaction targeting
 and dispatch do not use page JavaScript, DOM mutation, accessibility actions,
 or Chrome DevTools Protocol. The selector subset and fail-closed behavior are
 defined in the [CLI guide](CLI.md#capture).

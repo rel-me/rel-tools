@@ -310,6 +310,7 @@ Canonical actions are:
 
 ```json
 {"action":"click","selector":"button.more"}
+{"action":"click","selector":"button.more","mouse_move":false}
 {"action":"wait-for","selector":"#loaded-content"}
 {"action":"wait","seconds":0.5}
 {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":0.9}}
@@ -318,6 +319,11 @@ Canonical actions are:
 `click` and `wait-for` resolve selectors through CEF's read-only renderer DOM
 snapshot API. `wait-for` checks only for presence; `click` reads the first
 match's bounds, requires it to be visible, and sends mouse input through CEF.
+Both `click` and `click-link` accept an optional `mouse_move` boolean. It
+defaults to `true`, which sends a Chromium-local mouse-move event before
+button-down and button-up for hover-dependent controls. Set it to `false` to
+send only button-down and button-up at the target coordinates. Neither mode
+moves the macOS cursor.
 Supported selectors are comma-separated lists composed of tag, universal, ID,
 class, presence or value attribute selectors, plus descendant, child (`>`),
 adjacent-sibling (`+`), and general-sibling (`~`) combinators. Pseudo-classes,

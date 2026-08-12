@@ -374,7 +374,7 @@ caller did not request a specific output URI.
 The RPC accepts only action objects:
 
 ```json
-{ "action": "click", "selector": "button.more" }
+{ "action": "click", "selector": "button.more", "mouse_move": false }
 { "action": "wait-for", "selector": "#loaded-content" }
 { "action": "wait", "seconds": 0.5 }
 {
@@ -387,7 +387,11 @@ The RPC accepts only action objects:
 `click` and `wait-for` use CEF's read-only renderer DOM snapshot. `wait-for`
 checks presence without requesting layout bounds. `click` reads the first
 match's bounds, requires a visible intersection with the viewport, and
-dispatches CEF mouse input. Supported selectors are lists composed of tag,
+dispatches CEF mouse input. `click` and `click-link` accept an optional
+`mouse_move` boolean that defaults to `true`. The default sends a Chromium-local
+mouse-move event before button-down and button-up; `false` sends only the button
+events at the target coordinates. Neither mode moves the macOS cursor.
+Supported selectors are lists composed of tag,
 universal, ID, class, presence or value attribute selectors, and descendant,
 child, adjacent-sibling, or general-sibling combinators. Pseudo-classes,
 pseudo-elements, namespaces, and CSS escapes are rejected.
