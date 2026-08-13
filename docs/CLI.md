@@ -433,7 +433,9 @@ session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
 
 Rel does not impose a maximum session count. Sessions remain open until you
-explicitly delete them.
+explicitly delete them, including the final session. With no sessions open,
+`rel session list` returns an empty list and Rel.app offers to create one using
+the configured Session defaults.
 
 Partially update a session:
 

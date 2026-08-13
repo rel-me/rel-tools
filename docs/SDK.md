@@ -239,7 +239,8 @@ RelClient::local().create_session(&request)?;
 The `SessionDefaults` resource contains `proxy_alias`, `adblock_enabled`,
 `image_blocking_mode`, and `image_size_limit_kb`. Proxy and filter updates
 affect only subsequently created sessions. Rel does not impose a maximum
-session count.
+session count. `delete_session` also accepts the final session; afterward,
+`list_sessions` returns an empty list until another session is created.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy
