@@ -387,7 +387,10 @@ The RPC accepts only action objects:
 `click` and `wait-for` use CEF's read-only renderer DOM snapshot. `wait-for`
 checks presence without requesting layout bounds. `click` reads the first
 match's bounds, requires a visible intersection with the viewport, and
-dispatches CEF mouse input. `click` and `click-link` accept an optional
+dispatches CEF mouse input. Click actions return `ACTION_TARGET_NOT_FOUND`
+without polling when the target is absent from the current snapshot; use an
+explicit `wait-for` before a click for asynchronously rendered targets.
+`click` and `click-link` accept an optional
 `mouse_move` boolean that defaults to `true`. The default sends a Chromium-local
 mouse-move event before button-down and button-up; `false` sends only the button
 events at the target coordinates. Neither mode moves the macOS cursor.

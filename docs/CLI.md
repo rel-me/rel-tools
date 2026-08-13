@@ -320,6 +320,9 @@ Canonical actions are:
 `click` and `wait-for` resolve selectors through CEF's read-only renderer DOM
 snapshot API. `wait-for` checks only for presence; `click` reads the first
 match's bounds, requires it to be visible, and sends mouse input through CEF.
+Click actions do not poll for an absent target: they return
+`ACTION_TARGET_NOT_FOUND` from the current snapshot. Put `wait-for` immediately
+before a click when the page renders its target asynchronously.
 Both `click` and `click-link` accept an optional `mouse_move` boolean. It
 defaults to `true`, which sends a Chromium-local mouse-move event before
 button-down and button-up for hover-dependent controls. Set it to `false` to
