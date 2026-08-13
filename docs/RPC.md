@@ -384,6 +384,11 @@ The RPC accepts only action objects:
 }
 ```
 
+Browser sessions controlled while not visible use the **Background Browser
+Size** preset in **REL → Settings… → General**. It defaults to a 1,920 × 947 CSS
+pixel viewport. Visible tabs follow the resizable REL window; the RPC has no
+per-request viewport override.
+
 `click` and `wait-for` use CEF's read-only renderer DOM snapshot. `wait-for`
 checks presence without requesting layout bounds. `click` reads the first
 match's bounds, requires a visible intersection with the viewport, and

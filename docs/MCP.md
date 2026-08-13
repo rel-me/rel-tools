@@ -186,6 +186,11 @@ in [the CLI guide](CLI.md#capture), including the optional `mouse_move` and
 `scroll` booleans on click actions. `output_uri`, when present, must be an
 absolute local `file:///` URI.
 
+Sessions controlled while not visible use the **Background Browser Size**
+preset in **REL → Settings… → General**, defaulting to a 1,920 × 947 CSS pixel
+viewport. Visible tabs follow the resizable REL window. MCP does not expose a
+per-call viewport override.
+
 ### `rel_page_attach`
 
 `url` is required. Optional fields are `session_id`, `proxy`, `output_uri`,

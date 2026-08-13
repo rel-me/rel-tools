@@ -244,6 +244,11 @@ and dispatch do not use page JavaScript, DOM mutation, accessibility actions,
 or Chrome DevTools Protocol. The selector subset and fail-closed behavior are
 defined in the [CLI guide](CLI.md#capture).
 
+Browser sessions controlled while not visible use the **Background Browser
+Size** preset in **REL → Settings… → General**, which defaults to 1,920 × 947
+CSS pixels. Visible tabs follow the resizable REL window. This global setting is
+not duplicated as an SDK field.
+
 ## Partial updates
 
 Non-nullable PATCH fields use `Option<T>`: `None` omits a field and `Some(value)`
