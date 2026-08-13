@@ -755,6 +755,8 @@ pub enum Action {
         selector: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         mouse_move: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        scroll: Option<bool>,
     },
     WaitFor {
         selector: String,
@@ -765,6 +767,8 @@ pub enum Action {
         match_rule: FuzzyLinkMatch,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         mouse_move: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        scroll: Option<bool>,
     },
     Wait {
         seconds: f64,
@@ -1457,6 +1461,7 @@ mod tests {
             link: "https://example.com/next".to_string(),
             match_rule: FuzzyLinkMatch::new(0.9),
             mouse_move: None,
+            scroll: None,
         };
         assert_eq!(
             serde_json::to_value(action).unwrap(),
@@ -1470,6 +1475,7 @@ mod tests {
             serde_json::to_value(Action::Click {
                 selector: "button.more".to_string(),
                 mouse_move: None,
+                scroll: None,
             })
             .unwrap(),
             serde_json::json!({"action":"click", "selector":"button.more"})
@@ -1478,12 +1484,14 @@ mod tests {
             serde_json::to_value(Action::Click {
                 selector: "button.more".to_string(),
                 mouse_move: Some(false),
+                scroll: Some(false),
             })
             .unwrap(),
             serde_json::json!({
                 "action":"click",
                 "selector":"button.more",
-                "mouse_move":false
+                "mouse_move":false,
+                "scroll":false
             })
         );
         assert_eq!(
@@ -1572,6 +1580,7 @@ mod tests {
                 link: "https://example.com/more".to_string(),
                 match_rule: FuzzyLinkMatch::new(1.0),
                 mouse_move: None,
+                scroll: None,
             },
             Action::Wait { seconds: 0.0 },
         ]);

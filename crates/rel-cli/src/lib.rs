@@ -1342,7 +1342,8 @@ mod tests {
             vec![
                 Action::Click {
                     selector: "#more".to_string(),
-                    mouse_move: None
+                    mouse_move: None,
+                    scroll: None
                 },
                 Action::Wait { seconds: 0.25 }
             ]
@@ -1402,12 +1403,14 @@ mod tests {
                 },
                 Action::Click {
                     selector: "#more".to_string(),
-                    mouse_move: None
+                    mouse_move: None,
+                    scroll: None
                 },
                 Action::ClickLink {
                     link: "https://example.com/more".to_string(),
                     match_rule: FuzzyLinkMatch::new(0.9),
-                    mouse_move: None
+                    mouse_move: None,
+                    scroll: None
                 },
                 Action::Wait { seconds: 0.5 }
             ]

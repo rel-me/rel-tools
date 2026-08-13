@@ -311,6 +311,7 @@ Canonical actions are:
 ```json
 {"action":"click","selector":"button.more"}
 {"action":"click","selector":"button.more","mouse_move":false}
+{"action":"click","selector":"button.more","scroll":false}
 {"action":"wait-for","selector":"#loaded-content"}
 {"action":"wait","seconds":0.5}
 {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":0.9}}
@@ -324,16 +325,21 @@ defaults to `true`, which sends a Chromium-local mouse-move event before
 button-down and button-up for hover-dependent controls. Set it to `false` to
 send only button-down and button-up at the target coordinates. Neither mode
 moves the macOS cursor.
+Both click actions also accept an optional `scroll` boolean that defaults to
+`true`. When a target is offscreen, REL sends bounded Chromium wheel input and
+re-reads its bounds until it becomes visible before clicking. Set `scroll` to
+`false` for visible-only targeting. Scrolling never uses page JavaScript, DOM
+mutation, accessibility activation, or Chrome DevTools Protocol.
 Supported selectors are comma-separated lists composed of tag, universal, ID,
 class, presence or value attribute selectors, plus descendant, child (`>`),
 adjacent-sibling (`+`), and general-sibling (`~`) combinators. Pseudo-classes,
 pseudo-elements, namespaces, and CSS escapes are rejected.
 
-`click-link` instead resolves a visible link through Chromium's always-on
-native macOS accessibility tree and sends the same CEF mouse input. Interaction
-targeting and dispatch never execute page JavaScript, mutate the DOM, invoke an
-accessibility action, or use Chrome DevTools Protocol. A missing, invisible, or
-unsupported target fails without a fallback.
+`click-link` instead resolves a link through Chromium's always-on native macOS
+accessibility tree, including offscreen bounds, and sends the same CEF input.
+Interaction targeting and dispatch never execute page JavaScript, mutate the
+DOM, invoke an accessibility action, or use Chrome DevTools Protocol. A missing,
+unreachable, or unsupported target fails without a fallback.
 
 Function-style action strings and legacy action object shapes are rejected.
 `--action` and `--actions` may be combined; actions execute in command-line

@@ -374,7 +374,7 @@ caller did not request a specific output URI.
 The RPC accepts only action objects:
 
 ```json
-{ "action": "click", "selector": "button.more", "mouse_move": false }
+{ "action": "click", "selector": "button.more", "mouse_move": false, "scroll": false }
 { "action": "wait-for", "selector": "#loaded-content" }
 { "action": "wait", "seconds": 0.5 }
 {
@@ -391,15 +391,19 @@ dispatches CEF mouse input. `click` and `click-link` accept an optional
 `mouse_move` boolean that defaults to `true`. The default sends a Chromium-local
 mouse-move event before button-down and button-up; `false` sends only the button
 events at the target coordinates. Neither mode moves the macOS cursor.
+Both click actions accept an optional `scroll` boolean that defaults to `true`.
+REL uses bounded Chromium wheel input and re-reads target bounds after each step
+to bring an offscreen target into view. `scroll: false` preserves visible-only
+targeting.
 Supported selectors are lists composed of tag,
 universal, ID, class, presence or value attribute selectors, and descendant,
 child, adjacent-sibling, or general-sibling combinators. Pseudo-classes,
 pseudo-elements, namespaces, and CSS escapes are rejected.
 
-`click-link` reads visible native macOS accessibility link metadata and uses the
-same CEF mouse dispatch. Interaction targeting and dispatch do not execute page
-JavaScript, mutate the DOM, invoke accessibility actions, or use Chrome
-DevTools Protocol. Missing, invisible, and unsupported targets fail without a
+`click-link` reads native macOS accessibility link metadata and offscreen bounds
+and uses the same CEF input path. Interaction targeting and dispatch do not
+execute page JavaScript, mutate the DOM, invoke accessibility actions, or use
+Chrome DevTools Protocol. Missing, unreachable, and unsupported targets fail without a
 fallback.
 
 The legacy `output_mode` field and function-like action strings are rejected.

@@ -182,8 +182,8 @@ operations:
 the canonical `Session<number>` format. Omitting it creates a persistent session
 using the configured Session defaults. The action objects
 are the canonical `click`, `wait-for`, `wait`, and `click-link` shapes described
-in [the CLI guide](CLI.md#capture), including the optional `mouse_move` boolean
-on click actions. `output_uri`, when present, must be an
+in [the CLI guide](CLI.md#capture), including the optional `mouse_move` and
+`scroll` booleans on click actions. `output_uri`, when present, must be an
 absolute local `file:///` URI.
 
 ### `rel_page_attach`

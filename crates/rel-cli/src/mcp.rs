@@ -610,6 +610,10 @@ fn action_schema() -> Value {
                     "mouse_move": {
                         "type": "boolean",
                         "description": "Whether to send a Chromium-local mouse-move event before button-down and button-up. Defaults to true."
+                    },
+                    "scroll": {
+                        "type": "boolean",
+                        "description": "Whether to use bounded Chromium wheel input to bring an offscreen target into view before clicking. Defaults to true."
                     }
                 },
                 "required": ["action", "selector"],
@@ -650,6 +654,10 @@ fn action_schema() -> Value {
                     "mouse_move": {
                         "type": "boolean",
                         "description": "Whether to send a Chromium-local mouse-move event before button-down and button-up. Defaults to true."
+                    },
+                    "scroll": {
+                        "type": "boolean",
+                        "description": "Whether to use bounded Chromium wheel input to bring an offscreen target into view before clicking. Defaults to true."
                     }
                 },
                 "required": ["action", "link", "match"],
