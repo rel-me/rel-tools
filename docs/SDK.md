@@ -234,8 +234,8 @@ and bounds in the same snapshot, then use the same input path. Set `mouse_move` 
 `None` or `Some(true)` for the default Chromium-local move followed by
 button-down and button-up; use `Some(false)` for button-down and button-up only.
 Neither choice moves the macOS cursor. Set `scroll` to `None` or `Some(true)` to
-auto-scroll offscreen targets with bounded CEF wheel input, or `Some(false)` for
-visible-only targeting.
+auto-scroll offscreen targets with bounded native Chromium wheel input, or
+`Some(false)` for visible-only targeting.
 Interaction targeting
 and dispatch do not use page JavaScript, DOM mutation, accessibility actions,
 or Chrome DevTools Protocol. The selector subset and fail-closed behavior are
