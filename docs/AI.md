@@ -52,9 +52,10 @@ endpoint must expose the usual `/models` API beneath the configured base URL.
 
 ## Use Chat
 
-Open the bottom panel in a browser tab and select **Chat**. Each tab owns an
-independent native conversation view and Rust harness process. The ordinary
-Terminal tab has a separate PTY and is not reused or interrupted.
+Chat opens in the right-side panel by default for each browser tab. Use the
+Chat button immediately after the address field to hide or show it. Each tab
+owns an independent native conversation view and Rust harness process. The
+ordinary Terminal tab has a separate PTY and is not reused or interrupted.
 
 The composer menu starts with a curated set of OpenAI chat models that use
 `OPENAI_API_KEY`. Models discovered through connections in **Settings →
