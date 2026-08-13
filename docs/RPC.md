@@ -400,11 +400,11 @@ universal, ID, class, presence or value attribute selectors, and descendant,
 child, adjacent-sibling, or general-sibling combinators. Pseudo-classes,
 pseudo-elements, namespaces, and CSS escapes are rejected.
 
-`click-link` reads native macOS accessibility link metadata and offscreen bounds
-and uses the same CEF input path. Interaction targeting and dispatch do not
-execute page JavaScript, mutate the DOM, invoke accessibility actions, or use
-Chrome DevTools Protocol. Missing, unreachable, and unsupported targets fail without a
-fallback.
+`click-link` resolves anchor URLs and bounds in the same read-only renderer DOM
+snapshot, applies native URL matching, and uses the same CEF input path.
+Interaction targeting and dispatch do not execute page JavaScript, mutate the
+DOM, invoke accessibility actions, or use Chrome DevTools Protocol. Missing,
+unreachable, and unsupported targets fail without a fallback.
 
 The legacy `output_mode` field and function-like action strings are rejected.
 

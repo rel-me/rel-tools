@@ -335,11 +335,11 @@ class, presence or value attribute selectors, plus descendant, child (`>`),
 adjacent-sibling (`+`), and general-sibling (`~`) combinators. Pseudo-classes,
 pseudo-elements, namespaces, and CSS escapes are rejected.
 
-`click-link` instead resolves a link through Chromium's always-on native macOS
-accessibility tree, including offscreen bounds, and sends the same CEF input.
-Interaction targeting and dispatch never execute page JavaScript, mutate the
-DOM, invoke an accessibility action, or use Chrome DevTools Protocol. A missing,
-unreachable, or unsupported target fails without a fallback.
+`click-link` instead resolves anchor `href` values and bounds in the same
+read-only renderer DOM snapshot, applies native URL matching, and sends the same
+CEF input. Interaction targeting and dispatch never execute page JavaScript,
+mutate the DOM, invoke an accessibility action, or use Chrome DevTools Protocol.
+A missing, unreachable, or unsupported target fails without a fallback.
 
 Function-style action strings and legacy action object shapes are rejected.
 `--action` and `--actions` may be combined; actions execute in command-line

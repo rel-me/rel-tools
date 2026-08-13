@@ -229,8 +229,8 @@ let link = Action::ClickLink {
 
 There are no function-style action strings or compatibility action shapes in
 the SDK. Selector actions use CEF's read-only renderer DOM snapshot; selector
-clicks resolve bounds and use CEF input. Link clicks use read-only native
-accessibility metadata and the same input path. Set `mouse_move` to
+clicks resolve bounds and use CEF input. Link clicks match resolved anchor URLs
+and bounds in the same snapshot, then use the same input path. Set `mouse_move` to
 `None` or `Some(true)` for the default Chromium-local move followed by
 button-down and button-up; use `Some(false)` for button-down and button-up only.
 Neither choice moves the macOS cursor. Set `scroll` to `None` or `Some(true)` to
