@@ -48,4 +48,4 @@ Rel keeps Chromium inside the installed macOS app. The CLI asks the local agent 
 
 Production clients use the installed `/Applications/REL.app`, which owns Chromium and supervises its bundled local agent on port `17319`. CLI, SDK, and MCP adapter calls connect to that agent; the agent routes browser work back into the visible app.
 
-Source development uses an isolated worktree-local `dist/REL-Dev.app` on port `27319`. REL-Dev has a separate bundle identity, Application Support tree, browser-proxy ports, preferences, and Keychain namespace, so it can run alongside the installed app without replacing it. Set `REL_AGENT_PORT=27319` only when intentionally pointing a development client at REL-Dev.
+Source development uses an isolated worktree-local `dist/RELDebug.app` on port `27319`. RELDebug has a separate bundle identity, Application Support tree, browser-proxy ports, preferences, and Keychain namespace, so it can run alongside the installed app without replacing it. Set `REL_AGENT_PORT=27319` only when intentionally pointing a development client at RELDebug.
