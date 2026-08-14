@@ -258,10 +258,11 @@ button-down and button-up; use `Some(false)` for button-down and button-up only.
 Neither choice moves the macOS cursor. Set `scroll` to `None` or `Some(true)` to
 auto-scroll offscreen targets with bounded native Chromium wheel input, or
 `Some(false)` for visible-only targeting.
-Interaction targeting
-and dispatch do not use page JavaScript, DOM mutation, accessibility actions,
-or Chrome DevTools Protocol. The selector subset and fail-closed behavior are
-defined in the [CLI guide](CLI.md#capture).
+Click targeting and dispatch do not use page JavaScript, DOM mutation,
+accessibility actions, or Chrome DevTools Protocol. Form variants use only the
+fixed, typed renderer operations described in the [CLI guide](CLI.md#capture);
+they do not accept caller-supplied JavaScript. The selector subset and
+fail-closed behavior are defined there as well.
 
 Browser sessions controlled while not visible use the **Background Browser
 Size** preset in **REL → Settings… → General**, which defaults to 1,920 × 947

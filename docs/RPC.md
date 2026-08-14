@@ -414,19 +414,22 @@ child, adjacent-sibling, or general-sibling combinators. Pseudo-classes,
 pseudo-elements, namespaces, and CSS escapes are rejected.
 
 `click-link` resolves anchor URLs and bounds in the same read-only renderer DOM
-snapshot, applies native URL matching, and uses the same CEF input path.
-Interaction targeting and dispatch do not execute page JavaScript, mutate the
-DOM, invoke accessibility actions, or use Chrome DevTools Protocol. Missing,
-unreachable, and unsupported targets fail without a fallback.
+snapshot, applies native URL matching, and uses the same CEF input path. Click
+targeting and dispatch do not execute page JavaScript, mutate the DOM, invoke
+accessibility actions, or use Chrome DevTools Protocol. Missing, unreachable,
+and unsupported targets fail without a fallback.
 
-`type`, `fill`, `clear`, and `press` focus the selected control before sending
-Chromium keyboard input. `type` appends text, while `fill` replaces the current
-contents and `clear` removes them. `press` accepts `Enter`, `Tab`, `Escape`,
+`type`, `fill`, and `clear` focus and update the selected editable control with
+fixed renderer operations. `type` appends text, while `fill` replaces the
+current contents and `clear` removes them. `press` focuses its target, dispatches
+an allowlisted keyboard event, applies the corresponding bounded form or caret
+behavior, and accepts `Enter`, `Tab`, `Escape`,
 `Backspace`, `Delete`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`,
 `Home`, `End`, `PageUp`, `PageDown`, or `Space`. `select` targets a `<select>`
-element and one enabled option by exact `value`, then emits bubbling `input` and
-`change` events. Missing, disabled, read-only, non-editable, and mismatched
-targets return an action error instead of falling back to another element.
+element and one enabled option by exact `value`. Form updates emit ordinary DOM
+events to synchronize page state. These actions never accept caller-supplied
+JavaScript. Missing, disabled, read-only, non-editable, and mismatched targets
+return an action error instead of falling back to another element.
 
 The legacy `output_mode` field and function-like action strings are rejected.
 

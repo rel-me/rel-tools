@@ -351,17 +351,19 @@ pseudo-elements, namespaces, and CSS escapes are rejected.
 
 `click-link` instead resolves anchor `href` values and bounds in the same
 read-only renderer DOM snapshot, applies native URL matching, and sends the same
-CEF input. Interaction targeting and dispatch never execute page JavaScript,
-mutate the DOM, invoke an accessibility action, or use Chrome DevTools Protocol.
-A missing, unreachable, or unsupported target fails without a fallback.
+CEF input. Click targeting and dispatch never execute page JavaScript, mutate
+the DOM, invoke an accessibility action, or use Chrome DevTools Protocol. A
+missing, unreachable, or unsupported target fails without a fallback.
 
-`type` focuses an editable control and appends trusted Chromium keyboard input.
-`fill` replaces its current contents, including an empty replacement; `clear`
-is the explicit emptying form. `press` focuses its target and accepts `Enter`,
+`type` focuses an editable control and appends text through a fixed renderer
+operation. `fill` replaces its current contents, including an empty replacement;
+`clear` is the explicit emptying form. `press` focuses its target, dispatches an
+allowlisted keyboard event, applies its bounded form or caret behavior, and accepts `Enter`,
 `Tab`, `Escape`, `Backspace`, `Delete`, the four arrow keys, `Home`, `End`,
 `PageUp`, `PageDown`, or `Space`. `select` chooses one enabled `<option>` by its
-exact `value` and dispatches bubbling `input` and `change` events. Input actions
-accept the same supported CSS selector subset as `click` and `wait-for`.
+exact `value`. Form updates dispatch ordinary DOM events so page state stays
+synchronized. Input actions accept the same supported CSS selector subset as
+`click` and `wait-for`; they never accept caller-supplied JavaScript.
 
 Function-style action strings and legacy action object shapes are rejected.
 `--action` and `--actions` may be combined; actions execute in command-line

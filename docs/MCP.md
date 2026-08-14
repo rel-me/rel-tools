@@ -239,7 +239,7 @@ currently includes these additional DevTools-oriented categories:
 | Capability | REL MCP |
 | --- | --- |
 | Navigation and persistent browser identity | Available through capture, page attachment, sessions, and proxies. |
-| Click and wait automation | Available through canonical page actions; drag, hover, keyboard, form fill, upload, and dialog tools are not yet exposed. |
+| Click, wait, and form automation | Available through canonical page actions, including bounded named keys; drag, hover, upload, and dialog tools are not yet exposed. |
 | Visual screenshots | Available with inline image content and file resources. |
 | Accessibility text snapshots and element UIDs | Not exposed; rendered HTML capture is available instead. |
 | Script evaluation, console, and network inspection | Not exposed. |
