@@ -181,8 +181,9 @@ operations:
 `session_id`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
 the canonical `Session<number>` format. Omitting it creates a persistent session
 using the configured Session defaults. The action objects
-are the canonical `click`, `wait-for`, `wait`, and `click-link` shapes described
-in [the CLI guide](CLI.md#capture), including the optional `mouse_move` and
+are the canonical `click`, `wait-for`, `type`, `fill`, `clear`, `press`,
+`select`, `wait`, and `click-link` shapes described in
+[the CLI guide](CLI.md#capture), including the optional `mouse_move` and
 `scroll` booleans on click actions. `output_uri`, when present, must be an
 absolute local `file:///` URI.
 

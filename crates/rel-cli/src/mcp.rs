@@ -631,6 +631,62 @@ fn action_schema() -> Value {
             {
                 "type": "object",
                 "properties": {
+                    "action": {"const": "type"},
+                    "selector": {"type": "string", "minLength": 1},
+                    "text": {"type": "string", "minLength": 1}
+                },
+                "required": ["action", "selector", "text"],
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"const": "fill"},
+                    "selector": {"type": "string", "minLength": 1},
+                    "text": {"type": "string"}
+                },
+                "required": ["action", "selector", "text"],
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"const": "clear"},
+                    "selector": {"type": "string", "minLength": 1}
+                },
+                "required": ["action", "selector"],
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"const": "press"},
+                    "selector": {"type": "string", "minLength": 1},
+                    "key": {
+                        "type": "string",
+                        "enum": [
+                            "Enter", "Tab", "Escape", "Backspace", "Delete",
+                            "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+                            "Home", "End", "PageUp", "PageDown", "Space"
+                        ]
+                    }
+                },
+                "required": ["action", "selector", "key"],
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"const": "select"},
+                    "selector": {"type": "string", "minLength": 1},
+                    "value": {"type": "string"}
+                },
+                "required": ["action", "selector", "value"],
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "properties": {
                     "action": {"const": "wait"},
                     "seconds": {"type": "number", "minimum": 0}
                 },
@@ -1527,6 +1583,32 @@ mod tests {
             assert_eq!(tool["inputSchema"]["additionalProperties"], false);
             assert_eq!(tool["outputSchema"]["type"], "object");
         }
+    }
+
+    #[test]
+    fn browser_action_schema_exposes_every_canonical_action() {
+        let schema = action_schema();
+        let actions = schema["oneOf"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|schema| schema["properties"]["action"]["const"].as_str().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            actions,
+            [
+                "click",
+                "wait-for",
+                "type",
+                "fill",
+                "clear",
+                "press",
+                "select",
+                "wait",
+                "click-link",
+            ]
+        );
     }
 
     #[test]

@@ -218,6 +218,25 @@ let click = Action::Click {
 let wait_for = Action::WaitFor {
     selector: "#loaded-content".into(),
 };
+let typed = Action::Type {
+    selector: "#search".into(),
+    text: "Magickraft".into(),
+};
+let filled = Action::Fill {
+    selector: "#email".into(),
+    text: "listener@example.com".into(),
+};
+let cleared = Action::Clear {
+    selector: "#query".into(),
+};
+let pressed = Action::Press {
+    selector: "#search".into(),
+    key: "Enter".into(),
+};
+let selected = Action::Select {
+    selector: "#genre".into(),
+    value: "disco".into(),
+};
 let wait = Action::Wait { seconds: 0.5 };
 let link = Action::ClickLink {
     link: "https://example.com/more".into(),

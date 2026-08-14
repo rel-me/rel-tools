@@ -761,6 +761,25 @@ pub enum Action {
     WaitFor {
         selector: String,
     },
+    Type {
+        selector: String,
+        text: String,
+    },
+    Fill {
+        selector: String,
+        text: String,
+    },
+    Clear {
+        selector: String,
+    },
+    Press {
+        selector: String,
+        key: String,
+    },
+    Select {
+        selector: String,
+        value: String,
+    },
     ClickLink {
         link: String,
         #[serde(rename = "match")]
@@ -1501,6 +1520,53 @@ mod tests {
             .unwrap(),
             serde_json::json!({"action":"wait-for", "selector":"#loaded"})
         );
+        for (action, expected) in [
+            (
+                Action::Type {
+                    selector: "#search".to_string(),
+                    text: "Magickraft".to_string(),
+                },
+                serde_json::json!({
+                    "action":"type", "selector":"#search", "text":"Magickraft"
+                }),
+            ),
+            (
+                Action::Fill {
+                    selector: "#email".to_string(),
+                    text: "listener@example.com".to_string(),
+                },
+                serde_json::json!({
+                    "action":"fill", "selector":"#email",
+                    "text":"listener@example.com"
+                }),
+            ),
+            (
+                Action::Clear {
+                    selector: "#query".to_string(),
+                },
+                serde_json::json!({"action":"clear", "selector":"#query"}),
+            ),
+            (
+                Action::Press {
+                    selector: "#search".to_string(),
+                    key: "Enter".to_string(),
+                },
+                serde_json::json!({
+                    "action":"press", "selector":"#search", "key":"Enter"
+                }),
+            ),
+            (
+                Action::Select {
+                    selector: "#genre".to_string(),
+                    value: "disco".to_string(),
+                },
+                serde_json::json!({
+                    "action":"select", "selector":"#genre", "value":"disco"
+                }),
+            ),
+        ] {
+            assert_eq!(serde_json::to_value(action).unwrap(), expected);
+        }
     }
 
     #[test]

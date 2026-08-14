@@ -319,6 +319,11 @@ Canonical actions are:
 {"action":"click","selector":"button.more","mouse_move":false}
 {"action":"click","selector":"button.more","scroll":false}
 {"action":"wait-for","selector":"#loaded-content"}
+{"action":"type","selector":"#search","text":"Magickraft"}
+{"action":"fill","selector":"#email","text":"listener@example.com"}
+{"action":"clear","selector":"#query"}
+{"action":"press","selector":"#search","key":"Enter"}
+{"action":"select","selector":"#genre","value":"disco"}
 {"action":"wait","seconds":0.5}
 {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":0.9}}
 ```
@@ -349,6 +354,14 @@ read-only renderer DOM snapshot, applies native URL matching, and sends the same
 CEF input. Interaction targeting and dispatch never execute page JavaScript,
 mutate the DOM, invoke an accessibility action, or use Chrome DevTools Protocol.
 A missing, unreachable, or unsupported target fails without a fallback.
+
+`type` focuses an editable control and appends trusted Chromium keyboard input.
+`fill` replaces its current contents, including an empty replacement; `clear`
+is the explicit emptying form. `press` focuses its target and accepts `Enter`,
+`Tab`, `Escape`, `Backspace`, `Delete`, the four arrow keys, `Home`, `End`,
+`PageUp`, `PageDown`, or `Space`. `select` chooses one enabled `<option>` by its
+exact `value` and dispatches bubbling `input` and `change` events. Input actions
+accept the same supported CSS selector subset as `click` and `wait-for`.
 
 Function-style action strings and legacy action object shapes are rejected.
 `--action` and `--actions` may be combined; actions execute in command-line

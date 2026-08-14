@@ -376,6 +376,11 @@ The RPC accepts only action objects:
 ```json
 { "action": "click", "selector": "button.more", "mouse_move": false, "scroll": false }
 { "action": "wait-for", "selector": "#loaded-content" }
+{ "action": "type", "selector": "#search", "text": "Magickraft" }
+{ "action": "fill", "selector": "#email", "text": "listener@example.com" }
+{ "action": "clear", "selector": "#query" }
+{ "action": "press", "selector": "#search", "key": "Enter" }
+{ "action": "select", "selector": "#genre", "value": "disco" }
 { "action": "wait", "seconds": 0.5 }
 {
   "action": "click-link",
@@ -413,6 +418,15 @@ snapshot, applies native URL matching, and uses the same CEF input path.
 Interaction targeting and dispatch do not execute page JavaScript, mutate the
 DOM, invoke accessibility actions, or use Chrome DevTools Protocol. Missing,
 unreachable, and unsupported targets fail without a fallback.
+
+`type`, `fill`, `clear`, and `press` focus the selected control before sending
+Chromium keyboard input. `type` appends text, while `fill` replaces the current
+contents and `clear` removes them. `press` accepts `Enter`, `Tab`, `Escape`,
+`Backspace`, `Delete`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`,
+`Home`, `End`, `PageUp`, `PageDown`, or `Space`. `select` targets a `<select>`
+element and one enabled option by exact `value`, then emits bubbling `input` and
+`change` events. Missing, disabled, read-only, non-editable, and mismatched
+targets return an action error instead of falling back to another element.
 
 The legacy `output_mode` field and function-like action strings are rejected.
 
