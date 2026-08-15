@@ -44,7 +44,7 @@ configuration on one machine. The recommended setup installs the Rel plugin
 from this repository's marketplace:
 
 ```sh
-codex plugin marketplace add gabriel/rel-tools
+codex plugin marketplace add rel-me/rel-tools
 codex plugin add rel@rel
 ```
 

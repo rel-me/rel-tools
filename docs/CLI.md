@@ -7,7 +7,7 @@ available, REL leaves the filesystem unchanged so you can create the link
 manually. The matching public client can also be installed from source:
 
 ```sh
-cargo install --git https://github.com/gabriel/rel-tools \
+cargo install --git https://github.com/rel-me/rel-tools \
   --tag v0.1.1 \
   --package rel-cli
 ```

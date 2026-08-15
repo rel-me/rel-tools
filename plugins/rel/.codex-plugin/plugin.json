@@ -7,7 +7,7 @@
     "url": "https://rel.me"
   },
   "homepage": "https://docs.rel.me/mcp/",
-  "repository": "https://github.com/gabriel/rel-tools",
+  "repository": "https://github.com/rel-me/rel-tools",
   "license": "MIT",
   "keywords": [
     "browser",

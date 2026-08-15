@@ -5,7 +5,7 @@ The `rel` CLI uses this crate rather than maintaining a separate transport or
 request model.
 
 The SDK source is available under the MIT license in
-[`gabriel/rel-tools`](https://github.com/gabriel/rel-tools). REL's application
+[`rel-me/rel-tools`](https://github.com/rel-me/rel-tools). REL's application
 source and internal runtime implementation are not publicly distributed.
 
 Related documents: [CLI](CLI.md), [MCP](MCP.md), and [RPC](RPC.md).
@@ -16,7 +16,7 @@ Until a crates.io release is announced, pin the public repository tag:
 
 ```toml
 [dependencies]
-rel-client = { git = "https://github.com/gabriel/rel-tools", tag = "v0.1.1" }
+rel-client = { git = "https://github.com/rel-me/rel-tools", tag = "v0.1.1" }
 ```
 
 ```rust

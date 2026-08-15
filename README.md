@@ -27,7 +27,7 @@ bundled, matching CLI into a writable directory already in `PATH`. To build the
 public client independently:
 
 ```sh
-cargo install --git https://github.com/gabriel/rel-tools \
+cargo install --git https://github.com/rel-me/rel-tools \
   --tag v0.1.1 \
   --package rel-cli
 ```
@@ -49,7 +49,7 @@ The repository is also a Codex plugin marketplace. Add it once, then install
 the Rel plugin:
 
 ```sh
-codex plugin marketplace add gabriel/rel-tools
+codex plugin marketplace add rel-me/rel-tools
 codex plugin add rel@rel
 ```
 
@@ -63,7 +63,7 @@ Until a crates.io release is announced, pin the public repository tag:
 
 ```toml
 [dependencies]
-rel-client = { git = "https://github.com/gabriel/rel-tools", tag = "v0.1.1" }
+rel-client = { git = "https://github.com/rel-me/rel-tools", tag = "v0.1.1" }
 ```
 
 ```rust,no_run
