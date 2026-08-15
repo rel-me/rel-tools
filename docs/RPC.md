@@ -1,6 +1,6 @@
-# Rel RPC v1
+# REL RPC v1
 
-Rel exposes one local, versioned JSON API. This document is the supported wire
+REL exposes one local, versioned JSON API. This document is the supported wire
 contract; unversioned routes and legacy response shapes are not supported.
 
 Related documents: [CLI](CLI.md), [MCP](MCP.md), and [Rust SDK](SDK.md).
@@ -22,11 +22,11 @@ Closing a browser operation's HTTP connection before its response finishes
 cancels that operation. The agent also sends cancellation through its private
 Chromium bridge, so navigation, waits, and actions stop instead of continuing
 in the background. Cancellation is request-scoped: the persistent browser
-session, Rel.app, and the resident agent remain running for other clients.
+session, the REL app, and the resident agent remain running for other clients.
 
-By default, a browser operation selects its target tab when Rel is inactive, so
-the affected page is visible the next time the app is viewed. Rel is not
-activated or brought forward. Turn off **Rel → Settings… → General → Follow
+By default, a browser operation selects its target tab when REL is inactive, so
+the affected page is visible the next time the app is viewed. REL is not
+activated or brought forward. Turn off **REL → Settings… → General → Follow
 browser commands** to preserve the current selection. This presentation setting
 does not change RPC results or session behavior.
 
@@ -90,19 +90,19 @@ repeat.
 | `10202` | `NETWORK_PAUSED` | no | Session networking is paused |
 | `10203` | `ACTION_TARGET_NOT_FOUND` | no | Click target could not be found |
 | `10204` | `REQUEST_CANCELLED` | yes | Browser work was cancelled |
-| `10205` | `RATE_LIMITED` | yes | Rel itself is rate limiting the caller |
+| `10205` | `RATE_LIMITED` | yes | REL itself is rate limiting the caller |
 | `10300` | `UPSTREAM_UNAVAILABLE` | yes | Navigation received a target HTTP error or the browser/proxy received an invalid upstream result |
 | `10301` | `BROWSER_UNAVAILABLE` | yes | Required Chromium service is unavailable |
 | `10302` | `AGENT_UNHEALTHY` | yes | The serialized control worker missed its health deadline |
-| `10303` | `TIMEOUT` | yes | Rel's operation deadline expired |
+| `10303` | `TIMEOUT` | yes | REL's operation deadline expired |
 | `10304` | `PROXY_CONFIGURATION_FAILED` | no | Chromium could not apply the session proxy configuration |
 | `10305` | `BROWSER_CREATION_FAILED` | no | Chromium could not create the session browser |
 | `10999` | `INTERNAL_ERROR` | no | Unexpected internal failure |
 
-A target website returning 404 or 429 is not a Rel RPC error for capture
+A target website returning 404 or 429 is not a REL RPC error for capture
 operations. Its status is reported as `target_http_status` in capture data.
 `POST /v1/navigate` instead returns `UPSTREAM_UNAVAILABLE` when its main frame
-commits an HTTP 4xx or 5xx response. With the default **Rel → Settings… →
+commits an HTTP 4xx or 5xx response. With the default **REL → Settings… →
 General → Wait for Cloudflare Turnstile** setting, detected Turnstile and
 managed Cloudflare challenge pages receive up to 15 seconds to continue before
 that error is returned. This also applies to browser capture and page-creation
@@ -118,9 +118,11 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/navigate` | Navigate and select the current shorthand page |
 | `POST` | `/v1/perform` | Perform actions on the current shorthand page |
 | `POST` | `/v1/capture` | Capture the current shorthand page |
+| `POST` | `/v1/screenshot` | Capture an image of the current shorthand page |
 | `POST` | `/v1/captures` | Capture rendered HTML as an NDJSON operation |
 | `POST` | `/v1/pages` | Attach an ephemeral automation page |
 | `POST` | `/v1/pages/{page_id}/actions` | Perform one action on an attached page |
+| `POST` | `/v1/pages/{page_id}/screenshot` | Capture an image of an attached page |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
@@ -143,9 +145,10 @@ such as `rel capture`, `rel page`, `rel proxy`, and `rel session`; it has no
 direct database or log-file command path.
 
 The bundled `rel mcp` adapter also calls this API only through `rel-client`. It
-maps six MCP tools to status, capture, page attachment and action, and session
-and proxy listing. MCP does not add an HTTP `/mcp` route or another response
-shape to RPC v1. See [MCP](MCP.md) for its stdio lifecycle and result wrapping.
+maps seven MCP tools to status, HTML and image capture, page attachment and
+action, and session and proxy listing. MCP does not add an HTTP `/mcp` route or
+another response shape to RPC v1. See [MCP](MCP.md) for its stdio lifecycle and
+result wrapping.
 
 ## Health
 
@@ -161,12 +164,22 @@ HTTP 200 while the worker is ready or operating within its deadline:
     "version": "0.1.8",
     "pid": 123,
     "browser_proxy_port": 17400,
+    "build": {
+      "id": "ba49-deadbeef-a1b2c3d4",
+      "configuration": "Debug",
+      "worktree": "ba49",
+      "branch": "codex/example",
+      "commit": "deadbeef",
+      "dirty": true
+    },
     "worker": { "state": "idle" }
   }
 }
 ```
 
-Worker state is `starting`, `idle`, or `busy`. A startup/operation deadline
+`build` identifies the installed worktree build and is `null` for agents that
+were not launched from a metadata-bearing app bundle. Worker state is
+`starting`, `idle`, or `busy`. A startup/operation deadline
 violation or failed worker returns `AGENT_UNHEALTHY`, with the worker
 snapshot in `error.details.worker`. Health deadlines diagnose stalls; they do not
 cancel the active request.
@@ -183,6 +196,14 @@ The diagnostic call succeeds with HTTP 200 even when a component is down:
     "overall_status": "ok",
     "running_count": 4,
     "total_count": 4,
+    "build": {
+      "id": "ba49-deadbeef-a1b2c3d4",
+      "configuration": "Debug",
+      "worktree": "ba49",
+      "branch": "codex/example",
+      "commit": "deadbeef",
+      "dirty": true
+    },
     "checks": [
       {
         "id": "agent",
@@ -228,8 +249,9 @@ Perform one or more canonical actions with `POST /v1/perform`:
 ```json
 {
   "actions": [
+    { "action": "wait-for", "selector": "button.more" },
     { "action": "click", "selector": "button.more" },
-    { "action": "wait-for", "selector": "#results" }
+    { "action": "wait", "seconds": 0.5 }
   ],
   "session_id": "Session12",
   "output": "/optional/after-click.html",
@@ -238,9 +260,9 @@ Perform one or more canonical actions with `POST /v1/perform`:
 }
 ```
 
-`actions` must be a non-empty array. Rel runs the actions in array order.
+`actions` must be a non-empty array. REL runs the actions in array order.
 
-Capture without another action with `POST /v1/capture`:
+Capture HTML without another action with `POST /v1/capture`:
 
 ```json
 {
@@ -254,6 +276,11 @@ Capture without another action with `POST /v1/capture`:
 All three return the same page-operation envelope documented under attached
 pages. When `session_id` is supplied, `navigate` selects and updates that
 session's current shorthand page; `perform` and singular `capture` target it.
+Navigation becomes ready after the requested HTTP(S) main frame starts,
+finishes, and has nonempty rendered source. Subframe and page-initiated
+background loading does not delay completion. The `wait` delay begins after
+main-frame readiness and restarts if another main-frame navigation begins. Use
+a timed `wait` action when a workflow needs additional settling time.
 If navigation commits an HTTP 4xx or 5xx main-frame response, it returns
 `UPSTREAM_UNAVAILABLE` instead of waiting for unrelated background loading to
 become idle. A detected Cloudflare Turnstile or managed challenge receives the
@@ -266,6 +293,55 @@ with `ACTIVE_PAGE_NOT_FOUND` until a matching page has been selected by
 navigation. This registry is process-local and is cleared by an agent restart
 or when its session closes. Concurrent work within one session should use
 explicit page IDs.
+
+### Screenshots
+
+Capture the visible viewport of the current shorthand page with
+`POST /v1/screenshot`, or use `POST /v1/pages/{page_id}/screenshot` for an
+explicit attached page:
+
+```json
+{
+  "session_id": "Session12",
+  "output": "/optional/page.webp",
+  "format": "webp",
+  "quality": 80,
+  "full_page": true,
+  "timeout": 90,
+  "wait": 0
+}
+```
+
+`session_id` is accepted only by the current-page route. `format` is `png`
+(default), `jpeg`, or `webp`. `quality` is an integer from 0 through 100 and is
+ignored for PNG. `full_page` defaults to false; true captures content beyond
+the visible viewport. `output` follows the same absolute-response-path contract
+as HTML capture. When omitted, REL writes under its temporary `screenshots`
+directory.
+
+Success uses the ordinary RPC envelope:
+
+```json
+{
+  "page": {
+    "id": "page_...",
+    "session_id": "Session12",
+    "url": "https://example.com/"
+  },
+  "screenshot": {
+    "output_path": "/private/tmp/rel/screenshots/example.webp",
+    "bytesize": 48231,
+    "format": "webp",
+    "mime_type": "image/webp",
+    "width": 1280,
+    "height": 2400
+  }
+}
+```
+
+The image bytes remain in the file rather than the JSON response. The MCP
+adapter reads that validated file and emits standard image content when its
+caller did not request a specific output URI.
 
 ### `POST /v1/captures`
 
@@ -288,7 +364,7 @@ explicit page IDs.
 | `url` | Required HTTP(S) URL; scheme-less input is normalized by the agent. |
 | `output` | Optional nonempty filesystem path or null; generated when absent. Relative input is resolved against the agent process directory. Responses always contain an absolute `output_path`. |
 | `timeout` | Finite seconds greater than zero; default 90. |
-| `wait` | Finite seconds at least zero; default 1. |
+| `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical action objects. |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
@@ -298,8 +374,13 @@ explicit page IDs.
 The RPC accepts only action objects:
 
 ```json
-{ "action": "click", "selector": "button.more" }
+{ "action": "click", "selector": "button.more", "mouse_move": false, "scroll": false }
 { "action": "wait-for", "selector": "#loaded-content" }
+{ "action": "type", "selector": "#search", "text": "Magickraft" }
+{ "action": "fill", "selector": "#email", "text": "listener@example.com" }
+{ "action": "clear", "selector": "#query" }
+{ "action": "press", "selector": "#search", "key": "Enter" }
+{ "action": "select", "selector": "#genre", "value": "disco" }
 { "action": "wait", "seconds": 0.5 }
 {
   "action": "click-link",
@@ -308,12 +389,51 @@ The RPC accepts only action objects:
 }
 ```
 
-`wait-for` completes when the CSS selector is present in the live DOM and uses
-the enclosing operation's `timeout` as its deadline.
+Browser sessions controlled while not visible use the **Background Browser
+Size** preset in **REL → Settings… → General**. It defaults to a 1,920 × 947 CSS
+pixel viewport. Visible tabs follow the resizable REL window; the RPC has no
+per-request viewport override.
+
+`click` and `wait-for` use CEF's read-only renderer DOM snapshot. `wait-for`
+checks presence without requesting layout bounds. `click` reads the first
+match's bounds, requires a visible intersection with the viewport, and
+dispatches CEF mouse input. Click actions return `ACTION_TARGET_NOT_FOUND`
+without polling when the target is absent from the current snapshot; use an
+explicit `wait-for` before a click for asynchronously rendered targets.
+`click` and `click-link` accept an optional
+`mouse_move` boolean that defaults to `true`. The default sends a Chromium-local
+mouse-move event before button-down and button-up; `false` sends only the button
+events at the target coordinates. Neither mode moves the macOS cursor.
+Both click actions accept an optional `scroll` boolean that defaults to `true`.
+REL uses bounded Chromium wheel input and re-reads target bounds after each step
+to bring an offscreen target into view. `scroll: false` preserves visible-only
+targeting.
+Supported selectors are lists composed of tag,
+universal, ID, class, presence or value attribute selectors, and descendant,
+child, adjacent-sibling, or general-sibling combinators. Pseudo-classes,
+pseudo-elements, namespaces, and CSS escapes are rejected.
+
+`click-link` resolves anchor URLs and bounds in the same read-only renderer DOM
+snapshot, applies native URL matching, and uses the same CEF input path. Click
+targeting and dispatch do not execute page JavaScript, mutate the DOM, invoke
+accessibility actions, or use Chrome DevTools Protocol. Missing, unreachable,
+and unsupported targets fail without a fallback.
+
+`type`, `fill`, and `clear` focus and update the selected editable control with
+fixed renderer operations. `type` appends text, while `fill` replaces the
+current contents and `clear` removes them. `press` focuses its target, dispatches
+an allowlisted keyboard event, applies the corresponding bounded form or caret
+behavior, and accepts `Enter`, `Tab`, `Escape`,
+`Backspace`, `Delete`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`,
+`Home`, `End`, `PageUp`, `PageDown`, or `Space`. `select` targets a `<select>`
+element and one enabled option by exact `value`. Form updates emit ordinary DOM
+events to synchronize page state. These actions never accept caller-supplied
+JavaScript. Missing, disabled, read-only, non-editable, and mismatched targets
+return an action error instead of falling back to another element.
 
 The legacy `output_mode` field and function-like action strings are rejected.
 
-Preflight failures use the ordinary error response. Once accepted, Rel returns
+Preflight failures use the ordinary error response. Once accepted, REL returns
 HTTP 200 `application/x-ndjson`. Each physical line is one complete object; there
 is no encoded stdout/stderr layer:
 
@@ -387,7 +507,10 @@ Page IDs are process-local and disappear when the agent restarts.
 
 ```json
 {
-  "action": { "action": "click", "selector": "button" },
+  "action": {
+    "action": "click",
+    "selector": "button.more"
+  },
   "output": "/optional/page.html",
   "timeout": 90,
   "wait": 1
@@ -437,7 +560,7 @@ they may contain only letters, numbers, hyphens, and underscores (maximum 64
 characters), and cannot be a UUID. An alias is the sole public proxy identifier: numeric database IDs
 and UUIDs are neither accepted nor returned by proxy APIs.
 Oxylabs location requires both parameter and value; parameter is `cc`, `country`,
-or `st`. `oxylabs.session_id` is generated by Rel and is read-only; rotate it
+or `st`. `oxylabs.session_id` is generated by REL and is read-only; rotate it
 with the dedicated rotate-session operation.
 
 ## Sessions
@@ -464,8 +587,9 @@ A session resource is:
 - `DELETE /v1/sessions/{id}` returns the canonical session ID as
   `data.deleted_id` and refuses to remove the last session.
 
-`image_blocking_mode` is `all` or `over_limit`. The legacy `block_images` alias
-is rejected. Size is 1 through 1,048,576 kB. The visible name is editable and
+`image_blocking_mode` is `none`, `all`, or `over_limit`. `none` allows every
+image while leaving `adblock_enabled` independent. The legacy `block_images`
+alias is rejected. Size is 1 through 1,048,576 kB. The visible name is editable and
 case-insensitively unique; the canonical `id` is immutable. Session routes accept
 only that ID; numeric database IDs are neither accepted nor returned.
 

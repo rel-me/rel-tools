@@ -8,7 +8,7 @@ Rel.app must be installed in `/Applications`. The CLI starts it when a command
 requires the local agent.
 
 ```sh
-cargo install --git https://github.com/gabriel/rel-tools --package rel-cli
+cargo install --git https://github.com/rel-me/rel-tools --package rel-cli
 rel health
 rel navigate https://example.com
 rel capture > example.html

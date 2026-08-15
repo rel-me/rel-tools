@@ -177,6 +177,18 @@ impl RelClient {
         )
     }
 
+    pub fn screenshot_current_page(
+        &self,
+        request: &ScreenshotRequest,
+    ) -> Result<RpcResponse<ScreenshotOperationData>, ClientError> {
+        self.request_with_timeout(
+            "POST",
+            "/screenshot",
+            Some(request),
+            page_request_timeout(request.timeout, request.wait),
+        )
+    }
+
     pub fn attach_page(
         &self,
         request: &PageAttachRequest,
@@ -195,6 +207,20 @@ impl RelClient {
         request: &PageActionRequest,
     ) -> Result<RpcResponse<PageOperationData>, ClientError> {
         let path = format!("/pages/{}/actions", encode_path_segment(page_id));
+        self.request_with_timeout(
+            "POST",
+            &path,
+            Some(request),
+            page_request_timeout(request.timeout, request.wait),
+        )
+    }
+
+    pub fn take_page_screenshot(
+        &self,
+        page_id: &str,
+        request: &PageScreenshotRequest,
+    ) -> Result<RpcResponse<ScreenshotOperationData>, ClientError> {
+        let path = format!("/pages/{}/screenshot", encode_path_segment(page_id));
         self.request_with_timeout(
             "POST",
             &path,
@@ -727,14 +753,41 @@ impl NavigateRequest {
 pub enum Action {
     Click {
         selector: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        mouse_move: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        scroll: Option<bool>,
     },
     WaitFor {
         selector: String,
+    },
+    Type {
+        selector: String,
+        text: String,
+    },
+    Fill {
+        selector: String,
+        text: String,
+    },
+    Clear {
+        selector: String,
+    },
+    Press {
+        selector: String,
+        key: String,
+    },
+    Select {
+        selector: String,
+        value: String,
     },
     ClickLink {
         link: String,
         #[serde(rename = "match")]
         match_rule: FuzzyLinkMatch,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        mouse_move: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        scroll: Option<bool>,
     },
     Wait {
         seconds: f64,
@@ -867,6 +920,66 @@ pub struct PageCapture {
     pub bytesize: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_http_status: Option<u16>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ScreenshotFormat {
+    Png,
+    Jpeg,
+    Webp,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ScreenshotRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<ScreenshotFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quality: Option<u8>,
+    #[serde(default)]
+    pub full_page: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct PageScreenshotRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<ScreenshotFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quality: Option<u8>,
+    #[serde(default)]
+    pub full_page: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ScreenshotOperationData {
+    pub page: Page,
+    pub screenshot: ScreenshotCapture,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ScreenshotCapture {
+    pub output_path: String,
+    pub bytesize: usize,
+    pub format: ScreenshotFormat,
+    pub mime_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
@@ -1015,6 +1128,7 @@ pub struct SessionDefaultsUpdateRequest {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ImageBlockingMode {
+    None,
     All,
     OverLimit,
 }
@@ -1070,7 +1184,18 @@ pub struct Health {
     pub version: String,
     pub pid: u32,
     pub browser_proxy_port: u16,
+    pub build: Option<BuildIdentity>,
     pub worker: Worker,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BuildIdentity {
+    pub id: String,
+    pub configuration: String,
+    pub worktree: String,
+    pub branch: String,
+    pub commit: String,
+    pub dirty: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1085,6 +1210,7 @@ pub struct StatusReport {
     pub overall_status: String,
     pub running_count: usize,
     pub total_count: usize,
+    pub build: Option<BuildIdentity>,
     pub checks: Vec<StatusCheck>,
 }
 
@@ -1338,6 +1464,14 @@ mod tests {
             .unwrap(),
             json!({"proxy_alias":null})
         );
+        assert_eq!(
+            serde_json::to_value(SessionCreateRequest {
+                image_blocking_mode: Some(ImageBlockingMode::None),
+                ..SessionCreateRequest::default()
+            })
+            .unwrap(),
+            json!({"image_blocking_mode":"none"})
+        );
     }
 
     #[test]
@@ -1345,6 +1479,8 @@ mod tests {
         let action = Action::ClickLink {
             link: "https://example.com/next".to_string(),
             match_rule: FuzzyLinkMatch::new(0.9),
+            mouse_move: None,
+            scroll: None,
         };
         assert_eq!(
             serde_json::to_value(action).unwrap(),
@@ -1355,15 +1491,82 @@ mod tests {
             })
         );
         assert_eq!(
+            serde_json::to_value(Action::Click {
+                selector: "button.more".to_string(),
+                mouse_move: None,
+                scroll: None,
+            })
+            .unwrap(),
+            serde_json::json!({"action":"click", "selector":"button.more"})
+        );
+        assert_eq!(
+            serde_json::to_value(Action::Click {
+                selector: "button.more".to_string(),
+                mouse_move: Some(false),
+                scroll: Some(false),
+            })
+            .unwrap(),
+            serde_json::json!({
+                "action":"click",
+                "selector":"button.more",
+                "mouse_move":false,
+                "scroll":false
+            })
+        );
+        assert_eq!(
             serde_json::to_value(Action::WaitFor {
                 selector: "#loaded".to_string(),
             })
             .unwrap(),
-            serde_json::json!({
-                "action":"wait-for",
-                "selector":"#loaded"
-            })
+            serde_json::json!({"action":"wait-for", "selector":"#loaded"})
         );
+        for (action, expected) in [
+            (
+                Action::Type {
+                    selector: "#search".to_string(),
+                    text: "Magickraft".to_string(),
+                },
+                serde_json::json!({
+                    "action":"type", "selector":"#search", "text":"Magickraft"
+                }),
+            ),
+            (
+                Action::Fill {
+                    selector: "#email".to_string(),
+                    text: "listener@example.com".to_string(),
+                },
+                serde_json::json!({
+                    "action":"fill", "selector":"#email",
+                    "text":"listener@example.com"
+                }),
+            ),
+            (
+                Action::Clear {
+                    selector: "#query".to_string(),
+                },
+                serde_json::json!({"action":"clear", "selector":"#query"}),
+            ),
+            (
+                Action::Press {
+                    selector: "#search".to_string(),
+                    key: "Enter".to_string(),
+                },
+                serde_json::json!({
+                    "action":"press", "selector":"#search", "key":"Enter"
+                }),
+            ),
+            (
+                Action::Select {
+                    selector: "#genre".to_string(),
+                    value: "disco".to_string(),
+                },
+                serde_json::json!({
+                    "action":"select", "selector":"#genre", "value":"disco"
+                }),
+            ),
+        ] {
+            assert_eq!(serde_json::to_value(action).unwrap(), expected);
+        }
     }
 
     #[test]
@@ -1373,15 +1576,21 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(20, |index, request| {
+        let (base_url, server) = start_test_server(22, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
                     "version":"0.1.7", "pid":123, "browser_proxy_port":17400,
+                    "build":{"id":"ba49-deadbeef-a1b2c3d4","configuration":"Debug",
+                        "worktree":"ba49","branch":"codex/example","commit":"deadbeef",
+                        "dirty":true},
                     "worker":{"state":"idle"}
                 }),
                 ("GET", "/v1/status") => json!({
                     "overall_status":"ok", "running_count":1, "total_count":1,
+                    "build":{"id":"ba49-deadbeef-a1b2c3d4","configuration":"Debug",
+                        "worktree":"ba49","branch":"codex/example","commit":"deadbeef",
+                        "dirty":true},
                     "checks":[{"id":"agent","name":"Agent","kind":"service","running":true,
                         "status":"running","detail":"ready","pids":[123]}]
                 }),
@@ -1392,6 +1601,10 @@ mod tests {
                 | ("POST", "/v1/pages/page_1/actions") => json!({
                     "page":{"id":"page_1","session_id":"machine-a.Session1","url":"https://example.com/"},
                     "capture":{"output_path":"tmp/page.html","bytesize":10,"target_http_status":200}
+                }),
+                ("POST", "/v1/screenshot") | ("POST", "/v1/pages/page_1/screenshot") => json!({
+                    "page":{"id":"page_1","session_id":"machine-a.Session1","url":"https://example.com/"},
+                    "screenshot":{"output_path":"/tmp/page.webp","bytesize":11,"format":"webp","mime_type":"image/webp","width":1200,"height":800}
                 }),
                 ("GET", "/v1/proxies") => json!({"proxies":[proxy_json()]}),
                 ("GET", "/v1/proxies/office")
@@ -1421,14 +1634,19 @@ mod tests {
         });
         let client = RelClient::new(base_url);
 
-        client.health().unwrap();
-        client.status().unwrap();
+        let health = client.health().unwrap();
+        assert_eq!(health.data.build.as_ref().unwrap().worktree, "ba49");
+        let status = client.status().unwrap();
+        assert_eq!(status.data.build, health.data.build);
         client
             .navigate(&NavigateRequest::new("example.com"))
             .unwrap();
         let mut perform = PerformRequest::new(vec![
-            Action::Click {
-                selector: "button.more".to_string(),
+            Action::ClickLink {
+                link: "https://example.com/more".to_string(),
+                match_rule: FuzzyLinkMatch::new(1.0),
+                mouse_move: None,
+                scroll: None,
             },
             Action::Wait { seconds: 0.0 },
         ]);
@@ -1438,6 +1656,15 @@ mod tests {
             .capture_current_page(&PageCaptureRequest {
                 session_id: Some("machine-a.Session1".to_string()),
                 ..PageCaptureRequest::default()
+            })
+            .unwrap();
+        client
+            .screenshot_current_page(&ScreenshotRequest {
+                session_id: Some("machine-a.Session1".to_string()),
+                format: Some(ScreenshotFormat::Webp),
+                quality: Some(80),
+                full_page: true,
+                ..ScreenshotRequest::default()
             })
             .unwrap();
         client
@@ -1451,6 +1678,15 @@ mod tests {
                     output: None,
                     timeout: None,
                     wait: None,
+                },
+            )
+            .unwrap();
+        client
+            .take_page_screenshot(
+                "page_1",
+                &PageScreenshotRequest {
+                    format: Some(ScreenshotFormat::Png),
+                    ..PageScreenshotRequest::default()
                 },
             )
             .unwrap();
@@ -1513,8 +1749,10 @@ mod tests {
                 ("POST", "/v1/navigate"),
                 ("POST", "/v1/perform"),
                 ("POST", "/v1/capture"),
+                ("POST", "/v1/screenshot"),
                 ("POST", "/v1/pages"),
                 ("POST", "/v1/pages/page_1/actions"),
+                ("POST", "/v1/pages/page_1/screenshot"),
                 ("GET", "/v1/proxies"),
                 ("GET", "/v1/proxies/office"),
                 ("POST", "/v1/proxies"),
@@ -1537,7 +1775,7 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Value>(&requests[3].body).unwrap(),
             json!({"session_id":"machine-a.Session1","actions":[
-                {"action":"click","selector":"button.more"},
+                {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1.0}},
                 {"action":"wait","seconds":0.0}
             ]})
         );
@@ -1546,19 +1784,28 @@ mod tests {
             json!({"session_id":"machine-a.Session1"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[9].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[5].body).unwrap(),
+            json!({
+                "session_id":"machine-a.Session1",
+                "format":"webp",
+                "quality":80,
+                "full_page":true
+            })
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[11].body).unwrap(),
             json!({"alias":"office","upstream_host":"proxy.example.com","upstream_port":8000})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[10].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[12].body).unwrap(),
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[17].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[19].body).unwrap(),
             json!({"proxy_alias":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[18].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[20].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

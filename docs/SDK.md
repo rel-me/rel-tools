@@ -1,11 +1,11 @@
-# Rel Rust SDK
+# REL Rust SDK
 
-`rel-client` is the typed Rust client for every public Rel RPC v1 operation.
+`rel-client` is the typed Rust client for every public REL RPC v1 operation.
 The `rel` CLI uses this crate rather than maintaining a separate transport or
 request model.
 
 The SDK source is available under the MIT license in
-[`gabriel/rel-tools`](https://github.com/gabriel/rel-tools). Rel's application
+[`rel-me/rel-tools`](https://github.com/rel-me/rel-tools). REL's application
 source and internal runtime implementation are not publicly distributed.
 
 Related documents: [CLI](CLI.md), [MCP](MCP.md), and [RPC](RPC.md).
@@ -16,7 +16,7 @@ Until a crates.io release is announced, pin the public repository tag:
 
 ```toml
 [dependencies]
-rel-client = { git = "https://github.com/gabriel/rel-tools", tag = "v0.1.1" }
+rel-client = { git = "https://github.com/rel-me/rel-tools", tag = "v0.1.1" }
 ```
 
 ```rust
@@ -34,13 +34,13 @@ URL. `with_request_timeout(Duration)` changes the ten-second timeout used by
 ordinary requests. Capture and page methods derive longer deadlines from their
 operation timeout, wait, retry count, and retry delay.
 
-The SDK is transport-only: it never launches Rel.app, reads Rel's SQLite
+The SDK is transport-only: it never launches the REL app, reads REL's SQLite
 database, or tails log files. The caller is responsible for ensuring that the
 installed app and agent are running. The bundled CLI adds app-launch behavior
 for Chromium and mutation commands around this same client.
 
 SDK browser methods inherit the [RPC tab-selection behavior](RPC.md#transport):
-when Rel is inactive, the target tab is selected by default without activating
+when REL is inactive, the target tab is selected by default without activating
 the app. Users can disable this with the General setting **Follow browser
 commands**.
 
@@ -55,9 +55,11 @@ Each method maps to one public RPC route:
 | `navigate(&NavigateRequest)` | `POST /v1/navigate` |
 | `perform(&PerformRequest)` | `POST /v1/perform` |
 | `capture_current_page(&PageCaptureRequest)` | `POST /v1/capture` |
+| `screenshot_current_page(&ScreenshotRequest)` | `POST /v1/screenshot` |
 | `capture(&CaptureRequest)` | `POST /v1/captures` |
 | `attach_page(&PageAttachRequest)` | `POST /v1/pages` |
 | `perform_page_action(page_id, &PageActionRequest)` | `POST /v1/pages/{page_id}/actions` |
+| `take_page_screenshot(page_id, &PageScreenshotRequest)` | `POST /v1/pages/{page_id}/screenshot` |
 | `list_proxies()` | `GET /v1/proxies` |
 | `get_proxy(alias)` | `GET /v1/proxies/{alias}` |
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
@@ -77,11 +79,16 @@ and the typed `data` resource. Resources include `Health`, `StatusReport`,
 `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
 match RPC v1.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all six tools. It
-calls `status`, `capture`, `attach_page`, `perform_page_action`, `list_sessions`,
-and `list_proxies`; it does not maintain alternate request types or bypass the
-RPC transport. For capture, it exhausts and validates `CaptureStream` before
-returning one aggregated MCP result.
+`Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
+with the installed bundle's ID, configuration, worktree, branch, commit, and
+dirty state. The field is `None` when the agent was not launched by a
+metadata-bearing app bundle.
+
+The bundled [MCP adapter](MCP.md) uses this same client for all seven tools. It
+calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
+methods, `list_sessions`, and `list_proxies`; it does not maintain alternate
+request types or bypass the RPC transport. For capture, it exhausts and
+validates `CaptureStream` before returning one aggregated MCP result.
 
 ## Shorthand page workflow
 
@@ -99,12 +106,15 @@ let mut navigate = NavigateRequest::new("https://example.com");
 navigate.session_id = Some(session_id.clone());
 client.navigate(&navigate)?;
 let mut perform = PerformRequest::new(vec![
-    Action::Click {
+    Action::WaitFor {
         selector: "button.more".into(),
     },
-    Action::WaitFor {
-        selector: "#results".into(),
+    Action::Click {
+        selector: "button.more".into(),
+        mouse_move: None,
+        scroll: None,
     },
+    Action::Wait { seconds: 0.5 },
 ]);
 perform.session_id = Some(session_id.clone());
 client.perform(&perform)?;
@@ -117,10 +127,34 @@ println!("{}", capture.data.capture.output_path);
 # Ok::<(), rel_client::ClientError>(())
 ```
 
+`navigate` becomes ready after the requested HTTP(S) main frame starts,
+finishes, and has nonempty rendered source. Subframe and page-initiated
+background loading does not hold the request open. Its `wait` value is a
+bounded settling delay after final main-frame readiness. Use `Action::Wait`
+when a workflow needs additional settling time.
+
+Take a visual capture from the same current page with `ScreenshotRequest`, or
+use `PageScreenshotRequest` with an explicit attached page ID:
+
+```rust
+use rel_client::{RelClient, ScreenshotFormat, ScreenshotRequest};
+
+let client = RelClient::local();
+let screenshot = client.screenshot_current_page(&ScreenshotRequest {
+    session_id: Some("Session1".into()),
+    format: Some(ScreenshotFormat::Webp),
+    quality: Some(80),
+    full_page: true,
+    ..ScreenshotRequest::default()
+})?;
+println!("{}", screenshot.data.screenshot.output_path);
+# Ok::<(), rel_client::ClientError>(())
+```
+
 `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame commits an HTTP 4xx or 5xx response. By default, detected Cloudflare
 Turnstile and managed challenge pages first receive up to 15 seconds to
-continue; this can be disabled in Rel's General settings. Error details include
+continue; this can be disabled in REL's General settings. Error details include
 the final `url` and exact `target_http_status`; the navigated session remains
 selected.
 
@@ -178,19 +212,62 @@ use rel_client::{Action, FuzzyLinkMatch};
 
 let click = Action::Click {
     selector: "button.more".into(),
+    mouse_move: None,
+    scroll: None,
 };
 let wait_for = Action::WaitFor {
     selector: "#loaded-content".into(),
+};
+let typed = Action::Type {
+    selector: "#search".into(),
+    text: "Magickraft".into(),
+};
+let filled = Action::Fill {
+    selector: "#email".into(),
+    text: "listener@example.com".into(),
+};
+let cleared = Action::Clear {
+    selector: "#query".into(),
+};
+let pressed = Action::Press {
+    selector: "#search".into(),
+    key: "Enter".into(),
+};
+let selected = Action::Select {
+    selector: "#genre".into(),
+    value: "disco".into(),
 };
 let wait = Action::Wait { seconds: 0.5 };
 let link = Action::ClickLink {
     link: "https://example.com/more".into(),
     match_rule: FuzzyLinkMatch::new(0.9),
+    mouse_move: Some(false),
+    scroll: None,
 };
 ```
 
 There are no function-style action strings or compatibility action shapes in
-the SDK.
+the SDK. Selector actions use CEF's read-only renderer DOM snapshot; selector
+clicks resolve bounds and use CEF input. Link clicks match resolved anchor URLs
+and bounds in the same snapshot, then use the same input path. Click actions
+return `ACTION_TARGET_NOT_FOUND` without polling when the target is absent; add
+an explicit `Action::WaitFor` first for asynchronously rendered targets. Set
+`mouse_move` to
+`None` or `Some(true)` for the default Chromium-local move followed by
+button-down and button-up; use `Some(false)` for button-down and button-up only.
+Neither choice moves the macOS cursor. Set `scroll` to `None` or `Some(true)` to
+auto-scroll offscreen targets with bounded native Chromium wheel input, or
+`Some(false)` for visible-only targeting.
+Click targeting and dispatch do not use page JavaScript, DOM mutation,
+accessibility actions, or Chrome DevTools Protocol. Form variants use only the
+fixed, typed renderer operations described in the [CLI guide](CLI.md#capture);
+they do not accept caller-supplied JavaScript. The selector subset and
+fail-closed behavior are defined there as well.
+
+Browser sessions controlled while not visible use the **Background Browser
+Size** preset in **REL → Settings… → General**, which defaults to 1,920 × 947
+CSS pixels. Visible tabs follow the resizable REL window. This global setting is
+not duplicated as an SDK field.
 
 ## Partial updates
 
@@ -222,7 +299,7 @@ update.
 ## Session creation defaults
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
-Session defaults configured in Rel.app. Use `Change::Set("alias".into())` to override the
+Session defaults configured in the REL app. Use `Change::Set("alias".into())` to override the
 default proxy or `Change::Clear` to create a direct session:
 
 ```rust
@@ -237,8 +314,9 @@ RelClient::local().create_session(&request)?;
 ```
 
 The `SessionDefaults` resource contains `proxy_alias`, `adblock_enabled`,
-`image_blocking_mode`, and `image_size_limit_kb`. Proxy and filter updates
-affect only subsequently created sessions. Rel does not impose a maximum
+`image_blocking_mode`, and `image_size_limit_kb`. `ImageBlockingMode::None`
+allows every image without disabling AdBlock. Proxy and filter updates
+affect only subsequently created sessions. REL does not impose a maximum
 session count.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
@@ -258,7 +336,7 @@ SDK failures use one `ClientError` type:
 | --- | --- |
 | `Transport` | The agent could not be reached or the HTTP exchange failed. |
 | `Protocol` | Content type, request ID, envelope, or event shape violated RPC v1. |
-| `Rpc(RpcFailure)` | Rel returned the standard structured RPC error envelope. |
+| `Rpc(RpcFailure)` | REL returned the standard structured RPC error envelope. |
 | `Io` | Reading a response or capture stream failed. |
 | `Json` | JSON serialization or deserialization failed. |
 
@@ -275,4 +353,4 @@ against the envelope or every NDJSON event.
 ## Stability
 
 The SDK targets RPC v1 only. Removing legacy CLI syntax does not change this
-wire contract. SDK versions are distributed alongside compatible Rel releases.
+wire contract. SDK versions are distributed alongside compatible REL releases.
