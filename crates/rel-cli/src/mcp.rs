@@ -623,7 +623,12 @@ fn action_schema() -> Value {
                 "type": "object",
                 "properties": {
                     "action": {"const": "wait-for"},
-                    "selector": {"type": "string", "minLength": 1}
+                    "selector": {"type": "string", "minLength": 1},
+                    "timeout": {
+                        "type": "number",
+                        "exclusiveMinimum": 0,
+                        "description": "Maximum seconds to wait for this selector. Defaults to the enclosing operation's remaining timeout."
+                    }
                 },
                 "required": ["action", "selector"],
                 "additionalProperties": false
@@ -1615,7 +1620,7 @@ mod tests {
     fn mcp_arguments_accept_every_cli_action() {
         let actions = json!([
             {"action": "click", "selector": "button.more", "mouse_move": false, "scroll": false},
-            {"action": "wait-for", "selector": "#loaded"},
+            {"action": "wait-for", "selector": "#loaded", "timeout": 2.5},
             {"action": "type", "selector": "#search", "text": "Magickraft"},
             {"action": "fill", "selector": "#email", "text": "listener@example.com"},
             {"action": "clear", "selector": "#query"},

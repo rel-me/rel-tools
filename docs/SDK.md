@@ -108,6 +108,7 @@ client.navigate(&navigate)?;
 let mut perform = PerformRequest::new(vec![
     Action::WaitFor {
         selector: "button.more".into(),
+        timeout: None,
     },
     Action::Click {
         selector: "button.more".into(),

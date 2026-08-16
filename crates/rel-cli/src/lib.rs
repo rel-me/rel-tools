@@ -1404,7 +1404,8 @@ mod tests {
             vec![
                 Action::Wait { seconds: 2.0 },
                 Action::WaitFor {
-                    selector: "#loaded".to_string()
+                    selector: "#loaded".to_string(),
+                    timeout: None
                 },
                 Action::Click {
                     selector: "#more".to_string(),

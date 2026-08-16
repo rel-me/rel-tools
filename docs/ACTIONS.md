@@ -22,7 +22,7 @@ implementation.
 | Action | Required fields | Purpose |
 | --- | --- | --- |
 | `click` | `selector` | Click the first matching element. |
-| `wait-for` | `selector` | Wait until a matching element is present. |
+| `wait-for` | `selector`; optional positive `timeout` | Wait until a matching element is present. |
 | `type` | `selector`, nonempty `text` | Append text to an editable control. |
 | `fill` | `selector`, `text` | Replace an editable control's contents. |
 | `clear` | `selector` | Remove an editable control's contents. |
@@ -36,7 +36,7 @@ implementation.
 ```json
 { "action": "click", "selector": "button.more" }
 { "action": "click", "selector": "button.more", "mouse_move": false, "scroll": false }
-{ "action": "wait-for", "selector": "#loaded-content" }
+{ "action": "wait-for", "selector": "#loaded-content", "timeout": 10 }
 { "action": "type", "selector": "#search", "text": "Magickraft" }
 { "action": "fill", "selector": "#email", "text": "listener@example.com" }
 { "action": "clear", "selector": "#query" }
@@ -62,9 +62,13 @@ value attribute selectors, plus descendant, child (`>`), adjacent-sibling
 (`+`), and general-sibling (`~`) combinators. Pseudo-classes, pseudo-elements,
 namespaces, and CSS escapes are rejected.
 
-`wait-for` checks only for presence and uses the enclosing operation's timeout.
-It does not require layout bounds. `click` reads the first match's bounds and
-dispatches CEF mouse input. A missing click target returns
+`wait-for` checks only for presence and does not require layout bounds. Its
+optional positive `timeout` is measured from the start of that action and is
+capped by the enclosing operation's remaining deadline. Omitting it preserves
+the enclosing deadline. If its own timeout expires first, REL returns
+`ACTION_TIMEOUT`; if the enclosing deadline expires first, REL returns
+`TIMEOUT`. `click` reads the first match's bounds and dispatches CEF mouse
+input. A missing click target returns
 `ACTION_TARGET_NOT_FOUND` without polling, so put `wait-for` immediately before
 `click` when a page renders the target asynchronously.
 
@@ -116,7 +120,7 @@ Pass an ordered array to `perform`:
 
 ```sh
 rel perform '[
-  {"action":"wait-for","selector":"#disco_search"},
+  {"action":"wait-for","selector":"#disco_search","timeout":10},
   {"action":"fill","selector":"#disco_search","text":"Magickraft"},
   {"action":"press","selector":"#disco_search","key":"Enter"}
 ]'
@@ -127,7 +131,7 @@ options may be combined and preserve command-line order:
 
 ```sh
 rel https://example.com \
-  --action '{"action":"wait-for","selector":"#disco_search"}' \
+  --action '{"action":"wait-for","selector":"#disco_search","timeout":10}' \
   --actions '[{"action":"type","selector":"#disco_search","text":"Magickraft"}]'
 ```
 
@@ -176,6 +180,7 @@ use rel_client::{Action, FuzzyLinkMatch};
 let actions = vec![
     Action::WaitFor {
         selector: "#disco_search".into(),
+        timeout: Some(10.0),
     },
     Action::Fill {
         selector: "#disco_search".into(),

@@ -91,6 +91,7 @@ repeat.
 | `10203` | `ACTION_TARGET_NOT_FOUND` | no | Click target could not be found |
 | `10204` | `REQUEST_CANCELLED` | yes | Browser work was cancelled |
 | `10205` | `RATE_LIMITED` | yes | REL itself is rate limiting the caller |
+| `10206` | `ACTION_TIMEOUT` | yes | A browser action's local timeout expired |
 | `10300` | `UPSTREAM_UNAVAILABLE` | yes | Navigation received a target HTTP error or the browser/proxy received an invalid upstream result |
 | `10301` | `BROWSER_UNAVAILABLE` | yes | Required Chromium service is unavailable |
 | `10302` | `AGENT_UNHEALTHY` | yes | The serialized control worker missed its health deadline |
