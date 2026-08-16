@@ -18,7 +18,7 @@ session storage, proxy credentials, or internal service code.
   powers [docs.rel.me](https://docs.rel.me).
 
 All clients require REL.app in `/Applications`; they connect only to its
-loopback API. Download the app from [rel.me](https://rel.me).
+loopback API. Download the app from [REL.me](https://rel.me).
 
 ## Install the CLI
 
