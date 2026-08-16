@@ -7,6 +7,18 @@ const contentRoot = resolve(docsRoot, "src/content/docs");
 
 const pages = [
   {
+    source: "CODEX_PLUGIN.md",
+    output: "codex-plugin.md",
+    title: "Codex plugin",
+    description: "Install the REL plugin for Codex and connect its MCP tools to persistent browser sessions.",
+  },
+  {
+    source: "CLAUDE_CODE_PLUGIN.md",
+    output: "claude-code-plugin.md",
+    title: "Claude Code plugin",
+    description: "Install the REL plugin for Claude Code and connect its MCP tools to persistent browser sessions.",
+  },
+  {
     source: "CLI.md",
     output: "cli.md",
     title: "CLI",
@@ -33,6 +45,8 @@ const pages = [
 ];
 
 const siteLinks = new Map([
+  ["CODEX_PLUGIN.md", "/codex-plugin/"],
+  ["CLAUDE_CODE_PLUGIN.md", "/claude-code-plugin/"],
   ["CLI.md", "/cli/"],
   ["MCP.md", "/mcp/"],
   ["RPC.md", "/rpc/"],
@@ -41,7 +55,7 @@ const siteLinks = new Map([
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((CLI|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((CODEX_PLUGIN|CLAUDE_CODE_PLUGIN|CLI|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

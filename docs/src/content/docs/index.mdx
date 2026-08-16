@@ -1,6 +1,6 @@
 ---
 title: REL documentation
-description: Use REL from the CLI or MCP, connect through RPC v1, and work with the typed Rust client.
+description: Install REL agent plugins, use the CLI or MCP, connect through RPC v1, and work with the typed Rust client.
 editUrl: false
 lastUpdated: false
 prev: false
@@ -9,8 +9,8 @@ next: false
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-Keep persistent Chromium sessions on your Mac and access them from MCP, the
-CLI, a local API, or the typed Rust client.
+Keep persistent Chromium sessions on your Mac and access them from Codex,
+Claude Code, MCP, the CLI, a local API, or the typed Rust client.
 
 ## Start with one command
 
@@ -29,6 +29,11 @@ be piped or redirected independently.
 ## Go deeper
 
 <CardGrid>
+  <Card title="Install an agent plugin">
+    Add the shared REL plugin to load its MCP server and browser workflow guidance automatically.
+
+    [Install for Codex →](/codex-plugin/) · [Install for Claude Code →](/claude-code-plugin/)
+  </Card>
   <Card title="Connect an MCP client">
     Launch the bundled stdio adapter for focused status, capture, page automation, session-list, and proxy-list tools.
 
@@ -48,4 +53,4 @@ be piped or redirected independently.
 
 ## Supported runtime
 
-REL has one supported path: the installed `/Applications/Rel.app` owns Chromium and supervises its bundled local agent. CLI, SDK, and MCP adapter calls connect to that agent; the agent routes browser work back into the visible app.
+REL has one supported path: the installed `/Applications/REL.app` owns Chromium and supervises its bundled local agent. CLI, SDK, and MCP adapter calls connect to that agent; the agent routes browser work back into the visible app.

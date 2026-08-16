@@ -1,0 +1,22 @@
+{
+  "name": "rel",
+  "displayName": "REL",
+  "version": "0.2.0",
+  "description": "Use REL's persistent embedded Chromium sessions from Claude Code.",
+  "author": {
+    "name": "REL",
+    "url": "https://rel.me"
+  },
+  "homepage": "https://docs.rel.me/claude-code-plugin/",
+  "repository": "https://github.com/rel-me/rel-tools",
+  "license": "MIT",
+  "keywords": [
+    "browser",
+    "chromium",
+    "mcp",
+    "automation",
+    "sessions"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}
