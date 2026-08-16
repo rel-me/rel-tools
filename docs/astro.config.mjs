@@ -36,13 +36,13 @@ export default defineConfig({
           label: "Start here",
           items: [
             { label: "Overview", slug: "index" },
-            { label: "CLI", slug: "cli" },
             { label: "Actions", slug: "actions" },
           ],
         },
         {
           label: "Agent access",
           items: [
+            { label: "CLI", slug: "cli" },
             { label: "MCP server", slug: "mcp" },
             { label: "RPC v1", slug: "rpc" },
             { label: "Rust SDK", slug: "sdk" },
