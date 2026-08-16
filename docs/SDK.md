@@ -222,10 +222,6 @@ let typed = Action::Type {
     selector: "#search".into(),
     text: "Magickraft".into(),
 };
-let filled = Action::Fill {
-    selector: "#email".into(),
-    text: "listener@example.com".into(),
-};
 let cleared = Action::Clear {
     selector: "#query".into(),
 };

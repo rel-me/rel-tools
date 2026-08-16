@@ -641,16 +641,6 @@ fn action_schema() -> Value {
             {
                 "type": "object",
                 "properties": {
-                    "action": {"const": "fill"},
-                    "selector": {"type": "string", "minLength": 1},
-                    "text": {"type": "string"}
-                },
-                "required": ["action", "selector", "text"],
-                "additionalProperties": false
-            },
-            {
-                "type": "object",
-                "properties": {
                     "action": {"const": "clear"},
                     "selector": {"type": "string", "minLength": 1}
                 },
@@ -1601,7 +1591,6 @@ mod tests {
                 "click",
                 "wait-for",
                 "type",
-                "fill",
                 "clear",
                 "press",
                 "select",

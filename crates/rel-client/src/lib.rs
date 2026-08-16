@@ -765,10 +765,6 @@ pub enum Action {
         selector: String,
         text: String,
     },
-    Fill {
-        selector: String,
-        text: String,
-    },
     Clear {
         selector: String,
     },
@@ -1528,16 +1524,6 @@ mod tests {
                 },
                 serde_json::json!({
                     "action":"type", "selector":"#search", "text":"Magickraft"
-                }),
-            ),
-            (
-                Action::Fill {
-                    selector: "#email".to_string(),
-                    text: "listener@example.com".to_string(),
-                },
-                serde_json::json!({
-                    "action":"fill", "selector":"#email",
-                    "text":"listener@example.com"
                 }),
             ),
             (

@@ -377,7 +377,6 @@ The RPC accepts only action objects:
 { "action": "click", "selector": "button.more", "mouse_move": false, "scroll": false }
 { "action": "wait-for", "selector": "#loaded-content" }
 { "action": "type", "selector": "#search", "text": "Magickraft" }
-{ "action": "fill", "selector": "#email", "text": "listener@example.com" }
 { "action": "clear", "selector": "#query" }
 { "action": "press", "selector": "#search", "key": "Enter" }
 { "action": "select", "selector": "#genre", "value": "disco" }
@@ -419,17 +418,18 @@ targeting and dispatch do not execute page JavaScript, mutate the DOM, invoke
 accessibility actions, or use Chrome DevTools Protocol. Missing, unreachable,
 and unsupported targets fail without a fallback.
 
-`type`, `fill`, and `clear` focus and update the selected editable control with
-fixed renderer operations. `type` appends text, while `fill` replaces the
-current contents and `clear` removes them. `press` focuses its target, dispatches
-an allowlisted keyboard event, applies the corresponding bounded form or caret
-behavior, and accepts `Enter`, `Tab`, `Escape`,
-`Backspace`, `Delete`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`,
-`Home`, `End`, `PageUp`, `PageDown`, or `Space`. `select` targets a `<select>`
-element and one enabled option by exact `value`. Form updates emit ordinary DOM
-events to synchronize page state. These actions never accept caller-supplied
-JavaScript. Missing, disabled, read-only, non-editable, and mismatched targets
-return an action error instead of falling back to another element.
+`type` focuses the selected editable control and appends text through Chromium's
+keyboard input path. Each character emits key-down, character/input, and key-up
+events. `clear` removes the current contents; send `clear` followed by `type` to
+replace existing text. `press` focuses its target, dispatches an allowlisted
+keyboard event, applies the corresponding bounded form or caret behavior, and
+accepts `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `ArrowUp`, `ArrowDown`,
+`ArrowLeft`, `ArrowRight`, `Home`, `End`, `PageUp`, `PageDown`, or `Space`.
+`select` targets a `<select>` element and one enabled option by exact `value`.
+Form updates emit ordinary DOM events to synchronize page state. These actions
+never accept caller-supplied JavaScript. Missing, disabled, read-only,
+non-editable, and mismatched targets return an action error instead of falling
+back to another element.
 
 The legacy `output_mode` field and function-like action strings are rejected.
 
