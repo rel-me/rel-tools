@@ -22,7 +22,7 @@ implementation.
 | Action | Required fields | Purpose |
 | --- | --- | --- |
 | `click` | `selector` | Click the first matching element. |
-| `wait-for` | `selector`; optional positive `timeout` | Wait until a matching element is present. |
+| `wait-for` | `selector` | Wait until a matching element is present, optionally with a local timeout. |
 | `type` | `selector`, nonempty `text` | Append text to an editable control. |
 | `fill` | `selector`, `text` | Replace an editable control's contents. |
 | `clear` | `selector` | Remove an editable control's contents. |
