@@ -6,7 +6,9 @@ browser tools and forwards every tool call through the public
 [`rel-client`](SDK.md) crate and [RPC v1](RPC.md). It does not read SQLite,
 logs, or Chromium state directly.
 
-Related documents: [CLI](CLI.md), [RPC](RPC.md), and [Rust SDK](SDK.md).
+Related documents: [Codex plugin](CODEX_PLUGIN.md),
+[Claude Code plugin](CLAUDE_CODE_PLUGIN.md), [CLI](CLI.md), [RPC](RPC.md), and
+[Rust SDK](SDK.md).
 
 ## Configure an MCP client
 
@@ -19,7 +21,7 @@ interactive shell's `PATH`:
 {
   "mcpServers": {
     "rel": {
-      "command": "/Applications/Rel.app/Contents/Resources/rel",
+      "command": "/Applications/REL.app/Contents/Resources/rel",
       "args": ["mcp"]
     }
   }
@@ -30,7 +32,7 @@ For clients that use TOML configuration:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/Rel.app/Contents/Resources/rel"
+command = "/Applications/REL.app/Contents/Resources/rel"
 args = ["mcp"]
 ```
 
@@ -40,13 +42,16 @@ already in `PATH`, but an MCP host may use a different process environment.
 ### Codex
 
 The Codex desktop app, CLI, and IDE extension use the same plugin and MCP
-configuration on one machine. The recommended setup installs the Rel plugin
+configuration on one machine. The recommended setup installs the REL plugin
 from this repository's marketplace:
 
 ```sh
 codex plugin marketplace add rel-me/rel-tools
 codex plugin add rel@rel
 ```
+
+See the [Codex plugin guide](CODEX_PLUGIN.md) for requirements, updates, and
+verification.
 
 Start a new Codex task after installation so Codex loads the plugin's MCP server
 and `rel-browser` skill.
@@ -56,7 +61,7 @@ To configure only the MCP server without installing the plugin:
 1. Open **Codex Settings → MCP servers**.
 2. Add a STDIO server named `rel`.
 3. Set the command to
-   `/Applications/Rel.app/Contents/Resources/rel` and add `mcp` as its only
+   `/Applications/REL.app/Contents/Resources/rel` and add `mcp` as its only
    argument.
 4. Save the server and restart Codex.
 
@@ -64,7 +69,7 @@ The equivalent global entry in `~/.codex/config.toml` is:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/Rel.app/Contents/Resources/rel"
+command = "/Applications/REL.app/Contents/Resources/rel"
 args = ["mcp"]
 ```
 
@@ -73,7 +78,7 @@ available in that project. If the `codex` command is installed in the shell's
 `PATH`, it can create and inspect the same configuration:
 
 ```sh
-codex mcp add rel -- /Applications/Rel.app/Contents/Resources/rel mcp
+codex mcp add rel -- /Applications/REL.app/Contents/Resources/rel mcp
 codex mcp list
 ```
 
@@ -102,6 +107,22 @@ After a page is attached or selected, verify visual output with:
 Use rel_take_screenshot to take a full-page WebP screenshot and describe the image.
 ```
 
+### Claude Code
+
+The recommended Claude Code setup installs the same shared plugin from this
+repository's Claude marketplace:
+
+```sh
+claude plugin marketplace add rel-me/rel-tools
+claude plugin install rel@rel
+```
+
+Restart Claude Code after installation, or run `/reload-plugins` when the
+interactive installer requests it. Claude Code applies its ordinary per-server
+approval to the bundled local MCP process. See the
+[Claude Code plugin guide](CLAUDE_CODE_PLUGIN.md) for requirements, updates, and
+verification.
+
 ### Direct protocol smoke test
 
 An MCP host is not required to verify the adapter. This legacy handshake lists
@@ -113,7 +134,7 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
   '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rel_status","arguments":{}}}' \
-  | /Applications/Rel.app/Contents/Resources/rel mcp
+  | /Applications/REL.app/Contents/Resources/rel mcp
 ```
 
 The server writes three JSON-RPC responses: initialization information, the

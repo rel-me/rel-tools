@@ -4,6 +4,8 @@ The public guides in this directory are the canonical source for the repository
 and [docs.rel.me](https://docs.rel.me):
 
 - `CLI.md` → `/cli/`
+- `CODEX_PLUGIN.md` → `/codex-plugin/`
+- `CLAUDE_CODE_PLUGIN.md` → `/claude-code-plugin/`
 - `MCP.md` → `/mcp/`
 - `RPC.md` → `/rpc/`
 - `SDK.md` → `/sdk/`

@@ -1,6 +1,6 @@
 # REL CLI
 
-The recommended CLI is the `rel` binary bundled in `/Applications/Rel.app` and
+The recommended CLI is the `rel` binary bundled in `/Applications/REL.app` and
 linked from a writable directory already in `PATH`. Use **REL → Settings… →
 General → Install Command Line** to create the link. If no safe destination is
 available, REL leaves the filesystem unchanged so you can create the link
@@ -174,7 +174,7 @@ exits unsuccessfully.
 ## MCP server
 
 ```sh
-/Applications/Rel.app/Contents/Resources/rel mcp
+/Applications/REL.app/Contents/Resources/rel mcp
 ```
 
 The command accepts no options. MCP clients normally launch it and own its

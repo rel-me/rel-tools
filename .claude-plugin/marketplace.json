@@ -1,0 +1,24 @@
+{
+  "name": "rel",
+  "owner": {
+    "name": "REL",
+    "url": "https://rel.me"
+  },
+  "description": "Official REL plugins for persistent embedded Chromium sessions.",
+  "plugins": [
+    {
+      "name": "rel",
+      "displayName": "REL",
+      "source": "./plugins/rel",
+      "description": "Control REL's persistent embedded Chromium sessions from Claude Code.",
+      "category": "Development",
+      "tags": [
+        "browser",
+        "chromium",
+        "mcp",
+        "automation"
+      ],
+      "strict": true
+    }
+  ]
+}
