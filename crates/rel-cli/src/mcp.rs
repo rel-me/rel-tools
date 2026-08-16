@@ -1612,6 +1612,43 @@ mod tests {
     }
 
     #[test]
+    fn mcp_arguments_accept_every_cli_action() {
+        let actions = json!([
+            {"action": "click", "selector": "button.more", "mouse_move": false, "scroll": false},
+            {"action": "wait-for", "selector": "#loaded"},
+            {"action": "type", "selector": "#search", "text": "Magickraft"},
+            {"action": "fill", "selector": "#email", "text": "listener@example.com"},
+            {"action": "clear", "selector": "#query"},
+            {"action": "press", "selector": "#search", "key": "Enter"},
+            {"action": "select", "selector": "#genre", "value": "disco"},
+            {"action": "wait", "seconds": 0.5},
+            {
+                "action": "click-link",
+                "link": "https://example.com/more",
+                "match": {"type": "fuzzy-link", "threshold": 0.9},
+                "mouse_move": false,
+                "scroll": false
+            }
+        ]);
+        let capture: CaptureArguments = serde_json::from_value(json!({
+            "url": "https://example.com",
+            "actions": actions.clone()
+        }))
+        .unwrap();
+
+        assert_eq!(serde_json::to_value(capture.actions).unwrap(), actions);
+
+        for action in actions.as_array().unwrap() {
+            let page: PageActionArguments = serde_json::from_value(json!({
+                "page_id": "page_1",
+                "action": action
+            }))
+            .unwrap();
+            assert_eq!(serde_json::to_value(page.action).unwrap(), action.clone());
+        }
+    }
+
+    #[test]
     fn status_tool_forwards_the_complete_rpc_envelope() {
         let body = json!({
             "status": "ok",

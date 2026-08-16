@@ -14,8 +14,8 @@ session storage, proxy credentials, or internal service code.
 - [`rel-client`](crates/rel-client): a typed synchronous Rust client for RPC v1.
 - [`plugins/rel`](plugins/rel): the Rel plugin for Codex, distributed through
   this repository's marketplace.
-- [`docs`](docs): the canonical CLI, MCP, RPC, and Rust SDK documentation that
-  powers [docs.rel.me](https://docs.rel.me).
+- [`docs`](docs): the canonical Actions, CLI, MCP, RPC, and Rust SDK
+  documentation that powers [docs.rel.me](https://docs.rel.me).
 
 All clients require Rel.app in `/Applications`; they connect only to its
 loopback API. Download the app from [rel.me](https://rel.me).
@@ -42,6 +42,8 @@ rel https://rel.me
 Capture writes page data to standard output and events to standard error. Use
 `rel navigate`, `rel perform`, and argument-free `rel capture` for a stateful
 page workflow. `rel tab` is an alias for `rel session`.
+See the [Actions reference](docs/ACTIONS.md) for every supported browser
+interaction and its JSON shape.
 
 ## Install the Codex plugin
 

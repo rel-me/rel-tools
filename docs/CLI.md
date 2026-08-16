@@ -18,7 +18,8 @@ operation. The `mcp` command adapts a focused subset of those same operations
 to stdio MCP; the CLI does not implement another browser or read application
 data directly.
 
-Related documents: [MCP](MCP.md), [SDK](SDK.md), and [RPC](RPC.md).
+Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
+[RPC](RPC.md).
 
 ## Commands
 
@@ -312,62 +313,9 @@ option.
 rel https://example.com/ --proxy=oxylabs
 ```
 
-Canonical actions are:
-
-```json
-{"action":"click","selector":"button.more"}
-{"action":"click","selector":"button.more","mouse_move":false}
-{"action":"click","selector":"button.more","scroll":false}
-{"action":"wait-for","selector":"#loaded-content"}
-{"action":"type","selector":"#search","text":"Magickraft"}
-{"action":"fill","selector":"#email","text":"listener@example.com"}
-{"action":"clear","selector":"#query"}
-{"action":"press","selector":"#search","key":"Enter"}
-{"action":"select","selector":"#genre","value":"disco"}
-{"action":"wait","seconds":0.5}
-{"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":0.9}}
-```
-
-`click` and `wait-for` resolve selectors through CEF's read-only renderer DOM
-snapshot API. `wait-for` checks only for presence; `click` reads the first
-match's bounds, requires it to be visible, and sends mouse input through CEF.
-Click actions do not poll for an absent target: they return
-`ACTION_TARGET_NOT_FOUND` from the current snapshot. Put `wait-for` immediately
-before a click when the page renders its target asynchronously.
-Both `click` and `click-link` accept an optional `mouse_move` boolean. It
-defaults to `true`, which sends a Chromium-local mouse-move event before
-button-down and button-up for hover-dependent controls. Set it to `false` to
-send only button-down and button-up at the target coordinates. Neither mode
-moves the macOS cursor.
-Both click actions also accept an optional `scroll` boolean that defaults to
-`true`. When a target is offscreen, REL sends bounded Chromium wheel input and
-re-reads its bounds until it becomes visible before clicking. Set `scroll` to
-`false` for visible-only targeting. Scrolling never uses page JavaScript, DOM
-mutation, accessibility activation, or Chrome DevTools Protocol.
-Supported selectors are comma-separated lists composed of tag, universal, ID,
-class, presence or value attribute selectors, plus descendant, child (`>`),
-adjacent-sibling (`+`), and general-sibling (`~`) combinators. Pseudo-classes,
-pseudo-elements, namespaces, and CSS escapes are rejected.
-
-`click-link` instead resolves anchor `href` values and bounds in the same
-read-only renderer DOM snapshot, applies native URL matching, and sends the same
-CEF input. Click targeting and dispatch never execute page JavaScript, mutate
-the DOM, invoke an accessibility action, or use Chrome DevTools Protocol. A
-missing, unreachable, or unsupported target fails without a fallback.
-
-`type` focuses an editable control and appends text through a fixed renderer
-operation. `fill` replaces its current contents, including an empty replacement;
-`clear` is the explicit emptying form. `press` focuses its target, dispatches an
-allowlisted keyboard event, applies its bounded form or caret behavior, and accepts `Enter`,
-`Tab`, `Escape`, `Backspace`, `Delete`, the four arrow keys, `Home`, `End`,
-`PageUp`, `PageDown`, or `Space`. `select` chooses one enabled `<option>` by its
-exact `value`. Form updates dispatch ordinary DOM events so page state stays
-synchronized. Input actions accept the same supported CSS selector subset as
-`click` and `wait-for`; they never accept caller-supplied JavaScript.
-
-Function-style action strings and legacy action object shapes are rejected.
+Capture accepts the canonical objects in the [Actions reference](ACTIONS.md).
 `--action` and `--actions` may be combined; actions execute in command-line
-order.
+order and stop at the first failure.
 
 A normal capture emits `capture.started`, `capture.browser_requested`,
 `capture.page_ready`, `capture.rendered`, `capture.writing`, optional
@@ -400,7 +348,7 @@ rel page attach https://example.com \
 `page attach` accepts `--session-id`, `--proxy`, `--output`, `--timeout`, and
 `--wait`. Its result contains a process-local `page.id`.
 
-Perform one canonical action on that attachment:
+Perform one canonical [browser action](ACTIONS.md) on that attachment:
 
 ```sh
 rel page action page_... \

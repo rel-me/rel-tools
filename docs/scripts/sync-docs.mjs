@@ -13,6 +13,12 @@ const pages = [
     description: "Install and use the rel CLI for captures, attached pages, proxies, and persistent browser sessions.",
   },
   {
+    source: "ACTIONS.md",
+    output: "actions.md",
+    title: "Browser actions",
+    description: "Use the same click, wait, typing, key, and selection actions through REL's CLI, MCP server, RPC, and Rust SDK.",
+  },
+  {
     source: "MCP.md",
     output: "mcp.md",
     title: "MCP server",
@@ -34,6 +40,7 @@ const pages = [
 
 const siteLinks = new Map([
   ["CLI.md", "/cli/"],
+  ["ACTIONS.md", "/actions/"],
   ["MCP.md", "/mcp/"],
   ["RPC.md", "/rpc/"],
   ["SDK.md", "/sdk/"],
@@ -41,7 +48,7 @@ const siteLinks = new Map([
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((CLI|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|CLI|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

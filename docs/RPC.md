@@ -365,73 +365,17 @@ caller did not request a specific output URI.
 | `output` | Optional nonempty filesystem path or null; generated when absent. Relative input is resolved against the agent process directory. Responses always contain an absolute `output_path`. |
 | `timeout` | Finite seconds greater than zero; default 90. |
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
-| `actions` | Optional array of canonical action objects. |
+| `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
 | `retry_delay` | Finite seconds 0 through 86400; default 3. |
 
-The RPC accepts only action objects:
-
-```json
-{ "action": "click", "selector": "button.more", "mouse_move": false, "scroll": false }
-{ "action": "wait-for", "selector": "#loaded-content" }
-{ "action": "type", "selector": "#search", "text": "Magickraft" }
-{ "action": "fill", "selector": "#email", "text": "listener@example.com" }
-{ "action": "clear", "selector": "#query" }
-{ "action": "press", "selector": "#search", "key": "Enter" }
-{ "action": "select", "selector": "#genre", "value": "disco" }
-{ "action": "wait", "seconds": 0.5 }
-{
-  "action": "click-link",
-  "link": "https://example.com/next",
-  "match": { "type": "fuzzy-link", "threshold": 0.9 }
-}
-```
-
-Browser sessions controlled while not visible use the **Background Browser
-Size** preset in **REL → Settings… → General**. It defaults to a 1,920 × 947 CSS
-pixel viewport. Visible tabs follow the resizable REL window; the RPC has no
-per-request viewport override.
-
-`click` and `wait-for` use CEF's read-only renderer DOM snapshot. `wait-for`
-checks presence without requesting layout bounds. `click` reads the first
-match's bounds, requires a visible intersection with the viewport, and
-dispatches CEF mouse input. Click actions return `ACTION_TARGET_NOT_FOUND`
-without polling when the target is absent from the current snapshot; use an
-explicit `wait-for` before a click for asynchronously rendered targets.
-`click` and `click-link` accept an optional
-`mouse_move` boolean that defaults to `true`. The default sends a Chromium-local
-mouse-move event before button-down and button-up; `false` sends only the button
-events at the target coordinates. Neither mode moves the macOS cursor.
-Both click actions accept an optional `scroll` boolean that defaults to `true`.
-REL uses bounded Chromium wheel input and re-reads target bounds after each step
-to bring an offscreen target into view. `scroll: false` preserves visible-only
-targeting.
-Supported selectors are lists composed of tag,
-universal, ID, class, presence or value attribute selectors, and descendant,
-child, adjacent-sibling, or general-sibling combinators. Pseudo-classes,
-pseudo-elements, namespaces, and CSS escapes are rejected.
-
-`click-link` resolves anchor URLs and bounds in the same read-only renderer DOM
-snapshot, applies native URL matching, and uses the same CEF input path. Click
-targeting and dispatch do not execute page JavaScript, mutate the DOM, invoke
-accessibility actions, or use Chrome DevTools Protocol. Missing, unreachable,
-and unsupported targets fail without a fallback.
-
-`type`, `fill`, and `clear` focus and update the selected editable control with
-fixed renderer operations. `type` appends text, while `fill` replaces the
-current contents and `clear` removes them. `press` focuses its target, dispatches
-an allowlisted keyboard event, applies the corresponding bounded form or caret
-behavior, and accepts `Enter`, `Tab`, `Escape`,
-`Backspace`, `Delete`, `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`,
-`Home`, `End`, `PageUp`, `PageDown`, or `Space`. `select` targets a `<select>`
-element and one enabled option by exact `value`. Form updates emit ordinary DOM
-events to synchronize page state. These actions never accept caller-supplied
-JavaScript. Missing, disabled, read-only, non-editable, and mismatched targets
-return an action error instead of falling back to another element.
-
-The legacy `output_mode` field and function-like action strings are rejected.
+The RPC accepts the same closed JSON objects as the CLI and MCP server. The
+[Actions reference](ACTIONS.md) defines every action, selector constraint,
+default, and failure behavior. Browser sessions controlled while not visible
+use the global **Background Browser Size** preset; RPC has no per-request
+viewport override.
 
 Preflight failures use the ordinary error response. Once accepted, REL returns
 HTTP 200 `application/x-ndjson`. Each physical line is one complete object; there
@@ -507,10 +451,7 @@ Page IDs are process-local and disappear when the agent restarts.
 
 ```json
 {
-  "action": {
-    "action": "click",
-    "selector": "button.more"
-  },
+  "action": { "action": "click", "selector": "button.more" },
   "output": "/optional/page.html",
   "timeout": 90,
   "wait": 1

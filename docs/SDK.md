@@ -203,71 +203,13 @@ Dropping `CaptureStream` before `capture.finished` closes its HTTP connection
 and cancels the matching agent and Chromium operation. The persistent session
 and resident agent remain available.
 
-## Canonical actions
+## Browser actions
 
-The public `Action` enum serializes directly to the RPC v1 object shapes:
-
-```rust
-use rel_client::{Action, FuzzyLinkMatch};
-
-let click = Action::Click {
-    selector: "button.more".into(),
-    mouse_move: None,
-    scroll: None,
-};
-let wait_for = Action::WaitFor {
-    selector: "#loaded-content".into(),
-};
-let typed = Action::Type {
-    selector: "#search".into(),
-    text: "Magickraft".into(),
-};
-let filled = Action::Fill {
-    selector: "#email".into(),
-    text: "listener@example.com".into(),
-};
-let cleared = Action::Clear {
-    selector: "#query".into(),
-};
-let pressed = Action::Press {
-    selector: "#search".into(),
-    key: "Enter".into(),
-};
-let selected = Action::Select {
-    selector: "#genre".into(),
-    value: "disco".into(),
-};
-let wait = Action::Wait { seconds: 0.5 };
-let link = Action::ClickLink {
-    link: "https://example.com/more".into(),
-    match_rule: FuzzyLinkMatch::new(0.9),
-    mouse_move: Some(false),
-    scroll: None,
-};
-```
-
-There are no function-style action strings or compatibility action shapes in
-the SDK. Selector actions use CEF's read-only renderer DOM snapshot; selector
-clicks resolve bounds and use CEF input. Link clicks match resolved anchor URLs
-and bounds in the same snapshot, then use the same input path. Click actions
-return `ACTION_TARGET_NOT_FOUND` without polling when the target is absent; add
-an explicit `Action::WaitFor` first for asynchronously rendered targets. Set
-`mouse_move` to
-`None` or `Some(true)` for the default Chromium-local move followed by
-button-down and button-up; use `Some(false)` for button-down and button-up only.
-Neither choice moves the macOS cursor. Set `scroll` to `None` or `Some(true)` to
-auto-scroll offscreen targets with bounded native Chromium wheel input, or
-`Some(false)` for visible-only targeting.
-Click targeting and dispatch do not use page JavaScript, DOM mutation,
-accessibility actions, or Chrome DevTools Protocol. Form variants use only the
-fixed, typed renderer operations described in the [CLI guide](CLI.md#capture);
-they do not accept caller-supplied JavaScript. The selector subset and
-fail-closed behavior are defined there as well.
-
-Browser sessions controlled while not visible use the **Background Browser
-Size** preset in **REL → Settings… → General**, which defaults to 1,920 × 947
-CSS pixels. Visible tabs follow the resizable REL window. This global setting is
-not duplicated as an SDK field.
+The public `Action` enum serializes directly to the RPC v1 object shapes. See
+the [Actions reference](ACTIONS.md) for every variant, a Rust example, selector
+constraints, defaults, and failure behavior. Browser sessions controlled while
+not visible use the global **Background Browser Size** preset; it is not
+duplicated as an SDK field.
 
 ## Partial updates
 

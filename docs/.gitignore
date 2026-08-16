@@ -2,6 +2,7 @@
 dist/
 node_modules/
 src/content/docs/cli.md
+src/content/docs/actions.md
 src/content/docs/mcp.md
 src/content/docs/rpc.md
 src/content/docs/sdk.md
