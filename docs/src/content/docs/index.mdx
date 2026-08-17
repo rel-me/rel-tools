@@ -26,6 +26,24 @@ be piped or redirected independently.
 
 [Read the CLI guide →](/cli/)
 
+## Import cookies and saved passwords
+
+To bring an existing login state into REL, select the destination session and
+choose **Browser → Import Cookies and Passwords…**. Pick a discovered local
+profile, choose cookies, saved passwords, or both, then select **Import**.
+
+Close the source browser before importing so its profile databases are
+consistent. REL supports local Chromium-family profiles, including Google
+Chrome, Microsoft Edge, Brave, Arc, Chromium, Vivaldi, Opera, ChatGPT Atlas,
+and Codex. macOS may ask for permission to read that browser’s Safe Storage
+item in Keychain.
+
+The import applies only to the REL session that was selected when the sheet
+opened. REL decrypts source records locally, re-encrypts saved passwords with
+its separate `REL Safe Storage` Keychain identity, and writes cookies through
+that session’s isolated Chromium request context. Source profiles are not
+modified.
+
 ## Go deeper
 
 <CardGrid>
