@@ -49,7 +49,7 @@ The repository is also a Codex plugin marketplace. Add it once, then install
 the REL plugin:
 
 ```sh
-codex plugin marketplace add rel-me/rel-tools
+codex plugin marketplace add https://github.com/rel-me/rel-tools.git --ref main
 codex plugin add rel@rel
 ```
 

@@ -21,12 +21,29 @@ REL.app must be available before the plugin can start its bundled
 Add this repository as a Codex marketplace, then install the `rel` plugin:
 
 ```sh
-codex plugin marketplace add rel-me/rel-tools
+codex plugin marketplace add https://github.com/rel-me/rel-tools.git --ref main
 codex plugin add rel@rel
 ```
 
 Start a new Codex task after installation so the task loads the plugin's skill
 and MCP tools.
+
+### Migrate the legacy marketplace
+
+If Codex reports that the `rel` marketplace is already installed from a
+different source, or installs plugin version `0.1.0`, the marketplace is pinned
+to REL's old repository branch. Replace only that plugin and marketplace entry,
+then install from the canonical `main` branch:
+
+```sh
+codex plugin remove rel@rel
+codex plugin marketplace remove rel
+codex plugin marketplace add https://github.com/rel-me/rel-tools.git --ref main
+codex plugin add rel@rel
+```
+
+This removes only the cached Codex plugin. It does not remove REL.app or its
+browser sessions.
 
 ## What the plugin adds
 
