@@ -1,7 +1,9 @@
 use rel_client::{
     self as client, Action, CaptureEvent, CaptureRequest, Change, ImageBlockingMode,
-    NavigateRequest, PageActionRequest, PageAttachRequest, PageCaptureRequest, PerformRequest,
-    ProxyCreateRequest, ProxyUpdateRequest, RelClient, SessionCreateRequest, SessionUpdateRequest,
+    NavigateRequest, ObservationActionRequest, ObservationMode, ObservationRequest,
+    PageActionRequest, PageAttachRequest, PageCaptureRequest, PageObservationRequest,
+    PerformRequest, ProxyCreateRequest, ProxyUpdateRequest, RelClient, SessionCreateRequest,
+    SessionUpdateRequest,
 };
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -159,6 +161,28 @@ fn run_command(
         }
         CliCommand::PageAction { page_id, request } => {
             print_json(&client.perform_page_action(&page_id, &request)?)?;
+            Ok(0)
+        }
+        CliCommand::Observe { page_id, request } => {
+            let response = match page_id {
+                Some(page_id) => client.observe_page(
+                    &page_id,
+                    &PageObservationRequest {
+                        mode: request.mode,
+                        timeout: request.timeout,
+                        wait: request.wait,
+                    },
+                )?,
+                None => client.observe_current_page(&request)?,
+            };
+            print_json(&response)?;
+            Ok(0)
+        }
+        CliCommand::ObservationAction {
+            observation_id,
+            request,
+        } => {
+            print_json(&client.perform_observation_action(&observation_id, &request)?)?;
             Ok(0)
         }
         CliCommand::ProxyList => {
@@ -345,6 +369,14 @@ enum CliCommand {
         page_id: String,
         request: PageActionRequest,
     },
+    Observe {
+        page_id: Option<String>,
+        request: ObservationRequest,
+    },
+    ObservationAction {
+        observation_id: String,
+        request: ObservationActionRequest,
+    },
     ProxyList,
     ProxyGet(String),
     ProxyCreate(ProxyCreateRequest),
@@ -410,6 +442,8 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "perform" => parse_perform(args),
         "capture" => parse_capture(args),
         "page" => parse_page(args),
+        "observe" => parse_observe(args),
+        "observation" => parse_observation(args),
         "proxy" => parse_proxy(args),
         "session" | "tab" => parse_session(args),
         legacy
@@ -442,6 +476,10 @@ fn apply_session_id_environment_default(
         }
         CliCommand::Perform(request) if request.session_id.is_none() => &mut request.session_id,
         CliCommand::PageAttach(request) if request.session_id.is_none() => &mut request.session_id,
+        CliCommand::Observe {
+            page_id: None,
+            request,
+        } if request.session_id.is_none() => &mut request.session_id,
         _ => return Ok(()),
     };
     let Some(environment_value) = environment_value else {
@@ -634,6 +672,78 @@ fn parse_page_action(mut args: Arguments) -> Result<CliCommand, CliError> {
             wait,
         },
     })
+}
+
+fn parse_observe(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.peek_is_help() {
+        return Err(CliError::Help(observe_help()));
+    }
+    let mut page_id = None;
+    let mut request = ObservationRequest::default();
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--page-id" => page_id = Some(args.option_value(&option, inline)?),
+            "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--mode" => {
+                request.mode = Some(parse_observation_mode(
+                    &args.option_value(&option, inline)?,
+                )?)
+            }
+            "--timeout" => request.timeout = Some(args.number(&option, inline)?),
+            "--wait" => request.wait = Some(args.number(&option, inline)?),
+            "-h" | "--help" => return Err(CliError::Help(observe_help())),
+            _ => return Err(args.unknown_option(&option, "observe")),
+        }
+    }
+    if page_id.is_some() && request.session_id.is_some() {
+        return Err(CliError::Message(
+            "observe --page-id cannot be combined with --session-id".to_string(),
+        ));
+    }
+    Ok(CliCommand::Observe { page_id, request })
+}
+
+fn parse_observation(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.peek_is_help() {
+        return Err(CliError::Help(observation_help()));
+    }
+    match args.required_positional("observation subcommand")?.as_str() {
+        "action" => {
+            let observation_id = args.required_positional("observation ID")?;
+            let mut request = None;
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--request" => set_once(
+                        &mut request,
+                        args.json_value::<ObservationActionRequest>(&option, inline)?,
+                        &option,
+                    )?,
+                    "-h" | "--help" => return Err(CliError::Help(observation_help())),
+                    _ => return Err(args.unknown_option(&option, "observation action")),
+                }
+            }
+            Ok(CliCommand::ObservationAction {
+                observation_id,
+                request: request.ok_or_else(|| {
+                    CliError::Message("observation action requires --request JSON".to_string())
+                })?,
+            })
+        }
+        subcommand => Err(CliError::Message(format!(
+            "unknown observation subcommand {subcommand:?}; run `rel observation --help`"
+        ))),
+    }
+}
+
+fn parse_observation_mode(value: &str) -> Result<ObservationMode, CliError> {
+    match value {
+        "semantic" => Ok(ObservationMode::Semantic),
+        "hybrid" => Ok(ObservationMode::Hybrid),
+        "visual" => Ok(ObservationMode::Visual),
+        _ => Err(CliError::Message(
+            "--mode must be semantic, hybrid, or visual".to_string(),
+        )),
+    }
 }
 
 fn parse_proxy(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -1057,6 +1167,8 @@ rel capture [options]           Capture the current shorthand page\n  \
 rel capture URL [options]       Explicit equivalent of `rel URL`\n  \
 rel page attach URL [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
+rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
+rel observation action OBSERVATION_ID --request JSON\n  \
 rel proxy <list|get|create|update|delete|rotate> ...\n  \
 rel session <list|get|create|update|delete> ...\n  \
 rel tab <list|get|create|update|delete> ...    Alias for rel session\n  \
@@ -1066,7 +1178,8 @@ Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to
 stdout unless --output is supplied, and writes validated NDJSON events to stderr.\n\
 `rel mcp` serves MCP over stdio for model and agent clients.\n\
 Run `rel navigate --help`, `rel perform --help`, `rel capture --help`,\n\
-`rel page --help`, `rel proxy --help`, or\n\
+`rel page --help`, `rel observe --help`, `rel observation --help`,\n\
+`rel proxy --help`, or\n\
 `rel session --help` for resource options. Every `rel session ...` command is
 also available as `rel tab ...`. Commands that accept --session-id use
 $REL_SESSION_ID when the option is omitted; an explicit option wins."
@@ -1119,6 +1232,24 @@ rel page attach URL [--session-id ID] [--proxy ALIAS] [--output PATH] [--timeout
 rel page action PAGE_ID --action JSON [--output PATH] [--timeout S] [--wait S]\n\n\
 For page attach, --session-id defaults to $REL_SESSION_ID when set; an explicit
 value wins."
+        .to_string()
+}
+
+fn observe_help() -> String {
+    "Usage:\n  \
+rel observe [--page-id ID] [--session-id ID] [--mode semantic|hybrid|visual] [--timeout S] [--wait S]\n\n\
+Observe the current shorthand page or one attached page. Hybrid and visual modes\n\
+include a synchronized current-viewport PNG resource. --session-id defaults to\n\
+$REL_SESSION_ID and cannot be combined with --page-id."
+        .to_string()
+}
+
+fn observation_help() -> String {
+    "Usage:\n  \
+rel observation action OBSERVATION_ID --request JSON\n\n\
+Perform click, type, clear, press, or select through an observation-scoped ref.\n\
+The JSON request contains ref, action, optional action data, post-action mode,\n\
+timeout, and wait. The command returns a new observation."
         .to_string()
 }
 

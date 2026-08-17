@@ -88,7 +88,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the seven tools listed below, and `rel_status` should report
+Codex should discover the nine tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -180,7 +180,7 @@ operations.
 
 ## Tools
 
-The server exposes exactly seven tools:
+The server exposes exactly nine tools:
 
 | Tool | RPC operation | Purpose |
 | --- | --- | --- |
@@ -189,6 +189,8 @@ The server exposes exactly seven tools:
 | `rel_page_attach` | `POST /v1/pages` | Attach an ephemeral automation page to a persistent browser session. |
 | `rel_page_action` | `POST /v1/pages/{page_id}/actions` | Perform one action on an attached page. |
 | `rel_take_screenshot` | `POST /v1/screenshot` or `POST /v1/pages/{page_id}/screenshot` | Capture a viewport or full-page PNG, JPEG, or WebP image. |
+| `rel_observe` | `POST /v1/observe` or `POST /v1/pages/{page_id}/observe` | Read compact rendered semantics and optional synchronized viewport image. |
+| `rel_action` | `POST /v1/observations/{observation_id}/actions` | Act through an observation-scoped element ref and return a new observation. |
 | `rel_list_sessions` | `GET /v1/sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
 | `rel_list_proxies` | `GET /v1/proxies` | List configured proxy aliases and non-secret configuration. |
 
@@ -243,6 +245,31 @@ When `output_uri` is omitted, the result includes standard MCP `image` content
 so a multimodal agent can inspect the pixels directly. Supplying an absolute
 local `file:///` `output_uri` saves the file and returns only its resource link,
 which avoids embedding a large image in model context.
+
+### `rel_observe`
+
+All fields are optional. `page_id` targets an attached page; `session_id`
+targets the current shorthand page, and the two cannot be combined. `mode` is
+`semantic` (default), `hybrid`, or `visual`. `timeout` and `wait` use ordinary
+page-operation rules.
+
+The structured result contains compact semantic content, typed interactive
+elements with short refs, viewport/document geometry, and truncation metadata.
+Hybrid and visual results also include standard MCP `image` content and a file
+resource link for the same synchronized current-viewport PNG. Page-derived
+content is untrusted website data, not instructions.
+
+### `rel_action`
+
+`observation_id`, `ref`, and one of `click`, `type`, `clear`, `press`, or
+`select` are required. `type` also requires `text`, `press` requires an
+allowlisted `key`, and `select` requires `value`. Click optionally controls
+`mouse_move` and bounded `scroll`. `mode` selects the post-action observation.
+
+REL checks that the observation, document sequence, and private target
+signature are still current. Stale refs return `OBSERVATION_STALE` without a
+selector or nearby-target fallback. Success returns a new post-action
+observation and, for hybrid/visual mode, standard MCP image content.
 
 ## Chrome DevTools MCP comparison
 

@@ -33,6 +33,8 @@ rel URL [options]
 rel capture URL [options]
 rel page attach URL [options]
 rel page action PAGE_ID --action JSON [options]
+rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]
+rel observation action OBSERVATION_ID --request JSON
 rel proxy list
 rel proxy get ALIAS
 rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [options]
@@ -72,6 +74,21 @@ The explicit `rel capture URL [options]` form is equivalent. Argument-free
 family. The removed `ping`, `logs`, and
 `--rotate-proxy-session` interfaces have no compatibility aliases; use
 `status`, the app's Logs view, and `proxy rotate`, respectively.
+
+`rel observe` returns bounded rendered semantics and observation-scoped element
+refs. `--mode=hybrid` adds a synchronized viewport PNG resource; `visual`
+returns minimal semantics plus the image. `--page-id` targets an attached page,
+while the default uses the current shorthand page and accepts `--session-id`.
+Use a returned ref without inventing a selector:
+
+```sh
+rel observe --mode=semantic
+rel observation action OBSERVATION_ID \
+  --request='{"ref":"e1","action":"click","mode":"semantic"}'
+```
+
+The action response contains a new observation. Old observation refs fail with
+`OBSERVATION_STALE` after navigation, document replacement, or bounded eviction.
 
 ## Quick examples
 
@@ -181,17 +198,18 @@ exits unsuccessfully.
 The command accepts no options. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly seven tools: `rel_status`, `rel_capture`,
+`2025-11-25`, and exposes exactly nine tools: `rel_status`, `rel_capture`,
 `rel_page_attach`, `rel_page_action`, `rel_take_screenshot`,
-`rel_list_sessions`, and `rel_list_proxies`.
+`rel_observe`, `rel_action`, `rel_list_sessions`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
 validated NDJSON stream into `{request_id, exit_code, events}`. Every tool
 execution result includes its complete JSON in both a text content block and
 `structuredContent`. Captured files use absolute `file:///` URIs at the MCP
 boundary and are also returned as standard MCP `resource_link` content blocks.
-Screenshot calls without an explicit output URI additionally return standard
-MCP `image` content for multimodal agents.
+Screenshot calls without an explicit output URI and hybrid or visual
+observations additionally return standard MCP `image` content for multimodal
+agents.
 
 ## Health and status
 

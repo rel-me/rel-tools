@@ -56,10 +56,13 @@ Each method maps to one public RPC route:
 | `perform(&PerformRequest)` | `POST /v1/perform` |
 | `capture_current_page(&PageCaptureRequest)` | `POST /v1/capture` |
 | `screenshot_current_page(&ScreenshotRequest)` | `POST /v1/screenshot` |
+| `observe_current_page(&ObservationRequest)` | `POST /v1/observe` |
 | `capture(&CaptureRequest)` | `POST /v1/captures` |
 | `attach_page(&PageAttachRequest)` | `POST /v1/pages` |
 | `perform_page_action(page_id, &PageActionRequest)` | `POST /v1/pages/{page_id}/actions` |
 | `take_page_screenshot(page_id, &PageScreenshotRequest)` | `POST /v1/pages/{page_id}/screenshot` |
+| `observe_page(page_id, &PageObservationRequest)` | `POST /v1/pages/{page_id}/observe` |
+| `perform_observation_action(observation_id, &ObservationActionRequest)` | `POST /v1/observations/{observation_id}/actions` |
 | `list_proxies()` | `GET /v1/proxies` |
 | `get_proxy(alias)` | `GET /v1/proxies/{alias}` |
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
@@ -84,11 +87,12 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all seven tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for all nine tools. It
 calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
-methods, `list_sessions`, and `list_proxies`; it does not maintain alternate
-request types or bypass the RPC transport. For capture, it exhausts and
-validates `CaptureStream` before returning one aggregated MCP result.
+methods, all observation methods, `list_sessions`, and `list_proxies`; it does
+not maintain alternate request types or bypass the RPC transport. For capture,
+it exhausts and validates `CaptureStream` before returning one aggregated MCP
+result.
 
 ## Shorthand page workflow
 
@@ -151,6 +155,36 @@ let screenshot = client.screenshot_current_page(&ScreenshotRequest {
 println!("{}", screenshot.data.screenshot.output_path);
 # Ok::<(), rel_client::ClientError>(())
 ```
+
+Request compact rendered semantics and typed element refs with
+`ObservationRequest`. Hybrid adds a current-viewport PNG resource; visual keeps
+semantics minimal:
+
+```rust
+use rel_client::{
+    ObservationActionKind, ObservationActionRequest, ObservationMode,
+    ObservationRequest, RelClient,
+};
+
+let client = RelClient::local();
+let observed = client.observe_current_page(&ObservationRequest {
+    session_id: Some("Session1".into()),
+    mode: Some(ObservationMode::Hybrid),
+    timeout: None,
+    wait: None,
+})?;
+let first_ref = observed.data.observation.elements[0].element_ref.clone();
+let next = client.perform_observation_action(
+    &observed.data.observation.id,
+    &ObservationActionRequest::new(first_ref, ObservationActionKind::Click),
+)?;
+println!("{}", next.data.observation.id);
+# Ok::<(), rel_client::ClientError>(())
+```
+
+Refs are scoped to one observation and document sequence. The agent retains
+private locators and returns `OBSERVATION_STALE` instead of retargeting when the
+document or element signature has changed.
 
 `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame commits an HTTP 4xx or 5xx response. By default, detected Cloudflare
