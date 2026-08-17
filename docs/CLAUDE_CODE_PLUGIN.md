@@ -38,7 +38,7 @@ The plugin contains:
 - the namespaced `/rel:rel-browser` skill for safe session selection and browser
   workflows;
 - all seven MCP tools, including inline or file-backed screenshots;
-- all nine canonical page actions: `click`, `wait-for`, `type`, `fill`, `clear`,
+- all eight canonical page actions: `click`, `wait-for`, `type`, `clear`,
   `press`, `select`, `wait`, and `click-link`.
 
 The plugin does not add another browser backend. REL.app remains the only

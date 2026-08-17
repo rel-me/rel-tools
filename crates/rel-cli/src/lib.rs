@@ -1387,7 +1387,6 @@ mod tests {
                 {"action":"wait-for","selector":"#loaded"},
                 {"action":"click","selector":"#more"},
                 {"action":"type","selector":"#search","text":"Magickraft"},
-                {"action":"fill","selector":"#email","text":"listener@example.com"},
                 {"action":"clear","selector":"#query"},
                 {"action":"press","selector":"#search","key":"Enter"},
                 {"action":"select","selector":"#genre","value":"disco"},
@@ -1415,10 +1414,6 @@ mod tests {
                 Action::Type {
                     selector: "#search".to_string(),
                     text: "Magickraft".to_string()
-                },
-                Action::Fill {
-                    selector: "#email".to_string(),
-                    text: "listener@example.com".to_string()
                 },
                 Action::Clear {
                     selector: "#query".to_string()

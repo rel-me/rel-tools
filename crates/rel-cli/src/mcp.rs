@@ -646,16 +646,6 @@ fn action_schema() -> Value {
             {
                 "type": "object",
                 "properties": {
-                    "action": {"const": "fill"},
-                    "selector": {"type": "string", "minLength": 1},
-                    "text": {"type": "string"}
-                },
-                "required": ["action", "selector", "text"],
-                "additionalProperties": false
-            },
-            {
-                "type": "object",
-                "properties": {
                     "action": {"const": "clear"},
                     "selector": {"type": "string", "minLength": 1}
                 },
@@ -1606,7 +1596,6 @@ mod tests {
                 "click",
                 "wait-for",
                 "type",
-                "fill",
                 "clear",
                 "press",
                 "select",
@@ -1622,7 +1611,6 @@ mod tests {
             {"action": "click", "selector": "button.more", "mouse_move": false, "scroll": false},
             {"action": "wait-for", "selector": "#loaded", "timeout": 2.5},
             {"action": "type", "selector": "#search", "text": "Magickraft"},
-            {"action": "fill", "selector": "#email", "text": "listener@example.com"},
             {"action": "clear", "selector": "#query"},
             {"action": "press", "selector": "#search", "key": "Enter"},
             {"action": "select", "selector": "#genre", "value": "disco"},
