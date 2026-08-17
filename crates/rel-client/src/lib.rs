@@ -41,6 +41,7 @@ pub mod rpc_error_codes {
     pub const ACTION_TARGET_NOT_FOUND: u32 = 10_203;
     pub const REQUEST_CANCELLED: u32 = 10_204;
     pub const RATE_LIMITED: u32 = 10_205;
+    pub const ACTION_TIMEOUT: u32 = 10_206;
 
     pub const UPSTREAM_UNAVAILABLE: u32 = 10_300;
     pub const BROWSER_UNAVAILABLE: u32 = 10_301;
@@ -70,6 +71,7 @@ pub mod rpc_error_codes {
             "ACTION_TARGET_NOT_FOUND" => ACTION_TARGET_NOT_FOUND,
             "REQUEST_CANCELLED" => REQUEST_CANCELLED,
             "RATE_LIMITED" => RATE_LIMITED,
+            "ACTION_TIMEOUT" => ACTION_TIMEOUT,
             "UPSTREAM_UNAVAILABLE" => UPSTREAM_UNAVAILABLE,
             "BROWSER_UNAVAILABLE" => BROWSER_UNAVAILABLE,
             "AGENT_UNHEALTHY" => AGENT_UNHEALTHY,
@@ -760,6 +762,8 @@ pub enum Action {
     },
     WaitFor {
         selector: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        timeout: Option<f64>,
     },
     Type {
         selector: String,
@@ -1291,6 +1295,7 @@ mod tests {
             rpc_error_codes::ACTION_TARGET_NOT_FOUND,
             rpc_error_codes::REQUEST_CANCELLED,
             rpc_error_codes::RATE_LIMITED,
+            rpc_error_codes::ACTION_TIMEOUT,
             rpc_error_codes::UPSTREAM_UNAVAILABLE,
             rpc_error_codes::BROWSER_UNAVAILABLE,
             rpc_error_codes::AGENT_UNHEALTHY,
@@ -1516,9 +1521,20 @@ mod tests {
         assert_eq!(
             serde_json::to_value(Action::WaitFor {
                 selector: "#loaded".to_string(),
+                timeout: None,
             })
             .unwrap(),
             serde_json::json!({"action":"wait-for", "selector":"#loaded"})
+        );
+        assert_eq!(
+            serde_json::to_value(Action::WaitFor {
+                selector: "#loaded".to_string(),
+                timeout: Some(2.5),
+            })
+            .unwrap(),
+            serde_json::json!({
+                "action":"wait-for", "selector":"#loaded", "timeout":2.5
+            })
         );
         for (action, expected) in [
             (

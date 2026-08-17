@@ -36,12 +36,13 @@ export default defineConfig({
           label: "Start here",
           items: [
             { label: "Overview", slug: "index" },
-            { label: "CLI", slug: "cli" },
+            { label: "Actions", slug: "actions" },
           ],
         },
         {
           label: "Agent access",
           items: [
+            { label: "CLI", slug: "cli" },
             { label: "Codex plugin", slug: "codex-plugin" },
             { label: "Claude Code plugin", slug: "claude-code-plugin" },
             { label: "MCP server", slug: "mcp" },

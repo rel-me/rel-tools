@@ -2,6 +2,7 @@
 dist/
 node_modules/
 src/content/docs/cli.md
+src/content/docs/actions.md
 src/content/docs/codex-plugin.md
 src/content/docs/claude-code-plugin.md
 src/content/docs/mcp.md
