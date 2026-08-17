@@ -440,6 +440,19 @@ remain on standard error with the ordinary nonzero exit status.
 REL does not impose a maximum session count. Sessions remain open until you
 explicitly delete them.
 
+On a normal app quit, REL flushes Chromium cookie stores and saves the selected
+session, tab order, each session's last committed HTTP or HTTPS URL, networking
+pause state, and browser panel layout. The next launch reconciles that workspace
+with the sessions still owned by the agent, reopens their last URLs, and reuses
+each session's isolated Chromium profile. Valid cookies and site storage can
+therefore keep a site signed in across restarts.
+
+The owner-only workspace file contains no cookies or saved-password entries,
+and REL removes URL-embedded usernames and passwords. The saved URL can still
+contain an ordinary query string or fragment. REL does not provide a separate
+saved-password vault, and it does not restore live renderer state such as
+partially completed forms, page scroll position, or in-progress downloads.
+
 Partially update a session:
 
 ```sh
