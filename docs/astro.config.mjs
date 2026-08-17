@@ -43,6 +43,8 @@ export default defineConfig({
           label: "Agent access",
           items: [
             { label: "CLI", slug: "cli" },
+            { label: "Codex plugin", slug: "codex-plugin" },
+            { label: "Claude Code plugin", slug: "claude-code-plugin" },
             { label: "MCP server", slug: "mcp" },
             { label: "RPC v1", slug: "rpc" },
             { label: "Rust SDK", slug: "sdk" },
