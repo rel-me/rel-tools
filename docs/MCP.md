@@ -201,10 +201,8 @@ operations:
 `url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
 `session_id`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
 the canonical `Session<number>` format. Omitting it creates a persistent session
-using the configured Session defaults. The action objects
-are the canonical `click`, `wait-for`, `type`, `fill`, `clear`, `press`,
-`select`, `wait`, and `click-link` shapes described in
-[the CLI guide](CLI.md#capture), including the optional `mouse_move` and
+using the configured Session defaults. The action objects use every shape in
+the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
 `scroll` booleans on click actions. `output_uri`, when present, must be an
 absolute local `file:///` URI.
 
@@ -224,10 +222,11 @@ local `file:///` URI.
 
 ### `rel_page_action`
 
-`page_id` and one canonical `action` object are required. Optional fields are
-`output_uri`, `timeout`, and `wait`. The attached page remains pinned to the URL,
-session, and proxy selected by `rel_page_attach`; page IDs expire when the agent
-restarts. `output_uri`, when present, must be an absolute local `file:///` URI.
+`page_id` and one canonical [action](ACTIONS.md) object are required. Optional
+fields are `output_uri`, `timeout`, and `wait`. The attached page remains pinned
+to the URL, session, and proxy selected by `rel_page_attach`; page IDs expire
+when the agent restarts. `output_uri`, when present, must be an absolute local
+`file:///` URI.
 
 ### `rel_take_screenshot`
 

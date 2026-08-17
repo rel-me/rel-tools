@@ -1386,6 +1386,11 @@ mod tests {
                 {"action":"wait","seconds":2},
                 {"action":"wait-for","selector":"#loaded"},
                 {"action":"click","selector":"#more"},
+                {"action":"type","selector":"#search","text":"Magickraft"},
+                {"action":"fill","selector":"#email","text":"listener@example.com"},
+                {"action":"clear","selector":"#query"},
+                {"action":"press","selector":"#search","key":"Enter"},
+                {"action":"select","selector":"#genre","value":"disco"},
                 {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":0.9}},
                 {"action":"wait","seconds":0.5}
             ]"##,
@@ -1399,12 +1404,32 @@ mod tests {
             vec![
                 Action::Wait { seconds: 2.0 },
                 Action::WaitFor {
-                    selector: "#loaded".to_string()
+                    selector: "#loaded".to_string(),
+                    timeout: None
                 },
                 Action::Click {
                     selector: "#more".to_string(),
                     mouse_move: None,
                     scroll: None
+                },
+                Action::Type {
+                    selector: "#search".to_string(),
+                    text: "Magickraft".to_string()
+                },
+                Action::Fill {
+                    selector: "#email".to_string(),
+                    text: "listener@example.com".to_string()
+                },
+                Action::Clear {
+                    selector: "#query".to_string()
+                },
+                Action::Press {
+                    selector: "#search".to_string(),
+                    key: "Enter".to_string()
+                },
+                Action::Select {
+                    selector: "#genre".to_string(),
+                    value: "disco".to_string()
                 },
                 Action::ClickLink {
                     link: "https://example.com/more".to_string(),
