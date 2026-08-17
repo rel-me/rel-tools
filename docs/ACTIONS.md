@@ -23,8 +23,7 @@ implementation.
 | --- | --- | --- |
 | `click` | `selector` | Click the first matching element. |
 | `wait-for` | `selector` | Wait until a matching element is present, optionally with a local timeout. |
-| `type` | `selector`, nonempty `text` | Append text to an editable control. |
-| `fill` | `selector`, `text` | Replace an editable control's contents. |
+| `type` | `selector`, nonempty `text` | Append text through Chromium keyboard input. |
 | `clear` | `selector` | Remove an editable control's contents. |
 | `press` | `selector`, `key` | Send one supported named key to a control. |
 | `select` | `selector`, `value` | Select one enabled option by exact value. |
@@ -38,7 +37,6 @@ implementation.
 { "action": "click", "selector": "button.more", "mouse_move": false, "scroll": false }
 { "action": "wait-for", "selector": "#loaded-content", "timeout": 10 }
 { "action": "type", "selector": "#search", "text": "Magickraft" }
-{ "action": "fill", "selector": "#email", "text": "listener@example.com" }
 { "action": "clear", "selector": "#query" }
 { "action": "press", "selector": "#search", "key": "Enter" }
 { "action": "select", "selector": "#genre", "value": "disco" }
@@ -96,10 +94,11 @@ unreachable, and unsupported targets fail without a fallback.
 
 ## Text, keys, and selects
 
-`type` focuses an editable control and appends nonempty text. `fill` replaces
-the current contents and permits an empty string. `clear` is the explicit
-emptying form. Text actions reject missing, disabled, read-only, or non-editable
-targets.
+`type` focuses an editable control and appends nonempty text through Chromium's
+keyboard input path. Each character emits key-down, character/input, and key-up
+events, so keyboard-event handlers observe ordinary typing. `clear` explicitly
+empties the control; use `clear` followed by `type` to replace existing text.
+Text actions reject missing, disabled, read-only, or non-editable targets.
 
 `press` focuses its target and accepts exactly these named keys:
 
@@ -121,7 +120,8 @@ Pass an ordered array to `perform`:
 ```sh
 rel perform '[
   {"action":"wait-for","selector":"#disco_search","timeout":10},
-  {"action":"fill","selector":"#disco_search","text":"Magickraft"},
+  {"action":"clear","selector":"#disco_search"},
+  {"action":"type","selector":"#disco_search","text":"Magickraft"},
   {"action":"press","selector":"#disco_search","key":"Enter"}
 ]'
 ```
@@ -143,14 +143,15 @@ rel https://example.com \
 {
   "url": "https://example.com",
   "actions": [
-    { "action": "fill", "selector": "#disco_search", "text": "Magickraft" },
+    { "action": "clear", "selector": "#disco_search" },
+    { "action": "type", "selector": "#disco_search", "text": "Magickraft" },
     { "action": "press", "selector": "#disco_search", "key": "Enter" }
   ]
 }
 ```
 
 `rel_page_action` accepts one of the same objects in its `action` field. MCP's
-input schemas enumerate all nine action kinds and forward the validated objects
+input schemas enumerate all eight action kinds and forward the validated objects
 through the corresponding RPC operations.
 
 ## RPC examples
@@ -182,7 +183,10 @@ let actions = vec![
         selector: "#disco_search".into(),
         timeout: Some(10.0),
     },
-    Action::Fill {
+    Action::Clear {
+        selector: "#disco_search".into(),
+    },
+    Action::Type {
         selector: "#disco_search".into(),
         text: "Magickraft".into(),
     },
@@ -206,7 +210,7 @@ let actions = vec![
 
 Browser sessions controlled while not visible use the **Background Browser
 Size** preset in **REL → Settings… → General**, which defaults to 1,920 × 947
-CSS pixels. Visible tabs follow the resizable REL window. The viewport is a
+CSS pixels. Visible sessions follow the resizable REL window. The viewport is a
 global app setting rather than an action field.
 
 Actions stop at the first failure and return the standard structured RPC error.

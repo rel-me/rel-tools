@@ -41,7 +41,7 @@ rel https://rel.me
 
 Capture writes page data to standard output and events to standard error. Use
 `rel navigate`, `rel perform`, and argument-free `rel capture` for a stateful
-page workflow. `rel tab` is an alias for `rel session`.
+page workflow. Use `rel session` to manage persistent browser sessions.
 See the [Actions reference](docs/ACTIONS.md) for every supported browser
 interaction and its JSON shape.
 

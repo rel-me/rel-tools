@@ -88,7 +88,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the nine tools listed below, and `rel_status` should report
+Codex should discover the ten tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -147,8 +147,8 @@ original stdin/stdout connection until the MCP client closes stdin or the
 process is terminated. `REL_AGENT_PORT` changes the loopback RPC port from its
 default, `17319`.
 
-Browser tool calls also use the [RPC tab-selection behavior](RPC.md#transport):
-while REL is inactive, their target tab is selected by default without bringing
+Browser tool calls also use the [RPC session-selection behavior](RPC.md#transport):
+while REL is inactive, their target session is selected by default without bringing
 the app forward. The General setting **Follow browser commands** controls this.
 
 ## Transport and protocol versions
@@ -180,7 +180,7 @@ operations.
 
 ## Tools
 
-The server exposes exactly nine tools:
+The server exposes exactly ten tools:
 
 | Tool | RPC operation | Purpose |
 | --- | --- | --- |
@@ -192,33 +192,38 @@ The server exposes exactly nine tools:
 | `rel_observe` | `POST /v1/observe` or `POST /v1/pages/{page_id}/observe` | Read compact rendered semantics and optional synchronized viewport image. |
 | `rel_action` | `POST /v1/observations/{observation_id}/actions` | Act through an observation-scoped element ref and return a new observation. |
 | `rel_list_sessions` | `GET /v1/sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
+| `rel_close_session_group` | `POST /v1/sessions/close` | Close every persistent browser session in a named group. |
 | `rel_list_proxies` | `GET /v1/proxies` | List configured proxy aliases and non-secret configuration. |
 
 `rel_status`, `rel_list_sessions`, and `rel_list_proxies` accept an empty object.
+`rel_close_session_group` requires a `group` string from 1 through 128
+characters; matching is case-insensitive, and closing an empty group succeeds.
 The browser tools accept the same fields and validation rules as their RPC
 operations:
 
 ### `rel_capture`
 
 `url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
-`session_id`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
+`session_id`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
 the canonical `Session<number>` format. Omitting it creates a persistent session
-using the configured Session defaults. The action objects use every shape in
+using the configured Session defaults. `group` labels that new session and
+cannot be combined with `session_id`. The action objects use every shape in
 the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
 `scroll` booleans on click actions. `output_uri`, when present, must be an
 absolute local `file:///` URI.
 
 Sessions controlled while not visible use the **Background Browser Size**
 preset in **REL → Settings… → General**, defaulting to a 1,920 × 947 CSS pixel
-viewport. Visible tabs follow the resizable REL window. MCP does not expose a
+viewport. Visible sessions follow the resizable REL window. MCP does not expose a
 per-call viewport override.
 
 ### `rel_page_attach`
 
-`url` is required. Optional fields are `session_id`, `proxy`, `output_uri`,
+`url` is required. Optional fields are `session_id`, `group`, `proxy`, `output_uri`,
 `timeout`, and `wait`. The result contains a process-local page ID for later
 `rel_page_action` calls. Omitting `session_id` creates a persistent session and
-navigates it to `url`. Providing `session_id` attaches its current page, whose
+navigates it to `url`; `group` may label that new session and cannot be combined
+with `session_id`. Providing `session_id` attaches its current page, whose
 normalized URL must match `url`. `output_uri`, when present, must be an absolute
 local `file:///` URI.
 
