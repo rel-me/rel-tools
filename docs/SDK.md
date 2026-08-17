@@ -208,9 +208,10 @@ and resident agent remain available.
 
 The public `Action` enum serializes directly to the RPC v1 object shapes. See
 the [Actions reference](ACTIONS.md) for every variant, a Rust example, selector
-constraints, defaults, and failure behavior. Browser sessions controlled while
-not visible use the global **Background Browser Size** preset; it is not
-duplicated as an SDK field.
+constraints, defaults, and failure behavior. The global **Browser Viewport**
+setting defaults to **Fit REL Window**; fixed desktop and mobile presets apply
+exact CSS viewport bounds to visible and background tabs. It is not duplicated
+as an SDK field.
 
 ## Partial updates
 

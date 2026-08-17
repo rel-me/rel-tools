@@ -204,10 +204,13 @@ let actions = vec![
 
 ## Viewport and failures
 
-Browser sessions controlled while not visible use the **Background Browser
-Size** preset in **REL → Settings… → General**, which defaults to 1,920 × 947
-CSS pixels. Visible tabs follow the resizable REL window. The viewport is a
-global app setting rather than an action field.
+The **Browser Viewport** setting in **REL → Settings… → General** defaults to
+**Fit REL Window**, so a visible tab uses its available view bounds. A background
+tab retains its last visible size; a tab that has not yet been visible starts at
+1,920 × 947 CSS pixels. Selecting a fixed desktop or mobile preset applies those
+exact CSS viewport bounds to visible and background tabs. Fixed visible
+viewports use a bordered, scrollable canvas so the REL window remains freely
+resizable. The viewport is a global app setting rather than an action field.
 
 Actions stop at the first failure and return the standard structured RPC error.
 No action falls back to a different element, alternate browser backend, page

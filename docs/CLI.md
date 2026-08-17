@@ -303,11 +303,13 @@ uses REL’s configured Session defaults.
 For an existing session, omission preserves its current assignment; an explicit
 proxy updates the assignment.
 
-Tabs controlled while not visible use the **Background Browser Size** preset in
-**REL → Settings… → General**. The default viewport is 1,920 × 947 CSS pixels,
-matching a common maximized browser on a 1,920 × 1,080 display. A visible tab
-follows the resizable REL window. This is a global app setting, not a capture
-option.
+The **Browser Viewport** setting in **REL → Settings… → General** defaults to
+**Fit REL Window**, so a visible tab uses its available view bounds. A background
+tab retains its last visible size; a tab that has not yet been visible starts at
+1,920 × 947 CSS pixels. Selecting a fixed desktop or mobile preset applies those
+exact CSS viewport bounds to visible and background tabs. Fixed visible
+viewports use a bordered, scrollable canvas so the REL window remains freely
+resizable. This is a global app setting, not a capture option.
 
 ```sh
 rel https://example.com/ --proxy=oxylabs

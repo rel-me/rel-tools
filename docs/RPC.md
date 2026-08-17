@@ -374,9 +374,10 @@ caller did not request a specific output URI.
 
 The RPC accepts the same closed JSON objects as the CLI and MCP server. The
 [Actions reference](ACTIONS.md) defines every action, selector constraint,
-default, and failure behavior. Browser sessions controlled while not visible
-use the global **Background Browser Size** preset; RPC has no per-request
-viewport override.
+default, and failure behavior. The global **Browser Viewport** setting defaults
+to **Fit REL Window**; fixed desktop and mobile presets apply exact CSS viewport
+bounds to visible and background tabs. RPC has no per-request viewport
+override.
 
 Preflight failures use the ordinary error response. Once accepted, REL returns
 HTTP 200 `application/x-ndjson`. Each physical line is one complete object; there
