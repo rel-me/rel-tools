@@ -147,8 +147,8 @@ original stdin/stdout connection until the MCP client closes stdin or the
 process is terminated. `REL_AGENT_PORT` changes the loopback RPC port from its
 default, `17319`.
 
-Browser tool calls also use the [RPC tab-selection behavior](RPC.md#transport):
-while REL is inactive, their target tab is selected by default without bringing
+Browser tool calls also use the [RPC session-selection behavior](RPC.md#transport):
+while REL is inactive, their target session is selected by default without bringing
 the app forward. The General setting **Follow browser commands** controls this.
 
 ## Transport and protocol versions
@@ -212,7 +212,7 @@ absolute local `file:///` URI.
 
 Sessions controlled while not visible use the **Background Browser Size**
 preset in **REL → Settings… → General**, defaulting to a 1,920 × 947 CSS pixel
-viewport. Visible tabs follow the resizable REL window. MCP does not expose a
+viewport. Visible sessions follow the resizable REL window. MCP does not expose a
 per-call viewport override.
 
 ### `rel_page_attach`

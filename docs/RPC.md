@@ -24,7 +24,7 @@ Chromium bridge, so navigation, waits, and actions stop instead of continuing
 in the background. Cancellation is request-scoped: the persistent browser
 session, the REL app, and the resident agent remain running for other clients.
 
-By default, a browser operation selects its target tab when REL is inactive, so
+By default, a browser operation selects its target session when REL is inactive, so
 the affected page is visible the next time the app is viewed. REL is not
 activated or brought forward. Turn off **REL → Settings… → General → Follow
 browser commands** to preserve the current selection. This presentation setting

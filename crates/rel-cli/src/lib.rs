@@ -416,7 +416,7 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "capture" => parse_capture(args),
         "page" => parse_page(args),
         "proxy" => parse_proxy(args),
-        "session" | "tab" => parse_session(args),
+        "session" => parse_session(args),
         legacy
             if matches!(legacy, "ping" | "logs")
                 || legacy.starts_with("--rotate-proxy-session") =>
@@ -1103,7 +1103,6 @@ rel page attach URL [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
 rel proxy <list|get|create|update|delete|rotate> ...\n  \
 rel session <list|get|create|update|delete|close> ...\n  \
-rel tab <list|get|create|update|delete|close> ...    Alias for rel session\n  \
 rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
@@ -1111,9 +1110,8 @@ stdout unless --output is supplied, and writes validated NDJSON events to stderr
 `rel mcp` serves MCP over stdio for model and agent clients.\n\
 Run `rel navigate --help`, `rel perform --help`, `rel capture --help`,\n\
 `rel page --help`, `rel proxy --help`, or\n\
-`rel session --help` for resource options. Every `rel session ...` command is
-also available as `rel tab ...`. Commands that accept --session-id use
-$REL_SESSION_ID when the option is omitted; an explicit option wins."
+`rel session --help` for resource options. Commands that accept --session-id
+use $REL_SESSION_ID when the option is omitted; an explicit option wins."
         .to_string()
 }
 
@@ -1196,8 +1194,7 @@ Options:\n  \
 --name NAME --group GROUP --proxy ALIAS --adblock-enabled true|false\n  \
 --image-blocking-mode none|all|over_limit --image-size-limit-kb KB\n  \
 --direct                       Use a direct connection instead of the default proxy\n  \
---id-only                     For create, print only the new session ID\n\n\
-`rel tab` is an alias for `rel session`."
+--id-only                     For create, print only the new session ID"
         .to_string()
 }
 
@@ -1614,31 +1611,8 @@ mod tests {
             parse(&["session", "close", "--group", "pgm"]).unwrap(),
             CliCommand::SessionCloseGroup("pgm".to_string())
         );
-        assert_eq!(
-            parse(&["tab", "close", "--group=pgm"]).unwrap(),
-            CliCommand::SessionCloseGroup("pgm".to_string())
-        );
         assert!(parse(&["session", "close"]).is_err());
-        assert_eq!(parse(&["tab", "list"]).unwrap(), CliCommand::SessionList);
-        assert_eq!(
-            parse(&["tab", "get", "machine-x.Session4"]).unwrap(),
-            CliCommand::SessionGet("machine-x.Session4".to_string())
-        );
-        assert_eq!(
-            parse(&["tab", "delete", "machine-x.Session4"]).unwrap(),
-            CliCommand::SessionDelete("machine-x.Session4".to_string())
-        );
-        assert_eq!(
-            parse(&["tab", "update", "machine-x.Session4", "--name", "Research"]).unwrap(),
-            parse(&[
-                "session",
-                "update",
-                "machine-x.Session4",
-                "--name",
-                "Research",
-            ])
-            .unwrap()
-        );
+        assert!(parse(&["tab", "list"]).is_err());
         let CliCommand::SessionCreate { request, .. } = parse(&[
             "session",
             "create",
@@ -1700,9 +1674,9 @@ mod tests {
         );
 
         let CliCommand::SessionCreate { request, id_only } =
-            parse(&["tab", "create", "--name", "Research", "--id-only"]).unwrap()
+            parse(&["session", "create", "--name", "Research", "--id-only"]).unwrap()
         else {
-            panic!("expected tab create alias");
+            panic!("expected session create");
         };
         assert!(id_only);
         assert_eq!(request.name.as_deref(), Some("Research"));

@@ -45,7 +45,6 @@ rel session create [options]
 rel session update SESSION_ID [options]
 rel session delete SESSION_ID
 rel session close --group GROUP
-rel tab <list|get|create|update|delete|close> ...
 rel mcp
 rel --help | -h
 rel --version
@@ -60,17 +59,17 @@ starts the REL app in the background when its agent is unavailable. `rel mcp`
 performs that startup check once, then serves its original stdio connection.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
 
-When a browser command targets a tab while REL is in the background, REL selects
-that tab by default without activating the app. Turn off **REL → Settings… →
-General → Follow browser commands** to keep the current tab selected instead.
+When a browser command targets a session while REL is in the background, REL
+selects that session by default without activating the app. Turn off **REL →
+Settings… → General → Follow browser commands** to keep the current session
+selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free
 `rel capture` instead captures the current shorthand page selected by
-`rel navigate`. `rel tab` is an alias for the complete `rel session` command
-family. The removed `ping`, `logs`, and
+`rel navigate`. The removed `ping`, `logs`, and
 `--rotate-proxy-session` interfaces have no compatibility aliases; use
 `status`, the app's Logs view, and `proxy rotate`, respectively.
 
@@ -107,8 +106,7 @@ rel capture --session-id="$session_id" > rel.html
 ```
 
 The final argument-free `rel capture` reads the page selected by `rel navigate`
-after `rel perform` finishes. `rel tab create` is equivalent to
-`rel session create` if tab-oriented terminology is more natural.
+after `rel perform` finishes.
 
 For a sequence of commands, export the ID under REL's standard environment
 variable and omit the repeated options:
@@ -306,11 +304,11 @@ uses REL’s configured Session defaults.
 For an existing session, omission preserves its current assignment; an explicit
 proxy updates the assignment.
 
-Tabs controlled while not visible use the **Background Browser Size** preset in
+Sessions controlled while not visible use the **Background Browser Size** preset in
 **REL → Settings… → General**. The default viewport is 1,920 × 947 CSS pixels,
-matching a common maximized browser on a 1,920 × 1,080 display. A visible tab
-follows the resizable REL window. This is a global app setting, not a capture
-option.
+matching a common maximized browser on a 1,920 × 1,080 display. A visible
+session follows the resizable REL window. This is a global app setting, not a
+capture option.
 
 ```sh
 rel https://example.com/ --proxy=oxylabs
@@ -412,9 +410,6 @@ rel proxy rotate office
 
 ## Sessions
 
-`rel tab` is an alias for `rel session`; every subcommand and option below works
-with either spelling.
-
 Read and delete persistent browser sessions by their canonical session IDs:
 
 ```sh
@@ -448,12 +443,11 @@ remain on standard error with the ordinary nonzero exit status.
 REL does not impose a maximum session count. Sessions remain open until you
 explicitly delete them.
 
-Close every session in a group with either tab-oriented or session-oriented
-terminology. Repeating the command after the group is empty succeeds and
-returns an empty `data.deleted_ids` array:
+Close every session in a group. Repeating the command after the group is empty
+succeeds and returns an empty `data.deleted_ids` array:
 
 ```sh
-rel tab close --group pgm
+rel session close --group pgm
 ```
 
 Partially update a session:
