@@ -73,6 +73,7 @@ Each method maps to one public RPC route:
 | `update_session_defaults(&SessionDefaultsUpdateRequest)` | `PATCH /v1/session-defaults` |
 | `update_session(id, &SessionUpdateRequest)` | `PATCH /v1/sessions/{id}` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
+| `close_session_group(group)` | `POST /v1/sessions/close` |
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
@@ -84,7 +85,7 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all seven tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for all eight tools. It
 calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
 methods, `list_sessions`, and `list_proxies`; it does not maintain alternate
 request types or bypass the RPC transport. For capture, it exhausts and
@@ -249,10 +250,12 @@ default proxy or `Change::Clear` to create a direct session:
 use rel_client::{Change, RelClient, SessionCreateRequest};
 
 let request = SessionCreateRequest {
+    group: Some("pgm".into()),
     proxy_alias: Change::Clear,
     ..SessionCreateRequest::default()
 };
 RelClient::local().create_session(&request)?;
+RelClient::local().close_session_group("pgm")?;
 # Ok::<(), rel_client::ClientError>(())
 ```
 
@@ -261,6 +264,12 @@ The `SessionDefaults` resource contains `proxy_alias`, `adblock_enabled`,
 allows every image without disabling AdBlock. Proxy and filter updates
 affect only subsequently created sessions. REL does not impose a maximum
 session count.
+
+`Session::group` exposes the optional immutable group label. `CaptureRequest`
+and `PageAttachRequest` also accept `group` when `session_id` is absent, so an
+implicitly created session can join the same group. Group matching is
+case-insensitive; closing a group that is already empty succeeds with an empty
+`deleted_ids` vector.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy

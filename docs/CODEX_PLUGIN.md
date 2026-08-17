@@ -35,7 +35,8 @@ The plugin contains:
 - the bundled REL MCP server configuration, using the absolute installed-app
   path;
 - the `rel-browser` skill for safe session selection and browser workflows;
-- all seven MCP tools, including inline or file-backed screenshots;
+- all eight MCP tools, including session-group closing and inline or
+  file-backed screenshots;
 - all eight canonical page actions: `click`, `wait-for`, `type`, `clear`,
   `press`, `select`, `wait`, and `click-link`.
 

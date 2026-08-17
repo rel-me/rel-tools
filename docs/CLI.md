@@ -44,7 +44,8 @@ rel session get SESSION_ID
 rel session create [options]
 rel session update SESSION_ID [options]
 rel session delete SESSION_ID
-rel tab <list|get|create|update|delete> ...
+rel session close --group GROUP
+rel tab <list|get|create|update|delete|close> ...
 rel mcp
 rel --help | -h
 rel --version
@@ -181,9 +182,9 @@ exits unsuccessfully.
 The command accepts no options. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly seven tools: `rel_status`, `rel_capture`,
+`2025-11-25`, and exposes exactly eight tools: `rel_status`, `rel_capture`,
 `rel_page_attach`, `rel_page_action`, `rel_take_screenshot`,
-`rel_list_sessions`, and `rel_list_proxies`.
+`rel_list_sessions`, `rel_close_session_group`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
 validated NDJSON stream into `{request_id, exit_code, events}`. Every tool
@@ -279,6 +280,7 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set; otherwise create a persistent session. |
+| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses the `REL_SESSION_ID` default. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
@@ -287,7 +289,8 @@ Exactly one URL is required before the options. Scheme-less localhost
 addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
-When `--session-id` is omitted, the CLI uses `REL_SESSION_ID` if it is set. This
+When both `--session-id` and `--group` are omitted, the CLI uses
+`REL_SESSION_ID` if it is set. This
 is exported automatically by each embedded session terminal. An explicit option
 always wins. If neither is present, capture creates a persistent browser session.
 Its default label is `Session<ID>` and its immutable identifier is:
@@ -346,7 +349,9 @@ rel page attach https://example.com \
 ```
 
 `page attach` accepts `--session-id`, `--proxy`, `--output`, `--timeout`, and
-`--wait`. Its result contains a process-local `page.id`.
+`--wait`. It also accepts `--group` instead of `--session-id` to label the new
+persistent session; this suppresses the `REL_SESSION_ID` default. Its result
+contains a process-local `page.id`.
 
 Perform one canonical [browser action](ACTIONS.md) on that attachment:
 
@@ -423,6 +428,7 @@ Create a session:
 ```sh
 rel session create \
   --name Research \
+  --group pgm \
   --proxy office \
   --adblock-enabled true \
   --image-blocking-mode over_limit \
@@ -433,12 +439,22 @@ Every create option is optional. Omitted proxy and filtering options use the
 Session defaults configured in the REL app. Use `--direct` to force a direct
 connection instead of the default proxy. `--image-blocking-mode` is `none`,
 `all`, or `over_limit`; `none` allows every image without changing AdBlock.
+`--group` labels the new session without changing its unique name or canonical
+ID. Group matching is case-insensitive.
 `--id-only` changes successful output to the new canonical
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
 
 REL does not impose a maximum session count. Sessions remain open until you
 explicitly delete them.
+
+Close every session in a group with either tab-oriented or session-oriented
+terminology. Repeating the command after the group is empty succeeds and
+returns an empty `data.deleted_ids` array:
+
+```sh
+rel tab close --group pgm
+```
 
 Partially update a session:
 

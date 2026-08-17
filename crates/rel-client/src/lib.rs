@@ -328,6 +328,17 @@ impl RelClient {
         )
     }
 
+    pub fn close_session_group(
+        &self,
+        group: &str,
+    ) -> Result<RpcResponse<ClosedSessionGroupData>, ClientError> {
+        self.request(
+            "POST",
+            "/sessions/close",
+            Some(&SessionGroupCloseRequest { group }),
+        )
+    }
+
     fn request<T, B>(
         &self,
         method: &str,
@@ -710,6 +721,8 @@ pub struct CaptureRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<u32>,
@@ -821,6 +834,8 @@ pub struct PageAttachRequest {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1089,6 +1104,8 @@ pub struct Proxy {
 pub struct SessionCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
     pub proxy_alias: Change<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1162,6 +1179,7 @@ pub struct SessionDefaults {
 pub struct Session {
     pub id: String,
     pub name: String,
+    pub group: Option<String>,
     pub proxy_alias: Option<String>,
     pub adblock_enabled: bool,
     pub image_blocking_mode: ImageBlockingMode,
@@ -1172,6 +1190,17 @@ pub struct Session {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DeletedData {
     pub deleted_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ClosedSessionGroupData {
+    pub group: String,
+    pub deleted_ids: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct SessionGroupCloseRequest<'a> {
+    group: &'a str,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1421,6 +1450,7 @@ mod tests {
         json!({
             "id": "machine-a.Session1",
             "name": "Session1",
+            "group": "pgm",
             "proxy_alias": null,
             "adblock_enabled": true,
             "image_blocking_mode": "over_limit",
@@ -1459,11 +1489,18 @@ mod tests {
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
+                group: Some("pgm".to_string()),
                 proxy_alias: Change::Clear,
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"proxy_alias":null})
+            json!({"group":"pgm", "proxy_alias":null})
+        );
+        let mut capture = CaptureRequest::new("https://example.com");
+        capture.group = Some("pgm".to_string());
+        assert_eq!(
+            serde_json::to_value(capture).unwrap(),
+            json!({"url":"https://example.com", "group":"pgm"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
@@ -1578,7 +1615,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(22, |index, request| {
+        let (base_url, server) = start_test_server(23, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -1618,6 +1655,9 @@ mod tests {
                 }
                 ("DELETE", "/v1/sessions/machine-a.Session1") => {
                     json!({"deleted_id":"machine-a.Session1"})
+                }
+                ("POST", "/v1/sessions/close") => {
+                    json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
                 }
                 ("GET", "/v1/sessions") => json!({"sessions":[session_json()]}),
                 ("GET", "/v1/sessions/machine-a.Session1")
@@ -1715,6 +1755,7 @@ mod tests {
         client.rotate_proxy_session("office").unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
+        assert_eq!(sessions.data.sessions[0].group.as_deref(), Some("pgm"));
         client.get_session("machine-a.Session1").unwrap();
         client
             .create_session(&SessionCreateRequest::default())
@@ -1737,6 +1778,8 @@ mod tests {
             .unwrap();
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
+        let closed = client.close_session_group("pgm").unwrap();
+        assert_eq!(closed.data.deleted_ids, ["machine-a.Session1"]);
 
         let requests = server.join().unwrap();
         let routes = requests
@@ -1768,7 +1811,12 @@ mod tests {
                 ("PATCH", "/v1/session-defaults"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
+                ("POST", "/v1/sessions/close"),
             ]
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
+            json!({"group":"pgm"})
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[2].body).unwrap(),

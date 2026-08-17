@@ -132,6 +132,7 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/proxies/{alias}/rotate-session` | Rotate an Oxylabs session |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
+| `POST` | `/v1/sessions/close` | Close every browser session in a group |
 | `GET` | `/v1/session-defaults` | Read defaults for newly created sessions |
 | `PATCH` | `/v1/session-defaults` | Update defaults for newly created sessions |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
@@ -146,10 +147,10 @@ such as `rel capture`, `rel page`, `rel proxy`, and `rel session`; it has no
 direct database or log-file command path.
 
 The bundled `rel mcp` adapter also calls this API only through `rel-client`. It
-maps seven MCP tools to status, HTML and image capture, page attachment and
-action, and session and proxy listing. MCP does not add an HTTP `/mcp` route or
-another response shape to RPC v1. See [MCP](MCP.md) for its stdio lifecycle and
-result wrapping.
+maps eight MCP tools to status, HTML and image capture, page attachment and
+action, session-group closing, and session and proxy listing. MCP does not add
+an HTTP `/mcp` route or another response shape to RPC v1. See [MCP](MCP.md) for
+its stdio lifecycle and result wrapping.
 
 ## Health
 
@@ -368,6 +369,7 @@ caller did not request a specific output URI.
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
+| `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
 | `retry_delay` | Finite seconds 0 through 86400; default 3. |
@@ -427,7 +429,8 @@ code 1; it is not an API error.
 }
 ```
 
-Omitting `session_id` creates a session and navigates it to `url`. Providing an
+Omitting `session_id` creates a session and navigates it to `url`. `group` may
+label that new session and cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
 
@@ -513,6 +516,7 @@ A session resource is:
 {
   "id": "Session12",
   "name": "Session12",
+  "group": "pgm",
   "proxy_alias": null,
   "adblock_enabled": true,
   "image_blocking_mode": "over_limit",
@@ -523,17 +527,23 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `POST /v1/sessions` accepts optional `name`, `proxy_alias`, `adblock_enabled`,
-  `image_blocking_mode`, and `image_size_limit_kb`; returns `data.session`.
+- `POST /v1/sessions` accepts optional `name`, `group`, `proxy_alias`,
+  `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
+  `data.session`.
 - `PATCH /v1/sessions/{id}` is partial and returns `data.session`.
 - `DELETE /v1/sessions/{id}` returns the canonical session ID as
-  `data.deleted_id` and refuses to remove the last session.
+  `data.deleted_id`.
+- `POST /v1/sessions/close` accepts `{"group":"pgm"}` and returns the trimmed
+  group plus every closed canonical ID as `data.deleted_ids`. Group matching is
+  case-insensitive, and an empty group is an idempotent success.
 
 `image_blocking_mode` is `none`, `all`, or `over_limit`. `none` allows every
 image while leaving `adblock_enabled` independent. The legacy `block_images`
 alias is rejected. Size is 1 through 1,048,576 kB. The visible name is editable and
 case-insensitively unique; the canonical `id` is immutable. Session routes accept
-only that ID; numeric database IDs are neither accepted nor returned.
+only that ID; numeric database IDs are neither accepted nor returned. A group
+is immutable, contains 1–128 non-control characters after trimming, and may be
+shared by any number of sessions.
 
 ## Session defaults
 

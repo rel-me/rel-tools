@@ -88,7 +88,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the seven tools listed below, and `rel_status` should report
+Codex should discover the eight tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -180,7 +180,7 @@ operations.
 
 ## Tools
 
-The server exposes exactly seven tools:
+The server exposes exactly eight tools:
 
 | Tool | RPC operation | Purpose |
 | --- | --- | --- |
@@ -190,18 +190,22 @@ The server exposes exactly seven tools:
 | `rel_page_action` | `POST /v1/pages/{page_id}/actions` | Perform one action on an attached page. |
 | `rel_take_screenshot` | `POST /v1/screenshot` or `POST /v1/pages/{page_id}/screenshot` | Capture a viewport or full-page PNG, JPEG, or WebP image. |
 | `rel_list_sessions` | `GET /v1/sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
+| `rel_close_session_group` | `POST /v1/sessions/close` | Close every persistent browser session in a named group. |
 | `rel_list_proxies` | `GET /v1/proxies` | List configured proxy aliases and non-secret configuration. |
 
 `rel_status`, `rel_list_sessions`, and `rel_list_proxies` accept an empty object.
+`rel_close_session_group` requires a `group` string from 1 through 128
+characters; matching is case-insensitive, and closing an empty group succeeds.
 The browser tools accept the same fields and validation rules as their RPC
 operations:
 
 ### `rel_capture`
 
 `url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
-`session_id`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
+`session_id`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
 the canonical `Session<number>` format. Omitting it creates a persistent session
-using the configured Session defaults. The action objects use every shape in
+using the configured Session defaults. `group` labels that new session and
+cannot be combined with `session_id`. The action objects use every shape in
 the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
 `scroll` booleans on click actions. `output_uri`, when present, must be an
 absolute local `file:///` URI.
@@ -213,10 +217,11 @@ per-call viewport override.
 
 ### `rel_page_attach`
 
-`url` is required. Optional fields are `session_id`, `proxy`, `output_uri`,
+`url` is required. Optional fields are `session_id`, `group`, `proxy`, `output_uri`,
 `timeout`, and `wait`. The result contains a process-local page ID for later
 `rel_page_action` calls. Omitting `session_id` creates a persistent session and
-navigates it to `url`. Providing `session_id` attaches its current page, whose
+navigates it to `url`; `group` may label that new session and cannot be combined
+with `session_id`. Providing `session_id` attaches its current page, whose
 normalized URL must match `url`. `output_uri`, when present, must be an absolute
 local `file:///` URI.
 
