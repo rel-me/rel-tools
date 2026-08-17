@@ -5,7 +5,7 @@ export default defineConfig({
   site: "https://docs.rel.me",
   integrations: [
     starlight({
-      title: "rel",
+      title: "REL.me",
       description: "Documentation for REL, a persistent Chromium browser built for agents.",
       favicon: "/rel-mark.svg",
       logo: {
@@ -43,11 +43,16 @@ export default defineConfig({
           label: "Agent access",
           items: [
             { label: "CLI", slug: "cli" },
-            { label: "Codex plugin", slug: "codex-plugin" },
-            { label: "Claude Code plugin", slug: "claude-code-plugin" },
             { label: "MCP server", slug: "mcp" },
             { label: "RPC v1", slug: "rpc" },
             { label: "Rust SDK", slug: "sdk" },
+          ],
+        },
+        {
+          label: "Plugins",
+          items: [
+            { label: "Codex plugin", slug: "codex-plugin" },
+            { label: "Claude Code plugin", slug: "claude-code-plugin" },
           ],
         },
       ],

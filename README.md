@@ -18,7 +18,7 @@ session storage, proxy credentials, or internal service code.
   documentation that powers [docs.rel.me](https://docs.rel.me).
 
 All clients require REL.app in `/Applications`; they connect only to its
-loopback API. Download the app from [rel.me](https://rel.me).
+loopback API. Download the app from [REL.me](https://rel.me).
 
 ## Install the CLI
 
@@ -51,7 +51,7 @@ The repository is also a Codex plugin marketplace. Add it once, then install
 the REL plugin:
 
 ```sh
-codex plugin marketplace add rel-me/rel-tools
+codex plugin marketplace add https://github.com/rel-me/rel-tools.git --ref main
 codex plugin add rel@rel
 ```
 
