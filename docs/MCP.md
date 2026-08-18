@@ -206,10 +206,11 @@ operations:
 ### `rel_capture`
 
 `url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
-`session_id`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
-the canonical `Session<number>` format. Omitting it creates a persistent session
-using the configured Session defaults. `group` labels that new session and
-cannot be combined with `session_id`. The action objects use every shape in
+`session_id`, `profile`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied
+`session_id` uses the canonical `Session<number>` format. Omitting it creates a
+persistent session from `profile`, or from **Default** when `profile` is absent.
+`profile` and `group` apply only to a new session and cannot be combined with
+`session_id`. The action objects use every shape in
 the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
 `scroll` booleans on click actions. `output_uri`, when present, must be an
 absolute local `file:///` URI.
@@ -221,11 +222,12 @@ per-call viewport override.
 
 ### `rel_page_attach`
 
-`url` is required. Optional fields are `session_id`, `group`, `proxy`, `output_uri`,
-`timeout`, and `wait`. The result contains a process-local page ID for later
-`rel_page_action` calls. Omitting `session_id` creates a persistent session and
-navigates it to `url`; `group` may label that new session and cannot be combined
-with `session_id`. Providing `session_id` attaches its current page, whose
+`url` is required. Optional fields are `session_id`, `profile`, `group`, `proxy`,
+`output_uri`, `timeout`, and `wait`. The result contains a process-local page ID
+for later `rel_page_action` calls. Omitting `session_id` creates a persistent
+session from the named profile (or **Default**) and navigates it to `url`;
+`profile` and `group` cannot be combined with `session_id`. Providing
+`session_id` attaches its current page, whose
 normalized URL must match `url`. `output_uri`, when present, must be an absolute
 local `file:///` URI.
 

@@ -353,15 +353,23 @@ impl RelClient {
         self.request("POST", "/sessions", Some(request))
     }
 
-    pub fn session_defaults(&self) -> Result<RpcResponse<SessionDefaultsData>, ClientError> {
-        self.request::<SessionDefaultsData, Value>("GET", "/session-defaults", None)
+    pub fn list_profiles(&self) -> Result<RpcResponse<ProfileListData>, ClientError> {
+        self.request::<ProfileListData, Value>("GET", "/profiles", None)
     }
 
-    pub fn update_session_defaults(
+    pub fn create_profile(
         &self,
-        request: &SessionDefaultsUpdateRequest,
-    ) -> Result<RpcResponse<SessionDefaultsData>, ClientError> {
-        self.request("PATCH", "/session-defaults", Some(request))
+        request: &ProfileCreateRequest,
+    ) -> Result<RpcResponse<ProfileData>, ClientError> {
+        self.request("POST", "/profiles", Some(request))
+    }
+
+    pub fn delete_profile(&self, id: &str) -> Result<RpcResponse<DeletedData>, ClientError> {
+        self.request::<DeletedData, Value>(
+            "DELETE",
+            &format!("/profiles/{}", encode_path_segment(id)),
+            None,
+        )
     }
 
     pub fn update_session(
@@ -777,6 +785,8 @@ pub struct CaptureRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
@@ -800,6 +810,8 @@ pub struct NavigateRequest {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -890,6 +902,8 @@ pub struct PageAttachRequest {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1322,6 +1336,8 @@ pub struct SessionCreateRequest {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
     pub proxy_alias: Change<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1346,16 +1362,21 @@ pub struct SessionUpdateRequest {
     pub image_size_limit_kb: Option<i64>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, PartialEq)]
-pub struct SessionDefaultsUpdateRequest {
-    #[serde(skip_serializing_if = "Change::is_unchanged")]
-    pub proxy_alias: Change<String>,
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileCreateRequest {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_alias: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub adblock_enabled: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_blocking_mode: Option<ImageBlockingMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_size_limit_kb: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub includes_cookies: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub includes_passwords: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
@@ -1379,22 +1400,35 @@ pub struct SessionData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct SessionDefaultsData {
-    pub session_defaults: SessionDefaults,
+pub struct ProfileListData {
+    pub profiles: Vec<Profile>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct SessionDefaults {
+pub struct ProfileData {
+    pub profile: Profile,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct Profile {
+    pub id: String,
+    pub name: String,
     pub proxy_alias: Option<String>,
     pub adblock_enabled: bool,
     pub image_blocking_mode: ImageBlockingMode,
     pub image_size_limit_kb: i64,
+    pub includes_cookies: bool,
+    pub includes_passwords: bool,
+    pub is_builtin: bool,
+    pub created_at: i64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
     pub id: String,
     pub name: String,
+    pub profile: String,
+    pub profile_data_id: Option<String>,
     pub group: Option<String>,
     pub proxy_alias: Option<String>,
     pub adblock_enabled: bool,
@@ -1670,6 +1704,8 @@ mod tests {
         json!({
             "id": "machine-a.Session1",
             "name": "Session1",
+            "profile": "Default",
+            "profile_data_id": null,
             "group": "pgm",
             "proxy_alias": null,
             "adblock_enabled": true,
@@ -1679,12 +1715,18 @@ mod tests {
         })
     }
 
-    fn session_defaults_json() -> Value {
+    fn profile_json() -> Value {
         json!({
-            "proxy_alias": "office",
+            "id": "builtin-default",
+            "name": "Default",
+            "proxy_alias": null,
             "adblock_enabled": false,
-            "image_blocking_mode": "all",
-            "image_size_limit_kb": 250
+            "image_blocking_mode": "none",
+            "image_size_limit_kb": 100,
+            "includes_cookies": false,
+            "includes_passwords": false,
+            "is_builtin": true,
+            "created_at": 0
         })
     }
 
@@ -1702,7 +1744,7 @@ mod tests {
     }
 
     #[test]
-    fn session_create_uses_defaults_when_unchanged_and_can_force_direct_networking() {
+    fn session_create_uses_default_profile_when_unchanged_and_accepts_named_profile() {
         assert_eq!(
             serde_json::to_value(SessionCreateRequest::default()).unwrap(),
             json!({})
@@ -1710,17 +1752,19 @@ mod tests {
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
                 group: Some("pgm".to_string()),
+                profile: Some("BandwidthSaver".to_string()),
                 proxy_alias: Change::Clear,
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"group":"pgm", "proxy_alias":null})
+            json!({"group":"pgm", "profile":"BandwidthSaver", "proxy_alias":null})
         );
         let mut capture = CaptureRequest::new("https://example.com");
         capture.group = Some("pgm".to_string());
+        capture.profile = Some("AdBlock".to_string());
         assert_eq!(
             serde_json::to_value(capture).unwrap(),
-            json!({"url":"https://example.com", "group":"pgm"})
+            json!({"url":"https://example.com", "profile":"AdBlock", "group":"pgm"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
@@ -1835,7 +1879,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(26, |index, request| {
+        let (base_url, server) = start_test_server(27, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -1899,8 +1943,10 @@ mod tests {
                 ("GET", "/v1/sessions/machine-a.Session1")
                 | ("POST", "/v1/sessions")
                 | ("PATCH", "/v1/sessions/machine-a.Session1") => json!({"session":session_json()}),
-                ("GET", "/v1/session-defaults") | ("PATCH", "/v1/session-defaults") => {
-                    json!({"session_defaults":session_defaults_json()})
+                ("GET", "/v1/profiles") => json!({"profiles":[profile_json()]}),
+                ("POST", "/v1/profiles") => json!({"profile":profile_json()}),
+                ("DELETE", "/v1/profiles/custom-profile-id") => {
+                    json!({"deleted_id":"custom-profile-id"})
                 }
                 route => panic!("unexpected route {route:?}"),
             };
@@ -2013,13 +2059,19 @@ mod tests {
         client
             .create_session(&SessionCreateRequest::default())
             .unwrap();
-        client.session_defaults().unwrap();
+        client.list_profiles().unwrap();
         client
-            .update_session_defaults(&SessionDefaultsUpdateRequest {
-                proxy_alias: Change::Clear,
-                ..SessionDefaultsUpdateRequest::default()
+            .create_profile(&ProfileCreateRequest {
+                name: "Research".to_string(),
+                proxy_alias: None,
+                adblock_enabled: Some(true),
+                image_blocking_mode: Some(ImageBlockingMode::OverLimit),
+                image_size_limit_kb: Some(10),
+                includes_cookies: Some(false),
+                includes_passwords: Some(false),
             })
             .unwrap();
+        client.delete_profile("custom-profile-id").unwrap();
         client
             .update_session(
                 "machine-a.Session1",
@@ -2066,15 +2118,16 @@ mod tests {
                 ("GET", "/v1/sessions"),
                 ("GET", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions"),
-                ("GET", "/v1/session-defaults"),
-                ("PATCH", "/v1/session-defaults"),
+                ("GET", "/v1/profiles"),
+                ("POST", "/v1/profiles"),
+                ("DELETE", "/v1/profiles/custom-profile-id"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions/close"),
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
@@ -2111,10 +2164,17 @@ mod tests {
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[22].body).unwrap(),
-            json!({"proxy_alias":null})
+            json!({
+                "name":"Research",
+                "adblock_enabled":true,
+                "image_blocking_mode":"over_limit",
+                "image_size_limit_kb":10,
+                "includes_cookies":false,
+                "includes_passwords":false
+            })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[23].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[24].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

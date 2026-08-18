@@ -72,8 +72,9 @@ Each method maps to one public RPC route:
 | `list_sessions()` | `GET /v1/sessions` |
 | `get_session(id)` | `GET /v1/sessions/{id}` |
 | `create_session(&SessionCreateRequest)` | `POST /v1/sessions` |
-| `session_defaults()` | `GET /v1/session-defaults` |
-| `update_session_defaults(&SessionDefaultsUpdateRequest)` | `PATCH /v1/session-defaults` |
+| `list_profiles()` | `GET /v1/profiles` |
+| `create_profile(&ProfileCreateRequest)` | `POST /v1/profiles` |
+| `delete_profile(id)` | `DELETE /v1/profiles/{id}` |
 | `update_session(id, &SessionUpdateRequest)` | `PATCH /v1/sessions/{id}` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
 | `close_session_group(group)` | `POST /v1/sessions/close` |
@@ -252,7 +253,7 @@ duplicated as an SDK field.
 Non-nullable PATCH fields use `Option<T>`: `None` omits a field and `Some(value)`
 sets it. Nullable fields use `Change<T>` so callers can also send an explicit
 JSON `null`. Those fields are proxy username, password, and Oxylabs location,
-plus the `proxy_alias` for a session or Session defaults.
+plus the `proxy_alias` for a session.
 
 ```rust
 use rel_client::{Change, RelClient, SessionUpdateRequest};
@@ -274,17 +275,21 @@ RelClient::local().update_session("Session12", &request)?;
 This prevents an accidental clear when a caller intended a true partial
 update.
 
-## Session creation defaults
+## Session profiles
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
-Session defaults configured in the REL app. Use `Change::Set("alias".into())` to override the
-default proxy or `Change::Clear` to create a direct session:
+built-in **Default** profile. Set `profile` to select **AdBlock**,
+**BandwidthSaver**, or a case-insensitively unique custom name. Explicit proxy
+and filtering fields override the selected profile; use
+`Change::Set("alias".into())` for a proxy or `Change::Clear` for direct
+networking:
 
 ```rust
 use rel_client::{Change, RelClient, SessionCreateRequest};
 
 let request = SessionCreateRequest {
     group: Some("pgm".into()),
+    profile: Some("BandwidthSaver".into()),
     proxy_alias: Change::Clear,
     ..SessionCreateRequest::default()
 };
@@ -293,17 +298,21 @@ RelClient::local().close_session_group("pgm")?;
 # Ok::<(), rel_client::ClientError>(())
 ```
 
-The `SessionDefaults` resource contains `proxy_alias`, `adblock_enabled`,
-`image_blocking_mode`, and `image_size_limit_kb`. `ImageBlockingMode::None`
-allows every image without disabling AdBlock. Proxy and filter updates
-affect only subsequently created sessions. REL does not impose a maximum
-session count.
+`Profile` contains its public `id`, unique `name`, proxy and filtering policy,
+browser-data inclusion flags, built-in status, and creation time.
+`ProfileCreateRequest` creates a custom settings template; browser-data import
+itself remains app-owned. Built-ins cannot be deleted. `ImageBlockingMode::None`
+allows every image without disabling AdBlock. Existing sessions retain copied
+settings and data after their source profile is deleted. REL does not impose a
+maximum session count.
 
-`Session::group` exposes the optional immutable group label. `CaptureRequest`
-and `PageAttachRequest` also accept `group` when `session_id` is absent, so an
-implicitly created session can join the same group. Group matching is
-case-insensitive; closing a group that is already empty succeeds with an empty
-`deleted_ids` vector.
+`Session::profile` exposes the source profile name and
+`Session::profile_data_id` identifies the custom browser-data template copied
+at creation, when any. `CaptureRequest`, `NavigateRequest`, and
+`PageAttachRequest` accept `profile` only when `session_id` is absent.
+`CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
+created session can join a group. Group matching is case-insensitive; closing
+an empty group succeeds with an empty `deleted_ids` vector.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy

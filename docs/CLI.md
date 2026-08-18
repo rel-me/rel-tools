@@ -240,8 +240,9 @@ rel capture > final.html
 prints the ordinary JSON response envelope. Its first call reuses the first
 persisted session unless `--session-id` or `REL_SESSION_ID` supplies one,
 creating a session only when none exists. Later calls without a session ID reuse
-the current page and session. It accepts `--session-id`, `--proxy`, `--output`,
-`--timeout`, and `--wait`.
+the current page and session. Supplying `--profile NAME` intentionally creates
+a new session from that profile and conflicts with `--session-id`. It also
+accepts `--proxy`, `--output`, `--timeout`, and `--wait`.
 
 Navigation becomes ready after REL observes the requested HTTP(S) main-frame
 load, that main frame finishes, and its rendered source is available. Subframe
@@ -299,6 +300,7 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set; otherwise create a persistent session. |
+| `--profile NAME` | `profile` | Create the session from this built-in or custom profile. Conflicts with `--session-id` and suppresses the `REL_SESSION_ID` default. |
 | `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses the `REL_SESSION_ID` default. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
@@ -308,7 +310,7 @@ Exactly one URL is required before the options. Scheme-less localhost
 addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
-When both `--session-id` and `--group` are omitted, the CLI uses
+When `--session-id`, `--profile`, and `--group` are omitted, the CLI uses
 `REL_SESSION_ID` if it is set. This
 is exported automatically by each embedded session terminal. An explicit option
 always wins. If neither is present, capture creates a persistent browser session.
@@ -321,7 +323,8 @@ Session<ID>
 For a new session, `--proxy oxylabs` is shorthand for creating a persistent
 session assigned to `oxylabs`, then capturing with it. Its canonical ID is
 returned as `data.session_id` in the NDJSON capture events. Omitting `--proxy`
-uses REL’s configured Session defaults.
+uses the selected profile, or the built-in **Default** profile when
+`--profile` is omitted.
 For an existing session, omission preserves its current assignment; an explicit
 proxy updates the assignment.
 
@@ -363,14 +366,14 @@ Attach an ephemeral automation page:
 
 ```sh
 rel page attach https://example.com \
-  --session-id Session12 \
+  --profile AdBlock \
   --timeout 90 --wait 1
 ```
 
-`page attach` accepts `--session-id`, `--proxy`, `--output`, `--timeout`, and
-`--wait`. It also accepts `--group` instead of `--session-id` to label the new
-persistent session; this suppresses the `REL_SESSION_ID` default. Its result
-contains a process-local `page.id`.
+`page attach` accepts `--session-id`, `--profile`, `--proxy`, `--output`,
+`--timeout`, and `--wait`. It also accepts `--group` when creating a session.
+`--profile` conflicts with `--session-id`; either creation option suppresses
+the `REL_SESSION_ID` default. Its result contains a process-local `page.id`.
 
 Perform one canonical [browser action](ACTIONS.md) on that attachment:
 
@@ -445,16 +448,18 @@ Create a session:
 rel session create \
   --name Research \
   --group pgm \
+  --profile BandwidthSaver \
   --proxy office \
   --adblock-enabled true \
   --image-blocking-mode over_limit \
   --image-size-limit-kb 100
 ```
 
-Every create option is optional. Omitted proxy and filtering options use the
-Session defaults configured in the REL app. Use `--direct` to force a direct
-connection instead of the default proxy. `--image-blocking-mode` is `none`,
-`all`, or `over_limit`; `none` allows every image without changing AdBlock.
+Every create option is optional. `--profile` accepts the unique name shown in
+**REL → Settings… → Profiles**; omission uses **Default**. Omitted proxy and
+filtering options use the selected profile. Use `--direct` to override it with
+a direct connection. `--image-blocking-mode` is `none`, `all`, or
+`over_limit`; `none` allows every image without changing AdBlock.
 `--group` labels the new session without changing its unique name or canonical
 ID. Group matching is case-insensitive.
 `--id-only` changes successful output to the new canonical

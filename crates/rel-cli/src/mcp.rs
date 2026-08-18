@@ -784,6 +784,7 @@ fn capture_schema() -> Value {
             "wait": {"type": "number", "minimum": 0},
             "actions": {"type": "array", "items": action_schema()},
             "session_id": {"type": "string", "minLength": 1},
+            "profile": {"type": "string", "minLength": 1, "maxLength": 128},
             "group": {"type": "string", "minLength": 1, "maxLength": 128},
             "proxy": {"type": "string", "minLength": 1},
             "retry": {"type": "integer", "minimum": 0, "maximum": 100},
@@ -800,6 +801,7 @@ fn page_attach_schema() -> Value {
         "properties": {
             "url": {"type": "string", "minLength": 1},
             "session_id": {"type": "string", "minLength": 1},
+            "profile": {"type": "string", "minLength": 1, "maxLength": 128},
             "group": {"type": "string", "minLength": 1, "maxLength": 128},
             "proxy": {"type": "string", "minLength": 1},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
@@ -1355,6 +1357,7 @@ struct CaptureArguments {
     #[serde(default)]
     actions: Vec<Action>,
     session_id: Option<String>,
+    profile: Option<String>,
     group: Option<String>,
     proxy: Option<String>,
     retry: Option<u32>,
@@ -1365,10 +1368,10 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
     type Error = Value;
 
     fn try_from(value: CaptureArguments) -> Result<Self, Self::Error> {
-        if value.session_id.is_some() && value.group.is_some() {
+        if value.session_id.is_some() && (value.group.is_some() || value.profile.is_some()) {
             return Err(tool_error_value(
                 "INVALID_ARGUMENTS",
-                "group cannot be combined with session_id",
+                "group and profile cannot be combined with session_id",
             ));
         }
         Ok(Self {
@@ -1378,6 +1381,7 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
             wait: value.wait,
             actions: value.actions,
             session_id: value.session_id,
+            profile: value.profile,
             group: value.group,
             proxy: value.proxy,
             retry: value.retry,
@@ -1391,6 +1395,7 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
 struct PageAttachArguments {
     url: String,
     session_id: Option<String>,
+    profile: Option<String>,
     group: Option<String>,
     proxy: Option<String>,
     output_uri: Option<String>,
@@ -1402,15 +1407,16 @@ impl TryFrom<PageAttachArguments> for PageAttachRequest {
     type Error = Value;
 
     fn try_from(value: PageAttachArguments) -> Result<Self, Self::Error> {
-        if value.session_id.is_some() && value.group.is_some() {
+        if value.session_id.is_some() && (value.group.is_some() || value.profile.is_some()) {
             return Err(tool_error_value(
                 "INVALID_ARGUMENTS",
-                "group cannot be combined with session_id",
+                "group and profile cannot be combined with session_id",
             ));
         }
         Ok(Self {
             url: value.url,
             session_id: value.session_id,
+            profile: value.profile,
             group: value.group,
             proxy: value.proxy,
             output: output_path_from_uri(value.output_uri)?,
@@ -1896,6 +1902,14 @@ mod tests {
         );
         assert_eq!(
             tools[2]["inputSchema"]["properties"]["group"]["maxLength"],
+            128
+        );
+        assert_eq!(
+            tools[1]["inputSchema"]["properties"]["profile"]["maxLength"],
+            128
+        );
+        assert_eq!(
+            tools[2]["inputSchema"]["properties"]["profile"]["maxLength"],
             128
         );
     }

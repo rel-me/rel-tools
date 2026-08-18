@@ -21,6 +21,8 @@ local versioned API.
    `session_id` merely to inspect existing state because omission can create a
    persistent session. When intentionally creating several related sessions,
    give each the same `group` rather than overloading its unique display name.
+   When creating a session with requested browser defaults, pass its unique
+   `profile` name; profile and session ID are mutually exclusive.
 3. Use `rel_capture` for one-shot navigation, actions, and rendered HTML. Use
    `rel_page_attach` followed by `rel_page_action` for a multi-step workflow on
    one attached page. Each `rel_page_action` call accepts exactly one action.

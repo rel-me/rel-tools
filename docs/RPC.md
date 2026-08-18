@@ -140,8 +140,9 @@ navigation. The error details contain the final `url` and exact
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
 | `POST` | `/v1/sessions/close` | Close every browser session in a group |
-| `GET` | `/v1/session-defaults` | Read defaults for newly created sessions |
-| `PATCH` | `/v1/session-defaults` | Update defaults for newly created sessions |
+| `GET` | `/v1/profiles` | List built-in and custom session profiles |
+| `POST` | `/v1/profiles` | Create a custom session profile |
+| `DELETE` | `/v1/profiles/{id}` | Delete a custom session profile |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
 | `PATCH` | `/v1/sessions/{id}` | Partially update a browser session |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
@@ -249,9 +250,11 @@ page and session IDs. Navigate it with `POST /v1/navigate`:
 ```
 
 Only `url` is required. The first request without `session_id` reuses the first
-persisted session, creating one only when none exists. Later requests without it
-reuse the current page and session. An explicit session selects that session as
-the new current page.
+persisted session, creating one from **Default** only when none exists. Later
+requests without it reuse the current page and session. An explicit `profile`
+instead creates a new session from that named template; it cannot be combined
+with `session_id`. An explicit session selects that session as the new current
+page.
 
 Perform one or more canonical actions with `POST /v1/perform`:
 
@@ -410,6 +413,7 @@ successful action returns a new post-action observation in the requested mode.
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
+| `profile` | Optional built-in or custom profile name for the newly created session. It cannot be combined with `session_id`; omission uses **Default**. |
 | `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
@@ -470,8 +474,9 @@ code 1; it is not an API error.
 }
 ```
 
-Omitting `session_id` creates a session and navigates it to `url`. `group` may
-label that new session and cannot be combined with `session_id`. Providing an
+Omitting `session_id` creates a session from the named `profile`, or from
+**Default** when it is absent, and navigates it to `url`. `profile` and `group`
+cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
 
@@ -557,6 +562,8 @@ A session resource is:
 {
   "id": "Session12",
   "name": "Session12",
+  "profile": "BandwidthSaver",
+  "profile_data_id": null,
   "group": "pgm",
   "proxy_alias": null,
   "adblock_enabled": true,
@@ -568,7 +575,7 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `POST /v1/sessions` accepts optional `name`, `group`, `proxy_alias`,
+- `POST /v1/sessions` accepts optional `name`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
 - `PATCH /v1/sessions/{id}` is partial and returns `data.session`.
@@ -586,28 +593,42 @@ only that ID; numeric database IDs are neither accepted nor returned. A group
 is immutable, contains 1–128 non-control characters after trimming, and may be
 shared by any number of sessions.
 
-## Session defaults
+## Profiles
 
-A session-defaults resource controls values used for future sessions. Proxy and
-filtering values are copied into new sessions and do not alter existing ones:
+Profiles are named templates copied into future sessions. The three generated
+built-ins are **Default** (direct connection, filters off), **AdBlock**
+(AdBlock on), and **BandwidthSaver** (AdBlock on and images larger than 10 kB
+blocked). A profile resource is:
 
 ```json
 {
+  "id": "builtin-bandwidth-saver",
+  "name": "BandwidthSaver",
   "proxy_alias": null,
   "adblock_enabled": true,
   "image_blocking_mode": "over_limit",
-  "image_size_limit_kb": 100
+  "image_size_limit_kb": 10,
+  "includes_cookies": false,
+  "includes_passwords": false,
+  "is_builtin": true,
+  "created_at": 0
 }
 ```
 
-- `GET /v1/session-defaults` returns `data.session_defaults`.
-- `PATCH /v1/session-defaults` accepts any non-empty subset of the fields above
-  and returns `data.session_defaults`. `proxy_alias:null` selects direct
-  networking.
+- `GET /v1/profiles` returns built-ins first, then custom profiles, in
+  `data.profiles`.
+- `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
+  the proxy, filtering, and browser-data inclusion fields above and returns
+  `data.profile`.
+- `DELETE /v1/profiles/{id}` deletes a custom profile and returns
+  `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
-On `POST /v1/sessions`, every omitted session setting uses this resource. A
-present `proxy_alias:null` is an explicit direct override; a present non-null value
-must reference an existing proxy. Automatically created sessions for captures
-and attached pages follow the same defaults, except an explicit request proxy
-overrides the default proxy. Capture events and page responses include
-the effective session ID.
+Profile names contain 1–128 non-control characters after trimming and are the
+selector used during session creation. On `POST /v1/sessions`, omission selects
+**Default**. Explicit session settings override the selected profile. A present
+`proxy_alias:null` is a direct override; a non-null value must reference an
+existing proxy. Automatically created sessions for capture, navigation, and
+attached pages follow the same rule. Capture events and page responses include
+the effective session ID. Browser-data payloads remain app-owned and never
+cross RPC; the inclusion flags describe what the app has attached to a custom
+profile.

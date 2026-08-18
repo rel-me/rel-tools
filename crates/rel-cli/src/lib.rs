@@ -490,8 +490,16 @@ fn apply_session_id_environment_default(
     environment_value: Option<OsString>,
 ) -> Result<(), CliError> {
     let session_id = match command {
-        CliCommand::Navigate(request) if request.session_id.is_none() => &mut request.session_id,
-        CliCommand::Capture(request) if request.session_id.is_none() && request.group.is_none() => {
+        CliCommand::Navigate(request)
+            if request.session_id.is_none() && request.profile.is_none() =>
+        {
+            &mut request.session_id
+        }
+        CliCommand::Capture(request)
+            if request.session_id.is_none()
+                && request.group.is_none()
+                && request.profile.is_none() =>
+        {
             &mut request.session_id
         }
         CliCommand::CaptureCurrent(request) if request.session_id.is_none() => {
@@ -499,7 +507,9 @@ fn apply_session_id_environment_default(
         }
         CliCommand::Perform(request) if request.session_id.is_none() => &mut request.session_id,
         CliCommand::PageAttach(request)
-            if request.session_id.is_none() && request.group.is_none() =>
+            if request.session_id.is_none()
+                && request.group.is_none()
+                && request.profile.is_none() =>
         {
             &mut request.session_id
         }
@@ -546,6 +556,7 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--profile" => request.profile = Some(args.option_value(&option, inline)?),
             "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
@@ -565,9 +576,9 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
             _ => return Err(args.unknown_option(&option, "capture")),
         }
     }
-    if request.session_id.is_some() && request.group.is_some() {
+    if request.session_id.is_some() && (request.group.is_some() || request.profile.is_some()) {
         return Err(CliError::Message(
-            "--group cannot be combined with --session-id".to_string(),
+            "--group and --profile cannot be combined with --session-id".to_string(),
         ));
     }
     Ok(CliCommand::Capture(request))
@@ -600,12 +611,18 @@ fn parse_navigate(mut args: Arguments) -> Result<CliCommand, CliError> {
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--profile" => request.profile = Some(args.option_value(&option, inline)?),
             "--proxy" => {
                 request.proxy = Some(parse_proxy_selector(&args.option_value(&option, inline)?))
             }
             "-h" | "--help" => return Err(CliError::Help(navigate_help())),
             _ => return Err(args.unknown_option(&option, "navigate")),
         }
+    }
+    if request.session_id.is_some() && request.profile.is_some() {
+        return Err(CliError::Message(
+            "--profile cannot be combined with --session-id".to_string(),
+        ));
     }
     Ok(CliCommand::Navigate(request))
 }
@@ -662,6 +679,7 @@ fn parse_page_attach(mut args: Arguments) -> Result<CliCommand, CliError> {
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--profile" => request.profile = Some(args.option_value(&option, inline)?),
             "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--proxy" => {
                 request.proxy = Some(parse_proxy_selector(&args.option_value(&option, inline)?))
@@ -670,9 +688,9 @@ fn parse_page_attach(mut args: Arguments) -> Result<CliCommand, CliError> {
             _ => return Err(args.unknown_option(&option, "page attach")),
         }
     }
-    if request.session_id.is_some() && request.group.is_some() {
+    if request.session_id.is_some() && (request.group.is_some() || request.profile.is_some()) {
         return Err(CliError::Message(
-            "--group cannot be combined with --session-id".to_string(),
+            "--group and --profile cannot be combined with --session-id".to_string(),
         ));
     }
     Ok(CliCommand::PageAttach(request))
@@ -921,6 +939,7 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
         match option.as_str() {
             "--name" => request.name = Some(args.option_value(&option, inline)?),
             "--group" => request.group = Some(args.option_value(&option, inline)?),
+            "--profile" => request.profile = Some(args.option_value(&option, inline)?),
             "--proxy" => set_change(
                 &mut request.proxy_alias,
                 Change::Set(args.option_value(&option, inline)?),
@@ -1268,6 +1287,7 @@ Options:\n  \
 --action JSON                 Repeat for multiple canonical action objects\n  \
 --actions JSON                Canonical action object array\n  \
 --session-id ID              Default: $REL_SESSION_ID when set\n  \
+--profile NAME               Create the session from this named profile\n  \
 --group GROUP                Group a new URL-capture session; conflicts with --session-id\n  \
 --proxy ALIAS\n  \
 --retry COUNT\n  \
@@ -1280,10 +1300,11 @@ to stderr."
 
 fn navigate_help() -> String {
     "Usage:\n  \
-rel navigate URL [--session-id ID] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n\n\
+rel navigate URL [--session-id ID | --profile NAME] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n\n\
 Navigates the current shorthand page. The first call reuses a persisted session,\n\
 creating one only when none exists; later calls reuse that page and session.
---session-id defaults to $REL_SESSION_ID when set; an explicit value wins."
+--session-id defaults to $REL_SESSION_ID when set; --profile creates a session
+from a named profile and suppresses that default."
         .to_string()
 }
 
@@ -1299,10 +1320,11 @@ $REL_SESSION_ID when set; an explicit value wins."
 
 fn page_help() -> String {
     "Usage:\n  \
-rel page attach URL [--session-id ID | --group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
+rel page attach URL [--session-id ID | --profile NAME] [--group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
 rel page action PAGE_ID --action JSON [--output PATH] [--timeout S] [--wait S]\n\n\
-For page attach, --session-id defaults to $REL_SESSION_ID when set. --group
-labels a newly created session and suppresses that environment default."
+For page attach, --session-id defaults to $REL_SESSION_ID when set. --profile
+creates a session from a named profile; --group labels a newly created session.
+Either creation option suppresses that environment default."
         .to_string()
 }
 
@@ -1350,9 +1372,9 @@ rel session update SESSION_ID [options]\n  \
 rel session delete SESSION_ID\n  \
 rel session close --group GROUP\n\n\
 Options:\n  \
---name NAME --group GROUP --proxy ALIAS --adblock-enabled true|false\n  \
+--name NAME --group GROUP --profile NAME --proxy ALIAS --adblock-enabled true|false\n  \
 --image-blocking-mode none|all|over_limit --image-size-limit-kb KB\n  \
---direct                       Use a direct connection instead of the default proxy\n  \
+--direct                       Override the profile with a direct connection\n  \
 --id-only                     For create, print only the new session ID"
         .to_string()
 }
@@ -1487,6 +1509,52 @@ mod tests {
             "https://example.com",
             "--group",
             "pgm",
+            "--session-id",
+            "machine-x.Session1",
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn named_profile_creates_sessions_and_suppresses_environment_default() {
+        let CliCommand::Capture(capture) = parse_with_session_default(
+            &[
+                "capture",
+                "https://example.com",
+                "--profile",
+                "BandwidthSaver",
+            ],
+            Some("machine-x.Environment"),
+        )
+        .unwrap() else {
+            panic!("expected capture");
+        };
+        assert_eq!(capture.session_id, None);
+        assert_eq!(capture.profile.as_deref(), Some("BandwidthSaver"));
+
+        let CliCommand::Navigate(navigate) = parse_with_session_default(
+            &["navigate", "https://example.com", "--profile", "AdBlock"],
+            Some("machine-x.Environment"),
+        )
+        .unwrap() else {
+            panic!("expected navigate");
+        };
+        assert_eq!(navigate.session_id, None);
+        assert_eq!(navigate.profile.as_deref(), Some("AdBlock"));
+
+        let CliCommand::SessionCreate { request, .. } =
+            parse(&["session", "create", "--profile", "Research"]).unwrap()
+        else {
+            panic!("expected session create");
+        };
+        assert_eq!(request.profile.as_deref(), Some("Research"));
+
+        assert!(parse(&[
+            "page",
+            "attach",
+            "https://example.com",
+            "--profile",
+            "AdBlock",
             "--session-id",
             "machine-x.Session1",
         ])
@@ -1856,6 +1924,8 @@ mod tests {
                 session: client::Session {
                     id: "machine-test.Session12".to_string(),
                     name: "Research".to_string(),
+                    profile: "BandwidthSaver".to_string(),
+                    profile_data_id: None,
                     group: Some("pgm".to_string()),
                     proxy_alias: Some("office".to_string()),
                     adblock_enabled: true,
