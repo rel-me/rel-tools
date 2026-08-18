@@ -55,7 +55,7 @@ Begin with a read-only check after restarting or reloading plugins:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Claude Code should discover seven REL MCP tools without opening REL. If REL is
+Claude Code should discover ten REL MCP tools without opening REL. If REL is
 already running, `rel_status` reports the app, local agent, Browser Proxy, and
 embedded Chromium bridge. Otherwise it returns the local connection error
 without launching the app; `rel_list_sessions` then starts REL lazily.

@@ -70,7 +70,7 @@ Begin with a read-only check in a new task:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover seven `rel_*` tools without opening REL. If REL is already
+Codex should discover ten `rel_*` tools without opening REL. If REL is already
 running, `rel_status` reports the app, local agent, Browser Proxy, and embedded
 Chromium bridge. Otherwise it returns the local connection error without
 launching the app; `rel_list_sessions` then starts REL lazily.
