@@ -366,6 +366,10 @@ Every proxy has a required, case-insensitively unique alias. The alias is its
 only public identifier: use it for every CLI and RPC reference. Numeric database
 IDs and UUIDs are not accepted or returned by the public API.
 
+REL stores proxy usernames and passwords in macOS Keychain under the active
+Release or Debug app namespace. They are not stored in SQLite, and password
+values are never returned by proxy read or list commands.
+
 ```sh
 rel proxy list
 rel proxy get office

@@ -483,7 +483,9 @@ A proxy resource is:
 ```
 If no Oxylabs configuration exists for a proxy, `oxylabs` is omitted.
 
-Passwords are accepted on writes but never returned.
+Passwords are accepted on writes but never returned. The Rust agent stores
+proxy usernames and passwords as per-proxy items in macOS Keychain; they are
+not stored in SQLite or passed to Swift or Chromium.
 
 - `GET /v1/proxies` returns `data.proxies`, ordered by creation order.
 - `GET /v1/proxies/{alias}` returns `data.proxy`.
