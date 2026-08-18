@@ -13,7 +13,8 @@ Related documents: [CLI](CLI.md), [MCP](MCP.md), and [Rust SDK](SDK.md).
 - JSON request limit: 16 MiB.
 - Ordinary responses use `application/json`.
 - Capture streams use `application/x-ndjson` and terminate at connection close.
-- The agent is loopback-only but currently has no client authentication.
+- The agent is loopback-only. Public routes have no client authentication; the
+  app-only password reveal action requires a process-scoped private capability.
 
 Every parsed request receives an opaque ID. Ordinary responses include it in the
 `X-Request-Id` header and body. Every capture-stream line includes the same ID.
@@ -129,6 +130,7 @@ navigation. The error details contain the final `url` and exact
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
+| `POST` | `/v1/proxies/{alias}/reveal-password` | App-authorized password reveal |
 | `POST` | `/v1/proxies/{alias}/rotate-session` | Rotate an Oxylabs session |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
@@ -483,9 +485,9 @@ A proxy resource is:
 ```
 If no Oxylabs configuration exists for a proxy, `oxylabs` is omitted.
 
-Passwords are accepted on writes but never returned. The Rust agent stores
-proxy usernames and passwords as per-proxy items in macOS Keychain; they are
-not stored in SQLite or passed to Swift or Chromium.
+Passwords are accepted on writes but omitted from normal reads. The Rust agent
+stores proxy usernames and passwords as per-proxy items in macOS Keychain; they
+are not stored in SQLite or passed to Chromium.
 
 - `GET /v1/proxies` returns `data.proxies`, ordered by creation order.
 - `GET /v1/proxies/{alias}` returns `data.proxy`.
@@ -496,6 +498,11 @@ not stored in SQLite or passed to Swift or Chromium.
   `username:null` or `password:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns
   `data.deleted_alias`.
+- `POST /v1/proxies/{alias}/reveal-password` returns `data.password` only when
+  the request carries the process-scoped `X-REL-App-Authorization` capability
+  sent to the owning app over its private child pipe. The app uses this
+  operation after the user clicks **Show Password**. CLI, SDK, MCP, and ordinary
+  raw RPC clients do not receive this capability.
 - `POST /v1/proxies/{alias}/rotate-session` requires an Oxylabs-enabled proxy and
   returns `data.proxy`.
 
