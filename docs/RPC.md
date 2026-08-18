@@ -142,6 +142,7 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/sessions/close` | Close every browser session in a group |
 | `GET` | `/v1/profiles` | List built-in and custom session profiles |
 | `POST` | `/v1/profiles` | Create a custom session profile |
+| `PATCH` | `/v1/profiles/{id}` | Update custom-profile browser-data availability |
 | `DELETE` | `/v1/profiles/{id}` | Delete a custom session profile |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
 | `PATCH` | `/v1/sessions/{id}` | Partially update a browser session |
@@ -620,6 +621,10 @@ blocked). A profile resource is:
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
   the proxy, filtering, and browser-data inclusion fields above and returns
   `data.profile`.
+- `PATCH /v1/profiles/{id}` accepts `includes_cookies` and/or
+  `includes_passwords` booleans and returns the updated custom profile in
+  `data.profile`. REL.app uses this metadata update after it has safely staged
+  imported browser data; cookie and password values never cross RPC.
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
@@ -631,4 +636,5 @@ existing proxy. Automatically created sessions for capture, navigation, and
 attached pages follow the same rule. Capture events and page responses include
 the effective session ID. Browser-data payloads remain app-owned and never
 cross RPC; the inclusion flags describe what the app has attached to a custom
-profile.
+profile. Importing a selected category again replaces that category in the
+app-owned template without changing sessions already created from it.

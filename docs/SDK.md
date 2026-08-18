@@ -74,6 +74,7 @@ Each method maps to one public RPC route:
 | `create_session(&SessionCreateRequest)` | `POST /v1/sessions` |
 | `list_profiles()` | `GET /v1/profiles` |
 | `create_profile(&ProfileCreateRequest)` | `POST /v1/profiles` |
+| `update_profile_data(id, &ProfileDataUpdateRequest)` | `PATCH /v1/profiles/{id}` |
 | `delete_profile(id)` | `DELETE /v1/profiles/{id}` |
 | `update_session(id, &SessionUpdateRequest)` | `PATCH /v1/sessions/{id}` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
@@ -301,9 +302,12 @@ RelClient::local().close_session_group("pgm")?;
 `Profile` contains its public `id`, unique `name`, proxy and filtering policy,
 browser-data inclusion flags, built-in status, and creation time.
 `ProfileCreateRequest` creates a custom settings template; browser-data import
-itself remains app-owned. Built-ins cannot be deleted. `ImageBlockingMode::None`
-allows every image without disabling AdBlock. Existing sessions retain copied
-settings and data after their source profile is deleted. REL does not impose a
+itself remains app-owned. `ProfileDataUpdateRequest` updates the two inclusion
+flags after REL.app stages an import; no cookie or password values cross RPC.
+Re-importing a selected category replaces that category in the template.
+Built-ins cannot be modified or deleted. `ImageBlockingMode::None` allows every
+image without disabling AdBlock. Existing sessions retain copied settings and
+data after their source profile is changed or deleted. REL does not impose a
 maximum session count.
 
 `Session::profile` exposes the source profile name and

@@ -364,6 +364,18 @@ impl RelClient {
         self.request("POST", "/profiles", Some(request))
     }
 
+    pub fn update_profile_data(
+        &self,
+        id: &str,
+        request: &ProfileDataUpdateRequest,
+    ) -> Result<RpcResponse<ProfileData>, ClientError> {
+        self.request(
+            "PATCH",
+            &format!("/profiles/{}", encode_path_segment(id)),
+            Some(request),
+        )
+    }
+
     pub fn delete_profile(&self, id: &str) -> Result<RpcResponse<DeletedData>, ClientError> {
         self.request::<DeletedData, Value>(
             "DELETE",
@@ -1379,6 +1391,12 @@ pub struct ProfileCreateRequest {
     pub includes_passwords: Option<bool>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileDataUpdateRequest {
+    pub includes_cookies: bool,
+    pub includes_passwords: bool,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ImageBlockingMode {
@@ -1879,7 +1897,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(27, |index, request| {
+        let (base_url, server) = start_test_server(28, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -1944,7 +1962,9 @@ mod tests {
                 | ("POST", "/v1/sessions")
                 | ("PATCH", "/v1/sessions/machine-a.Session1") => json!({"session":session_json()}),
                 ("GET", "/v1/profiles") => json!({"profiles":[profile_json()]}),
-                ("POST", "/v1/profiles") => json!({"profile":profile_json()}),
+                ("POST", "/v1/profiles") | ("PATCH", "/v1/profiles/custom-profile-id") => {
+                    json!({"profile":profile_json()})
+                }
                 ("DELETE", "/v1/profiles/custom-profile-id") => {
                     json!({"deleted_id":"custom-profile-id"})
                 }
@@ -2071,6 +2091,15 @@ mod tests {
                 includes_passwords: Some(false),
             })
             .unwrap();
+        client
+            .update_profile_data(
+                "custom-profile-id",
+                &ProfileDataUpdateRequest {
+                    includes_cookies: true,
+                    includes_passwords: true,
+                },
+            )
+            .unwrap();
         client.delete_profile("custom-profile-id").unwrap();
         client
             .update_session(
@@ -2120,6 +2149,7 @@ mod tests {
                 ("POST", "/v1/sessions"),
                 ("GET", "/v1/profiles"),
                 ("POST", "/v1/profiles"),
+                ("PATCH", "/v1/profiles/custom-profile-id"),
                 ("DELETE", "/v1/profiles/custom-profile-id"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
@@ -2127,7 +2157,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[27].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
@@ -2174,7 +2204,11 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[24].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[23].body).unwrap(),
+            json!({"includes_cookies":true,"includes_passwords":true})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }
