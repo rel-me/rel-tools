@@ -251,7 +251,7 @@ page and session IDs. Navigate it with `POST /v1/navigate`:
 ```
 
 Only `url` is required. The first request without `session_id` reuses the first
-persisted session, creating one from **Default** only when none exists. Later
+persisted session, creating one from **Direct** only when none exists. Later
 requests without it reuse the current page and session. An explicit `profile`
 instead creates a new session from that named template; it cannot be combined
 with `session_id`. An explicit session selects that session as the new current
@@ -414,7 +414,7 @@ successful action returns a new post-action observation in the requested mode.
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
-| `profile` | Optional built-in or custom profile name for the newly created session. It cannot be combined with `session_id`; omission uses **Default**. |
+| `profile` | Optional built-in or custom profile name for the newly created session. It cannot be combined with `session_id`; omission uses **Direct**. |
 | `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
@@ -476,7 +476,7 @@ code 1; it is not an API error.
 ```
 
 Omitting `session_id` creates a session from the named `profile`, or from
-**Default** when it is absent, and navigates it to `url`. `profile` and `group`
+**Direct** when it is absent, and navigates it to `url`. `profile` and `group`
 cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
@@ -597,7 +597,7 @@ shared by any number of sessions.
 ## Profiles
 
 Profiles are named templates copied into future sessions. The three generated
-built-ins are **Default** (direct connection, filters off), **AdBlock**
+built-ins are **Direct** (direct connection, filters off), **AdBlock**
 (AdBlock on), and **BandwidthSaver** (AdBlock on and images larger than 10 kB
 blocked). A profile resource is:
 
@@ -630,7 +630,7 @@ blocked). A profile resource is:
 
 Profile names contain 1–128 non-control characters after trimming and are the
 selector used during session creation. On `POST /v1/sessions`, omission selects
-**Default**. Explicit session settings override the selected profile. A present
+**Direct**. Explicit session settings override the selected profile. A present
 `proxy_alias:null` is a direct override; a non-null value must reference an
 existing proxy. Automatically created sessions for capture, navigation, and
 attached pages follow the same rule. Capture events and page responses include

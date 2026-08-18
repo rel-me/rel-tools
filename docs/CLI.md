@@ -323,7 +323,7 @@ Session<ID>
 For a new session, `--proxy oxylabs` is shorthand for creating a persistent
 session assigned to `oxylabs`, then capturing with it. Its canonical ID is
 returned as `data.session_id` in the NDJSON capture events. Omitting `--proxy`
-uses the selected profile, or the built-in **Default** profile when
+uses the selected profile, or the built-in **Direct** profile when
 `--profile` is omitted.
 For an existing session, omission preserves its current assignment; an explicit
 proxy updates the assignment.
@@ -456,7 +456,7 @@ rel session create \
 ```
 
 Every create option is optional. `--profile` accepts the unique name shown in
-**REL → Settings… → Profiles**; omission uses **Default**. Omitted proxy and
+**REL → Settings… → Profiles**; omission uses **Direct**. Omitted proxy and
 filtering options use the selected profile. Use `--direct` to override it with
 a direct connection. `--image-blocking-mode` is `none`, `all`, or
 `over_limit`; `none` allows every image without changing AdBlock.
