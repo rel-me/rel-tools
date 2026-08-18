@@ -10,8 +10,11 @@ the MCP adapter only forwards supported calls through the local versioned API.
 
 ## Workflow
 
-1. Call `rel_status` before the first browser operation. If a required service is
-   unhealthy, report the returned error and stop the REL workflow.
+1. Call `rel_status` before the first browser operation. It never launches the
+   app. If REL is not running and the user requested browser work, continue to
+   the first required non-status tool; operational tools start REL lazily. If a
+   running service is unhealthy, report the returned error and stop the REL
+   workflow.
 2. When the user names a session, preserve its canonical `Session<number>` ID.
    Otherwise call `rel_list_sessions` before reusing browser state. Do not omit
    `session_id` merely to inspect existing state because omission can create a

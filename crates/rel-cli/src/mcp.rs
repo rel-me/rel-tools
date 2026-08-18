@@ -1,3 +1,4 @@
+use crate::app;
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use rel_client::{
     self as client, Action, CaptureRequest, ObservationActionKind, ObservationActionRequest,
@@ -21,10 +22,19 @@ const LEGACY_PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2025-06-18", "2025-03
 const MAX_MCP_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
 const TOOL_LIST_TTL_MS: u64 = 3_600_000;
 
+type EnsureAgentRunning = Arc<dyn Fn() -> Result<(), String> + Send + Sync>;
+
 pub(crate) fn serve_stdio(client: RelClient, server_version: &str) -> Result<(), String> {
     let stdin = io::stdin();
     let stdout = io::stdout();
-    serve(BufReader::new(stdin), stdout, client, server_version)
+    let ensure_agent_running: EnsureAgentRunning = Arc::new(app::ensure_agent_running);
+    serve(
+        BufReader::new(stdin),
+        stdout,
+        client,
+        server_version,
+        ensure_agent_running,
+    )
 }
 
 fn serve<R: BufRead, W: Write + Send + 'static>(
@@ -32,6 +42,7 @@ fn serve<R: BufRead, W: Write + Send + 'static>(
     writer: W,
     client: RelClient,
     server_version: &str,
+    ensure_agent_running: EnsureAgentRunning,
 ) -> Result<(), String> {
     let mut state = ServerState::new(server_version);
     let writer = Arc::new(Mutex::new(writer));
@@ -108,12 +119,14 @@ fn serve<R: BufRead, W: Write + Send + 'static>(
                 let worker_client = client.clone();
                 let worker_cancellation = cancellation.clone();
                 let worker_server_version = state.server_version.clone();
+                let worker_ensure_agent_running = ensure_agent_running.clone();
                 let handle = thread::spawn(move || {
                     let result = match handle_tool_call(
                         &worker_client,
                         &params,
                         era,
                         &worker_server_version,
+                        worker_ensure_agent_running.as_ref(),
                     ) {
                         Ok(result) => rpc_result(id.clone(), result),
                         Err(error) => with_rpc_id(id, error),
@@ -870,6 +883,7 @@ fn handle_tool_call(
     params: &Value,
     era: ProtocolEra,
     server_version: &str,
+    ensure_agent_running: &(dyn Fn() -> Result<(), String> + Send + Sync),
 ) -> Result<Value, Value> {
     let Some(name) = params.get("name").and_then(Value::as_str) else {
         return Err(rpc_error_without_id(-32602, "Tool name is required", None));
@@ -906,39 +920,61 @@ fn handle_tool_call(
             .and_then(|()| client.status().map_err(client_error_value))
             .and_then(to_json_value),
         "rel_list_sessions" => decode_empty_arguments(arguments)
+            .and_then(|()| ensure_runtime(ensure_agent_running))
             .and_then(|()| client.list_sessions().map_err(client_error_value))
             .and_then(to_json_value),
         "rel_close_session_group" => decode_arguments::<CloseSessionGroupArguments>(arguments)
             .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
                 client
                     .close_session_group(&arguments.group)
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
         "rel_list_proxies" => decode_empty_arguments(arguments)
+            .and_then(|()| ensure_runtime(ensure_agent_running))
             .and_then(|()| client.list_proxies().map_err(client_error_value))
             .and_then(to_json_value),
         "rel_page_attach" => decode_arguments::<PageAttachArguments>(arguments)
             .and_then(PageAttachRequest::try_from)
-            .and_then(|request| client.attach_page(&request).map_err(client_error_value))
+            .and_then(|request| {
+                ensure_runtime(ensure_agent_running)?;
+                client.attach_page(&request).map_err(client_error_value)
+            })
             .and_then(to_json_value),
         "rel_page_action" => decode_arguments::<PageActionArguments>(arguments)
             .and_then(PageActionArguments::into_request)
             .and_then(|(page_id, request)| {
+                ensure_runtime(ensure_agent_running)?;
                 client
                     .perform_page_action(&page_id, &request)
                     .map_err(client_error_value)
                     .and_then(to_json_value)
             }),
         "rel_take_screenshot" => decode_arguments::<ScreenshotArguments>(arguments)
-            .and_then(|arguments| arguments.execute(client)),
+            .and_then(ScreenshotArguments::into_execution)
+            .and_then(|execution| {
+                ensure_runtime(ensure_agent_running)?;
+                execution.execute(client)
+            }),
         "rel_observe" => decode_arguments::<ObservationArguments>(arguments)
-            .and_then(|arguments| arguments.execute(client)),
-        "rel_action" => decode_arguments::<ObservationActionArguments>(arguments)
-            .and_then(|arguments| arguments.execute(client)),
+            .and_then(ObservationArguments::into_execution)
+            .and_then(|execution| {
+                ensure_runtime(ensure_agent_running)?;
+                execution.execute(client)
+            }),
+        "rel_action" => {
+            decode_arguments::<ObservationActionArguments>(arguments).and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                arguments.execute(client)
+            })
+        }
         "rel_capture" => decode_arguments::<CaptureArguments>(arguments)
             .and_then(CaptureRequest::try_from)
-            .and_then(|request| capture_tool(client, &request)),
+            .and_then(|request| {
+                ensure_runtime(ensure_agent_running)?;
+                capture_tool(client, &request)
+            }),
         _ => unreachable!("tool name was validated"),
     }
     .map(|value| (value, false))
@@ -986,6 +1022,12 @@ fn handle_tool_call(
         era,
         server_version,
     ))
+}
+
+fn ensure_runtime(
+    ensure_agent_running: &(dyn Fn() -> Result<(), String> + Send + Sync),
+) -> Result<(), Value> {
+    ensure_agent_running().map_err(|error| tool_error_value("REL_STARTUP_ERROR", &error))
 }
 
 fn to_json_value<T: serde::Serialize>(value: T) -> Result<Value, Value> {
@@ -1423,7 +1465,7 @@ struct ScreenshotArguments {
 }
 
 impl ScreenshotArguments {
-    fn execute(self, client: &RelClient) -> Result<Value, Value> {
+    fn into_execution(self) -> Result<ScreenshotExecution, Value> {
         let output = output_path_from_uri(self.output_uri)?;
         match self.page_id {
             Some(page_id) => {
@@ -1433,31 +1475,48 @@ impl ScreenshotArguments {
                         "session_id cannot be combined with page_id",
                     ));
                 }
-                client
-                    .take_page_screenshot(
-                        &page_id,
-                        &PageScreenshotRequest {
-                            output,
-                            format: self.format,
-                            quality: self.quality,
-                            full_page: self.full_page,
-                            timeout: self.timeout,
-                            wait: self.wait,
-                        },
-                    )
-                    .map_err(client_error_value)
-                    .and_then(to_json_value)
-            }
-            None => client
-                .screenshot_current_page(&ScreenshotRequest {
-                    session_id: self.session_id,
-                    output,
-                    format: self.format,
-                    quality: self.quality,
-                    full_page: self.full_page,
-                    timeout: self.timeout,
-                    wait: self.wait,
+                Ok(ScreenshotExecution::Page {
+                    page_id,
+                    request: PageScreenshotRequest {
+                        output,
+                        format: self.format,
+                        quality: self.quality,
+                        full_page: self.full_page,
+                        timeout: self.timeout,
+                        wait: self.wait,
+                    },
                 })
+            }
+            None => Ok(ScreenshotExecution::Current(ScreenshotRequest {
+                session_id: self.session_id,
+                output,
+                format: self.format,
+                quality: self.quality,
+                full_page: self.full_page,
+                timeout: self.timeout,
+                wait: self.wait,
+            })),
+        }
+    }
+}
+
+enum ScreenshotExecution {
+    Page {
+        page_id: String,
+        request: PageScreenshotRequest,
+    },
+    Current(ScreenshotRequest),
+}
+
+impl ScreenshotExecution {
+    fn execute(self, client: &RelClient) -> Result<Value, Value> {
+        match self {
+            Self::Page { page_id, request } => client
+                .take_page_screenshot(&page_id, &request)
+                .map_err(client_error_value)
+                .and_then(to_json_value),
+            Self::Current(request) => client
+                .screenshot_current_page(&request)
                 .map_err(client_error_value)
                 .and_then(to_json_value),
         }
@@ -1475,7 +1534,7 @@ struct ObservationArguments {
 }
 
 impl ObservationArguments {
-    fn execute(self, client: &RelClient) -> Result<Value, Value> {
+    fn into_execution(self) -> Result<ObservationExecution, Value> {
         match self.page_id {
             Some(page_id) => {
                 if self.session_id.is_some() {
@@ -1484,25 +1543,42 @@ impl ObservationArguments {
                         "session_id cannot be combined with page_id",
                     ));
                 }
-                client
-                    .observe_page(
-                        &page_id,
-                        &PageObservationRequest {
-                            mode: self.mode,
-                            timeout: self.timeout,
-                            wait: self.wait,
-                        },
-                    )
-                    .map_err(client_error_value)
-                    .and_then(to_json_value)
-            }
-            None => client
-                .observe_current_page(&ObservationRequest {
-                    session_id: self.session_id,
-                    mode: self.mode,
-                    timeout: self.timeout,
-                    wait: self.wait,
+                Ok(ObservationExecution::Page {
+                    page_id,
+                    request: PageObservationRequest {
+                        mode: self.mode,
+                        timeout: self.timeout,
+                        wait: self.wait,
+                    },
                 })
+            }
+            None => Ok(ObservationExecution::Current(ObservationRequest {
+                session_id: self.session_id,
+                mode: self.mode,
+                timeout: self.timeout,
+                wait: self.wait,
+            })),
+        }
+    }
+}
+
+enum ObservationExecution {
+    Page {
+        page_id: String,
+        request: PageObservationRequest,
+    },
+    Current(ObservationRequest),
+}
+
+impl ObservationExecution {
+    fn execute(self, client: &RelClient) -> Result<Value, Value> {
+        match self {
+            Self::Page { page_id, request } => client
+                .observe_page(&page_id, &request)
+                .map_err(client_error_value)
+                .and_then(to_json_value),
+            Self::Current(request) => client
+                .observe_current_page(&request)
                 .map_err(client_error_value)
                 .and_then(to_json_value),
         }
@@ -1554,6 +1630,7 @@ mod tests {
     use super::*;
     use std::io::{BufReader, Cursor, Read};
     use std::net::{TcpListener, TcpStream};
+    use std::sync::atomic::AtomicUsize;
     use std::thread::{self, JoinHandle};
     use std::time::{Duration, Instant};
 
@@ -1589,11 +1666,23 @@ mod tests {
         })
     }
 
+    fn ready_runtime() -> EnsureAgentRunning {
+        Arc::new(|| Ok(()))
+    }
+
     fn run_messages(messages: &[Value]) -> Vec<Value> {
         run_messages_with_client(messages, RelClient::new("http://127.0.0.1:1/v1"))
     }
 
     fn run_messages_with_client(messages: &[Value], client: RelClient) -> Vec<Value> {
+        run_messages_with_client_and_runtime(messages, client, ready_runtime())
+    }
+
+    fn run_messages_with_client_and_runtime(
+        messages: &[Value],
+        client: RelClient,
+        ensure_agent_running: EnsureAgentRunning,
+    ) -> Vec<Value> {
         let input = messages
             .iter()
             .map(Value::to_string)
@@ -1614,6 +1703,7 @@ mod tests {
             output.clone(),
             client,
             TEST_SERVER_VERSION,
+            ensure_agent_running,
         )
         .unwrap();
         input_writer.join().unwrap();
@@ -1749,6 +1839,7 @@ mod tests {
             output.clone(),
             RelClient::new("http://127.0.0.1:1/v1"),
             TEST_SERVER_VERSION,
+            ready_runtime(),
         )
         .unwrap();
         let parse_error: Value = serde_json::from_slice(&output.contents()).unwrap();
@@ -1960,6 +2051,108 @@ mod tests {
         assert_eq!(
             output[0]["result"]["structuredContent"]["data"]["deleted_ids"],
             json!(["Session1", "Session2"])
+        );
+    }
+
+    #[test]
+    fn status_tool_does_not_start_the_runtime() {
+        let body = json!({
+            "status": "ok",
+            "request_id": "req_status",
+            "data": {
+                "overall_status": "ok",
+                "running_count": 4,
+                "total_count": 4,
+                "build": null,
+                "checks": []
+            }
+        })
+        .to_string();
+        let (base_url, server) =
+            start_test_server(http_response("application/json", "req_status", &body));
+        let starts = Arc::new(AtomicUsize::new(0));
+        let starts_for_runtime = starts.clone();
+        let runtime: EnsureAgentRunning = Arc::new(move || {
+            starts_for_runtime.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+
+        let output = run_messages_with_client_and_runtime(
+            &[json!({
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "tools/call",
+                "params": {
+                    "_meta": modern_metadata(),
+                    "name": "rel_status",
+                    "arguments": {}
+                }
+            })],
+            RelClient::new(base_url),
+            runtime,
+        );
+        server.join().unwrap();
+
+        assert_eq!(starts.load(Ordering::SeqCst), 0);
+        assert_eq!(output[0]["result"]["isError"], false);
+    }
+
+    #[test]
+    fn operational_tools_start_the_runtime_after_validation() {
+        let starts = Arc::new(AtomicUsize::new(0));
+        let starts_for_runtime = starts.clone();
+        let runtime: EnsureAgentRunning = Arc::new(move || {
+            starts_for_runtime.fetch_add(1, Ordering::SeqCst);
+            Err("Rel startup failed for test".to_string())
+        });
+        let output = run_messages_with_client_and_runtime(
+            &[json!({
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "tools/call",
+                "params": {
+                    "_meta": modern_metadata(),
+                    "name": "rel_list_sessions",
+                    "arguments": {}
+                }
+            })],
+            RelClient::new("http://127.0.0.1:1/v1"),
+            runtime,
+        );
+
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        assert_eq!(output[0]["result"]["isError"], true);
+        assert_eq!(
+            output[0]["result"]["structuredContent"]["error"]["id"],
+            "REL_STARTUP_ERROR"
+        );
+
+        let invalid_starts = Arc::new(AtomicUsize::new(0));
+        let invalid_starts_for_runtime = invalid_starts.clone();
+        let invalid_runtime: EnsureAgentRunning = Arc::new(move || {
+            invalid_starts_for_runtime.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        });
+        let invalid_output = run_messages_with_client_and_runtime(
+            &[json!({
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "tools/call",
+                "params": {
+                    "_meta": modern_metadata(),
+                    "name": "rel_capture",
+                    "arguments": {"url": "https://example.com", "unexpected": true}
+                }
+            })],
+            RelClient::new("http://127.0.0.1:1/v1"),
+            invalid_runtime,
+        );
+
+        assert_eq!(invalid_starts.load(Ordering::SeqCst), 0);
+        assert_eq!(invalid_output[0]["result"]["isError"], true);
+        assert_eq!(
+            invalid_output[0]["result"]["structuredContent"]["error"]["id"],
+            "INVALID_ARGUMENTS"
         );
     }
 
@@ -2343,6 +2536,7 @@ mod tests {
             output,
             RelClient::new(base_url),
             TEST_SERVER_VERSION,
+            ready_runtime(),
         )
         .unwrap();
 
