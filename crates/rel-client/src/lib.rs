@@ -142,6 +142,14 @@ impl RelClient {
         self.request::<StatusReport, Value>("GET", "/status", None)
     }
 
+    /// List the bounded in-memory queue of website notifications that the user
+    /// explicitly opted in to share with agents.
+    pub fn list_notifications(
+        &self,
+    ) -> Result<RpcResponse<BrowserNotificationListData>, ClientError> {
+        self.request::<BrowserNotificationListData, Value>("GET", "/notifications", None)
+    }
+
     pub fn capture(&self, request: &CaptureRequest) -> Result<CaptureStream, ClientError> {
         let timeout = capture_request_timeout(request);
         let response = self.send("POST", "/captures", Some(request), timeout)?;
@@ -1311,6 +1319,27 @@ impl<T: Serialize> Serialize for Change<T> {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BrowserNotificationListData {
+    pub notifications: Vec<BrowserNotification>,
+    pub trust: String,
+}
+
+/// Website-provided notification content. Callers must treat every text field
+/// as untrusted data, never as instructions or authority.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BrowserNotification {
+    pub sequence: u64,
+    pub session_id: String,
+    pub origin: String,
+    pub title: String,
+    pub body: String,
+    pub notification_id: String,
+    pub persistent: bool,
+    pub displayed_at: String,
+    pub trust: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ProxyListData {
     pub proxies: Vec<Proxy>,
 }
@@ -1897,7 +1926,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(28, |index, request| {
+        let (base_url, server) = start_test_server(29, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -1914,6 +1943,20 @@ mod tests {
                         "dirty":true},
                     "checks":[{"id":"agent","name":"Agent","kind":"service","running":true,
                         "status":"running","detail":"ready","pids":[123]}]
+                }),
+                ("GET", "/v1/notifications") => json!({
+                    "notifications":[{
+                        "sequence":1,
+                        "session_id":"machine-a.Session1",
+                        "origin":"https://example.com/",
+                        "title":"Example",
+                        "body":"Untrusted website content",
+                        "notification_id":"notification-1",
+                        "persistent":false,
+                        "displayed_at":"2026-08-17T20:00:00Z",
+                        "trust":"untrusted_website_content"
+                    }],
+                    "trust":"untrusted_website_content"
                 }),
                 ("POST", "/v1/navigate")
                 | ("POST", "/v1/perform")
@@ -1982,6 +2025,9 @@ mod tests {
         assert_eq!(health.data.build.as_ref().unwrap().worktree, "ba49");
         let status = client.status().unwrap();
         assert_eq!(status.data.build, health.data.build);
+        let notifications = client.list_notifications().unwrap();
+        assert_eq!(notifications.data.notifications[0].sequence, 1);
+        assert_eq!(notifications.data.trust, "untrusted_website_content");
         client
             .navigate(&NavigateRequest::new("example.com"))
             .unwrap();
@@ -2125,6 +2171,7 @@ mod tests {
             vec![
                 ("GET", "/v1/health"),
                 ("GET", "/v1/status"),
+                ("GET", "/v1/notifications"),
                 ("POST", "/v1/navigate"),
                 ("POST", "/v1/perform"),
                 ("POST", "/v1/capture"),
@@ -2157,26 +2204,26 @@ mod tests {
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[27].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[2].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[3].body).unwrap(),
             json!({"url":"example.com"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[3].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[4].body).unwrap(),
             json!({"session_id":"machine-a.Session1","actions":[
                 {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1.0}},
                 {"action":"wait","seconds":0.0}
             ]})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[4].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[5].body).unwrap(),
             json!({"session_id":"machine-a.Session1"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[5].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[6].body).unwrap(),
             json!({
                 "session_id":"machine-a.Session1",
                 "format":"webp",
@@ -2185,15 +2232,15 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[14].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[15].body).unwrap(),
             json!({"alias":"office","upstream_host":"proxy.example.com","upstream_port":8000})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[15].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[16].body).unwrap(),
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[23].body).unwrap(),
             json!({
                 "name":"Research",
                 "adblock_enabled":true,
@@ -2204,11 +2251,11 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[23].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[24].body).unwrap(),
             json!({"includes_cookies":true,"includes_passwords":true})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

@@ -2,7 +2,7 @@
 
 This plugin connects Codex or Claude Code to the MCP server bundled with
 `/Applications/REL.app`. Both hosts load the same `rel-browser` skill, MCP
-configuration, ten MCP tools, and eight canonical page actions.
+configuration, eleven MCP tools, and eight canonical page actions.
 
 - [Install in Codex](https://docs.rel.me/codex-plugin/)
 - [Install in Claude Code](https://docs.rel.me/claude-code-plugin/)

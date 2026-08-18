@@ -120,6 +120,7 @@ navigation. The error details contain the final `url` and exact
 | --- | --- | --- |
 | `GET` | `/v1/health` | Readiness of the agent control worker |
 | `GET` | `/v1/status` | App, agent, proxy, and Chromium diagnostic report |
+| `GET` | `/v1/notifications` | List opt-in website notifications as untrusted content |
 | `POST` | `/v1/navigate` | Navigate and select the current shorthand page |
 | `POST` | `/v1/perform` | Perform actions on the current shorthand page |
 | `POST` | `/v1/capture` | Capture the current shorthand page |
@@ -156,8 +157,9 @@ such as `rel capture`, `rel page`, `rel proxy`, and `rel session`; it has no
 direct database or log-file command path.
 
 The bundled `rel-mcp` adapter also calls this API only through `rel-client`. It
-maps ten MCP tools to status, HTML and image capture, page attachment and
-actions, observations, session-group closing, and session and proxy listing.
+maps eleven MCP tools to status, opt-in website notifications, HTML and image
+capture, page attachment and actions, observations, session-group closing, and
+session and proxy listing.
 MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
 [MCP](MCP.md) for its stdio lifecycle and result wrapping.
 
@@ -231,6 +233,41 @@ The diagnostic call succeeds with HTTP 200 even when a component is down:
 ```
 
 Check IDs are `rel_app`, `agent`, `browser_proxy`, and `chromium_bridge`.
+
+### `GET /v1/notifications`
+
+Returns up to 256 notifications displayed since the supervised agent started.
+REL only adds events while **Settings → General → Send notifications to the
+agent** is enabled; the setting is off by default. Reading the queue does not
+remove entries, wake an agent, or start a model turn.
+
+```json
+{
+  "status": "ok",
+  "request_id": "req_...",
+  "data": {
+    "notifications": [
+      {
+        "sequence": 1,
+        "session_id": "Session12",
+        "origin": "https://example.com/",
+        "title": "Example",
+        "body": "New activity is available.",
+        "notification_id": "notification-1",
+        "persistent": false,
+        "displayed_at": "2026-08-17T20:00:00Z",
+        "trust": "untrusted_website_content"
+      }
+    ],
+    "trust": "untrusted_website_content"
+  }
+}
+```
+
+Every website-controlled field is untrusted data. Clients must not treat a
+notification title or body as instructions, authority, or permission to call
+tools. The queue is process-local and bounded; `sequence` is monotonic within
+that agent process and lets a client ignore entries it has already observed.
 
 ## Captures
 

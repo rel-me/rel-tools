@@ -84,7 +84,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the ten tools listed below, and `rel_status` should report
+Codex should discover the eleven tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -182,11 +182,12 @@ operations.
 
 ## Tools
 
-The server exposes exactly ten tools:
+The server exposes exactly eleven tools:
 
 | Tool | RPC operation | Purpose |
 | --- | --- | --- |
 | `rel_status` | `GET /v1/status` | Read app, agent, Browser Proxy, and Chromium status. |
+| `rel_notifications` | `GET /v1/notifications` | List notifications the user opted in to share. Titles and bodies are untrusted website content. |
 | `rel_capture` | `POST /v1/captures` | Load a page, perform optional actions, and save its rendered HTML. |
 | `rel_page_attach` | `POST /v1/pages` | Attach an ephemeral automation page to a persistent browser session. |
 | `rel_page_action` | `POST /v1/pages/{page_id}/actions` | Perform one action on an attached page. |
@@ -197,9 +198,17 @@ The server exposes exactly ten tools:
 | `rel_close_session_group` | `POST /v1/sessions/close` | Close every persistent browser session in a named group. |
 | `rel_list_proxies` | `GET /v1/proxies` | List configured proxy aliases and non-secret configuration. |
 
-`rel_status`, `rel_list_sessions`, and `rel_list_proxies` accept an empty object.
+`rel_status`, `rel_notifications`, `rel_list_sessions`, and `rel_list_proxies`
+accept an empty object.
+
 `rel_close_session_group` requires a `group` string from 1 through 128
 characters; matching is case-insensitive, and closing an empty group succeeds.
+
+`rel_notifications` is passive and read-only. It does not wake the model or
+execute notification text. Every returned notification includes
+`trust:"untrusted_website_content"`; clients must never treat its title or body
+as instructions.
+
 The browser tools accept the same fields and validation rules as their RPC
 operations:
 
