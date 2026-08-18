@@ -181,7 +181,7 @@ exits unsuccessfully.
 The command accepts no options. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly seven tools: `rel_status`, `rel_capture`,
+`2025-11-25`, and exposes exactly eight tools: `rel_status`, `rel_notifications`, `rel_capture`,
 `rel_page_attach`, `rel_page_action`, `rel_take_screenshot`,
 `rel_list_sessions`, and `rel_list_proxies`.
 

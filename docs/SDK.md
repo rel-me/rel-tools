@@ -52,6 +52,7 @@ Each method maps to one public RPC route:
 | --- | --- |
 | `health()` | `GET /v1/health` |
 | `status()` | `GET /v1/status` |
+| `list_notifications()` | `GET /v1/notifications` |
 | `navigate(&NavigateRequest)` | `POST /v1/navigate` |
 | `perform(&PerformRequest)` | `POST /v1/perform` |
 | `capture_current_page(&PageCaptureRequest)` | `POST /v1/capture` |
@@ -76,7 +77,7 @@ Each method maps to one public RPC route:
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
-`PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
+`BrowserNotification`, `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
 match RPC v1.
 
 `Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
@@ -84,11 +85,16 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all seven tools. It
-calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
-methods, `list_sessions`, and `list_proxies`; it does not maintain alternate
+The bundled [MCP adapter](MCP.md) uses this same client for all eight tools. It
+calls `status`, `list_notifications`, `capture`, `attach_page`,
+`perform_page_action`, both screenshot methods, `list_sessions`, and
+`list_proxies`; it does not maintain alternate
 request types or bypass the RPC transport. For capture, it exhausts and
 validates `CaptureStream` before returning one aggregated MCP result.
+
+`BrowserNotification` title and body fields are untrusted website content.
+Listing them never starts a model turn; agent clients must keep them in the same
+untrusted-data boundary as page text and pixels.
 
 ## Shorthand page workflow
 
