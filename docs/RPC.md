@@ -601,6 +601,12 @@ built-ins are **Direct** (direct connection, filters off), **AdBlock**
 (AdBlock on), and **BandwidthSaver** (AdBlock on and images larger than 10 kB
 blocked). A profile resource is:
 
+In the REL app, the toolbar plus button and **File > New Tab** open an editable
+**Custom** session configuration using the values from the last successfully
+created Custom session. **File > Create Session from Profile…** opens the saved
+profile path with **Direct** initially selected; saved profile settings are
+read-only in that creation sheet.
+
 ```json
 {
   "id": "builtin-bandwidth-saver",
