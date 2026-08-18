@@ -459,9 +459,6 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
             parse_no_options(&mut args, "status", root_help())?;
             Ok(CliCommand::Status)
         }
-        "mcp" => Err(CliError::Message(
-            "`rel mcp` was replaced by the standalone `rel-mcp` binary".to_string(),
-        )),
         "navigate" => parse_navigate(args),
         "perform" => parse_perform(args),
         "capture" => parse_capture(args),
@@ -1526,7 +1523,6 @@ mod tests {
     #[test]
     fn help_identifies_the_standalone_mcp_binary() {
         assert!(root_help().contains("rel-mcp"));
-        assert!(!root_help().contains("rel mcp"));
         assert!(mcp_help().contains("Usage:\n  rel-mcp"));
         assert!(mcp_help().contains("do not launch REL.app"));
     }
@@ -1749,11 +1745,6 @@ mod tests {
     fn parses_every_resource_command_family() {
         assert_eq!(parse(&["health"]).unwrap(), CliCommand::Health);
         assert_eq!(parse(&["status"]).unwrap(), CliCommand::Status);
-        assert!(matches!(
-            parse(&["mcp"]),
-            Err(CliError::Message(message)) if message.contains("standalone `rel-mcp`")
-        ));
-        assert!(parse(&["mcp", "extra"]).is_err());
         assert_eq!(parse(&["proxy", "list"]).unwrap(), CliCommand::ProxyList);
         assert_eq!(
             parse(&["proxy", "get", "work-proxy"]).unwrap(),
