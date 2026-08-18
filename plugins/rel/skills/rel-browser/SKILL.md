@@ -6,16 +6,21 @@ description: Use REL's local MCP server to inspect service health, reuse persist
 # Use REL Browser
 
 Use the MCP server bundled with `/Applications/REL.app`. REL.app owns Chromium;
-the MCP adapter only forwards supported calls through the local versioned API.
+the standalone `rel-mcp` adapter only forwards supported calls through the
+local versioned API.
 
 ## Workflow
 
-1. Call `rel_status` before the first browser operation. If a required service is
-   unhealthy, report the returned error and stop the REL workflow.
+1. Call `rel_status` before the first browser operation. It never launches the
+   app. If REL is not running and the user requested browser work, continue to
+   the first required non-status tool; operational tools start REL lazily. If a
+   running service is unhealthy, report the returned error and stop the REL
+   workflow.
 2. When the user names a session, preserve its canonical `Session<number>` ID.
    Otherwise call `rel_list_sessions` before reusing browser state. Do not omit
    `session_id` merely to inspect existing state because omission can create a
-   persistent session.
+   persistent session. When intentionally creating several related sessions,
+   give each the same `group` rather than overloading its unique display name.
 3. Use `rel_capture` for one-shot navigation, actions, and rendered HTML. Use
    `rel_page_attach` followed by `rel_page_action` for a multi-step workflow on
    one attached page. Each `rel_page_action` call accepts exactly one action.
@@ -29,6 +34,8 @@ the MCP adapter only forwards supported calls through the local versioned API.
    Pass only the alias; do not seek or expose stored credentials.
 7. Summarize the outcome and surface returned `file:///` resource links. Preserve
    structured REL errors instead of reducing them to a generic failure.
+8. Use `rel_close_session_group` only when the user asks to close every session
+   in that group. Report the returned canonical `deleted_ids`.
 
 ## Actions
 
@@ -86,9 +93,14 @@ different target when an action fails.
 
 - `rel_status`: inspect app, agent, Browser Proxy, and Chromium readiness.
 - `rel_list_sessions`: list persistent sessions and canonical IDs.
+- `rel_close_session_group`: close every persistent session in a named group.
 - `rel_list_proxies`: list proxy aliases and non-secret configuration.
 - `rel_capture`: load a URL, optionally act, and save rendered HTML.
 - `rel_page_attach`: attach an automation page to a persistent session.
 - `rel_page_action`: perform one action on an attached page.
 - `rel_take_screenshot`: capture the current or attached page as PNG, JPEG, or
   WebP, inline or at an explicit file URI.
+- `rel_observe`: return bounded rendered semantics and an optional synchronized
+  viewport image for the current or attached page.
+- `rel_action`: act through an observation-scoped element reference and return
+  the resulting observation.

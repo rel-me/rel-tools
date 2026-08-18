@@ -14,9 +14,9 @@ cargo install --git https://github.com/rel-me/rel-tools \
 
 The CLI is a thin client built on the typed [`rel-client`](SDK.md)
 Rust crate. Ordinary user-facing commands map directly to an [RPC v1](RPC.md)
-operation. The `mcp` command adapts a focused subset of those same operations
-to stdio MCP; the CLI does not implement another browser or read application
-data directly.
+operation. The standalone `rel-mcp` binary adapts a focused subset of those
+same operations to stdio MCP; neither client implements another browser or
+reads application data directly.
 
 Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
 [RPC](RPC.md).
@@ -33,6 +33,8 @@ rel URL [options]
 rel capture URL [options]
 rel page attach URL [options]
 rel page action PAGE_ID --action JSON [options]
+rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]
+rel observation action OBSERVATION_ID --request JSON
 rel proxy list
 rel proxy get ALIAS
 rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [options]
@@ -44,8 +46,8 @@ rel session get SESSION_ID
 rel session create [options]
 rel session update SESSION_ID [options]
 rel session delete SESSION_ID
-rel tab <list|get|create|update|delete> ...
-rel mcp
+rel session close --group GROUP
+rel-mcp
 rel --help | -h
 rel --version
 ```
@@ -54,24 +56,40 @@ rel --version
 It is not part of the public `rel-cli` package.
 
 `health` and `status` inspect the currently running agent without launching the
-app. Every other command, including `mcp`, proxy reads, and session reads,
-starts the REL app in the background when its agent is unavailable. `rel mcp`
-performs that startup check once, then serves its original stdio connection.
+app. Every other ordinary CLI command, including proxy reads and session reads,
+starts the REL app in the background when its agent is unavailable. `rel-mcp`
+starts its stdio protocol server without launching the app; its operational
+tools start REL lazily after their arguments have been validated.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
 
-When a browser command targets a tab while REL is in the background, REL selects
-that tab by default without activating the app. Turn off **REL → Settings… →
-General → Follow browser commands** to keep the current tab selected instead.
+When a browser command targets a session while REL is in the background, REL
+selects that session by default without activating the app. Turn off **REL →
+Settings… → General → Follow browser commands** to keep the current session
+selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free
 `rel capture` instead captures the current shorthand page selected by
-`rel navigate`. `rel tab` is an alias for the complete `rel session` command
-family. The removed `ping`, `logs`, and
+`rel navigate`. The removed `ping`, `logs`, and
 `--rotate-proxy-session` interfaces have no compatibility aliases; use
 `status`, the app's Logs view, and `proxy rotate`, respectively.
+
+`rel observe` returns bounded rendered semantics and observation-scoped element
+refs. `--mode=hybrid` adds a synchronized viewport PNG resource; `visual`
+returns minimal semantics plus the image. `--page-id` targets an attached page,
+while the default uses the current shorthand page and accepts `--session-id`.
+Use a returned ref without inventing a selector:
+
+```sh
+rel observe --mode=semantic
+rel observation action OBSERVATION_ID \
+  --request='{"ref":"e1","action":"click","mode":"semantic"}'
+```
+
+The action response contains a new observation. Old observation refs fail with
+`OBSERVATION_STALE` after navigation, document replacement, or bounded eviction.
 
 ## Quick examples
 
@@ -106,8 +124,7 @@ rel capture --session-id="$session_id" > rel.html
 ```
 
 The final argument-free `rel capture` reads the page selected by `rel navigate`
-after `rel perform` finishes. `rel tab create` is equivalent to
-`rel session create` if tab-oriented terminology is more natural.
+after `rel perform` finishes.
 
 For a sequence of commands, export the ID under REL's standard environment
 variable and omit the repeated options:
@@ -151,7 +168,7 @@ If a browser operation is still active, the resident agent cancels the matching
 Chromium work; the REL app, agent, and persistent browser session remain
 available for later commands.
 
-`rel mcp` is a protocol process rather than an ordinary one-shot command. Its
+`rel-mcp` is a protocol process rather than an ordinary one-shot command. Its
 standard output contains only newline-delimited JSON-RPC 2.0 messages for the
 MCP client, and diagnostics use standard error. See [MCP](MCP.md) for its
 version negotiation, tool results, and errors.
@@ -169,29 +186,32 @@ Exit status is:
 | `1` | Usage, transport, protocol, or RPC failure; unhealthy `status`; or the terminal exit code from an unsuccessful capture. |
 | `130` | The shell terminated the CLI with Ctrl-C (`SIGINT`). |
 
-For `rel mcp`, clean stdin closure exits successfully; startup or stdio failure
+For `rel-mcp`, clean stdin closure exits successfully; startup or stdio failure
 exits unsuccessfully.
 
 ## MCP server
 
 ```sh
-/Applications/REL.app/Contents/Resources/rel mcp
+/Applications/REL.app/Contents/Resources/rel-mcp
 ```
 
-The command accepts no options. MCP clients normally launch it and own its
+The adapter accepts no MCP options; `--help` and `--version` are available for
+direct inspection. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly seven tools: `rel_status`, `rel_capture`,
+`2025-11-25`, and exposes exactly ten tools: `rel_status`, `rel_capture`,
 `rel_page_attach`, `rel_page_action`, `rel_take_screenshot`,
-`rel_list_sessions`, and `rel_list_proxies`.
+`rel_observe`, `rel_action`, `rel_list_sessions`, `rel_close_session_group`, and
+`rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
 validated NDJSON stream into `{request_id, exit_code, events}`. Every tool
 execution result includes its complete JSON in both a text content block and
 `structuredContent`. Captured files use absolute `file:///` URIs at the MCP
 boundary and are also returned as standard MCP `resource_link` content blocks.
-Screenshot calls without an explicit output URI additionally return standard
-MCP `image` content for multimodal agents.
+Screenshot calls without an explicit output URI and hybrid or visual
+observations additionally return standard MCP `image` content for multimodal
+agents.
 
 ## Health and status
 
@@ -279,6 +299,7 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set; otherwise create a persistent session. |
+| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses the `REL_SESSION_ID` default. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
@@ -287,7 +308,8 @@ Exactly one URL is required before the options. Scheme-less localhost
 addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
-When `--session-id` is omitted, the CLI uses `REL_SESSION_ID` if it is set. This
+When both `--session-id` and `--group` are omitted, the CLI uses
+`REL_SESSION_ID` if it is set. This
 is exported automatically by each embedded session terminal. An explicit option
 always wins. If neither is present, capture creates a persistent browser session.
 Its default label is `Session<ID>` and its immutable identifier is:
@@ -303,11 +325,11 @@ uses REL’s configured Session defaults.
 For an existing session, omission preserves its current assignment; an explicit
 proxy updates the assignment.
 
-Tabs controlled while not visible use the **Background Browser Size** preset in
+Sessions controlled while not visible use the **Background Browser Size** preset in
 **REL → Settings… → General**. The default viewport is 1,920 × 947 CSS pixels,
-matching a common maximized browser on a 1,920 × 1,080 display. A visible tab
-follows the resizable REL window. This is a global app setting, not a capture
-option.
+matching a common maximized browser on a 1,920 × 1,080 display. A visible
+session follows the resizable REL window. This is a global app setting, not a
+capture option.
 
 ```sh
 rel https://example.com/ --proxy=oxylabs
@@ -346,7 +368,9 @@ rel page attach https://example.com \
 ```
 
 `page attach` accepts `--session-id`, `--proxy`, `--output`, `--timeout`, and
-`--wait`. Its result contains a process-local `page.id`.
+`--wait`. It also accepts `--group` instead of `--session-id` to label the new
+persistent session; this suppresses the `REL_SESSION_ID` default. Its result
+contains a process-local `page.id`.
 
 Perform one canonical [browser action](ACTIONS.md) on that attachment:
 
@@ -407,9 +431,6 @@ rel proxy rotate office
 
 ## Sessions
 
-`rel tab` is an alias for `rel session`; every subcommand and option below works
-with either spelling.
-
 Read and delete persistent browser sessions by their canonical session IDs:
 
 ```sh
@@ -423,6 +444,7 @@ Create a session:
 ```sh
 rel session create \
   --name Research \
+  --group pgm \
   --proxy office \
   --adblock-enabled true \
   --image-blocking-mode over_limit \
@@ -433,12 +455,21 @@ Every create option is optional. Omitted proxy and filtering options use the
 Session defaults configured in the REL app. Use `--direct` to force a direct
 connection instead of the default proxy. `--image-blocking-mode` is `none`,
 `all`, or `over_limit`; `none` allows every image without changing AdBlock.
+`--group` labels the new session without changing its unique name or canonical
+ID. Group matching is case-insensitive.
 `--id-only` changes successful output to the new canonical
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
 
 REL does not impose a maximum session count. Sessions remain open until you
 explicitly delete them.
+
+Close every session in a group. Repeating the command after the group is empty
+succeeds and returns an empty `data.deleted_ids` array:
+
+```sh
+rel session close --group pgm
+```
 
 Partially update a session:
 

@@ -24,7 +24,7 @@ Chromium bridge, so navigation, waits, and actions stop instead of continuing
 in the background. Cancellation is request-scoped: the persistent browser
 session, the REL app, and the resident agent remain running for other clients.
 
-By default, a browser operation selects its target tab when REL is inactive, so
+By default, a browser operation selects its target session when REL is inactive, so
 the affected page is visible the next time the app is viewed. REL is not
 activated or brought forward. Turn off **REL → Settings… → General → Follow
 browser commands** to preserve the current selection. This presentation setting
@@ -80,6 +80,8 @@ repeat.
 | `10003` | `PAYLOAD_TOO_LARGE` | no | Request body exceeds 16 MiB |
 | `10004` | `UNSUPPORTED_MEDIA_TYPE` | no | JSON endpoint received unsupported content |
 | `10005` | `VALIDATION_FAILED` | no | Parsed request violates field constraints |
+| `10006` | `UNSUPPORTED_MODALITY` | no | The selected adapter cannot carry the requested observation modality |
+| `10007` | `OBSERVATION_TOO_LARGE` | no | A semantic snapshot or image exceeds its independent bound |
 | `10100` | `SESSION_NOT_FOUND` | no | Session ID does not exist |
 | `10101` | `PAGE_NOT_FOUND` | no | Ephemeral attached page does not exist |
 | `10102` | `PAGE_MISMATCH` | no | Attached page state no longer matches the request |
@@ -92,12 +94,14 @@ repeat.
 | `10204` | `REQUEST_CANCELLED` | yes | Browser work was cancelled |
 | `10205` | `RATE_LIMITED` | yes | REL itself is rate limiting the caller |
 | `10206` | `ACTION_TIMEOUT` | yes | A browser action's local timeout expired |
+| `10207` | `OBSERVATION_STALE` | no | An observation or element reference no longer matches the live document |
 | `10300` | `UPSTREAM_UNAVAILABLE` | yes | Navigation received a target HTTP error or the browser/proxy received an invalid upstream result |
 | `10301` | `BROWSER_UNAVAILABLE` | yes | Required Chromium service is unavailable |
 | `10302` | `AGENT_UNHEALTHY` | yes | The serialized control worker missed its health deadline |
 | `10303` | `TIMEOUT` | yes | REL's operation deadline expired |
 | `10304` | `PROXY_CONFIGURATION_FAILED` | no | Chromium could not apply the session proxy configuration |
 | `10305` | `BROWSER_CREATION_FAILED` | no | Chromium could not create the session browser |
+| `10306` | `SEMANTIC_EXTRACTION_FAILED` | no | The renderer could not produce a valid bounded semantic snapshot |
 | `10999` | `INTERNAL_ERROR` | no | Unexpected internal failure |
 
 A target website returning 404 or 429 is not a REL RPC error for capture
@@ -120,10 +124,13 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/perform` | Perform actions on the current shorthand page |
 | `POST` | `/v1/capture` | Capture the current shorthand page |
 | `POST` | `/v1/screenshot` | Capture an image of the current shorthand page |
+| `POST` | `/v1/observe` | Observe the current shorthand page |
 | `POST` | `/v1/captures` | Capture rendered HTML as an NDJSON operation |
 | `POST` | `/v1/pages` | Attach an ephemeral automation page |
 | `POST` | `/v1/pages/{page_id}/actions` | Perform one action on an attached page |
 | `POST` | `/v1/pages/{page_id}/screenshot` | Capture an image of an attached page |
+| `POST` | `/v1/pages/{page_id}/observe` | Observe an attached page |
+| `POST` | `/v1/observations/{observation_id}/actions` | Act through an observation-scoped element ref |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
@@ -132,6 +139,7 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/proxies/{alias}/rotate-session` | Rotate an Oxylabs session |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
+| `POST` | `/v1/sessions/close` | Close every browser session in a group |
 | `GET` | `/v1/session-defaults` | Read defaults for newly created sessions |
 | `PATCH` | `/v1/session-defaults` | Update defaults for newly created sessions |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
@@ -145,11 +153,11 @@ in this table. The bundled CLI is built on that crate and uses resource commands
 such as `rel capture`, `rel page`, `rel proxy`, and `rel session`; it has no
 direct database or log-file command path.
 
-The bundled `rel mcp` adapter also calls this API only through `rel-client`. It
-maps seven MCP tools to status, HTML and image capture, page attachment and
-action, and session and proxy listing. MCP does not add an HTTP `/mcp` route or
-another response shape to RPC v1. See [MCP](MCP.md) for its stdio lifecycle and
-result wrapping.
+The bundled `rel-mcp` adapter also calls this API only through `rel-client`. It
+maps ten MCP tools to status, HTML and image capture, page attachment and
+actions, observations, session-group closing, and session and proxy listing.
+MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
+[MCP](MCP.md) for its stdio lifecycle and result wrapping.
 
 ## Health
 
@@ -344,6 +352,40 @@ The image bytes remain in the file rather than the JSON response. The MCP
 adapter reads that validated file and emits standard image content when its
 caller did not request a specific output URI.
 
+### Page observations and reference actions
+
+`POST /v1/observe` observes the current shorthand page. The attached-page form
+is `POST /v1/pages/{page_id}/observe`:
+
+```json
+{"session_id":"Session12","mode":"hybrid","timeout":90,"wait":0}
+```
+
+`session_id` is accepted only by the current-page route. `mode` is `semantic`
+(the default), `hybrid`, or `visual`; `auto` is not an RPC mode. Semantic mode
+returns compact rendered text and typed interactive elements. Hybrid also
+returns a synchronized current-viewport PNG. Visual returns minimal semantics
+plus that PNG. Screenshot bytes are kept in a typed temporary file resource,
+with its dimensions and exact CSS-to-image scales in the response.
+
+Each observation contains an ID, document sequence, capture time, title,
+truncation counts, viewport/document geometry, semantic `content`, and typed
+`elements`. Element refs such as `e17` are valid only for that page, document
+sequence, and observation. Private locators never cross RPC.
+
+Act through a ref with
+`POST /v1/observations/{observation_id}/actions`:
+
+```json
+{"ref":"e17","action":"click","mode":"hybrid","mouse_move":true,"scroll":true}
+```
+
+Allowlisted actions are `click`, `type` (requires `text`), `clear`, `press`
+(requires `key`), and `select` (requires `value`). REL revalidates the document
+sequence and target signature before input. A mismatch returns
+`OBSERVATION_STALE`; no selector or nearby-target fallback is attempted. A
+successful action returns a new post-action observation in the requested mode.
+
 ### `POST /v1/captures`
 
 ```json
@@ -368,6 +410,7 @@ caller did not request a specific output URI.
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
+| `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
 | `retry_delay` | Finite seconds 0 through 86400; default 3. |
@@ -427,7 +470,8 @@ code 1; it is not an API error.
 }
 ```
 
-Omitting `session_id` creates a session and navigates it to `url`. Providing an
+Omitting `session_id` creates a session and navigates it to `url`. `group` may
+label that new session and cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
 
@@ -513,6 +557,7 @@ A session resource is:
 {
   "id": "Session12",
   "name": "Session12",
+  "group": "pgm",
   "proxy_alias": null,
   "adblock_enabled": true,
   "image_blocking_mode": "over_limit",
@@ -523,17 +568,23 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `POST /v1/sessions` accepts optional `name`, `proxy_alias`, `adblock_enabled`,
-  `image_blocking_mode`, and `image_size_limit_kb`; returns `data.session`.
+- `POST /v1/sessions` accepts optional `name`, `group`, `proxy_alias`,
+  `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
+  `data.session`.
 - `PATCH /v1/sessions/{id}` is partial and returns `data.session`.
 - `DELETE /v1/sessions/{id}` returns the canonical session ID as
-  `data.deleted_id` and refuses to remove the last session.
+  `data.deleted_id`.
+- `POST /v1/sessions/close` accepts `{"group":"pgm"}` and returns the trimmed
+  group plus every closed canonical ID as `data.deleted_ids`. Group matching is
+  case-insensitive, and an empty group is an idempotent success.
 
 `image_blocking_mode` is `none`, `all`, or `over_limit`. `none` allows every
 image while leaving `adblock_enabled` independent. The legacy `block_images`
 alias is rejected. Size is 1 through 1,048,576 kB. The visible name is editable and
 case-insensitively unique; the canonical `id` is immutable. Session routes accept
-only that ID; numeric database IDs are neither accepted nor returned.
+only that ID; numeric database IDs are neither accepted nor returned. A group
+is immutable, contains 1–128 non-control characters after trimming, and may be
+shared by any number of sessions.
 
 ## Session defaults
 

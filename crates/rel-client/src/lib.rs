@@ -28,6 +28,8 @@ pub mod rpc_error_codes {
     pub const PAYLOAD_TOO_LARGE: u32 = 10_003;
     pub const UNSUPPORTED_MEDIA_TYPE: u32 = 10_004;
     pub const VALIDATION_FAILED: u32 = 10_005;
+    pub const UNSUPPORTED_MODALITY: u32 = 10_006;
+    pub const OBSERVATION_TOO_LARGE: u32 = 10_007;
 
     pub const SESSION_NOT_FOUND: u32 = 10_100;
     pub const PAGE_NOT_FOUND: u32 = 10_101;
@@ -42,6 +44,7 @@ pub mod rpc_error_codes {
     pub const REQUEST_CANCELLED: u32 = 10_204;
     pub const RATE_LIMITED: u32 = 10_205;
     pub const ACTION_TIMEOUT: u32 = 10_206;
+    pub const OBSERVATION_STALE: u32 = 10_207;
 
     pub const UPSTREAM_UNAVAILABLE: u32 = 10_300;
     pub const BROWSER_UNAVAILABLE: u32 = 10_301;
@@ -49,6 +52,7 @@ pub mod rpc_error_codes {
     pub const TIMEOUT: u32 = 10_303;
     pub const PROXY_CONFIGURATION_FAILED: u32 = 10_304;
     pub const BROWSER_CREATION_FAILED: u32 = 10_305;
+    pub const SEMANTIC_EXTRACTION_FAILED: u32 = 10_306;
 
     pub const INTERNAL_ERROR: u32 = 10_999;
 
@@ -60,6 +64,8 @@ pub mod rpc_error_codes {
             "PAYLOAD_TOO_LARGE" => PAYLOAD_TOO_LARGE,
             "UNSUPPORTED_MEDIA_TYPE" => UNSUPPORTED_MEDIA_TYPE,
             "VALIDATION_FAILED" => VALIDATION_FAILED,
+            "UNSUPPORTED_MODALITY" => UNSUPPORTED_MODALITY,
+            "OBSERVATION_TOO_LARGE" => OBSERVATION_TOO_LARGE,
             "SESSION_NOT_FOUND" => SESSION_NOT_FOUND,
             "PAGE_NOT_FOUND" => PAGE_NOT_FOUND,
             "PAGE_MISMATCH" => PAGE_MISMATCH,
@@ -72,12 +78,14 @@ pub mod rpc_error_codes {
             "REQUEST_CANCELLED" => REQUEST_CANCELLED,
             "RATE_LIMITED" => RATE_LIMITED,
             "ACTION_TIMEOUT" => ACTION_TIMEOUT,
+            "OBSERVATION_STALE" => OBSERVATION_STALE,
             "UPSTREAM_UNAVAILABLE" => UPSTREAM_UNAVAILABLE,
             "BROWSER_UNAVAILABLE" => BROWSER_UNAVAILABLE,
             "AGENT_UNHEALTHY" => AGENT_UNHEALTHY,
             "TIMEOUT" => TIMEOUT,
             "PROXY_CONFIGURATION_FAILED" => PROXY_CONFIGURATION_FAILED,
             "BROWSER_CREATION_FAILED" => BROWSER_CREATION_FAILED,
+            "SEMANTIC_EXTRACTION_FAILED" => SEMANTIC_EXTRACTION_FAILED,
             _ => INTERNAL_ERROR,
         }
     }
@@ -191,6 +199,20 @@ impl RelClient {
         )
     }
 
+    /// Observe the current shorthand page using compact rendered semantics and,
+    /// for hybrid or visual mode, a synchronized viewport screenshot.
+    pub fn observe_current_page(
+        &self,
+        request: &ObservationRequest,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        self.request_with_timeout(
+            "POST",
+            "/observe",
+            Some(request),
+            page_request_timeout(request.timeout, request.wait),
+        )
+    }
+
     pub fn attach_page(
         &self,
         request: &PageAttachRequest,
@@ -223,6 +245,40 @@ impl RelClient {
         request: &PageScreenshotRequest,
     ) -> Result<RpcResponse<ScreenshotOperationData>, ClientError> {
         let path = format!("/pages/{}/screenshot", encode_path_segment(page_id));
+        self.request_with_timeout(
+            "POST",
+            &path,
+            Some(request),
+            page_request_timeout(request.timeout, request.wait),
+        )
+    }
+
+    /// Observe an attached page.
+    pub fn observe_page(
+        &self,
+        page_id: &str,
+        request: &PageObservationRequest,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        let path = format!("/pages/{}/observe", encode_path_segment(page_id));
+        self.request_with_timeout(
+            "POST",
+            &path,
+            Some(request),
+            page_request_timeout(request.timeout, request.wait),
+        )
+    }
+
+    /// Perform an allowlisted action through a reference from one observation.
+    /// The response always contains a new post-action observation.
+    pub fn perform_observation_action(
+        &self,
+        observation_id: &str,
+        request: &ObservationActionRequest,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        let path = format!(
+            "/observations/{}/actions",
+            encode_path_segment(observation_id)
+        );
         self.request_with_timeout(
             "POST",
             &path,
@@ -325,6 +381,17 @@ impl RelClient {
             "DELETE",
             &format!("/sessions/{}", encode_path_segment(id)),
             None,
+        )
+    }
+
+    pub fn close_session_group(
+        &self,
+        group: &str,
+    ) -> Result<RpcResponse<ClosedSessionGroupData>, ClientError> {
+        self.request(
+            "POST",
+            "/sessions/close",
+            Some(&SessionGroupCloseRequest { group }),
         )
     }
 
@@ -710,6 +777,8 @@ pub struct CaptureRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<u32>,
@@ -769,10 +838,6 @@ pub enum Action {
         selector: String,
         text: String,
     },
-    Fill {
-        selector: String,
-        text: String,
-    },
     Clear {
         selector: String,
     },
@@ -825,6 +890,8 @@ pub struct PageAttachRequest {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -986,6 +1053,166 @@ pub struct ScreenshotCapture {
     pub height: Option<u32>,
 }
 
+/// Public observation modalities. `auto` is intentionally an AI-harness
+/// policy and is not accepted by RPC v1.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ObservationMode {
+    #[default]
+    Semantic,
+    Hybrid,
+    Visual,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ObservationRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ObservationMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct PageObservationRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ObservationMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ObservationActionKind {
+    Click,
+    Type,
+    Clear,
+    Press,
+    Select,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationActionRequest {
+    #[serde(rename = "ref")]
+    pub element_ref: String,
+    pub action: ObservationActionKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mouse_move: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ObservationMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+impl ObservationActionRequest {
+    pub fn new(element_ref: impl Into<String>, action: ObservationActionKind) -> Self {
+        Self {
+            element_ref: element_ref.into(),
+            action,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            mode: None,
+            timeout: None,
+            wait: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationOperationData {
+    pub page: Page,
+    pub observation: PageObservation,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct PageObservation {
+    pub id: String,
+    pub mode: ObservationMode,
+    pub document_sequence: u64,
+    pub captured_at: String,
+    pub title: String,
+    pub truncated: bool,
+    pub omitted_node_count: usize,
+    pub visited_node_count: usize,
+    pub semantic_bytes: usize,
+    pub viewport: ObservationViewport,
+    pub content: Vec<ObservationContent>,
+    pub elements: Vec<ObservationElement>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub screenshot: Option<ObservationScreenshot>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationViewport {
+    pub css_width: u32,
+    pub css_height: u32,
+    pub scroll_x: u32,
+    pub scroll_y: u32,
+    pub document_width: u32,
+    pub document_height: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationContent {
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub level: Option<u8>,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationElement {
+    #[serde(rename = "ref")]
+    pub element_ref: String,
+    pub role: String,
+    pub name: String,
+    pub states: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    pub in_viewport: bool,
+    pub bounds: ObservationBounds,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationBounds {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationScreenshot {
+    pub output_path: String,
+    pub bytesize: usize,
+    pub format: ScreenshotFormat,
+    pub mime_type: String,
+    pub width: u32,
+    pub height: u32,
+    pub css_to_image_scale_x: f64,
+    pub css_to_image_scale_y: f64,
+}
+
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct ProxyCreateRequest {
     pub alias: String,
@@ -1093,6 +1320,8 @@ pub struct Proxy {
 pub struct SessionCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
     pub proxy_alias: Change<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1166,6 +1395,7 @@ pub struct SessionDefaults {
 pub struct Session {
     pub id: String,
     pub name: String,
+    pub group: Option<String>,
     pub proxy_alias: Option<String>,
     pub adblock_enabled: bool,
     pub image_blocking_mode: ImageBlockingMode,
@@ -1176,6 +1406,17 @@ pub struct Session {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DeletedData {
     pub deleted_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ClosedSessionGroupData {
+    pub group: String,
+    pub deleted_ids: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct SessionGroupCloseRequest<'a> {
+    group: &'a str,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1284,6 +1525,8 @@ mod tests {
             rpc_error_codes::PAYLOAD_TOO_LARGE,
             rpc_error_codes::UNSUPPORTED_MEDIA_TYPE,
             rpc_error_codes::VALIDATION_FAILED,
+            rpc_error_codes::UNSUPPORTED_MODALITY,
+            rpc_error_codes::OBSERVATION_TOO_LARGE,
             rpc_error_codes::SESSION_NOT_FOUND,
             rpc_error_codes::PAGE_NOT_FOUND,
             rpc_error_codes::PAGE_MISMATCH,
@@ -1296,12 +1539,14 @@ mod tests {
             rpc_error_codes::REQUEST_CANCELLED,
             rpc_error_codes::RATE_LIMITED,
             rpc_error_codes::ACTION_TIMEOUT,
+            rpc_error_codes::OBSERVATION_STALE,
             rpc_error_codes::UPSTREAM_UNAVAILABLE,
             rpc_error_codes::BROWSER_UNAVAILABLE,
             rpc_error_codes::AGENT_UNHEALTHY,
             rpc_error_codes::TIMEOUT,
             rpc_error_codes::PROXY_CONFIGURATION_FAILED,
             rpc_error_codes::BROWSER_CREATION_FAILED,
+            rpc_error_codes::SEMANTIC_EXTRACTION_FAILED,
             rpc_error_codes::INTERNAL_ERROR,
         ];
 
@@ -1425,6 +1670,7 @@ mod tests {
         json!({
             "id": "machine-a.Session1",
             "name": "Session1",
+            "group": "pgm",
             "proxy_alias": null,
             "adblock_enabled": true,
             "image_blocking_mode": "over_limit",
@@ -1463,11 +1709,18 @@ mod tests {
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
+                group: Some("pgm".to_string()),
                 proxy_alias: Change::Clear,
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"proxy_alias":null})
+            json!({"group":"pgm", "proxy_alias":null})
+        );
+        let mut capture = CaptureRequest::new("https://example.com");
+        capture.group = Some("pgm".to_string());
+        assert_eq!(
+            serde_json::to_value(capture).unwrap(),
+            json!({"url":"https://example.com", "group":"pgm"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
@@ -1547,16 +1800,6 @@ mod tests {
                 }),
             ),
             (
-                Action::Fill {
-                    selector: "#email".to_string(),
-                    text: "listener@example.com".to_string(),
-                },
-                serde_json::json!({
-                    "action":"fill", "selector":"#email",
-                    "text":"listener@example.com"
-                }),
-            ),
-            (
                 Action::Clear {
                     selector: "#query".to_string(),
                 },
@@ -1592,7 +1835,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(22, |index, request| {
+        let (base_url, server) = start_test_server(26, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -1622,6 +1865,22 @@ mod tests {
                     "page":{"id":"page_1","session_id":"machine-a.Session1","url":"https://example.com/"},
                     "screenshot":{"output_path":"/tmp/page.webp","bytesize":11,"format":"webp","mime_type":"image/webp","width":1200,"height":800}
                 }),
+                ("POST", "/v1/observe")
+                | ("POST", "/v1/pages/page_1/observe")
+                | ("POST", "/v1/observations/11111111-1111-4111-8111-111111111111/actions") => {
+                    json!({
+                        "page":{"id":"page_1","session_id":"machine-a.Session1","url":"https://example.com/"},
+                        "observation":{
+                            "id":"22222222-2222-4222-8222-222222222222",
+                            "mode":"semantic","document_sequence":4,"captured_at":"2026-08-17T00:00:00Z",
+                            "title":"Example","truncated":false,"omitted_node_count":0,
+                            "visited_node_count":3,"semantic_bytes":20,
+                            "viewport":{"css_width":1200,"css_height":800,"scroll_x":0,"scroll_y":0,"document_width":1200,"document_height":800},
+                            "content":[{"kind":"heading","level":1,"text":"Example"}],
+                            "elements":[{"ref":"e1","role":"button","name":"Continue","states":["enabled"],"in_viewport":true,"bounds":{"x":10.0,"y":20.0,"width":100.0,"height":40.0}}]
+                        }
+                    })
+                }
                 ("GET", "/v1/proxies") => json!({"proxies":[proxy_json()]}),
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
@@ -1632,6 +1891,9 @@ mod tests {
                 }
                 ("DELETE", "/v1/sessions/machine-a.Session1") => {
                     json!({"deleted_id":"machine-a.Session1"})
+                }
+                ("POST", "/v1/sessions/close") => {
+                    json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
                 }
                 ("GET", "/v1/sessions") => json!({"sessions":[session_json()]}),
                 ("GET", "/v1/sessions/machine-a.Session1")
@@ -1706,6 +1968,23 @@ mod tests {
                 },
             )
             .unwrap();
+        client
+            .observe_current_page(&ObservationRequest {
+                session_id: Some("machine-a.Session1".to_string()),
+                mode: Some(ObservationMode::Semantic),
+                timeout: None,
+                wait: None,
+            })
+            .unwrap();
+        client
+            .observe_page("page_1", &PageObservationRequest::default())
+            .unwrap();
+        client
+            .perform_observation_action(
+                "11111111-1111-4111-8111-111111111111",
+                &ObservationActionRequest::new("e1", ObservationActionKind::Click),
+            )
+            .unwrap();
         client.list_proxies().unwrap();
         client.get_proxy("office").unwrap();
         client
@@ -1729,6 +2008,7 @@ mod tests {
         client.rotate_proxy_session("office").unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
+        assert_eq!(sessions.data.sessions[0].group.as_deref(), Some("pgm"));
         client.get_session("machine-a.Session1").unwrap();
         client
             .create_session(&SessionCreateRequest::default())
@@ -1751,6 +2031,8 @@ mod tests {
             .unwrap();
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
+        let closed = client.close_session_group("pgm").unwrap();
+        assert_eq!(closed.data.deleted_ids, ["machine-a.Session1"]);
 
         let requests = server.join().unwrap();
         let routes = requests
@@ -1769,6 +2051,12 @@ mod tests {
                 ("POST", "/v1/pages"),
                 ("POST", "/v1/pages/page_1/actions"),
                 ("POST", "/v1/pages/page_1/screenshot"),
+                ("POST", "/v1/observe"),
+                ("POST", "/v1/pages/page_1/observe"),
+                (
+                    "POST",
+                    "/v1/observations/11111111-1111-4111-8111-111111111111/actions"
+                ),
                 ("GET", "/v1/proxies"),
                 ("GET", "/v1/proxies/office"),
                 ("POST", "/v1/proxies"),
@@ -1782,7 +2070,12 @@ mod tests {
                 ("PATCH", "/v1/session-defaults"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
+                ("POST", "/v1/sessions/close"),
             ]
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
+            json!({"group":"pgm"})
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[2].body).unwrap(),
@@ -1809,19 +2102,19 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[11].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[14].body).unwrap(),
             json!({"alias":"office","upstream_host":"proxy.example.com","upstream_port":8000})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[12].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[15].body).unwrap(),
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[19].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
             json!({"proxy_alias":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[20].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[23].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

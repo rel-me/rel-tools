@@ -1,7 +1,9 @@
 use rel_client::{
     self as client, Action, CaptureEvent, CaptureRequest, Change, ImageBlockingMode,
-    NavigateRequest, PageActionRequest, PageAttachRequest, PageCaptureRequest, PerformRequest,
-    ProxyCreateRequest, ProxyUpdateRequest, RelClient, SessionCreateRequest, SessionUpdateRequest,
+    NavigateRequest, ObservationActionRequest, ObservationMode, ObservationRequest,
+    PageActionRequest, PageAttachRequest, PageCaptureRequest, PageObservationRequest,
+    PerformRequest, ProxyCreateRequest, ProxyUpdateRequest, RelClient, SessionCreateRequest,
+    SessionUpdateRequest,
 };
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -21,6 +23,34 @@ pub fn main_exit_code(args: Vec<OsString>) -> i32 {
     main_exit_code_with_version(args, env!("CARGO_PKG_VERSION"))
 }
 
+pub fn mcp_main_exit_code(args: Vec<OsString>) -> i32 {
+    mcp_main_exit_code_with_version(args, env!("CARGO_PKG_VERSION"))
+}
+
+pub fn mcp_main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -> i32 {
+    let args = match utf8_args(args) {
+        Ok(args) => args,
+        Err(error) => return print_cli_error(error),
+    };
+    match args.as_slice() {
+        [] => match mcp::serve_stdio(RelClient::local(), product_version) {
+            Ok(()) => 0,
+            Err(error) => print_cli_error(CliError::Message(error)),
+        },
+        [argument] if matches!(argument.as_str(), "-h" | "--help") => {
+            println!("{}", mcp_help());
+            0
+        }
+        [argument] if argument == "--version" => {
+            println!("rel-mcp {product_version}");
+            0
+        }
+        _ => print_cli_error(CliError::Message(
+            "rel-mcp accepts no arguments; run `rel-mcp --help`".to_string(),
+        )),
+    }
+}
+
 pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -> i32 {
     let args = match utf8_args(args) {
         Ok(args) => args,
@@ -33,7 +63,7 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
             return 0;
         }
         Err(CliError::Version) => {
-            println!("rel {}", env!("CARGO_PKG_VERSION"));
+            println!("rel {product_version}");
             return 0;
         }
         Err(error) => return print_cli_error(error),
@@ -50,7 +80,7 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
         }
     }
 
-    match run_command(RelClient::local(), command, product_version) {
+    match run_command(RelClient::local(), command) {
         Ok(exit_code) => exit_code,
         Err(error) => print_cli_error(error),
     }
@@ -72,15 +102,8 @@ fn print_cli_error(error: CliError) -> i32 {
     1
 }
 
-fn run_command(
-    client: RelClient,
-    command: CliCommand,
-    product_version: &str,
-) -> Result<i32, CliError> {
+fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> {
     match command {
-        CliCommand::Mcp => mcp::serve_stdio(client, product_version)
-            .map(|()| 0)
-            .map_err(CliError::Message),
         CliCommand::Health => {
             print_json(&client.health()?)?;
             Ok(0)
@@ -161,6 +184,28 @@ fn run_command(
             print_json(&client.perform_page_action(&page_id, &request)?)?;
             Ok(0)
         }
+        CliCommand::Observe { page_id, request } => {
+            let response = match page_id {
+                Some(page_id) => client.observe_page(
+                    &page_id,
+                    &PageObservationRequest {
+                        mode: request.mode,
+                        timeout: request.timeout,
+                        wait: request.wait,
+                    },
+                )?,
+                None => client.observe_current_page(&request)?,
+            };
+            print_json(&response)?;
+            Ok(0)
+        }
+        CliCommand::ObservationAction {
+            observation_id,
+            request,
+        } => {
+            print_json(&client.perform_observation_action(&observation_id, &request)?)?;
+            Ok(0)
+        }
         CliCommand::ProxyList => {
             print_json(&client.list_proxies()?)?;
             Ok(0)
@@ -203,6 +248,10 @@ fn run_command(
         }
         CliCommand::SessionDelete(id) => {
             print_json(&client.delete_session(&id)?)?;
+            Ok(0)
+        }
+        CliCommand::SessionCloseGroup(group) => {
+            print_json(&client.close_session_group(&group)?)?;
             Ok(0)
         }
     }
@@ -333,7 +382,6 @@ impl From<client::ClientError> for CliError {
 
 #[derive(Clone, Debug, PartialEq)]
 enum CliCommand {
-    Mcp,
     Health,
     Status,
     Navigate(NavigateRequest),
@@ -344,6 +392,14 @@ enum CliCommand {
     PageAction {
         page_id: String,
         request: PageActionRequest,
+    },
+    Observe {
+        page_id: Option<String>,
+        request: ObservationRequest,
+    },
+    ObservationAction {
+        observation_id: String,
+        request: ObservationActionRequest,
     },
     ProxyList,
     ProxyGet(String),
@@ -365,6 +421,7 @@ enum CliCommand {
         request: SessionUpdateRequest,
     },
     SessionDelete(String),
+    SessionCloseGroup(String),
 }
 
 impl CliCommand {
@@ -402,16 +459,14 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
             parse_no_options(&mut args, "status", root_help())?;
             Ok(CliCommand::Status)
         }
-        "mcp" => {
-            parse_no_options(&mut args, "mcp", root_help())?;
-            Ok(CliCommand::Mcp)
-        }
         "navigate" => parse_navigate(args),
         "perform" => parse_perform(args),
         "capture" => parse_capture(args),
         "page" => parse_page(args),
+        "observe" => parse_observe(args),
+        "observation" => parse_observation(args),
         "proxy" => parse_proxy(args),
-        "session" | "tab" => parse_session(args),
+        "session" => parse_session(args),
         legacy
             if matches!(legacy, "ping" | "logs")
                 || legacy.starts_with("--rotate-proxy-session") =>
@@ -436,12 +491,22 @@ fn apply_session_id_environment_default(
 ) -> Result<(), CliError> {
     let session_id = match command {
         CliCommand::Navigate(request) if request.session_id.is_none() => &mut request.session_id,
-        CliCommand::Capture(request) if request.session_id.is_none() => &mut request.session_id,
+        CliCommand::Capture(request) if request.session_id.is_none() && request.group.is_none() => {
+            &mut request.session_id
+        }
         CliCommand::CaptureCurrent(request) if request.session_id.is_none() => {
             &mut request.session_id
         }
         CliCommand::Perform(request) if request.session_id.is_none() => &mut request.session_id,
-        CliCommand::PageAttach(request) if request.session_id.is_none() => &mut request.session_id,
+        CliCommand::PageAttach(request)
+            if request.session_id.is_none() && request.group.is_none() =>
+        {
+            &mut request.session_id
+        }
+        CliCommand::Observe {
+            page_id: None,
+            request,
+        } if request.session_id.is_none() => &mut request.session_id,
         _ => return Ok(()),
     };
     let Some(environment_value) = environment_value else {
@@ -481,6 +546,7 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
@@ -498,6 +564,11 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
             "-h" | "--help" => return Err(CliError::Help(capture_help())),
             _ => return Err(args.unknown_option(&option, "capture")),
         }
+    }
+    if request.session_id.is_some() && request.group.is_some() {
+        return Err(CliError::Message(
+            "--group cannot be combined with --session-id".to_string(),
+        ));
     }
     Ok(CliCommand::Capture(request))
 }
@@ -591,12 +662,18 @@ fn parse_page_attach(mut args: Arguments) -> Result<CliCommand, CliError> {
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--proxy" => {
                 request.proxy = Some(parse_proxy_selector(&args.option_value(&option, inline)?))
             }
             "-h" | "--help" => return Err(CliError::Help(page_help())),
             _ => return Err(args.unknown_option(&option, "page attach")),
         }
+    }
+    if request.session_id.is_some() && request.group.is_some() {
+        return Err(CliError::Message(
+            "--group cannot be combined with --session-id".to_string(),
+        ));
     }
     Ok(CliCommand::PageAttach(request))
 }
@@ -634,6 +711,78 @@ fn parse_page_action(mut args: Arguments) -> Result<CliCommand, CliError> {
             wait,
         },
     })
+}
+
+fn parse_observe(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.peek_is_help() {
+        return Err(CliError::Help(observe_help()));
+    }
+    let mut page_id = None;
+    let mut request = ObservationRequest::default();
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--page-id" => page_id = Some(args.option_value(&option, inline)?),
+            "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--mode" => {
+                request.mode = Some(parse_observation_mode(
+                    &args.option_value(&option, inline)?,
+                )?)
+            }
+            "--timeout" => request.timeout = Some(args.number(&option, inline)?),
+            "--wait" => request.wait = Some(args.number(&option, inline)?),
+            "-h" | "--help" => return Err(CliError::Help(observe_help())),
+            _ => return Err(args.unknown_option(&option, "observe")),
+        }
+    }
+    if page_id.is_some() && request.session_id.is_some() {
+        return Err(CliError::Message(
+            "observe --page-id cannot be combined with --session-id".to_string(),
+        ));
+    }
+    Ok(CliCommand::Observe { page_id, request })
+}
+
+fn parse_observation(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.peek_is_help() {
+        return Err(CliError::Help(observation_help()));
+    }
+    match args.required_positional("observation subcommand")?.as_str() {
+        "action" => {
+            let observation_id = args.required_positional("observation ID")?;
+            let mut request = None;
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--request" => set_once(
+                        &mut request,
+                        args.json_value::<ObservationActionRequest>(&option, inline)?,
+                        &option,
+                    )?,
+                    "-h" | "--help" => return Err(CliError::Help(observation_help())),
+                    _ => return Err(args.unknown_option(&option, "observation action")),
+                }
+            }
+            Ok(CliCommand::ObservationAction {
+                observation_id,
+                request: request.ok_or_else(|| {
+                    CliError::Message("observation action requires --request JSON".to_string())
+                })?,
+            })
+        }
+        subcommand => Err(CliError::Message(format!(
+            "unknown observation subcommand {subcommand:?}; run `rel observation --help`"
+        ))),
+    }
+}
+
+fn parse_observation_mode(value: &str) -> Result<ObservationMode, CliError> {
+    match value {
+        "semantic" => Ok(ObservationMode::Semantic),
+        "hybrid" => Ok(ObservationMode::Hybrid),
+        "visual" => Ok(ObservationMode::Visual),
+        _ => Err(CliError::Message(
+            "--mode must be semantic, hybrid, or visual".to_string(),
+        )),
+    }
 }
 
 fn parse_proxy(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -758,6 +907,7 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
         "create" => parse_session_create(args),
         "update" => parse_session_update(args),
         "delete" => Ok(CliCommand::SessionDelete(parse_session_id(&mut args)?)),
+        "close" => parse_session_close_group(args),
         subcommand => Err(CliError::Message(format!(
             "unknown session subcommand {subcommand:?}; run `rel session --help`"
         ))),
@@ -770,6 +920,7 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
             "--name" => request.name = Some(args.option_value(&option, inline)?),
+            "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--proxy" => set_change(
                 &mut request.proxy_alias,
                 Change::Set(args.option_value(&option, inline)?),
@@ -796,6 +947,25 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
         }
     }
     Ok(CliCommand::SessionCreate { request, id_only })
+}
+
+fn parse_session_close_group(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let mut group = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--group" => set_once(&mut group, args.option_value(&option, inline)?, &option)?,
+            "-h" | "--help" => return Err(CliError::Help(session_help())),
+            _ => return Err(args.unknown_option(&option, "session close")),
+        }
+    }
+    let group = group
+        .ok_or_else(|| CliError::Message("session close requires --group GROUP".to_string()))?;
+    if group.trim().is_empty() {
+        return Err(CliError::Message(
+            "session group must not be empty".to_string(),
+        ));
+    }
+    Ok(CliCommand::SessionCloseGroup(group))
 }
 
 fn parse_session_update(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -1050,26 +1220,39 @@ Usage:\n  \
 rel URL [options]\n  \
 rel health\n  \
 rel status\n  \
-rel mcp\n  \
+rel-mcp\n  \
 rel navigate URL [options]\n  \
 rel perform ACTIONS [options]\n  \
 rel capture [options]           Capture the current shorthand page\n  \
 rel capture URL [options]       Explicit equivalent of `rel URL`\n  \
 rel page attach URL [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
+rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
+rel observation action OBSERVATION_ID --request JSON\n  \
 rel proxy <list|get|create|update|delete|rotate> ...\n  \
-rel session <list|get|create|update|delete> ...\n  \
-rel tab <list|get|create|update|delete> ...    Alias for rel session\n  \
+rel session <list|get|create|update|delete|close> ...\n  \
 rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
 stdout unless --output is supplied, and writes validated NDJSON events to stderr.\n\
-`rel mcp` serves MCP over stdio for model and agent clients.\n\
+`rel-mcp` serves MCP over stdio for model and agent clients.\n\
 Run `rel navigate --help`, `rel perform --help`, `rel capture --help`,\n\
-`rel page --help`, `rel proxy --help`, or\n\
-`rel session --help` for resource options. Every `rel session ...` command is
-also available as `rel tab ...`. Commands that accept --session-id use
-$REL_SESSION_ID when the option is omitted; an explicit option wins."
+`rel page --help`, `rel observe --help`, `rel observation --help`,\n\
+`rel proxy --help`, or\n\
+`rel session --help` for resource options. Commands that accept --session-id
+use $REL_SESSION_ID when the option is omitted; an explicit option wins."
+        .to_string()
+}
+
+fn mcp_help() -> String {
+    "REL MCP adapter — stdio bridge to the local REL API\n\n\
+Usage:\n  \
+rel-mcp\n  \
+rel-mcp --help\n  \
+rel-mcp --version\n\n\
+The adapter reads newline-delimited MCP JSON-RPC from stdin and writes protocol\n\
+responses to stdout. Startup and discovery do not launch REL.app; validated\n\
+operational tools start it lazily when its local agent is unavailable."
         .to_string()
 }
 
@@ -1085,6 +1268,7 @@ Options:\n  \
 --action JSON                 Repeat for multiple canonical action objects\n  \
 --actions JSON                Canonical action object array\n  \
 --session-id ID              Default: $REL_SESSION_ID when set\n  \
+--group GROUP                Group a new URL-capture session; conflicts with --session-id\n  \
 --proxy ALIAS\n  \
 --retry COUNT\n  \
 --retry-delay SECONDS\n\n\
@@ -1115,10 +1299,28 @@ $REL_SESSION_ID when set; an explicit value wins."
 
 fn page_help() -> String {
     "Usage:\n  \
-rel page attach URL [--session-id ID] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
+rel page attach URL [--session-id ID | --group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
 rel page action PAGE_ID --action JSON [--output PATH] [--timeout S] [--wait S]\n\n\
-For page attach, --session-id defaults to $REL_SESSION_ID when set; an explicit
-value wins."
+For page attach, --session-id defaults to $REL_SESSION_ID when set. --group
+labels a newly created session and suppresses that environment default."
+        .to_string()
+}
+
+fn observe_help() -> String {
+    "Usage:\n  \
+rel observe [--page-id ID] [--session-id ID] [--mode semantic|hybrid|visual] [--timeout S] [--wait S]\n\n\
+Observe the current shorthand page or one attached page. Hybrid and visual modes\n\
+include a synchronized current-viewport PNG resource. --session-id defaults to\n\
+$REL_SESSION_ID and cannot be combined with --page-id."
+        .to_string()
+}
+
+fn observation_help() -> String {
+    "Usage:\n  \
+rel observation action OBSERVATION_ID --request JSON\n\n\
+Perform click, type, clear, press, or select through an observation-scoped ref.\n\
+The JSON request contains ref, action, optional action data, post-action mode,\n\
+timeout, and wait. The command returns a new observation."
         .to_string()
 }
 
@@ -1145,13 +1347,13 @@ rel session list\n  \
 rel session get SESSION_ID\n  \
 rel session create [options]\n  \
 rel session update SESSION_ID [options]\n  \
-rel session delete SESSION_ID\n\n\
+rel session delete SESSION_ID\n  \
+rel session close --group GROUP\n\n\
 Options:\n  \
---name NAME --proxy ALIAS --adblock-enabled true|false\n  \
+--name NAME --group GROUP --proxy ALIAS --adblock-enabled true|false\n  \
 --image-blocking-mode none|all|over_limit --image-size-limit-kb KB\n  \
 --direct                       Use a direct connection instead of the default proxy\n  \
---id-only                     For create, print only the new session ID\n\n\
-`rel tab` is an alias for `rel session`."
+--id-only                     For create, print only the new session ID"
         .to_string()
 }
 
@@ -1259,6 +1461,39 @@ mod tests {
     }
 
     #[test]
+    fn session_group_labels_new_capture_and_page_sessions() {
+        let CliCommand::Capture(capture) = parse_with_session_default(
+            &["capture", "https://example.com", "--group", "pgm"],
+            Some("machine-x.Environment"),
+        )
+        .unwrap() else {
+            panic!("expected capture");
+        };
+        assert_eq!(capture.session_id, None);
+        assert_eq!(capture.group.as_deref(), Some("pgm"));
+
+        let CliCommand::PageAttach(page) = parse_with_session_default(
+            &["page", "attach", "https://example.com", "--group=pgm"],
+            Some("machine-x.Environment"),
+        )
+        .unwrap() else {
+            panic!("expected page attach");
+        };
+        assert_eq!(page.session_id, None);
+        assert_eq!(page.group.as_deref(), Some("pgm"));
+
+        assert!(parse(&[
+            "capture",
+            "https://example.com",
+            "--group",
+            "pgm",
+            "--session-id",
+            "machine-x.Session1",
+        ])
+        .is_err());
+    }
+
+    #[test]
     fn session_environment_default_is_validated_only_when_used() {
         let error = parse_with_session_default(&["navigate", "https://example.com"], Some("   "))
             .unwrap_err();
@@ -1283,6 +1518,13 @@ mod tests {
         ] {
             assert!(help.contains("REL_SESSION_ID"));
         }
+    }
+
+    #[test]
+    fn help_identifies_the_standalone_mcp_binary() {
+        assert!(root_help().contains("rel-mcp"));
+        assert!(mcp_help().contains("Usage:\n  rel-mcp"));
+        assert!(mcp_help().contains("do not launch REL.app"));
     }
 
     #[test]
@@ -1387,7 +1629,6 @@ mod tests {
                 {"action":"wait-for","selector":"#loaded"},
                 {"action":"click","selector":"#more"},
                 {"action":"type","selector":"#search","text":"Magickraft"},
-                {"action":"fill","selector":"#email","text":"listener@example.com"},
                 {"action":"clear","selector":"#query"},
                 {"action":"press","selector":"#search","key":"Enter"},
                 {"action":"select","selector":"#genre","value":"disco"},
@@ -1415,10 +1656,6 @@ mod tests {
                 Action::Type {
                     selector: "#search".to_string(),
                     text: "Magickraft".to_string()
-                },
-                Action::Fill {
-                    selector: "#email".to_string(),
-                    text: "listener@example.com".to_string()
                 },
                 Action::Clear {
                     selector: "#query".to_string()
@@ -1508,9 +1745,6 @@ mod tests {
     fn parses_every_resource_command_family() {
         assert_eq!(parse(&["health"]).unwrap(), CliCommand::Health);
         assert_eq!(parse(&["status"]).unwrap(), CliCommand::Status);
-        assert_eq!(parse(&["mcp"]).unwrap(), CliCommand::Mcp);
-        assert!(CliCommand::Mcp.starts_app());
-        assert!(parse(&["mcp", "extra"]).is_err());
         assert_eq!(parse(&["proxy", "list"]).unwrap(), CliCommand::ProxyList);
         assert_eq!(
             parse(&["proxy", "get", "work-proxy"]).unwrap(),
@@ -1536,29 +1770,17 @@ mod tests {
             parse(&["session", "delete", "machine-x.Session4"]).unwrap(),
             CliCommand::SessionDelete("machine-x.Session4".to_string())
         );
-        assert_eq!(parse(&["tab", "list"]).unwrap(), CliCommand::SessionList);
         assert_eq!(
-            parse(&["tab", "get", "machine-x.Session4"]).unwrap(),
-            CliCommand::SessionGet("machine-x.Session4".to_string())
+            parse(&["session", "close", "--group", "pgm"]).unwrap(),
+            CliCommand::SessionCloseGroup("pgm".to_string())
         );
-        assert_eq!(
-            parse(&["tab", "delete", "machine-x.Session4"]).unwrap(),
-            CliCommand::SessionDelete("machine-x.Session4".to_string())
-        );
-        assert_eq!(
-            parse(&["tab", "update", "machine-x.Session4", "--name", "Research"]).unwrap(),
-            parse(&[
-                "session",
-                "update",
-                "machine-x.Session4",
-                "--name",
-                "Research",
-            ])
-            .unwrap()
-        );
+        assert!(parse(&["session", "close"]).is_err());
+        assert!(parse(&["tab", "list"]).is_err());
         let CliCommand::SessionCreate { request, .. } = parse(&[
             "session",
             "create",
+            "--group",
+            "pgm",
             "--adblock-enabled",
             "true",
             "--image-blocking-mode",
@@ -1568,6 +1790,7 @@ mod tests {
             panic!("expected session create");
         };
         assert_eq!(request.adblock_enabled, Some(true));
+        assert_eq!(request.group.as_deref(), Some("pgm"));
         assert_eq!(request.image_blocking_mode, Some(ImageBlockingMode::None));
     }
 
@@ -1614,9 +1837,9 @@ mod tests {
         );
 
         let CliCommand::SessionCreate { request, id_only } =
-            parse(&["tab", "create", "--name", "Research", "--id-only"]).unwrap()
+            parse(&["session", "create", "--name", "Research", "--id-only"]).unwrap()
         else {
-            panic!("expected tab create alias");
+            panic!("expected session create");
         };
         assert!(id_only);
         assert_eq!(request.name.as_deref(), Some("Research"));
@@ -1633,6 +1856,7 @@ mod tests {
                 session: client::Session {
                     id: "machine-test.Session12".to_string(),
                     name: "Research".to_string(),
+                    group: Some("pgm".to_string()),
                     proxy_alias: Some("office".to_string()),
                     adblock_enabled: true,
                     image_blocking_mode: ImageBlockingMode::OverLimit,

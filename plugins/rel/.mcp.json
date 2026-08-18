@@ -1,10 +1,7 @@
 {
   "mcpServers": {
     "rel": {
-      "command": "/Applications/REL.app/Contents/Resources/rel",
-      "args": [
-        "mcp"
-      ]
+      "command": "/Applications/REL.app/Contents/Resources/rel-mcp"
     }
   }
 }

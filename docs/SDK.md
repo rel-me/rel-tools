@@ -39,8 +39,8 @@ database, or tails log files. The caller is responsible for ensuring that the
 installed app and agent are running. The bundled CLI adds app-launch behavior
 for Chromium and mutation commands around this same client.
 
-SDK browser methods inherit the [RPC tab-selection behavior](RPC.md#transport):
-when REL is inactive, the target tab is selected by default without activating
+SDK browser methods inherit the [RPC session-selection behavior](RPC.md#transport):
+when REL is inactive, the target session is selected by default without activating
 the app. Users can disable this with the General setting **Follow browser
 commands**.
 
@@ -56,10 +56,13 @@ Each method maps to one public RPC route:
 | `perform(&PerformRequest)` | `POST /v1/perform` |
 | `capture_current_page(&PageCaptureRequest)` | `POST /v1/capture` |
 | `screenshot_current_page(&ScreenshotRequest)` | `POST /v1/screenshot` |
+| `observe_current_page(&ObservationRequest)` | `POST /v1/observe` |
 | `capture(&CaptureRequest)` | `POST /v1/captures` |
 | `attach_page(&PageAttachRequest)` | `POST /v1/pages` |
 | `perform_page_action(page_id, &PageActionRequest)` | `POST /v1/pages/{page_id}/actions` |
 | `take_page_screenshot(page_id, &PageScreenshotRequest)` | `POST /v1/pages/{page_id}/screenshot` |
+| `observe_page(page_id, &PageObservationRequest)` | `POST /v1/pages/{page_id}/observe` |
+| `perform_observation_action(observation_id, &ObservationActionRequest)` | `POST /v1/observations/{observation_id}/actions` |
 | `list_proxies()` | `GET /v1/proxies` |
 | `get_proxy(alias)` | `GET /v1/proxies/{alias}` |
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
@@ -73,6 +76,7 @@ Each method maps to one public RPC route:
 | `update_session_defaults(&SessionDefaultsUpdateRequest)` | `PATCH /v1/session-defaults` |
 | `update_session(id, &SessionUpdateRequest)` | `PATCH /v1/sessions/{id}` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
+| `close_session_group(group)` | `POST /v1/sessions/close` |
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
@@ -84,11 +88,12 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all seven tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for all ten tools. It
 calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
-methods, `list_sessions`, and `list_proxies`; it does not maintain alternate
-request types or bypass the RPC transport. For capture, it exhausts and
-validates `CaptureStream` before returning one aggregated MCP result.
+methods, all observation methods, `list_sessions`, `close_session_group`, and
+`list_proxies`; it does not maintain alternate request types or bypass the RPC
+transport. For capture, it exhausts and validates `CaptureStream` before
+returning one aggregated MCP result.
 
 ## Shorthand page workflow
 
@@ -151,6 +156,36 @@ let screenshot = client.screenshot_current_page(&ScreenshotRequest {
 println!("{}", screenshot.data.screenshot.output_path);
 # Ok::<(), rel_client::ClientError>(())
 ```
+
+Request compact rendered semantics and typed element refs with
+`ObservationRequest`. Hybrid adds a current-viewport PNG resource; visual keeps
+semantics minimal:
+
+```rust
+use rel_client::{
+    ObservationActionKind, ObservationActionRequest, ObservationMode,
+    ObservationRequest, RelClient,
+};
+
+let client = RelClient::local();
+let observed = client.observe_current_page(&ObservationRequest {
+    session_id: Some("Session1".into()),
+    mode: Some(ObservationMode::Hybrid),
+    timeout: None,
+    wait: None,
+})?;
+let first_ref = observed.data.observation.elements[0].element_ref.clone();
+let next = client.perform_observation_action(
+    &observed.data.observation.id,
+    &ObservationActionRequest::new(first_ref, ObservationActionKind::Click),
+)?;
+println!("{}", next.data.observation.id);
+# Ok::<(), rel_client::ClientError>(())
+```
+
+Refs are scoped to one observation and document sequence. The agent retains
+private locators and returns `OBSERVATION_STALE` instead of retargeting when the
+document or element signature has changed.
 
 `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame commits an HTTP 4xx or 5xx response. By default, detected Cloudflare
@@ -249,10 +284,12 @@ default proxy or `Change::Clear` to create a direct session:
 use rel_client::{Change, RelClient, SessionCreateRequest};
 
 let request = SessionCreateRequest {
+    group: Some("pgm".into()),
     proxy_alias: Change::Clear,
     ..SessionCreateRequest::default()
 };
 RelClient::local().create_session(&request)?;
+RelClient::local().close_session_group("pgm")?;
 # Ok::<(), rel_client::ClientError>(())
 ```
 
@@ -261,6 +298,12 @@ The `SessionDefaults` resource contains `proxy_alias`, `adblock_enabled`,
 allows every image without disabling AdBlock. Proxy and filter updates
 affect only subsequently created sessions. REL does not impose a maximum
 session count.
+
+`Session::group` exposes the optional immutable group label. `CaptureRequest`
+and `PageAttachRequest` also accept `group` when `session_id` is absent, so an
+implicitly created session can join the same group. Group matching is
+case-insensitive; closing a group that is already empty succeeds with an empty
+`deleted_ids` vector.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy

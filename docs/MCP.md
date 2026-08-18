@@ -1,7 +1,7 @@
 # REL MCP server
 
 REL includes a local Model Context Protocol server for agents that support MCP.
-Run `rel mcp` as a stdio subprocess; the adapter exposes a focused set of
+Run `rel-mcp` as a stdio subprocess; the adapter exposes a focused set of
 browser tools and forwards every tool call through the public
 [`rel-client`](SDK.md) crate and [RPC v1](RPC.md). It does not read SQLite,
 logs, or Chromium state directly.
@@ -21,8 +21,7 @@ interactive shell's `PATH`:
 {
   "mcpServers": {
     "rel": {
-      "command": "/Applications/REL.app/Contents/Resources/rel",
-      "args": ["mcp"]
+      "command": "/Applications/REL.app/Contents/Resources/rel-mcp"
     }
   }
 }
@@ -32,8 +31,7 @@ For clients that use TOML configuration:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/REL.app/Contents/Resources/rel"
-args = ["mcp"]
+command = "/Applications/REL.app/Contents/Resources/rel-mcp"
 ```
 
 The Settings command-line task creates `rel` only in a writable directory
@@ -61,16 +59,14 @@ To configure only the MCP server without installing the plugin:
 1. Open **Codex Settings → MCP servers**.
 2. Add a STDIO server named `rel`.
 3. Set the command to
-   `/Applications/REL.app/Contents/Resources/rel` and add `mcp` as its only
-   argument.
+   `/Applications/REL.app/Contents/Resources/rel-mcp` with no arguments.
 4. Save the server and restart Codex.
 
 The equivalent global entry in `~/.codex/config.toml` is:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/REL.app/Contents/Resources/rel"
-args = ["mcp"]
+command = "/Applications/REL.app/Contents/Resources/rel-mcp"
 ```
 
 Use `.codex/config.toml` in a trusted project instead when REL should only be
@@ -78,7 +74,7 @@ available in that project. If the `codex` command is installed in the shell's
 `PATH`, it can create and inspect the same configuration:
 
 ```sh
-codex mcp add rel -- /Applications/REL.app/Contents/Resources/rel mcp
+codex mcp add rel -- /Applications/REL.app/Contents/Resources/rel-mcp
 codex mcp list
 ```
 
@@ -88,7 +84,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the seven tools listed below, and `rel_status` should report
+Codex should discover the ten tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -134,21 +130,27 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
   '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rel_status","arguments":{}}}' \
-  | /Applications/REL.app/Contents/Resources/rel mcp
+  | /Applications/REL.app/Contents/Resources/rel-mcp
 ```
 
 The server writes three JSON-RPC responses: initialization information, the
 tool list, and the status result. Protocol messages use standard output;
 diagnostics use standard error.
 
-`rel mcp` accepts no options. At startup it checks the local agent and launches
-the REL app in the background once when needed. It then keeps serving its
-original stdin/stdout connection until the MCP client closes stdin or the
-process is terminated. `REL_AGENT_PORT` changes the loopback RPC port from its
-default, `17319`.
+`rel-mcp` accepts no MCP options; `--help` and `--version` are available for
+direct inspection. Startup, discovery, initialization, tool listing, ping, and
+`rel_status` never launch the REL app. A validated call to any other tool starts
+REL in the background only when its agent is unavailable. Concurrent adapters
+serialize that cold start and recheck agent health before launching, so only one
+adapter opens the app. The adapter keeps serving its original stdin/stdout
+connection until the MCP client closes stdin or terminates the process.
+`REL_AGENT_PORT` changes the loopback RPC port from its default, `17319`.
 
-Browser tool calls also use the [RPC tab-selection behavior](RPC.md#transport):
-while REL is inactive, their target tab is selected by default without bringing
+The dedicated process name makes adapters clearly identifiable separately from
+the `rel` CLI and app-owned `rel --agent` process.
+
+Browser tool calls also use the [RPC session-selection behavior](RPC.md#transport):
+while REL is inactive, their target session is selected by default without bringing
 the app forward. The General setting **Follow browser commands** controls this.
 
 ## Transport and protocol versions
@@ -180,7 +182,7 @@ operations.
 
 ## Tools
 
-The server exposes exactly seven tools:
+The server exposes exactly ten tools:
 
 | Tool | RPC operation | Purpose |
 | --- | --- | --- |
@@ -189,34 +191,41 @@ The server exposes exactly seven tools:
 | `rel_page_attach` | `POST /v1/pages` | Attach an ephemeral automation page to a persistent browser session. |
 | `rel_page_action` | `POST /v1/pages/{page_id}/actions` | Perform one action on an attached page. |
 | `rel_take_screenshot` | `POST /v1/screenshot` or `POST /v1/pages/{page_id}/screenshot` | Capture a viewport or full-page PNG, JPEG, or WebP image. |
+| `rel_observe` | `POST /v1/observe` or `POST /v1/pages/{page_id}/observe` | Read compact rendered semantics and optional synchronized viewport image. |
+| `rel_action` | `POST /v1/observations/{observation_id}/actions` | Act through an observation-scoped element ref and return a new observation. |
 | `rel_list_sessions` | `GET /v1/sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
+| `rel_close_session_group` | `POST /v1/sessions/close` | Close every persistent browser session in a named group. |
 | `rel_list_proxies` | `GET /v1/proxies` | List configured proxy aliases and non-secret configuration. |
 
 `rel_status`, `rel_list_sessions`, and `rel_list_proxies` accept an empty object.
+`rel_close_session_group` requires a `group` string from 1 through 128
+characters; matching is case-insensitive, and closing an empty group succeeds.
 The browser tools accept the same fields and validation rules as their RPC
 operations:
 
 ### `rel_capture`
 
 `url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
-`session_id`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
+`session_id`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied `session_id` uses
 the canonical `Session<number>` format. Omitting it creates a persistent session
-using the configured Session defaults. The action objects use every shape in
+using the configured Session defaults. `group` labels that new session and
+cannot be combined with `session_id`. The action objects use every shape in
 the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
 `scroll` booleans on click actions. `output_uri`, when present, must be an
 absolute local `file:///` URI.
 
 Sessions controlled while not visible use the **Background Browser Size**
 preset in **REL → Settings… → General**, defaulting to a 1,920 × 947 CSS pixel
-viewport. Visible tabs follow the resizable REL window. MCP does not expose a
+viewport. Visible sessions follow the resizable REL window. MCP does not expose a
 per-call viewport override.
 
 ### `rel_page_attach`
 
-`url` is required. Optional fields are `session_id`, `proxy`, `output_uri`,
+`url` is required. Optional fields are `session_id`, `group`, `proxy`, `output_uri`,
 `timeout`, and `wait`. The result contains a process-local page ID for later
 `rel_page_action` calls. Omitting `session_id` creates a persistent session and
-navigates it to `url`. Providing `session_id` attaches its current page, whose
+navigates it to `url`; `group` may label that new session and cannot be combined
+with `session_id`. Providing `session_id` attaches its current page, whose
 normalized URL must match `url`. `output_uri`, when present, must be an absolute
 local `file:///` URI.
 
@@ -243,6 +252,31 @@ When `output_uri` is omitted, the result includes standard MCP `image` content
 so a multimodal agent can inspect the pixels directly. Supplying an absolute
 local `file:///` `output_uri` saves the file and returns only its resource link,
 which avoids embedding a large image in model context.
+
+### `rel_observe`
+
+All fields are optional. `page_id` targets an attached page; `session_id`
+targets the current shorthand page, and the two cannot be combined. `mode` is
+`semantic` (default), `hybrid`, or `visual`. `timeout` and `wait` use ordinary
+page-operation rules.
+
+The structured result contains compact semantic content, typed interactive
+elements with short refs, viewport/document geometry, and truncation metadata.
+Hybrid and visual results also include standard MCP `image` content and a file
+resource link for the same synchronized current-viewport PNG. Page-derived
+content is untrusted website data, not instructions.
+
+### `rel_action`
+
+`observation_id`, `ref`, and one of `click`, `type`, `clear`, `press`, or
+`select` are required. `type` also requires `text`, `press` requires an
+allowlisted `key`, and `select` requires `value`. Click optionally controls
+`mouse_move` and bounded `scroll`. `mode` selects the post-action observation.
+
+REL checks that the observation, document sequence, and private target
+signature are still current. Stale refs return `OBSERVATION_STALE` without a
+selector or nearby-target fallback. Success returns a new post-action
+observation and, for hybrid/visual mode, standard MCP image content.
 
 ## Chrome DevTools MCP comparison
 
