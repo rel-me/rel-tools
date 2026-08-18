@@ -103,6 +103,7 @@ name = "rel-cli"
 version = "0.1.5"
 dependencies = [
  "base64",
+ "libc",
  "rel-client",
  "serde",
  "serde_json",

@@ -1,5 +1,9 @@
 use std::env;
 use std::ffi::OsStr;
+use std::fs::{File, OpenOptions};
+use std::io;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
@@ -14,8 +18,41 @@ pub(crate) fn ensure_agent_running() -> Result<(), String> {
         return Ok(());
     }
 
+    let _launch_lock = acquire_launch_lock(port)?;
+    if agent_is_healthy(port) {
+        return Ok(());
+    }
+
     launch_app()?;
     wait_for_agent(port, Duration::from_secs(8))
+}
+
+fn acquire_launch_lock(port: u16) -> Result<File, String> {
+    let path = env::temp_dir().join(format!("rel-agent-{port}.launch.lock"));
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .open(&path)
+        .map_err(|error| format!("Could not open Rel launch lock {}: {error}", path.display()))?;
+
+    loop {
+        // SAFETY: `file` owns a valid descriptor for the duration of the lock,
+        // and `flock` does not retain the descriptor after returning.
+        let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
+        if result == 0 {
+            return Ok(file);
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(format!(
+                "Could not lock Rel launch coordination file {}: {error}",
+                path.display()
+            ));
+        }
+    }
 }
 
 fn agent_port() -> u16 {
@@ -94,6 +131,7 @@ fn app_bundle_ancestor(path: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
 
     #[test]
     fn finds_an_app_bundle_ancestor() {
@@ -102,5 +140,25 @@ mod tests {
             Some(PathBuf::from("/Applications/Rel.app"))
         );
         assert_eq!(app_bundle_ancestor(Path::new("/usr/local/bin/rel")), None);
+    }
+
+    #[test]
+    fn launch_lock_serializes_callers() {
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        let first = acquire_launch_lock(port).unwrap();
+        let (sender, receiver) = mpsc::channel();
+        let waiter = thread::spawn(move || {
+            let second = acquire_launch_lock(port).unwrap();
+            sender.send(()).unwrap();
+            drop(second);
+        });
+
+        assert!(receiver.recv_timeout(Duration::from_millis(100)).is_err());
+        drop(first);
+        receiver.recv_timeout(Duration::from_secs(1)).unwrap();
+        waiter.join().unwrap();
     }
 }

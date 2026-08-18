@@ -369,7 +369,7 @@ enum CliCommand {
 
 impl CliCommand {
     fn starts_app(&self) -> bool {
-        !matches!(self, Self::Health | Self::Status)
+        !matches!(self, Self::Mcp | Self::Health | Self::Status)
     }
 }
 
@@ -1509,7 +1509,7 @@ mod tests {
         assert_eq!(parse(&["health"]).unwrap(), CliCommand::Health);
         assert_eq!(parse(&["status"]).unwrap(), CliCommand::Status);
         assert_eq!(parse(&["mcp"]).unwrap(), CliCommand::Mcp);
-        assert!(CliCommand::Mcp.starts_app());
+        assert!(!CliCommand::Mcp.starts_app());
         assert!(parse(&["mcp", "extra"]).is_err());
         assert_eq!(parse(&["proxy", "list"]).unwrap(), CliCommand::ProxyList);
         assert_eq!(

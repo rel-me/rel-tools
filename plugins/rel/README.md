@@ -10,4 +10,5 @@ configuration, seven browser tools, and nine canonical page actions.
 
 REL.app owns Chromium and browser state. The plugin starts only the bundled
 `rel mcp` adapter; it does not include another browser runtime or access REL's
-private database, logs, Chromium storage, or proxy credentials.
+private database, logs, Chromium storage, or proxy credentials. Starting the
+adapter does not launch REL.app; validated operational tools start it lazily.

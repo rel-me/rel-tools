@@ -141,11 +141,14 @@ The server writes three JSON-RPC responses: initialization information, the
 tool list, and the status result. Protocol messages use standard output;
 diagnostics use standard error.
 
-`rel mcp` accepts no options. At startup it checks the local agent and launches
-the REL app in the background once when needed. It then keeps serving its
-original stdin/stdout connection until the MCP client closes stdin or the
-process is terminated. `REL_AGENT_PORT` changes the loopback RPC port from its
-default, `17319`.
+`rel mcp` accepts no options. Startup, discovery, initialization, tool listing,
+ping, and `rel_status` never launch the REL app. A validated call to any other
+tool starts REL in the background only when its agent is unavailable. Concurrent
+adapters serialize that cold start and recheck agent health before launching, so
+only one adapter opens the app. The adapter keeps serving its original
+stdin/stdout connection until the MCP client closes stdin or terminates the
+process. `REL_AGENT_PORT` changes the loopback RPC port from its default,
+`17319`.
 
 Browser tool calls also use the [RPC tab-selection behavior](RPC.md#transport):
 while REL is inactive, their target tab is selected by default without bringing

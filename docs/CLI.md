@@ -54,9 +54,10 @@ rel --version
 It is not part of the public `rel-cli` package.
 
 `health` and `status` inspect the currently running agent without launching the
-app. Every other command, including `mcp`, proxy reads, and session reads,
+app. Every other ordinary CLI command, including proxy reads and session reads,
 starts the REL app in the background when its agent is unavailable. `rel mcp`
-performs that startup check once, then serves its original stdio connection.
+starts its stdio protocol server without launching the app; its operational
+tools start REL lazily after their arguments have been validated.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
 
 When a browser command targets a tab while REL is in the background, REL selects

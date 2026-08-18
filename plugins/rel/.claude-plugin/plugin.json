@@ -1,7 +1,7 @@
 {
   "name": "rel",
   "displayName": "REL",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Use REL's persistent embedded Chromium sessions from Claude Code.",
   "author": {
     "name": "REL",
