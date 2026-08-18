@@ -10,7 +10,8 @@ session storage, proxy credentials, or internal service code.
 
 ## What is here
 
-- [`rel-cli`](crates/rel-cli): the `rel` command and its stdio MCP adapter.
+- [`rel-cli`](crates/rel-cli): the `rel` command and standalone `rel-mcp` stdio
+  adapter.
 - [`rel-client`](crates/rel-client): a typed synchronous Rust client for RPC v1.
 - [`plugins/rel`](plugins/rel): the shared REL plugin for Codex and Claude Code,
   distributed through this repository's marketplaces.
@@ -56,7 +57,7 @@ codex plugin add rel@rel
 ```
 
 Start a new Codex task after installation. The plugin configures the bundled
-`rel mcp` adapter and adds guidance for safe use of persistent browser sessions.
+`rel-mcp` adapter and adds guidance for safe use of persistent browser sessions.
 REL.app must be installed in `/Applications`.
 
 The same plugin is available through the repository's Claude Code marketplace:

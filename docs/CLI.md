@@ -14,9 +14,9 @@ cargo install --git https://github.com/rel-me/rel-tools \
 
 The CLI is a thin client built on the typed [`rel-client`](SDK.md)
 Rust crate. Ordinary user-facing commands map directly to an [RPC v1](RPC.md)
-operation. The `mcp` command adapts a focused subset of those same operations
-to stdio MCP; the CLI does not implement another browser or read application
-data directly.
+operation. The standalone `rel-mcp` binary adapts a focused subset of those
+same operations to stdio MCP; neither client implements another browser or
+reads application data directly.
 
 Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
 [RPC](RPC.md).
@@ -47,7 +47,7 @@ rel session create [options]
 rel session update SESSION_ID [options]
 rel session delete SESSION_ID
 rel session close --group GROUP
-rel mcp
+rel-mcp
 rel --help | -h
 rel --version
 ```
@@ -57,7 +57,7 @@ It is not part of the public `rel-cli` package.
 
 `health` and `status` inspect the currently running agent without launching the
 app. Every other ordinary CLI command, including proxy reads and session reads,
-starts the REL app in the background when its agent is unavailable. `rel mcp`
+starts the REL app in the background when its agent is unavailable. `rel-mcp`
 starts its stdio protocol server without launching the app; its operational
 tools start REL lazily after their arguments have been validated.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
@@ -168,7 +168,7 @@ If a browser operation is still active, the resident agent cancels the matching
 Chromium work; the REL app, agent, and persistent browser session remain
 available for later commands.
 
-`rel mcp` is a protocol process rather than an ordinary one-shot command. Its
+`rel-mcp` is a protocol process rather than an ordinary one-shot command. Its
 standard output contains only newline-delimited JSON-RPC 2.0 messages for the
 MCP client, and diagnostics use standard error. See [MCP](MCP.md) for its
 version negotiation, tool results, and errors.
@@ -186,16 +186,17 @@ Exit status is:
 | `1` | Usage, transport, protocol, or RPC failure; unhealthy `status`; or the terminal exit code from an unsuccessful capture. |
 | `130` | The shell terminated the CLI with Ctrl-C (`SIGINT`). |
 
-For `rel mcp`, clean stdin closure exits successfully; startup or stdio failure
+For `rel-mcp`, clean stdin closure exits successfully; startup or stdio failure
 exits unsuccessfully.
 
 ## MCP server
 
 ```sh
-/Applications/REL.app/Contents/Resources/rel mcp
+/Applications/REL.app/Contents/Resources/rel-mcp
 ```
 
-The command accepts no options. MCP clients normally launch it and own its
+The adapter accepts no MCP options; `--help` and `--version` are available for
+direct inspection. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
 `2025-11-25`, and exposes exactly ten tools: `rel_status`, `rel_capture`,

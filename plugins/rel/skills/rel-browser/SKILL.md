@@ -6,7 +6,8 @@ description: Use REL's local MCP server to inspect service health, reuse persist
 # Use REL Browser
 
 Use the MCP server bundled with `/Applications/REL.app`. REL.app owns Chromium;
-the MCP adapter only forwards supported calls through the local versioned API.
+the standalone `rel-mcp` adapter only forwards supported calls through the
+local versioned API.
 
 ## Workflow
 
@@ -99,3 +100,7 @@ different target when an action fails.
 - `rel_page_action`: perform one action on an attached page.
 - `rel_take_screenshot`: capture the current or attached page as PNG, JPEG, or
   WebP, inline or at an explicit file URI.
+- `rel_observe`: return bounded rendered semantics and an optional synchronized
+  viewport image for the current or attached page.
+- `rel_action`: act through an observation-scoped element reference and return
+  the resulting observation.

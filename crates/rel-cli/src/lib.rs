@@ -23,6 +23,34 @@ pub fn main_exit_code(args: Vec<OsString>) -> i32 {
     main_exit_code_with_version(args, env!("CARGO_PKG_VERSION"))
 }
 
+pub fn mcp_main_exit_code(args: Vec<OsString>) -> i32 {
+    mcp_main_exit_code_with_version(args, env!("CARGO_PKG_VERSION"))
+}
+
+pub fn mcp_main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -> i32 {
+    let args = match utf8_args(args) {
+        Ok(args) => args,
+        Err(error) => return print_cli_error(error),
+    };
+    match args.as_slice() {
+        [] => match mcp::serve_stdio(RelClient::local(), product_version) {
+            Ok(()) => 0,
+            Err(error) => print_cli_error(CliError::Message(error)),
+        },
+        [argument] if matches!(argument.as_str(), "-h" | "--help") => {
+            println!("{}", mcp_help());
+            0
+        }
+        [argument] if argument == "--version" => {
+            println!("rel-mcp {product_version}");
+            0
+        }
+        _ => print_cli_error(CliError::Message(
+            "rel-mcp accepts no arguments; run `rel-mcp --help`".to_string(),
+        )),
+    }
+}
+
 pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -> i32 {
     let args = match utf8_args(args) {
         Ok(args) => args,
@@ -35,7 +63,7 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
             return 0;
         }
         Err(CliError::Version) => {
-            println!("rel {}", env!("CARGO_PKG_VERSION"));
+            println!("rel {product_version}");
             return 0;
         }
         Err(error) => return print_cli_error(error),
@@ -52,7 +80,7 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
         }
     }
 
-    match run_command(RelClient::local(), command, product_version) {
+    match run_command(RelClient::local(), command) {
         Ok(exit_code) => exit_code,
         Err(error) => print_cli_error(error),
     }
@@ -74,15 +102,8 @@ fn print_cli_error(error: CliError) -> i32 {
     1
 }
 
-fn run_command(
-    client: RelClient,
-    command: CliCommand,
-    product_version: &str,
-) -> Result<i32, CliError> {
+fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> {
     match command {
-        CliCommand::Mcp => mcp::serve_stdio(client, product_version)
-            .map(|()| 0)
-            .map_err(CliError::Message),
         CliCommand::Health => {
             print_json(&client.health()?)?;
             Ok(0)
@@ -361,7 +382,6 @@ impl From<client::ClientError> for CliError {
 
 #[derive(Clone, Debug, PartialEq)]
 enum CliCommand {
-    Mcp,
     Health,
     Status,
     Navigate(NavigateRequest),
@@ -406,7 +426,7 @@ enum CliCommand {
 
 impl CliCommand {
     fn starts_app(&self) -> bool {
-        !matches!(self, Self::Mcp | Self::Health | Self::Status)
+        !matches!(self, Self::Health | Self::Status)
     }
 }
 
@@ -439,10 +459,9 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
             parse_no_options(&mut args, "status", root_help())?;
             Ok(CliCommand::Status)
         }
-        "mcp" => {
-            parse_no_options(&mut args, "mcp", root_help())?;
-            Ok(CliCommand::Mcp)
-        }
+        "mcp" => Err(CliError::Message(
+            "`rel mcp` was replaced by the standalone `rel-mcp` binary".to_string(),
+        )),
         "navigate" => parse_navigate(args),
         "perform" => parse_perform(args),
         "capture" => parse_capture(args),
@@ -1204,7 +1223,7 @@ Usage:\n  \
 rel URL [options]\n  \
 rel health\n  \
 rel status\n  \
-rel mcp\n  \
+rel-mcp\n  \
 rel navigate URL [options]\n  \
 rel perform ACTIONS [options]\n  \
 rel capture [options]           Capture the current shorthand page\n  \
@@ -1219,12 +1238,24 @@ rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
 stdout unless --output is supplied, and writes validated NDJSON events to stderr.\n\
-`rel mcp` serves MCP over stdio for model and agent clients.\n\
+`rel-mcp` serves MCP over stdio for model and agent clients.\n\
 Run `rel navigate --help`, `rel perform --help`, `rel capture --help`,\n\
 `rel page --help`, `rel observe --help`, `rel observation --help`,\n\
 `rel proxy --help`, or\n\
 `rel session --help` for resource options. Commands that accept --session-id
 use $REL_SESSION_ID when the option is omitted; an explicit option wins."
+        .to_string()
+}
+
+fn mcp_help() -> String {
+    "REL MCP adapter — stdio bridge to the local REL API\n\n\
+Usage:\n  \
+rel-mcp\n  \
+rel-mcp --help\n  \
+rel-mcp --version\n\n\
+The adapter reads newline-delimited MCP JSON-RPC from stdin and writes protocol\n\
+responses to stdout. Startup and discovery do not launch REL.app; validated\n\
+operational tools start it lazily when its local agent is unavailable."
         .to_string()
 }
 
@@ -1493,6 +1524,14 @@ mod tests {
     }
 
     #[test]
+    fn help_identifies_the_standalone_mcp_binary() {
+        assert!(root_help().contains("rel-mcp"));
+        assert!(!root_help().contains("rel mcp"));
+        assert!(mcp_help().contains("Usage:\n  rel-mcp"));
+        assert!(mcp_help().contains("do not launch REL.app"));
+    }
+
+    #[test]
     fn parses_proxy_only_capture_as_a_new_session_request() {
         let CliCommand::Capture(request) =
             parse(&["capture", "https://example.com", "--proxy=oxylabs"]).unwrap()
@@ -1710,8 +1749,10 @@ mod tests {
     fn parses_every_resource_command_family() {
         assert_eq!(parse(&["health"]).unwrap(), CliCommand::Health);
         assert_eq!(parse(&["status"]).unwrap(), CliCommand::Status);
-        assert_eq!(parse(&["mcp"]).unwrap(), CliCommand::Mcp);
-        assert!(!CliCommand::Mcp.starts_app());
+        assert!(matches!(
+            parse(&["mcp"]),
+            Err(CliError::Message(message)) if message.contains("standalone `rel-mcp`")
+        ));
         assert!(parse(&["mcp", "extra"]).is_err());
         assert_eq!(parse(&["proxy", "list"]).unwrap(), CliCommand::ProxyList);
         assert_eq!(

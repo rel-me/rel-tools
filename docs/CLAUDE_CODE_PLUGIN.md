@@ -14,7 +14,7 @@ Related documents: [MCP server](MCP.md) and [CLI](CLI.md).
 - a current Claude Code release with plugin marketplace support.
 
 REL.app must be installed so Claude Code can start its bundled
-`Contents/Resources/rel mcp` adapter. The app does not need to be running for
+`Contents/Resources/rel-mcp` adapter. The app does not need to be running for
 plugin discovery or `rel_status`; other validated tool calls start it lazily.
 
 ## Install

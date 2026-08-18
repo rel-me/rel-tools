@@ -153,7 +153,7 @@ in this table. The bundled CLI is built on that crate and uses resource commands
 such as `rel capture`, `rel page`, `rel proxy`, and `rel session`; it has no
 direct database or log-file command path.
 
-The bundled `rel mcp` adapter also calls this API only through `rel-client`. It
+The bundled `rel-mcp` adapter also calls this API only through `rel-client`. It
 maps ten MCP tools to status, HTML and image capture, page attachment and
 actions, observations, session-group closing, and session and proxy listing.
 MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See

@@ -1,7 +1,7 @@
 # REL MCP server
 
 REL includes a local Model Context Protocol server for agents that support MCP.
-Run `rel mcp` as a stdio subprocess; the adapter exposes a focused set of
+Run `rel-mcp` as a stdio subprocess; the adapter exposes a focused set of
 browser tools and forwards every tool call through the public
 [`rel-client`](SDK.md) crate and [RPC v1](RPC.md). It does not read SQLite,
 logs, or Chromium state directly.
@@ -21,8 +21,7 @@ interactive shell's `PATH`:
 {
   "mcpServers": {
     "rel": {
-      "command": "/Applications/REL.app/Contents/Resources/rel",
-      "args": ["mcp"]
+      "command": "/Applications/REL.app/Contents/Resources/rel-mcp"
     }
   }
 }
@@ -32,8 +31,7 @@ For clients that use TOML configuration:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/REL.app/Contents/Resources/rel"
-args = ["mcp"]
+command = "/Applications/REL.app/Contents/Resources/rel-mcp"
 ```
 
 The Settings command-line task creates `rel` only in a writable directory
@@ -61,16 +59,14 @@ To configure only the MCP server without installing the plugin:
 1. Open **Codex Settings → MCP servers**.
 2. Add a STDIO server named `rel`.
 3. Set the command to
-   `/Applications/REL.app/Contents/Resources/rel` and add `mcp` as its only
-   argument.
+   `/Applications/REL.app/Contents/Resources/rel-mcp` with no arguments.
 4. Save the server and restart Codex.
 
 The equivalent global entry in `~/.codex/config.toml` is:
 
 ```toml
 [mcp_servers.rel]
-command = "/Applications/REL.app/Contents/Resources/rel"
-args = ["mcp"]
+command = "/Applications/REL.app/Contents/Resources/rel-mcp"
 ```
 
 Use `.codex/config.toml` in a trusted project instead when REL should only be
@@ -78,7 +74,7 @@ available in that project. If the `codex` command is installed in the shell's
 `PATH`, it can create and inspect the same configuration:
 
 ```sh
-codex mcp add rel -- /Applications/REL.app/Contents/Resources/rel mcp
+codex mcp add rel -- /Applications/REL.app/Contents/Resources/rel-mcp
 codex mcp list
 ```
 
@@ -134,21 +130,24 @@ printf '%s\n' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
   '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rel_status","arguments":{}}}' \
-  | /Applications/REL.app/Contents/Resources/rel mcp
+  | /Applications/REL.app/Contents/Resources/rel-mcp
 ```
 
 The server writes three JSON-RPC responses: initialization information, the
 tool list, and the status result. Protocol messages use standard output;
 diagnostics use standard error.
 
-`rel mcp` accepts no options. Startup, discovery, initialization, tool listing,
-ping, and `rel_status` never launch the REL app. A validated call to any other
-tool starts REL in the background only when its agent is unavailable. Concurrent
-adapters serialize that cold start and recheck agent health before launching, so
-only one adapter opens the app. The adapter keeps serving its original
-stdin/stdout connection until the MCP client closes stdin or terminates the
-process. `REL_AGENT_PORT` changes the loopback RPC port from its default,
-`17319`.
+`rel-mcp` accepts no MCP options; `--help` and `--version` are available for
+direct inspection. Startup, discovery, initialization, tool listing, ping, and
+`rel_status` never launch the REL app. A validated call to any other tool starts
+REL in the background only when its agent is unavailable. Concurrent adapters
+serialize that cold start and recheck agent health before launching, so only one
+adapter opens the app. The adapter keeps serving its original stdin/stdout
+connection until the MCP client closes stdin or terminates the process.
+`REL_AGENT_PORT` changes the loopback RPC port from its default, `17319`.
+
+The dedicated process name makes adapters clearly identifiable separately from
+the `rel` CLI and app-owned `rel --agent` process.
 
 Browser tool calls also use the [RPC session-selection behavior](RPC.md#transport):
 while REL is inactive, their target session is selected by default without bringing
