@@ -7,6 +7,12 @@ const contentRoot = resolve(docsRoot, "src/content/docs");
 
 const pages = [
   {
+    source: "APP.md",
+    output: "app.md",
+    title: "macOS app",
+    description: "Configure REL Profiles, AI models, Sessions, and repeating scheduled prompts in the macOS app.",
+  },
+  {
     source: "CODEX_PLUGIN.md",
     output: "codex-plugin.md",
     title: "Codex plugin",
@@ -51,6 +57,7 @@ const pages = [
 ];
 
 const siteLinks = new Map([
+  ["APP.md", "/app/"],
   ["CODEX_PLUGIN.md", "/codex-plugin/"],
   ["CLAUDE_CODE_PLUGIN.md", "/claude-code-plugin/"],
   ["CLI.md", "/cli/"],
@@ -62,7 +69,7 @@ const siteLinks = new Map([
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }
