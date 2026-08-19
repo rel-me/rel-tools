@@ -52,10 +52,15 @@ pub fn mcp_main_exit_code_with_version(args: Vec<OsString>, product_version: &st
 }
 
 pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -> i32 {
-    let args = match utf8_args(args) {
+    let mut args = match utf8_args(args) {
         Ok(args) => args,
         Err(error) => return print_cli_error(error),
     };
+    if let Err(error) =
+        apply_session_url_environment_default(&mut args, std::env::var_os("REL_SESSION_URL"))
+    {
+        return print_cli_error(error);
+    }
     let mut command = match parse_command(args) {
         Ok(command) => command,
         Err(CliError::Help(help)) => {
@@ -489,6 +494,45 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
             parse_capture(args)
         }
     }
+}
+
+fn apply_session_url_environment_default(
+    args: &mut Vec<String>,
+    environment_value: Option<OsString>,
+) -> Result<(), CliError> {
+    let insertion_index = match args.as_slice() {
+        [command, remaining @ ..]
+            if command == "navigate" && positional_url_is_omitted(remaining) =>
+        {
+            1
+        }
+        [page, attach, remaining @ ..]
+            if page == "page" && attach == "attach" && positional_url_is_omitted(remaining) =>
+        {
+            2
+        }
+        _ => return Ok(()),
+    };
+    let Some(environment_value) = environment_value else {
+        return Ok(());
+    };
+    let environment_value = environment_value
+        .into_string()
+        .map_err(|_| CliError::Message("REL_SESSION_URL must be valid UTF-8".to_string()))?;
+    let environment_value = environment_value.trim();
+    if environment_value.is_empty() {
+        return Err(CliError::Message(
+            "REL_SESSION_URL must not be empty".to_string(),
+        ));
+    }
+    args.insert(insertion_index, environment_value.to_string());
+    Ok(())
+}
+
+fn positional_url_is_omitted(remaining: &[String]) -> bool {
+    remaining.first().map_or(true, |value| {
+        value.starts_with('-') && !matches!(value.as_str(), "-h" | "--help")
+    })
 }
 
 fn apply_session_id_environment_default(
@@ -1290,12 +1334,12 @@ rel URL [options]\n  \
 rel health\n  \
 rel status\n  \
 rel-mcp\n  \
-rel navigate URL [options]\n  \
+rel navigate [URL] [options]\n  \
 rel read [URL] [--query TEXT] [options]\n  \
 rel perform ACTIONS [options]\n  \
 rel capture [options]           Capture the current shorthand page\n  \
 rel capture URL [options]       Explicit equivalent of `rel URL`\n  \
-rel page attach URL [options]\n  \
+rel page attach [URL] [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
 rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
 rel observation action OBSERVATION_ID --request JSON\n  \
@@ -1310,7 +1354,8 @@ Run `rel navigate --help`, `rel read --help`, `rel perform --help`, `rel capture
 `rel page --help`, `rel observe --help`, `rel observation --help`,\n\
 `rel proxy --help`, or\n\
 `rel session --help` for resource options. Commands that accept --session-id
-use $REL_SESSION_ID when the option is omitted; an explicit option wins."
+use $REL_SESSION_ID when the option is omitted. Required URL arguments use
+$REL_SESSION_URL when omitted. Explicit arguments and options always win."
         .to_string()
 }
 
@@ -1351,9 +1396,10 @@ to stderr."
 
 fn navigate_help() -> String {
     "Usage:\n  \
-rel navigate URL [--session-id ID | --profile NAME] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n\n\
+rel navigate [URL] [--session-id ID | --profile NAME] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n\n\
 Navigates the current shorthand page. The first call reuses a persisted session,\n\
 creating one only when none exists; later calls reuse that page and session.
+URL defaults to $REL_SESSION_URL when omitted; an explicit URL wins.
 --session-id defaults to $REL_SESSION_ID when set; --profile creates a session
 from a named profile and suppresses that default."
         .to_string()
@@ -1390,9 +1436,10 @@ $REL_SESSION_ID when set; an explicit value wins."
 
 fn page_help() -> String {
     "Usage:\n  \
-rel page attach URL [--session-id ID | --profile NAME] [--group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
+rel page attach [URL] [--session-id ID | --profile NAME] [--group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
 rel page action PAGE_ID --action JSON [--output PATH] [--timeout S] [--wait S]\n\n\
-For page attach, --session-id defaults to $REL_SESSION_ID when set. --profile
+For page attach, URL defaults to $REL_SESSION_URL when omitted and --session-id
+defaults to $REL_SESSION_ID when set. An explicit URL or session ID wins. --profile
 creates a session from a named profile; --group labels a newly created session.
 Either creation option suppresses that environment default."
         .to_string()
@@ -1465,6 +1512,15 @@ mod tests {
         let mut command = parse(args)?;
         apply_session_id_environment_default(&mut command, session_id.map(OsString::from))?;
         Ok(command)
+    }
+
+    fn parse_with_url_default(
+        args: &[&str],
+        session_url: Option<&str>,
+    ) -> Result<CliCommand, CliError> {
+        let mut args = args.iter().map(|value| value.to_string()).collect();
+        apply_session_url_environment_default(&mut args, session_url.map(OsString::from))?;
+        parse_command(args)
     }
 
     #[test]
@@ -1557,6 +1613,80 @@ mod tests {
         };
 
         assert_eq!(request.session_id.as_deref(), Some("machine-x.Explicit"));
+    }
+
+    #[test]
+    fn session_url_defaults_required_url_arguments() {
+        let expected = "https://example.com/current?tab=details#summary";
+
+        let CliCommand::Navigate(request) =
+            parse_with_url_default(&["navigate"], Some(expected)).unwrap()
+        else {
+            panic!("expected navigate");
+        };
+        assert_eq!(request.url, expected);
+
+        let CliCommand::Navigate(request) = parse_with_url_default(
+            &["navigate", "--session-id", "machine-x.Session1"],
+            Some(expected),
+        )
+        .unwrap() else {
+            panic!("expected navigate");
+        };
+        assert_eq!(request.url, expected);
+        assert_eq!(request.session_id.as_deref(), Some("machine-x.Session1"));
+
+        let CliCommand::PageAttach(request) =
+            parse_with_url_default(&["page", "attach", "--output", "page.html"], Some(expected))
+                .unwrap()
+        else {
+            panic!("expected page attach");
+        };
+        assert_eq!(request.url, expected);
+        assert_eq!(request.output.as_deref(), Some("page.html"));
+    }
+
+    #[test]
+    fn explicit_urls_and_current_page_commands_ignore_session_url() {
+        let CliCommand::Navigate(request) = parse_with_url_default(
+            &["navigate", "https://explicit.example"],
+            Some("https://environment.example"),
+        )
+        .unwrap() else {
+            panic!("expected navigate");
+        };
+        assert_eq!(request.url, "https://explicit.example");
+
+        assert_eq!(
+            parse_with_url_default(&["capture"], Some("https://environment.example")).unwrap(),
+            CliCommand::CaptureCurrent(PageCaptureRequest::default())
+        );
+        let CliCommand::Read(request) =
+            parse_with_url_default(&["read"], Some("https://environment.example")).unwrap()
+        else {
+            panic!("expected read");
+        };
+        assert_eq!(request.url, None);
+    }
+
+    #[test]
+    fn session_url_is_validated_only_when_used() {
+        let error = parse_with_url_default(&["navigate"], Some("   ")).unwrap_err();
+        assert!(
+            matches!(error, CliError::Message(message) if message.contains("must not be empty"))
+        );
+
+        let CliCommand::Navigate(request) =
+            parse_with_url_default(&["navigate", "https://example.com"], Some("   ")).unwrap()
+        else {
+            panic!("expected navigate");
+        };
+        assert_eq!(request.url, "https://example.com");
+
+        assert!(matches!(
+            parse_with_url_default(&["navigate", "--help"], Some("   ")).unwrap_err(),
+            CliError::Help(_)
+        ));
     }
 
     #[test]
@@ -1663,6 +1793,9 @@ mod tests {
             page_help(),
         ] {
             assert!(help.contains("REL_SESSION_ID"));
+        }
+        for help in [root_help(), navigate_help(), page_help()] {
+            assert!(help.contains("REL_SESSION_URL"));
         }
     }
 
