@@ -75,6 +75,8 @@ present and semantic `/observe` for the current page.
 | `update_proxy(alias, &ProxyUpdateRequest)` | `PATCH /v1/proxies/{alias}` |
 | `delete_proxy(alias)` | `DELETE /v1/proxies/{alias}` |
 | `rotate_proxy_session(alias)` | `POST /v1/proxies/{alias}/rotate-session` |
+| `export_proxy_transfer(&ProxyTransferExportRequest)` | `POST /v1/proxy-transfers/export` |
+| `import_proxy_transfer(&ProxyTransferImportRequest)` | `POST /v1/proxy-transfers/import` |
 | `list_sessions()` | `GET /v1/sessions` |
 | `get_session(id)` | `GET /v1/sessions/{id}` |
 | `create_session(&SessionCreateRequest)` | `POST /v1/sessions` |
@@ -82,6 +84,8 @@ present and semantic `/observe` for the current page.
 | `create_profile(&ProfileCreateRequest)` | `POST /v1/profiles` |
 | `update_profile_data(id, &ProfileDataUpdateRequest)` | `PATCH /v1/profiles/{id}` |
 | `delete_profile(id)` | `DELETE /v1/profiles/{id}` |
+| `export_profile_transfer(&ProfileTransferExportRequest)` | `POST /v1/profile-transfers/export` |
+| `import_profile_transfer(&ProfileTransferImportRequest)` | `POST /v1/profile-transfers/import` |
 | `update_session(id, &SessionUpdateRequest)` | `PATCH /v1/sessions/{id}` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
 | `close_session_group(group)` | `POST /v1/sessions/close` |
@@ -90,6 +94,12 @@ Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
 `BrowserNotification`, `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
 match RPC v1.
+
+The `rel_client::transfer` module is the canonical Rust implementation of the
+versioned `.relprofile` and `.relproxy` contracts. Its document types own
+encoding, decoding, size limits, version checks, additive-field compatibility,
+and conversion to create requests. App and CLI file pickers only move the
+opaque encoded bytes returned by the transfer RPC operations.
 
 `Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
 with the installed bundle's ID, configuration, worktree, branch, commit, and

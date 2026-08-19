@@ -1,9 +1,14 @@
+use rel_client::transfer::{
+    ProfileTransferDocument, ProxyTransferDocument, PROFILE_TRANSFER_FORMAT, PROXY_TRANSFER_FORMAT,
+    TRANSFER_FORMAT_VERSION,
+};
 use rel_client::{
     self as client, Action, CaptureEvent, CaptureRequest, Change, ImageBlockingMode,
     NavigateRequest, ObservationActionRequest, ObservationMode, ObservationRequest,
     PageActionRequest, PageAttachRequest, PageCaptureRequest, PageObservationRequest,
-    PageReadRequest, PerformRequest, ProxyCreateRequest, ProxyUpdateRequest, RelClient,
-    SessionCreateRequest, SessionUpdateRequest,
+    PageReadRequest, PerformRequest, ProfileTransferExportRequest, ProfileTransferImportRequest,
+    ProxyCreateRequest, ProxyTransferExportRequest, ProxyTransferImportRequest, ProxyUpdateRequest,
+    RelClient, SessionCreateRequest, SessionUpdateRequest,
 };
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -20,10 +25,7 @@ mod app;
 mod mcp;
 mod transfer;
 
-use transfer::{
-    read_transfer_document, write_transfer_document, ProfileTransferDocument,
-    ProxyTransferDocument, PROFILE_TRANSFER_FORMAT, PROXY_TRANSFER_FORMAT, TRANSFER_FORMAT_VERSION,
-};
+use transfer::{read_transfer_file, write_transfer_file};
 
 pub fn main_exit_code(args: Vec<OsString>) -> i32 {
     main_exit_code_with_version(args, env!("CARGO_PKG_VERSION"))
@@ -241,12 +243,18 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             Ok(0)
         }
         CliCommand::ProxyExport { alias, output } => {
-            let proxy = client.get_proxy(&alias)?.data.proxy;
-            let document = ProxyTransferDocument::from_public_proxy(&proxy);
-            let default_filename = document.default_filename();
-            let secrets_included = document.secrets_included();
-            let path = write_transfer_document(&document, output, &default_filename)
+            let transfer = client
+                .export_proxy_transfer(&ProxyTransferExportRequest {
+                    alias,
+                    include_password: false,
+                })?
+                .data;
+            let document = ProxyTransferDocument::decode(transfer.contents.as_bytes())
                 .map_err(CliError::Message)?;
+            let secrets_included = document.secrets_included();
+            let path =
+                write_transfer_file(transfer.contents.as_bytes(), output, &transfer.filename)
+                    .map_err(CliError::Message)?;
             if !secrets_included {
                 eprintln!(
                     "warning: stored proxy passwords are app-protected and were not exported"
@@ -262,15 +270,17 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             Ok(0)
         }
         CliCommand::ProxyImport { path, alias } => {
-            let document: ProxyTransferDocument =
-                read_transfer_document(&path).map_err(CliError::Message)?;
+            let data = read_transfer_file(&path).map_err(CliError::Message)?;
+            let document = ProxyTransferDocument::decode(&data).map_err(CliError::Message)?;
             if !document.secrets_included() {
                 eprintln!("warning: this proxy transfer does not include its stored password");
             }
-            let request = document
-                .into_create_request(alias)
-                .map_err(CliError::Message)?;
-            print_json(&client.create_proxy(&request)?)?;
+            let contents = String::from_utf8(data).map_err(|error| {
+                CliError::Message(format!("Proxy transfer must be UTF-8 JSON: {error}"))
+            })?;
+            print_json(
+                &client.import_proxy_transfer(&ProxyTransferImportRequest { contents, alias })?,
+            )?;
             Ok(0)
         }
         CliCommand::ProfileList => {
@@ -278,15 +288,14 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             Ok(0)
         }
         CliCommand::ProfileExport { name, output } => {
-            let profiles = client.list_profiles()?.data.profiles;
-            let profile = profiles
-                .iter()
-                .find(|profile| profile.name.eq_ignore_ascii_case(&name))
-                .ok_or_else(|| CliError::Message(format!("Profile {name:?} was not found")))?;
-            let document = ProfileTransferDocument::from_profile(profile);
-            let default_filename = document.default_filename();
-            let path = write_transfer_document(&document, output, &default_filename)
+            let transfer = client
+                .export_profile_transfer(&ProfileTransferExportRequest { name })?
+                .data;
+            ProfileTransferDocument::decode(transfer.contents.as_bytes())
                 .map_err(CliError::Message)?;
+            let path =
+                write_transfer_file(transfer.contents.as_bytes(), output, &transfer.filename)
+                    .map_err(CliError::Message)?;
             print_json(&serde_json::json!({
                 "status": "ok",
                 "path": path.display().to_string(),
@@ -297,12 +306,15 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             Ok(0)
         }
         CliCommand::ProfileImport { path, name } => {
-            let document: ProfileTransferDocument =
-                read_transfer_document(&path).map_err(CliError::Message)?;
-            let request = document
-                .into_create_request(name)
-                .map_err(CliError::Message)?;
-            print_json(&client.create_profile(&request)?)?;
+            let data = read_transfer_file(&path).map_err(CliError::Message)?;
+            ProfileTransferDocument::decode(&data).map_err(CliError::Message)?;
+            let contents = String::from_utf8(data).map_err(|error| {
+                CliError::Message(format!("Profile transfer must be UTF-8 JSON: {error}"))
+            })?;
+            print_json(
+                &client
+                    .import_profile_transfer(&ProfileTransferImportRequest { contents, name })?,
+            )?;
             Ok(0)
         }
         CliCommand::SessionList => {
