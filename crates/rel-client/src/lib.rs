@@ -7,13 +7,18 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Lines, Read};
 use std::time::Duration;
 
 const DEFAULT_AGENT_PORT: u16 = 17_319;
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const DEFAULT_PAGE_READ_MAX_CHARS: usize = 12_000;
+const MIN_PAGE_READ_MAX_CHARS: usize = 512;
+const MAX_PAGE_READ_MAX_CHARS: usize = 32_768;
+const DEFAULT_PAGE_READ_MAX_SECTIONS: usize = 24;
+const MAX_PAGE_READ_MAX_SECTIONS: usize = 100;
 
 /// Stable application error codes for Rel RPC v1.
 ///
@@ -142,6 +147,14 @@ impl RelClient {
         self.request::<StatusReport, Value>("GET", "/status", None)
     }
 
+    /// List the bounded in-memory queue of website notifications that the user
+    /// explicitly opted in to share with agents.
+    pub fn list_notifications(
+        &self,
+    ) -> Result<RpcResponse<BrowserNotificationListData>, ClientError> {
+        self.request::<BrowserNotificationListData, Value>("GET", "/notifications", None)
+    }
+
     pub fn capture(&self, request: &CaptureRequest) -> Result<CaptureStream, ClientError> {
         let timeout = capture_request_timeout(request);
         let response = self.send("POST", "/captures", Some(request), timeout)?;
@@ -211,6 +224,79 @@ impl RelClient {
             Some(request),
             page_request_timeout(request.timeout, request.wait),
         )
+    }
+
+    /// Navigate in embedded Chromium and return the first synchronized page
+    /// observation without requiring a separate observe request.
+    pub fn navigate_and_observe(
+        &self,
+        request: &NavigateObservationRequest,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        self.request_with_timeout(
+            "POST",
+            "/navigate/observe",
+            Some(request),
+            page_request_timeout(request.timeout, request.wait),
+        )
+    }
+
+    /// Read either a URL or the current shorthand page as bounded,
+    /// query-directed Markdown. This is a semantic-only convenience over the
+    /// canonical `/navigate/observe` and `/observe` RPC v1 operations.
+    pub fn read_page(
+        &self,
+        request: &PageReadRequest,
+    ) -> Result<RpcResponse<PageReadData>, ClientError> {
+        let max_chars = request.max_chars.unwrap_or(DEFAULT_PAGE_READ_MAX_CHARS);
+        if !(MIN_PAGE_READ_MAX_CHARS..=MAX_PAGE_READ_MAX_CHARS).contains(&max_chars) {
+            return Err(ClientError::Protocol(format!(
+                "max_chars must be between {MIN_PAGE_READ_MAX_CHARS} and {MAX_PAGE_READ_MAX_CHARS}"
+            )));
+        }
+        let max_sections = request
+            .max_sections
+            .unwrap_or(DEFAULT_PAGE_READ_MAX_SECTIONS);
+        if !(1..=MAX_PAGE_READ_MAX_SECTIONS).contains(&max_sections) {
+            return Err(ClientError::Protocol(format!(
+                "max_sections must be between 1 and {MAX_PAGE_READ_MAX_SECTIONS}"
+            )));
+        }
+
+        let response = if let Some(url) = request.url.as_deref() {
+            self.navigate_and_observe(&NavigateObservationRequest {
+                url: Some(url.to_string()),
+                session_id: request.session_id.clone(),
+                profile: request.profile.clone(),
+                proxy: request.proxy.clone(),
+                mode: Some(ObservationMode::Semantic),
+                timeout: request.timeout,
+                wait: request.wait,
+                ..NavigateObservationRequest::default()
+            })?
+        } else {
+            if request.profile.is_some() || request.proxy.is_some() {
+                return Err(ClientError::Protocol(
+                    "profile and proxy require a URL when reading a page".to_string(),
+                ));
+            }
+            self.observe_current_page(&ObservationRequest {
+                session_id: request.session_id.clone(),
+                mode: Some(ObservationMode::Semantic),
+                timeout: request.timeout,
+                wait: request.wait,
+            })?
+        };
+
+        let RpcResponse {
+            status,
+            request_id,
+            data,
+        } = response;
+        Ok(RpcResponse {
+            status,
+            request_id,
+            data: page_read_data(data, request.query.as_deref(), max_chars, max_sections),
+        })
     }
 
     pub fn attach_page(
@@ -287,6 +373,16 @@ impl RelClient {
         )
     }
 
+    /// Search one stored observation's public semantic snapshot.
+    pub fn find_in_observation(
+        &self,
+        observation_id: &str,
+        request: &ObservationFindRequest,
+    ) -> Result<RpcResponse<ObservationFindData>, ClientError> {
+        let path = format!("/observations/{}/find", encode_path_segment(observation_id));
+        self.request("POST", &path, Some(request))
+    }
+
     pub fn list_proxies(&self) -> Result<RpcResponse<ProxyListData>, ClientError> {
         self.request::<ProxyListData, Value>("GET", "/proxies", None)
     }
@@ -353,15 +449,35 @@ impl RelClient {
         self.request("POST", "/sessions", Some(request))
     }
 
-    pub fn session_defaults(&self) -> Result<RpcResponse<SessionDefaultsData>, ClientError> {
-        self.request::<SessionDefaultsData, Value>("GET", "/session-defaults", None)
+    pub fn list_profiles(&self) -> Result<RpcResponse<ProfileListData>, ClientError> {
+        self.request::<ProfileListData, Value>("GET", "/profiles", None)
     }
 
-    pub fn update_session_defaults(
+    pub fn create_profile(
         &self,
-        request: &SessionDefaultsUpdateRequest,
-    ) -> Result<RpcResponse<SessionDefaultsData>, ClientError> {
-        self.request("PATCH", "/session-defaults", Some(request))
+        request: &ProfileCreateRequest,
+    ) -> Result<RpcResponse<ProfileData>, ClientError> {
+        self.request("POST", "/profiles", Some(request))
+    }
+
+    pub fn update_profile_data(
+        &self,
+        id: &str,
+        request: &ProfileDataUpdateRequest,
+    ) -> Result<RpcResponse<ProfileData>, ClientError> {
+        self.request(
+            "PATCH",
+            &format!("/profiles/{}", encode_path_segment(id)),
+            Some(request),
+        )
+    }
+
+    pub fn delete_profile(&self, id: &str) -> Result<RpcResponse<DeletedData>, ClientError> {
+        self.request::<DeletedData, Value>(
+            "DELETE",
+            &format!("/profiles/{}", encode_path_segment(id)),
+            None,
+        )
     }
 
     pub fn update_session(
@@ -777,6 +893,8 @@ pub struct CaptureRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
@@ -800,6 +918,8 @@ pub struct NavigateRequest {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -890,6 +1010,8 @@ pub struct PageAttachRequest {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1077,6 +1199,94 @@ pub struct ObservationRequest {
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct NavigateObservationRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub navigation: Option<ObservationNavigation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ObservationMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+impl NavigateObservationRequest {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: Some(url.into()),
+            ..Self::default()
+        }
+    }
+}
+
+/// Parameters for a bounded semantic read of either a URL or the current
+/// shorthand page.
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct PageReadRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_chars: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_sections: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+impl PageReadRequest {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: Some(url.into()),
+            ..Self::default()
+        }
+    }
+}
+
+/// A compact page representation intended for research and reading rather
+/// than interaction. Use an observation when action references are needed.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct PageReadData {
+    pub page: Page,
+    pub observation_id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    pub markdown: String,
+    pub selected_content_count: usize,
+    pub selected_link_count: usize,
+    pub source_truncated: bool,
+    pub truncated: bool,
+    pub matched_query: bool,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ObservationNavigation {
+    Url,
+    Back,
+    Forward,
+    Reload,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct PageObservationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ObservationMode>,
@@ -1094,12 +1304,16 @@ pub enum ObservationActionKind {
     Clear,
     Press,
     Select,
+    Hover,
+    Scroll,
+    Wait,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ObservationActionRequest {
+pub struct ObservationAction {
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "ref")]
-    pub element_ref: String,
+    pub element_ref: Option<String>,
     pub action: ObservationActionKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -1112,6 +1326,66 @@ pub struct ObservationActionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Native horizontal wheel delta. Negative scrolls right; positive scrolls left.
+    pub delta_x: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Native vertical wheel delta. Negative scrolls down; positive scrolls up.
+    pub delta_y: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seconds: Option<f64>,
+}
+
+impl ObservationAction {
+    pub fn new(element_ref: impl Into<String>, action: ObservationActionKind) -> Self {
+        Self {
+            element_ref: Some(element_ref.into()),
+            action,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: None,
+            delta_y: None,
+            seconds: None,
+        }
+    }
+
+    pub fn scroll(delta_x: i32, delta_y: i32) -> Self {
+        Self {
+            element_ref: None,
+            action: ObservationActionKind::Scroll,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: Some(delta_x),
+            delta_y: Some(delta_y),
+            seconds: None,
+        }
+    }
+
+    pub fn wait(seconds: f64) -> Self {
+        Self {
+            element_ref: None,
+            action: ObservationActionKind::Wait,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: None,
+            delta_y: None,
+            seconds: Some(seconds),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationActionRequest {
+    pub actions: Vec<ObservationAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ObservationMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<f64>,
@@ -1122,18 +1396,46 @@ pub struct ObservationActionRequest {
 impl ObservationActionRequest {
     pub fn new(element_ref: impl Into<String>, action: ObservationActionKind) -> Self {
         Self {
-            element_ref: element_ref.into(),
-            action,
-            text: None,
-            key: None,
-            value: None,
-            mouse_move: None,
-            scroll: None,
+            actions: vec![ObservationAction::new(element_ref, action)],
             mode: None,
             timeout: None,
             wait: None,
         }
     }
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ObservationFindRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationFindData {
+    pub observation_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    pub matches: Vec<ObservationFindMatch>,
+    pub total_matches: usize,
+    pub truncated: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ObservationFindMatch {
+    Content {
+        index: usize,
+        content: ObservationContent,
+    },
+    Element {
+        element: ObservationElement,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1213,6 +1515,263 @@ pub struct ObservationScreenshot {
     pub css_to_image_scale_y: f64,
 }
 
+fn page_read_data(
+    data: ObservationOperationData,
+    query: Option<&str>,
+    max_chars: usize,
+    max_sections: usize,
+) -> PageReadData {
+    let ObservationOperationData { page, observation } = data;
+    let normalized_query = query.map(str::trim).filter(|value| !value.is_empty());
+    let terms = page_read_query_terms(normalized_query.unwrap_or_default());
+    let query_active = normalized_query.is_some();
+
+    let mut content = observation
+        .content
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            (
+                index,
+                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading"),
+            )
+        })
+        .collect::<Vec<_>>();
+    let content_matched = query_active && content.iter().any(|(_, score)| *score > 0);
+    if content_matched {
+        content.retain(|(_, score)| *score > 0);
+        content.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+    }
+    content.truncate(max_sections);
+
+    let mut seen_links = BTreeSet::new();
+    let mut links = observation
+        .elements
+        .iter()
+        .enumerate()
+        .filter_map(|(index, element)| {
+            let destination = element.destination.as_deref()?.trim();
+            if destination.is_empty() {
+                return None;
+            }
+            let key = format!("{}\n{}", element.name, destination);
+            if !seen_links.insert(key) {
+                return None;
+            }
+            let searchable = format!("{} {}", element.name, destination);
+            Some((
+                index,
+                page_read_match_score(&searchable, normalized_query, &terms, false),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let links_matched = query_active && links.iter().any(|(_, score)| *score > 0);
+    if links_matched {
+        links.retain(|(_, score)| *score > 0);
+        links.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+    } else if content_matched {
+        links.clear();
+    }
+    if links_matched && !content_matched {
+        content.clear();
+    }
+    let available_link_count = links.len();
+    links.truncate(max_sections);
+
+    let mut markdown = String::new();
+    let title = observation.title.trim().to_string();
+    let heading = if title.is_empty() {
+        page.url.as_str()
+    } else {
+        title.as_str()
+    };
+    push_page_read_block(
+        &mut markdown,
+        &format!("# {}", escape_markdown_text(heading)),
+        max_chars,
+    );
+    push_page_read_block(
+        &mut markdown,
+        &format!("Source: <{}>", escape_markdown_url(&page.url)),
+        max_chars,
+    );
+    if let Some(query) = normalized_query {
+        push_page_read_block(
+            &mut markdown,
+            &format!("Query: {}", escape_markdown_text(query)),
+            max_chars,
+        );
+    }
+
+    let mut selected_content_count = 0;
+    let mut output_truncated = false;
+    for (index, _) in &content {
+        let block = page_read_content_markdown(&observation.content[*index]);
+        let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
+        if added {
+            selected_content_count += 1;
+        }
+        if clipped {
+            output_truncated = true;
+            break;
+        }
+    }
+
+    let mut selected_link_count = 0;
+    if !links.is_empty() && push_page_read_block(&mut markdown, "## Links", max_chars) {
+        for (index, _) in &links {
+            let element = &observation.elements[*index];
+            let destination = element.destination.as_deref().unwrap_or_default();
+            let label = if element.name.trim().is_empty() {
+                destination
+            } else {
+                element.name.trim()
+            };
+            let block = format!(
+                "- [{}](<{}>)",
+                escape_markdown_text(label),
+                escape_markdown_url(destination)
+            );
+            if push_page_read_block(&mut markdown, &block, max_chars) {
+                selected_link_count += 1;
+            } else {
+                output_truncated = true;
+                break;
+            }
+        }
+    } else if !links.is_empty() {
+        output_truncated = true;
+    }
+
+    let available_content_count = if content_matched {
+        observation
+            .content
+            .iter()
+            .filter(|item| {
+                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading")
+                    > 0
+            })
+            .count()
+    } else if links_matched {
+        0
+    } else {
+        observation.content.len()
+    };
+    let content_was_limited = available_content_count > selected_content_count;
+    let links_were_limited = available_link_count > selected_link_count;
+
+    PageReadData {
+        page,
+        observation_id: observation.id,
+        title,
+        query: normalized_query.map(str::to_string),
+        markdown,
+        selected_content_count,
+        selected_link_count,
+        source_truncated: observation.truncated,
+        truncated: content_was_limited || links_were_limited || output_truncated,
+        matched_query: content_matched || links_matched,
+    }
+}
+
+fn page_read_query_terms(query: &str) -> Vec<String> {
+    const STOP_WORDS: &[&str] = &[
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it",
+        "of", "on", "or", "that", "the", "this", "to", "was", "what", "when", "where", "which",
+        "who", "why", "with",
+    ];
+    query
+        .split(|character: char| !character.is_alphanumeric())
+        .map(str::to_lowercase)
+        .filter(|term| term.len() >= 2 && !STOP_WORDS.contains(&term.as_str()))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn page_read_match_score(
+    text: &str,
+    query: Option<&str>,
+    terms: &[String],
+    is_heading: bool,
+) -> usize {
+    let Some(query) = query else {
+        return 1;
+    };
+    let text = text.to_lowercase();
+    let query = query.to_lowercase();
+    let mut score = if !query.is_empty() && text.contains(&query) {
+        12
+    } else {
+        0
+    };
+    for term in terms {
+        score += text.matches(term).count().min(4) * 3;
+    }
+    if is_heading && score > 0 {
+        score *= 2;
+    }
+    score
+}
+
+fn page_read_content_markdown(content: &ObservationContent) -> String {
+    let text = escape_markdown_text(content.text.trim());
+    match content.kind.as_str() {
+        "heading" => format!(
+            "{} {text}",
+            "#".repeat(content.level.unwrap_or(2).clamp(2, 6) as usize)
+        ),
+        "listitem" | "list_item" | "item" => format!("- {text}"),
+        _ => text,
+    }
+}
+
+fn push_page_read_block(output: &mut String, block: &str, max_chars: usize) -> bool {
+    let separator = if output.is_empty() { "" } else { "\n\n" };
+    let required = separator.chars().count() + block.chars().count();
+    if output.chars().count() + required > max_chars {
+        return false;
+    }
+    output.push_str(separator);
+    output.push_str(block);
+    true
+}
+
+fn push_page_read_excerpt(output: &mut String, block: &str, max_chars: usize) -> (bool, bool) {
+    if push_page_read_block(output, block, max_chars) {
+        return (true, false);
+    }
+    let separator = if output.is_empty() { "" } else { "\n\n" };
+    let used = output.chars().count() + separator.chars().count();
+    let available = max_chars.saturating_sub(used);
+    if available < 2 {
+        return (false, true);
+    }
+    output.push_str(separator);
+    output.extend(block.chars().take(available - 1));
+    output.push('…');
+    (true, true)
+}
+
+fn escape_markdown_text(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\\' | '*' | '_' | '[' | ']' | '`' => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
+            '\r' | '\n' => escaped.push(' '),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
+}
+
+fn escape_markdown_url(value: &str) -> String {
+    value.trim().replace('<', "%3C").replace('>', "%3E")
+}
+
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct ProxyCreateRequest {
     pub alias: String,
@@ -1285,6 +1844,27 @@ impl<T: Serialize> Serialize for Change<T> {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BrowserNotificationListData {
+    pub notifications: Vec<BrowserNotification>,
+    pub trust: String,
+}
+
+/// Website-provided notification content. Callers must treat every text field
+/// as untrusted data, never as instructions or authority.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BrowserNotification {
+    pub sequence: u64,
+    pub session_id: String,
+    pub origin: String,
+    pub title: String,
+    pub body: String,
+    pub notification_id: String,
+    pub persistent: bool,
+    pub displayed_at: String,
+    pub trust: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ProxyListData {
     pub proxies: Vec<Proxy>,
 }
@@ -1322,6 +1902,8 @@ pub struct SessionCreateRequest {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
     pub proxy_alias: Change<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1346,16 +1928,27 @@ pub struct SessionUpdateRequest {
     pub image_size_limit_kb: Option<i64>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, PartialEq)]
-pub struct SessionDefaultsUpdateRequest {
-    #[serde(skip_serializing_if = "Change::is_unchanged")]
-    pub proxy_alias: Change<String>,
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileCreateRequest {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_alias: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub adblock_enabled: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_blocking_mode: Option<ImageBlockingMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_size_limit_kb: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub includes_cookies: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub includes_passwords: Option<bool>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileDataUpdateRequest {
+    pub includes_cookies: bool,
+    pub includes_passwords: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
@@ -1379,22 +1972,35 @@ pub struct SessionData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct SessionDefaultsData {
-    pub session_defaults: SessionDefaults,
+pub struct ProfileListData {
+    pub profiles: Vec<Profile>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct SessionDefaults {
+pub struct ProfileData {
+    pub profile: Profile,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct Profile {
+    pub id: String,
+    pub name: String,
     pub proxy_alias: Option<String>,
     pub adblock_enabled: bool,
     pub image_blocking_mode: ImageBlockingMode,
     pub image_size_limit_kb: i64,
+    pub includes_cookies: bool,
+    pub includes_passwords: bool,
+    pub is_builtin: bool,
+    pub created_at: i64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
     pub id: String,
     pub name: String,
+    pub profile: String,
+    pub profile_data_id: Option<String>,
     pub group: Option<String>,
     pub proxy_alias: Option<String>,
     pub adblock_enabled: bool,
@@ -1670,6 +2276,8 @@ mod tests {
         json!({
             "id": "machine-a.Session1",
             "name": "Session1",
+            "profile": "Default",
+            "profile_data_id": null,
             "group": "pgm",
             "proxy_alias": null,
             "adblock_enabled": true,
@@ -1679,13 +2287,131 @@ mod tests {
         })
     }
 
-    fn session_defaults_json() -> Value {
+    fn profile_json() -> Value {
         json!({
-            "proxy_alias": "office",
+            "id": "builtin-default",
+            "name": "Default",
+            "proxy_alias": null,
             "adblock_enabled": false,
-            "image_blocking_mode": "all",
-            "image_size_limit_kb": 250
+            "image_blocking_mode": "none",
+            "image_size_limit_kb": 100,
+            "includes_cookies": false,
+            "includes_passwords": false,
+            "is_builtin": true,
+            "created_at": 0
         })
+    }
+
+    fn observation_operation() -> ObservationOperationData {
+        ObservationOperationData {
+            page: Page {
+                id: "page-1".to_string(),
+                session_id: "session-1".to_string(),
+                url: "https://example.com/guide".to_string(),
+            },
+            observation: PageObservation {
+                id: "observation-1".to_string(),
+                mode: ObservationMode::Semantic,
+                document_sequence: 1,
+                captured_at: "2026-08-19T00:00:00Z".to_string(),
+                title: "Example Guide".to_string(),
+                truncated: false,
+                omitted_node_count: 0,
+                visited_node_count: 12,
+                semantic_bytes: 200,
+                viewport: ObservationViewport {
+                    css_width: 1280,
+                    css_height: 720,
+                    scroll_x: 0,
+                    scroll_y: 0,
+                    document_width: 1280,
+                    document_height: 1800,
+                },
+                content: vec![
+                    ObservationContent {
+                        kind: "heading".to_string(),
+                        level: Some(2),
+                        text: "Installation".to_string(),
+                    },
+                    ObservationContent {
+                        kind: "paragraph".to_string(),
+                        level: None,
+                        text: "Install the package with Cargo.".to_string(),
+                    },
+                    ObservationContent {
+                        kind: "paragraph".to_string(),
+                        level: None,
+                        text: "Unrelated company history.".to_string(),
+                    },
+                ],
+                elements: vec![ObservationElement {
+                    element_ref: "e1".to_string(),
+                    role: "link".to_string(),
+                    name: "Installation reference".to_string(),
+                    states: Vec::new(),
+                    value: None,
+                    destination: Some("https://example.com/install".to_string()),
+                    in_viewport: true,
+                    bounds: ObservationBounds {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 100.0,
+                        height: 20.0,
+                    },
+                }],
+                screenshot: None,
+            },
+        }
+    }
+
+    #[test]
+    fn page_read_is_query_directed_and_markdown_bounded() {
+        let data = page_read_data(observation_operation(), Some("install package"), 512, 10);
+        assert!(data.markdown.contains("## Installation"));
+        assert!(data.markdown.contains("Install the package with Cargo."));
+        assert!(data.markdown.contains("Installation reference"));
+        assert!(!data.markdown.contains("company history"));
+        assert!(data.matched_query);
+        assert!(data.markdown.chars().count() <= 512);
+
+        let mut operation = observation_operation();
+        operation.observation.content[1].text = "x".repeat(1_000);
+        let bounded = page_read_data(operation, None, 512, 10);
+        assert!(bounded.markdown.chars().count() <= 512);
+        assert!(bounded.markdown.ends_with('…'));
+        assert_eq!(bounded.selected_content_count, 2);
+        assert!(bounded.truncated);
+
+        let mut source_limited = observation_operation();
+        source_limited.observation.truncated = true;
+        let source_limited = page_read_data(source_limited, None, 32_768, 10);
+        assert!(source_limited.source_truncated);
+        assert!(!source_limited.truncated);
+    }
+
+    #[test]
+    fn page_read_url_uses_semantic_navigate_observe() {
+        let response_body = json!({
+            "status": "ok",
+            "request_id": "request-1",
+            "data": observation_operation()
+        });
+        let (base_url, handle) = start_test_server(1, move |_, _| {
+            http_json(200, "request-1", response_body.clone())
+        });
+        let response = RelClient::new(base_url)
+            .read_page(&PageReadRequest {
+                url: Some("https://example.com/guide".to_string()),
+                query: Some("install".to_string()),
+                ..PageReadRequest::default()
+            })
+            .unwrap();
+        assert_eq!(response.data.observation_id, "observation-1");
+        let requests = handle.join().unwrap();
+        assert_eq!(requests[0].method, "POST");
+        assert_eq!(requests[0].path, "/v1/navigate/observe");
+        let body: Value = serde_json::from_str(&requests[0].body).unwrap();
+        assert_eq!(body["mode"], "semantic");
     }
 
     #[test]
@@ -1702,7 +2428,7 @@ mod tests {
     }
 
     #[test]
-    fn session_create_uses_defaults_when_unchanged_and_can_force_direct_networking() {
+    fn session_create_uses_default_profile_when_unchanged_and_accepts_named_profile() {
         assert_eq!(
             serde_json::to_value(SessionCreateRequest::default()).unwrap(),
             json!({})
@@ -1710,17 +2436,19 @@ mod tests {
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
                 group: Some("pgm".to_string()),
+                profile: Some("BandwidthSaver".to_string()),
                 proxy_alias: Change::Clear,
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"group":"pgm", "proxy_alias":null})
+            json!({"group":"pgm", "profile":"BandwidthSaver", "proxy_alias":null})
         );
         let mut capture = CaptureRequest::new("https://example.com");
         capture.group = Some("pgm".to_string());
+        capture.profile = Some("AdBlock".to_string());
         assert_eq!(
             serde_json::to_value(capture).unwrap(),
-            json!({"url":"https://example.com", "group":"pgm"})
+            json!({"url":"https://example.com", "profile":"AdBlock", "group":"pgm"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
@@ -1829,13 +2557,51 @@ mod tests {
     }
 
     #[test]
+    fn observation_actions_serialize_as_one_sequence() {
+        assert_eq!(
+            serde_json::to_value(NavigateObservationRequest {
+                navigation: Some(ObservationNavigation::Back),
+                session_id: Some("Session1".to_string()),
+                ..NavigateObservationRequest::default()
+            })
+            .unwrap(),
+            json!({"navigation":"back","session_id":"Session1"})
+        );
+        let mut hover = ObservationAction::new("e2", ObservationActionKind::Hover);
+        hover.scroll = Some(false);
+        let request = ObservationActionRequest {
+            actions: vec![
+                ObservationAction::new("e1", ObservationActionKind::Click),
+                hover,
+                ObservationAction::scroll(0, -600),
+                ObservationAction::wait(0.25),
+            ],
+            mode: Some(ObservationMode::Semantic),
+            timeout: None,
+            wait: None,
+        };
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            json!({
+                "actions": [
+                    {"ref":"e1","action":"click"},
+                    {"ref":"e2","action":"hover","scroll":false},
+                    {"action":"scroll","delta_x":0,"delta_y":-600},
+                    {"action":"wait","seconds":0.25}
+                ],
+                "mode":"semantic"
+            })
+        );
+    }
+
+    #[test]
     fn path_segments_are_percent_encoded() {
         assert_eq!(encode_path_segment("page 1/a"), "page%201%2Fa");
     }
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(26, |index, request| {
+        let (base_url, server) = start_test_server(31, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -1853,6 +2619,20 @@ mod tests {
                     "checks":[{"id":"agent","name":"Agent","kind":"service","running":true,
                         "status":"running","detail":"ready","pids":[123]}]
                 }),
+                ("GET", "/v1/notifications") => json!({
+                    "notifications":[{
+                        "sequence":1,
+                        "session_id":"machine-a.Session1",
+                        "origin":"https://example.com/",
+                        "title":"Example",
+                        "body":"Untrusted website content",
+                        "notification_id":"notification-1",
+                        "persistent":false,
+                        "displayed_at":"2026-08-17T20:00:00Z",
+                        "trust":"untrusted_website_content"
+                    }],
+                    "trust":"untrusted_website_content"
+                }),
                 ("POST", "/v1/navigate")
                 | ("POST", "/v1/perform")
                 | ("POST", "/v1/capture")
@@ -1865,7 +2645,8 @@ mod tests {
                     "page":{"id":"page_1","session_id":"machine-a.Session1","url":"https://example.com/"},
                     "screenshot":{"output_path":"/tmp/page.webp","bytesize":11,"format":"webp","mime_type":"image/webp","width":1200,"height":800}
                 }),
-                ("POST", "/v1/observe")
+                ("POST", "/v1/navigate/observe")
+                | ("POST", "/v1/observe")
                 | ("POST", "/v1/pages/page_1/observe")
                 | ("POST", "/v1/observations/11111111-1111-4111-8111-111111111111/actions") => {
                     json!({
@@ -1881,6 +2662,12 @@ mod tests {
                         }
                     })
                 }
+                ("POST", "/v1/observations/11111111-1111-4111-8111-111111111111/find") => json!({
+                    "observation_id":"11111111-1111-4111-8111-111111111111",
+                    "query":"continue","role":"button",
+                    "matches":[{"type":"element","element":{"ref":"e1","role":"button","name":"Continue","states":["enabled"],"in_viewport":true,"bounds":{"x":10.0,"y":20.0,"width":100.0,"height":40.0}}}],
+                    "total_matches":1,"truncated":false
+                }),
                 ("GET", "/v1/proxies") => json!({"proxies":[proxy_json()]}),
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
@@ -1899,8 +2686,12 @@ mod tests {
                 ("GET", "/v1/sessions/machine-a.Session1")
                 | ("POST", "/v1/sessions")
                 | ("PATCH", "/v1/sessions/machine-a.Session1") => json!({"session":session_json()}),
-                ("GET", "/v1/session-defaults") | ("PATCH", "/v1/session-defaults") => {
-                    json!({"session_defaults":session_defaults_json()})
+                ("GET", "/v1/profiles") => json!({"profiles":[profile_json()]}),
+                ("POST", "/v1/profiles") | ("PATCH", "/v1/profiles/custom-profile-id") => {
+                    json!({"profile":profile_json()})
+                }
+                ("DELETE", "/v1/profiles/custom-profile-id") => {
+                    json!({"deleted_id":"custom-profile-id"})
                 }
                 route => panic!("unexpected route {route:?}"),
             };
@@ -1916,6 +2707,9 @@ mod tests {
         assert_eq!(health.data.build.as_ref().unwrap().worktree, "ba49");
         let status = client.status().unwrap();
         assert_eq!(status.data.build, health.data.build);
+        let notifications = client.list_notifications().unwrap();
+        assert_eq!(notifications.data.notifications[0].sequence, 1);
+        assert_eq!(notifications.data.trust, "untrusted_website_content");
         client
             .navigate(&NavigateRequest::new("example.com"))
             .unwrap();
@@ -1977,12 +2771,25 @@ mod tests {
             })
             .unwrap();
         client
+            .navigate_and_observe(&NavigateObservationRequest::new("example.com"))
+            .unwrap();
+        client
             .observe_page("page_1", &PageObservationRequest::default())
             .unwrap();
         client
             .perform_observation_action(
                 "11111111-1111-4111-8111-111111111111",
                 &ObservationActionRequest::new("e1", ObservationActionKind::Click),
+            )
+            .unwrap();
+        client
+            .find_in_observation(
+                "11111111-1111-4111-8111-111111111111",
+                &ObservationFindRequest {
+                    query: Some("continue".to_string()),
+                    role: Some("button".to_string()),
+                    limit: Some(5),
+                },
             )
             .unwrap();
         client.list_proxies().unwrap();
@@ -2013,13 +2820,28 @@ mod tests {
         client
             .create_session(&SessionCreateRequest::default())
             .unwrap();
-        client.session_defaults().unwrap();
+        client.list_profiles().unwrap();
         client
-            .update_session_defaults(&SessionDefaultsUpdateRequest {
-                proxy_alias: Change::Clear,
-                ..SessionDefaultsUpdateRequest::default()
+            .create_profile(&ProfileCreateRequest {
+                name: "Research".to_string(),
+                proxy_alias: None,
+                adblock_enabled: Some(true),
+                image_blocking_mode: Some(ImageBlockingMode::OverLimit),
+                image_size_limit_kb: Some(10),
+                includes_cookies: Some(false),
+                includes_passwords: Some(false),
             })
             .unwrap();
+        client
+            .update_profile_data(
+                "custom-profile-id",
+                &ProfileDataUpdateRequest {
+                    includes_cookies: true,
+                    includes_passwords: true,
+                },
+            )
+            .unwrap();
+        client.delete_profile("custom-profile-id").unwrap();
         client
             .update_session(
                 "machine-a.Session1",
@@ -2044,6 +2866,7 @@ mod tests {
             vec![
                 ("GET", "/v1/health"),
                 ("GET", "/v1/status"),
+                ("GET", "/v1/notifications"),
                 ("POST", "/v1/navigate"),
                 ("POST", "/v1/perform"),
                 ("POST", "/v1/capture"),
@@ -2052,10 +2875,15 @@ mod tests {
                 ("POST", "/v1/pages/page_1/actions"),
                 ("POST", "/v1/pages/page_1/screenshot"),
                 ("POST", "/v1/observe"),
+                ("POST", "/v1/navigate/observe"),
                 ("POST", "/v1/pages/page_1/observe"),
                 (
                     "POST",
                     "/v1/observations/11111111-1111-4111-8111-111111111111/actions"
+                ),
+                (
+                    "POST",
+                    "/v1/observations/11111111-1111-4111-8111-111111111111/find"
                 ),
                 ("GET", "/v1/proxies"),
                 ("GET", "/v1/proxies/office"),
@@ -2066,34 +2894,36 @@ mod tests {
                 ("GET", "/v1/sessions"),
                 ("GET", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions"),
-                ("GET", "/v1/session-defaults"),
-                ("PATCH", "/v1/session-defaults"),
+                ("GET", "/v1/profiles"),
+                ("POST", "/v1/profiles"),
+                ("PATCH", "/v1/profiles/custom-profile-id"),
+                ("DELETE", "/v1/profiles/custom-profile-id"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions/close"),
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[2].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[3].body).unwrap(),
             json!({"url":"example.com"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[3].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[4].body).unwrap(),
             json!({"session_id":"machine-a.Session1","actions":[
                 {"action":"click-link","link":"https://example.com/more","match":{"type":"fuzzy-link","threshold":1.0}},
                 {"action":"wait","seconds":0.0}
             ]})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[4].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[5].body).unwrap(),
             json!({"session_id":"machine-a.Session1"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[5].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[6].body).unwrap(),
             json!({
                 "session_id":"machine-a.Session1",
                 "format":"webp",
@@ -2102,19 +2932,42 @@ mod tests {
             })
         );
         assert_eq!(
+            serde_json::from_str::<Value>(&requests[11].body).unwrap(),
+            json!({"url":"example.com"})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[13].body).unwrap(),
+            json!({"actions":[{"ref":"e1","action":"click"}]})
+        );
+        assert_eq!(
             serde_json::from_str::<Value>(&requests[14].body).unwrap(),
+            json!({"query":"continue","role":"button","limit":5})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[17].body).unwrap(),
             json!({"alias":"office","upstream_host":"proxy.example.com","upstream_port":8000})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[15].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[18].body).unwrap(),
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
-            json!({"proxy_alias":null})
+            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
+            json!({
+                "name":"Research",
+                "adblock_enabled":true,
+                "image_blocking_mode":"over_limit",
+                "image_size_limit_kb":10,
+                "includes_cookies":false,
+                "includes_passwords":false
+            })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[23].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
+            json!({"includes_cookies":true,"includes_passwords":true})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

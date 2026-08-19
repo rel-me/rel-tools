@@ -46,13 +46,18 @@ commands**.
 
 ## API parity
 
-Each method maps to one public RPC route:
+Each transport method maps to one public RPC route. `read_page` is the one
+documented composite helper: it uses semantic `/navigate/observe` when a URL is
+present and semantic `/observe` for the current page.
 
 | Rust method | RPC operation |
 | --- | --- |
 | `health()` | `GET /v1/health` |
 | `status()` | `GET /v1/status` |
+| `list_notifications()` | `GET /v1/notifications` |
 | `navigate(&NavigateRequest)` | `POST /v1/navigate` |
+| `navigate_and_observe(&NavigateObservationRequest)` | `POST /v1/navigate/observe` |
+| `read_page(&PageReadRequest)` | semantic `POST /v1/navigate/observe` or `POST /v1/observe` |
 | `perform(&PerformRequest)` | `POST /v1/perform` |
 | `capture_current_page(&PageCaptureRequest)` | `POST /v1/capture` |
 | `screenshot_current_page(&ScreenshotRequest)` | `POST /v1/screenshot` |
@@ -63,6 +68,7 @@ Each method maps to one public RPC route:
 | `take_page_screenshot(page_id, &PageScreenshotRequest)` | `POST /v1/pages/{page_id}/screenshot` |
 | `observe_page(page_id, &PageObservationRequest)` | `POST /v1/pages/{page_id}/observe` |
 | `perform_observation_action(observation_id, &ObservationActionRequest)` | `POST /v1/observations/{observation_id}/actions` |
+| `find_in_observation(observation_id, &ObservationFindRequest)` | `POST /v1/observations/{observation_id}/find` |
 | `list_proxies()` | `GET /v1/proxies` |
 | `get_proxy(alias)` | `GET /v1/proxies/{alias}` |
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
@@ -72,15 +78,17 @@ Each method maps to one public RPC route:
 | `list_sessions()` | `GET /v1/sessions` |
 | `get_session(id)` | `GET /v1/sessions/{id}` |
 | `create_session(&SessionCreateRequest)` | `POST /v1/sessions` |
-| `session_defaults()` | `GET /v1/session-defaults` |
-| `update_session_defaults(&SessionDefaultsUpdateRequest)` | `PATCH /v1/session-defaults` |
+| `list_profiles()` | `GET /v1/profiles` |
+| `create_profile(&ProfileCreateRequest)` | `POST /v1/profiles` |
+| `update_profile_data(id, &ProfileDataUpdateRequest)` | `PATCH /v1/profiles/{id}` |
+| `delete_profile(id)` | `DELETE /v1/profiles/{id}` |
 | `update_session(id, &SessionUpdateRequest)` | `PATCH /v1/sessions/{id}` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
 | `close_session_group(group)` | `POST /v1/sessions/close` |
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
-`PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
+`BrowserNotification`, `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
 match RPC v1.
 
 `Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
@@ -88,14 +96,40 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all ten tools. It
-calls `status`, `capture`, `attach_page`, `perform_page_action`, both screenshot
-methods, all observation methods, `list_sessions`, `close_session_group`, and
-`list_proxies`; it does not maintain alternate request types or bypass the RPC
-transport. For capture, it exhausts and validates `CaptureStream` before
-returning one aggregated MCP result.
+The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
+calls `status`, `list_notifications`, `capture`, `attach_page`,
+`read_page`, `perform_page_action`, both screenshot methods, all observation methods,
+`list_sessions`, `close_session_group`, and `list_proxies`; it does not maintain
+alternate request types or bypass the RPC transport. For capture, it exhausts
+and validates `CaptureStream` before returning one aggregated MCP result.
+
+`BrowserNotification` title and body fields are untrusted website content.
+Listing them never starts a model turn; agent clients must keep them in the same
+untrusted-data boundary as page text and pixels.
 
 ## Shorthand page workflow
+
+For retrieval without action refs or pixels, use `PageReadRequest`. The helper
+ranks semantic content and links against `query`, caps the Markdown independently
+from the renderer's semantic bound, and reports both truncation states:
+
+```rust
+use rel_client::{PageReadRequest, RelClient};
+
+let client = RelClient::local();
+let read = client.read_page(&PageReadRequest {
+    url: Some("https://example.com/docs".into()),
+    query: Some("installation".into()),
+    max_chars: Some(6_000),
+    max_sections: Some(16),
+    ..PageReadRequest::default()
+})?;
+println!("{}", read.data.markdown);
+# Ok::<(), rel_client::ClientError>(())
+```
+
+This helper still uses REL's embedded Chromium and the public RPC observation
+routes. It does not fetch through a second HTTP client or browser backend.
 
 The singular page methods can share the agent's process-local current page. Set
 the same `session_id` on each request to scope that page to one browser session:
@@ -163,29 +197,55 @@ semantics minimal:
 
 ```rust
 use rel_client::{
-    ObservationActionKind, ObservationActionRequest, ObservationMode,
-    ObservationRequest, RelClient,
+    NavigateObservationRequest, ObservationAction, ObservationActionKind,
+    ObservationActionRequest, ObservationFindRequest, ObservationMode, RelClient,
 };
 
 let client = RelClient::local();
-let observed = client.observe_current_page(&ObservationRequest {
+let observed = client.navigate_and_observe(&NavigateObservationRequest {
+    url: Some("https://example.com".into()),
+    navigation: None,
     session_id: Some("Session1".into()),
     mode: Some(ObservationMode::Hybrid),
+    profile: None,
+    proxy: None,
     timeout: None,
     wait: None,
 })?;
 let first_ref = observed.data.observation.elements[0].element_ref.clone();
+let mut hover = ObservationAction::new(first_ref.clone(), ObservationActionKind::Hover);
+hover.scroll = Some(true);
 let next = client.perform_observation_action(
     &observed.data.observation.id,
-    &ObservationActionRequest::new(first_ref, ObservationActionKind::Click),
+    &ObservationActionRequest {
+        actions: vec![
+            hover,
+            ObservationAction::new(first_ref, ObservationActionKind::Click),
+            ObservationAction::wait(0.25),
+            ObservationAction::scroll(0, -600),
+        ],
+        mode: Some(ObservationMode::Semantic),
+        timeout: None,
+        wait: None,
+    },
 )?;
-println!("{}", next.data.observation.id);
+let found = client.find_in_observation(
+    &next.data.observation.id,
+    &ObservationFindRequest {
+        query: Some("continue".into()),
+        role: Some("button".into()),
+        limit: Some(10),
+    },
+)?;
+println!("{}", found.data.total_matches);
 # Ok::<(), rel_client::ClientError>(())
 ```
 
 Refs are scoped to one observation and document sequence. The agent retains
 private locators and returns `OBSERVATION_STALE` instead of retargeting when the
-document or element signature has changed.
+document or element signature has changed. Observation actions execute in order,
+stop at the first failure, and return one post-batch observation. Find searches
+only the stored public snapshot and does not issue another browser read.
 
 `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame commits an HTTP 4xx or 5xx response. By default, detected Cloudflare
@@ -252,7 +312,7 @@ duplicated as an SDK field.
 Non-nullable PATCH fields use `Option<T>`: `None` omits a field and `Some(value)`
 sets it. Nullable fields use `Change<T>` so callers can also send an explicit
 JSON `null`. Those fields are proxy username, password, and Oxylabs location,
-plus the `proxy_alias` for a session or Session defaults.
+plus the `proxy_alias` for a session.
 
 ```rust
 use rel_client::{Change, RelClient, SessionUpdateRequest};
@@ -274,17 +334,21 @@ RelClient::local().update_session("Session12", &request)?;
 This prevents an accidental clear when a caller intended a true partial
 update.
 
-## Session creation defaults
+## Session profiles
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
-Session defaults configured in the REL app. Use `Change::Set("alias".into())` to override the
-default proxy or `Change::Clear` to create a direct session:
+built-in **Default** profile. Set `profile` to select **AdBlock**,
+**BandwidthSaver**, or a case-insensitively unique custom name. Explicit proxy
+and filtering fields override the selected profile; use
+`Change::Set("alias".into())` for a proxy or `Change::Clear` for direct
+networking:
 
 ```rust
 use rel_client::{Change, RelClient, SessionCreateRequest};
 
 let request = SessionCreateRequest {
     group: Some("pgm".into()),
+    profile: Some("BandwidthSaver".into()),
     proxy_alias: Change::Clear,
     ..SessionCreateRequest::default()
 };
@@ -293,17 +357,24 @@ RelClient::local().close_session_group("pgm")?;
 # Ok::<(), rel_client::ClientError>(())
 ```
 
-The `SessionDefaults` resource contains `proxy_alias`, `adblock_enabled`,
-`image_blocking_mode`, and `image_size_limit_kb`. `ImageBlockingMode::None`
-allows every image without disabling AdBlock. Proxy and filter updates
-affect only subsequently created sessions. REL does not impose a maximum
-session count.
+`Profile` contains its public `id`, unique `name`, proxy and filtering policy,
+browser-data inclusion flags, built-in status, and creation time.
+`ProfileCreateRequest` creates a custom settings template; browser-data import
+itself remains app-owned. `ProfileDataUpdateRequest` updates the two inclusion
+flags after REL.app stages an import; no cookie or password values cross RPC.
+Re-importing a selected category replaces that category in the template.
+Built-ins cannot be modified or deleted. `ImageBlockingMode::None` allows every
+image without disabling AdBlock. Existing sessions retain copied settings and
+data after their source profile is changed or deleted. REL does not impose a
+maximum session count.
 
-`Session::group` exposes the optional immutable group label. `CaptureRequest`
-and `PageAttachRequest` also accept `group` when `session_id` is absent, so an
-implicitly created session can join the same group. Group matching is
-case-insensitive; closing a group that is already empty succeeds with an empty
-`deleted_ids` vector.
+`Session::profile` exposes the source profile name and
+`Session::profile_data_id` identifies the custom browser-data template copied
+at creation, when any. `CaptureRequest`, `NavigateRequest`, and
+`PageAttachRequest` accept `profile` only when `session_id` is absent.
+`CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
+created session can join a group. Group matching is case-insensitive; closing
+an empty group succeeds with an empty `deleted_ids` vector.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy

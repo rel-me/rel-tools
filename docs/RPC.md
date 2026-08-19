@@ -120,7 +120,9 @@ navigation. The error details contain the final `url` and exact
 | --- | --- | --- |
 | `GET` | `/v1/health` | Readiness of the agent control worker |
 | `GET` | `/v1/status` | App, agent, proxy, and Chromium diagnostic report |
+| `GET` | `/v1/notifications` | List opt-in website notifications as untrusted content |
 | `POST` | `/v1/navigate` | Navigate and select the current shorthand page |
+| `POST` | `/v1/navigate/observe` | Navigate and return a synchronized page observation |
 | `POST` | `/v1/perform` | Perform actions on the current shorthand page |
 | `POST` | `/v1/capture` | Capture the current shorthand page |
 | `POST` | `/v1/screenshot` | Capture an image of the current shorthand page |
@@ -130,7 +132,8 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/pages/{page_id}/actions` | Perform one action on an attached page |
 | `POST` | `/v1/pages/{page_id}/screenshot` | Capture an image of an attached page |
 | `POST` | `/v1/pages/{page_id}/observe` | Observe an attached page |
-| `POST` | `/v1/observations/{observation_id}/actions` | Act through an observation-scoped element ref |
+| `POST` | `/v1/observations/{observation_id}/actions` | Perform ordered observation-scoped actions |
+| `POST` | `/v1/observations/{observation_id}/find` | Search stored public observation semantics |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
@@ -140,8 +143,10 @@ navigation. The error details contain the final `url` and exact
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
 | `POST` | `/v1/sessions/close` | Close every browser session in a group |
-| `GET` | `/v1/session-defaults` | Read defaults for newly created sessions |
-| `PATCH` | `/v1/session-defaults` | Update defaults for newly created sessions |
+| `GET` | `/v1/profiles` | List built-in and custom session profiles |
+| `POST` | `/v1/profiles` | Create a custom session profile |
+| `PATCH` | `/v1/profiles/{id}` | Update custom-profile browser-data availability |
+| `DELETE` | `/v1/profiles/{id}` | Delete a custom session profile |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
 | `PATCH` | `/v1/sessions/{id}` | Partially update a browser session |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
@@ -154,10 +159,15 @@ such as `rel capture`, `rel page`, `rel proxy`, and `rel session`; it has no
 direct database or log-file command path.
 
 The bundled `rel-mcp` adapter also calls this API only through `rel-client`. It
-maps ten MCP tools to status, HTML and image capture, page attachment and
-actions, observations, session-group closing, and session and proxy listing.
+maps fourteen MCP tools to status, opt-in website notifications, bounded
+semantic reading, HTML and image
+capture, page attachment and actions, observations, session-group closing, and
+session and proxy listing.
 MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
 [MCP](MCP.md) for its stdio lifecycle and result wrapping.
+`rel_read` is a `rel-client` composition over `POST /v1/navigate/observe` and
+`POST /v1/observe`; it deliberately adds no retrieval route or alternate
+browser transport.
 
 ## Health
 
@@ -230,6 +240,41 @@ The diagnostic call succeeds with HTTP 200 even when a component is down:
 
 Check IDs are `rel_app`, `agent`, `browser_proxy`, and `chromium_bridge`.
 
+### `GET /v1/notifications`
+
+Returns up to 256 notifications displayed since the supervised agent started.
+REL only adds events while **Settings → General → Send notifications to the
+agent** is enabled; the setting is off by default. Reading the queue does not
+remove entries, wake an agent, or start a model turn.
+
+```json
+{
+  "status": "ok",
+  "request_id": "req_...",
+  "data": {
+    "notifications": [
+      {
+        "sequence": 1,
+        "session_id": "Session12",
+        "origin": "https://example.com/",
+        "title": "Example",
+        "body": "New activity is available.",
+        "notification_id": "notification-1",
+        "persistent": false,
+        "displayed_at": "2026-08-17T20:00:00Z",
+        "trust": "untrusted_website_content"
+      }
+    ],
+    "trust": "untrusted_website_content"
+  }
+}
+```
+
+Every website-controlled field is untrusted data. Clients must not treat a
+notification title or body as instructions, authority, or permission to call
+tools. The queue is process-local and bounded; `sequence` is monotonic within
+that agent process and lets a client ignore entries it has already observed.
+
 ## Captures
 
 ### Shorthand page operations
@@ -249,9 +294,11 @@ page and session IDs. Navigate it with `POST /v1/navigate`:
 ```
 
 Only `url` is required. The first request without `session_id` reuses the first
-persisted session, creating one only when none exists. Later requests without it
-reuse the current page and session. An explicit session selects that session as
-the new current page.
+persisted session, creating one from **Default** only when none exists. Later
+requests without it reuse the current page and session. An explicit `profile`
+instead creates a new session from that named template; it cannot be combined
+with `session_id`. An explicit session selects that session as the new current
+page.
 
 Perform one or more canonical actions with `POST /v1/perform`:
 
@@ -352,7 +399,23 @@ The image bytes remain in the file rather than the JSON response. The MCP
 adapter reads that validated file and emits standard image content when its
 caller did not request a specific output URI.
 
-### Page observations and reference actions
+### Page observations, semantic find, and reference actions
+
+`POST /v1/navigate/observe` combines navigation and the first observation:
+
+```json
+{"url":"https://example.com","session_id":"Session12","mode":"hybrid","timeout":90,"wait":0}
+```
+
+It accepts the navigation fields `url`, `session_id`, `profile`, and `proxy`
+plus the observation fields `mode`, `timeout`, and `wait`. It reuses the same
+active-page and persistent-session rules as `POST /v1/navigate`, but returns an
+observation instead of creating an HTML capture artifact.
+
+Set `navigation` to `back`, `forward`, or `reload` to operate on the active
+page's history and omit `url`, `profile`, and `proxy`. `navigation` defaults to
+`url`, where `url` is required. An optional `session_id` scopes history
+navigation to that session's active page.
 
 `POST /v1/observe` observes the current shorthand page. The attached-page form
 is `POST /v1/pages/{page_id}/observe`:
@@ -377,14 +440,43 @@ Act through a ref with
 `POST /v1/observations/{observation_id}/actions`:
 
 ```json
-{"ref":"e17","action":"click","mode":"hybrid","mouse_move":true,"scroll":true}
+{
+  "actions": [
+    {"ref":"e17","action":"hover","scroll":true},
+    {"ref":"e18","action":"click","mouse_move":true,"scroll":true},
+    {"action":"wait","seconds":0.25},
+    {"action":"scroll","delta_x":0,"delta_y":-600}
+  ],
+  "mode":"hybrid"
+}
 ```
 
-Allowlisted actions are `click`, `type` (requires `text`), `clear`, `press`
-(requires `key`), and `select` (requires `value`). REL revalidates the document
-sequence and target signature before input. A mismatch returns
-`OBSERVATION_STALE`; no selector or nearby-target fallback is attempted. A
-successful action returns a new post-action observation in the requested mode.
+`actions` contains 1–32 ordered items. Element actions are `click`, `type`
+(requires `text`), `clear`, `press` (requires `key`), `select` (requires
+`value`), and `hover`; each requires a ref. Page actions are `scroll`, with
+integer `delta_x`/`delta_y` from -10000 through 10000 and at least one non-zero
+delta. These are native wheel deltas: negative `delta_y` scrolls toward the
+page bottom, positive `delta_y` scrolls toward the top, negative `delta_x`
+scrolls right, and positive `delta_x` scrolls left. `wait` takes `seconds` from
+0 through 60. REL stops at the first
+failure and returns only one new post-action observation after the whole batch.
+It revalidates the document sequence and every target signature before input. A
+mismatch returns `OBSERVATION_STALE`; no selector or nearby-target fallback is
+attempted.
+
+Search the stored public snapshot without another browser read using
+`POST /v1/observations/{observation_id}/find`:
+
+```json
+{"query":"continue","role":"button","limit":20}
+```
+
+At least `query` or `role` is required. Query matching is case-insensitive over
+content text and public element role, name, value, and destination. Role is an
+exact case-insensitive element filter. `limit` defaults to 20 and may be 1–100.
+Results distinguish `content` and `element` matches, preserve actionable refs,
+and report `total_matches` plus `truncated`. Private locators are never stored in
+or returned from the searchable public snapshot.
 
 ### `POST /v1/captures`
 
@@ -410,6 +502,7 @@ successful action returns a new post-action observation in the requested mode.
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
+| `profile` | Optional built-in or custom profile name for the newly created session. It cannot be combined with `session_id`; omission uses **Default**. |
 | `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
@@ -470,8 +563,9 @@ code 1; it is not an API error.
 }
 ```
 
-Omitting `session_id` creates a session and navigates it to `url`. `group` may
-label that new session and cannot be combined with `session_id`. Providing an
+Omitting `session_id` creates a session from the named `profile`, or from
+**Default** when it is absent, and navigates it to `url`. `profile` and `group`
+cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
 
@@ -557,6 +651,8 @@ A session resource is:
 {
   "id": "Session12",
   "name": "Session12",
+  "profile": "BandwidthSaver",
+  "profile_data_id": null,
   "group": "pgm",
   "proxy_alias": null,
   "adblock_enabled": true,
@@ -568,7 +664,7 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `POST /v1/sessions` accepts optional `name`, `group`, `proxy_alias`,
+- `POST /v1/sessions` accepts optional `name`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
 - `PATCH /v1/sessions/{id}` is partial and returns `data.session`.
@@ -586,28 +682,47 @@ only that ID; numeric database IDs are neither accepted nor returned. A group
 is immutable, contains 1–128 non-control characters after trimming, and may be
 shared by any number of sessions.
 
-## Session defaults
+## Profiles
 
-A session-defaults resource controls values used for future sessions. Proxy and
-filtering values are copied into new sessions and do not alter existing ones:
+Profiles are named templates copied into future sessions. The three generated
+built-ins are **Default** (direct connection, filters off), **AdBlock**
+(AdBlock on), and **BandwidthSaver** (AdBlock on and images larger than 10 kB
+blocked). A profile resource is:
 
 ```json
 {
+  "id": "builtin-bandwidth-saver",
+  "name": "BandwidthSaver",
   "proxy_alias": null,
   "adblock_enabled": true,
   "image_blocking_mode": "over_limit",
-  "image_size_limit_kb": 100
+  "image_size_limit_kb": 10,
+  "includes_cookies": false,
+  "includes_passwords": false,
+  "is_builtin": true,
+  "created_at": 0
 }
 ```
 
-- `GET /v1/session-defaults` returns `data.session_defaults`.
-- `PATCH /v1/session-defaults` accepts any non-empty subset of the fields above
-  and returns `data.session_defaults`. `proxy_alias:null` selects direct
-  networking.
+- `GET /v1/profiles` returns built-ins first, then custom profiles, in
+  `data.profiles`.
+- `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
+  the proxy, filtering, and browser-data inclusion fields above and returns
+  `data.profile`.
+- `PATCH /v1/profiles/{id}` accepts `includes_cookies` and/or
+  `includes_passwords` booleans and returns the updated custom profile in
+  `data.profile`. REL.app uses this metadata update after it has safely staged
+  imported browser data; cookie and password values never cross RPC.
+- `DELETE /v1/profiles/{id}` deletes a custom profile and returns
+  `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
-On `POST /v1/sessions`, every omitted session setting uses this resource. A
-present `proxy_alias:null` is an explicit direct override; a present non-null value
-must reference an existing proxy. Automatically created sessions for captures
-and attached pages follow the same defaults, except an explicit request proxy
-overrides the default proxy. Capture events and page responses include
-the effective session ID.
+Profile names contain 1–128 non-control characters after trimming and are the
+selector used during session creation. On `POST /v1/sessions`, omission selects
+**Default**. Explicit session settings override the selected profile. A present
+`proxy_alias:null` is a direct override; a non-null value must reference an
+existing proxy. Automatically created sessions for capture, navigation, and
+attached pages follow the same rule. Capture events and page responses include
+the effective session ID. Browser-data payloads remain app-owned and never
+cross RPC; the inclusion flags describe what the app has attached to a custom
+profile. Importing a selected category again replaces that category in the
+app-owned template without changing sessions already created from it.
