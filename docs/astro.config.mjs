@@ -36,6 +36,7 @@ export default defineConfig({
           label: "Start here",
           items: [
             { label: "Overview", slug: "index" },
+            { label: "macOS app", slug: "app" },
             { label: "Actions", slug: "actions" },
           ],
         },
