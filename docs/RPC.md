@@ -451,7 +451,10 @@ Act through a ref with
 (requires `text`), `clear`, `press` (requires `key`), `select` (requires
 `value`), and `hover`; each requires a ref. Page actions are `scroll`, with
 integer `delta_x`/`delta_y` from -10000 through 10000 and at least one non-zero
-delta, and `wait`, with `seconds` from 0 through 60. REL stops at the first
+delta. These are native wheel deltas: negative `delta_y` scrolls toward the
+page bottom, positive `delta_y` scrolls toward the top, negative `delta_x`
+scrolls right, and positive `delta_x` scrolls left. `wait` takes `seconds` from
+0 through 60. REL stops at the first
 failure and returns only one new post-action observation after the whole batch.
 It revalidates the document sequence and every target signature before input. A
 mismatch returns `OBSERVATION_STALE`; no selector or nearby-target fallback is

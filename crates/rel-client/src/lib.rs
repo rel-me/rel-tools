@@ -1212,8 +1212,10 @@ pub struct ObservationAction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Native horizontal wheel delta. Negative scrolls right; positive scrolls left.
     pub delta_x: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Native vertical wheel delta. Negative scrolls down; positive scrolls up.
     pub delta_y: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seconds: Option<f64>,

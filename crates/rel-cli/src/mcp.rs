@@ -603,7 +603,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_action",
             "Act Through Observation Reference",
-            "Perform an allowlisted action through an observation-scoped element ref and return a new post-action observation.",
+            "Perform 1–32 ordered observation-scoped ref, hover, scroll, or wait actions and return one new post-batch observation.",
             observation_action_schema(),
             json!({
                 "readOnlyHint": false,
@@ -904,6 +904,7 @@ fn navigate_observation_schema() -> Value {
         "type": "object",
         "properties": {
             "url": {"type": "string", "minLength": 1},
+            "navigation": {"type": "string", "enum": ["url", "back", "forward", "reload"], "default": "url"},
             "session_id": {"type": "string", "minLength": 1},
             "profile": {"type": "string", "minLength": 1},
             "proxy": {"type": "string", "minLength": 1},
@@ -911,7 +912,10 @@ fn navigate_observation_schema() -> Value {
             "timeout": {"type": "number", "exclusiveMinimum": 0},
             "wait": {"type": "number", "minimum": 0}
         },
-        "required": ["url"],
+        "anyOf": [
+            {"required": ["url"]},
+            {"properties": {"navigation": {"enum": ["back", "forward", "reload"]}}, "required": ["navigation"]}
+        ],
         "additionalProperties": false
     })
 }
@@ -927,8 +931,8 @@ fn observation_action_item_schema() -> Value {
             "value": {"type": "string"},
             "mouse_move": {"type": "boolean", "default": true},
             "scroll": {"type": "boolean", "default": true},
-            "delta_x": {"type": "integer", "minimum": -10000, "maximum": 10000},
-            "delta_y": {"type": "integer", "minimum": -10000, "maximum": 10000},
+            "delta_x": {"type": "integer", "minimum": -10000, "maximum": 10000, "description": "Native wheel delta: negative scrolls right and positive scrolls left."},
+            "delta_y": {"type": "integer", "minimum": -10000, "maximum": 10000, "description": "Native wheel delta: negative scrolls toward the page bottom and positive scrolls toward the top."},
             "seconds": {"type": "number", "minimum": 0, "maximum": 60}
         },
         "required": ["action"],
@@ -1962,6 +1966,21 @@ mod tests {
         assert_eq!(tools[11]["name"], "rel_close_session_group");
         assert_eq!(tools[12]["name"], "rel_list_proxies");
         assert_eq!(output[1]["result"]["resultType"], "complete");
+
+        let navigate = &tools[4]["inputSchema"];
+        assert_eq!(
+            navigate["properties"]["navigation"]["enum"],
+            json!(["url", "back", "forward", "reload"])
+        );
+        assert_eq!(navigate["anyOf"][0]["required"], json!(["url"]));
+        assert_eq!(
+            navigate["anyOf"][1]["properties"]["navigation"]["enum"],
+            json!(["back", "forward", "reload"])
+        );
+
+        let action = &tools[9]["inputSchema"];
+        assert_eq!(action["properties"]["actions"]["minItems"], 1);
+        assert_eq!(action["properties"]["actions"]["maxItems"], 32);
     }
 
     #[test]
