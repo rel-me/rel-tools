@@ -408,6 +408,11 @@ plus the observation fields `mode`, `timeout`, and `wait`. It reuses the same
 active-page and persistent-session rules as `POST /v1/navigate`, but returns an
 observation instead of creating an HTML capture artifact.
 
+Set `navigation` to `back`, `forward`, or `reload` to operate on the active
+page's history and omit `url`, `profile`, and `proxy`. `navigation` defaults to
+`url`, where `url` is required. An optional `session_id` scopes history
+navigation to that session's active page.
+
 `POST /v1/observe` observes the current shorthand page. The attached-page form
 is `POST /v1/pages/{page_id}/observe`:
 

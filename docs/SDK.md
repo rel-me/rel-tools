@@ -178,7 +178,8 @@ use rel_client::{
 
 let client = RelClient::local();
 let observed = client.navigate_and_observe(&NavigateObservationRequest {
-    url: "https://example.com".into(),
+    url: Some("https://example.com".into()),
+    navigation: None,
     session_id: Some("Session1".into()),
     mode: Some(ObservationMode::Hybrid),
     profile: None,

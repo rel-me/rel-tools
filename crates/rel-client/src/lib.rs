@@ -1136,7 +1136,10 @@ pub struct ObservationRequest {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct NavigateObservationRequest {
-    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub navigation: Option<ObservationNavigation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1154,10 +1157,19 @@ pub struct NavigateObservationRequest {
 impl NavigateObservationRequest {
     pub fn new(url: impl Into<String>) -> Self {
         Self {
-            url: url.into(),
+            url: Some(url.into()),
             ..Self::default()
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ObservationNavigation {
+    Url,
+    Back,
+    Forward,
+    Reload,
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
@@ -2061,6 +2073,15 @@ mod tests {
 
     #[test]
     fn observation_actions_serialize_as_one_sequence() {
+        assert_eq!(
+            serde_json::to_value(NavigateObservationRequest {
+                navigation: Some(ObservationNavigation::Back),
+                session_id: Some("Session1".to_string()),
+                ..NavigateObservationRequest::default()
+            })
+            .unwrap(),
+            json!({"navigation":"back","session_id":"Session1"})
+        );
         let mut hover = ObservationAction::new("e2", ObservationActionKind::Hover);
         hover.scroll = Some(false);
         let request = ObservationActionRequest {

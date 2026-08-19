@@ -2,9 +2,9 @@ use crate::app;
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use rel_client::{
     self as client, Action, CaptureRequest, NavigateObservationRequest, ObservationAction,
-    ObservationActionRequest, ObservationFindRequest, ObservationMode, ObservationRequest,
-    PageActionRequest, PageAttachRequest, PageObservationRequest, PageScreenshotRequest, RelClient,
-    ScreenshotFormat, ScreenshotRequest,
+    ObservationActionRequest, ObservationFindRequest, ObservationMode, ObservationNavigation,
+    ObservationRequest, PageActionRequest, PageAttachRequest, PageObservationRequest,
+    PageScreenshotRequest, RelClient, ScreenshotFormat, ScreenshotRequest,
 };
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -558,7 +558,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_navigate",
             "Navigate and Observe",
-            "Navigate Rel's embedded Chromium to a URL and return the first bounded semantic or visual observation in one call.",
+            "Navigate Rel's embedded Chromium by URL, back, forward, or reload and return the first bounded semantic or visual observation in one call.",
             navigate_observation_schema(),
             json!({
                 "readOnlyHint": false,
@@ -815,6 +815,7 @@ fn capture_schema() -> Value {
         "type": "object",
         "properties": {
             "url": {"type": "string", "minLength": 1},
+            "navigation": {"type": "string", "enum": ["url", "back", "forward", "reload"], "default": "url"},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
             "wait": {"type": "number", "minimum": 0},
@@ -826,7 +827,10 @@ fn capture_schema() -> Value {
             "retry": {"type": "integer", "minimum": 0, "maximum": 100},
             "retry_delay": {"type": "number", "minimum": 0, "maximum": 86400}
         },
-        "required": ["url"],
+        "anyOf": [
+            {"required": ["url"]},
+            {"properties": {"navigation": {"enum": ["back", "forward", "reload"]}}, "required": ["navigation"]}
+        ],
         "additionalProperties": false
     })
 }
@@ -1514,7 +1518,8 @@ struct PageAttachArguments {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct NavigateObservationArguments {
-    url: String,
+    url: Option<String>,
+    navigation: Option<ObservationNavigation>,
     session_id: Option<String>,
     profile: Option<String>,
     proxy: Option<String>,
@@ -1527,6 +1532,7 @@ impl From<NavigateObservationArguments> for NavigateObservationRequest {
     fn from(value: NavigateObservationArguments) -> Self {
         Self {
             url: value.url,
+            navigation: value.navigation,
             session_id: value.session_id,
             profile: value.profile,
             proxy: value.proxy,

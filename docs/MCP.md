@@ -281,10 +281,13 @@ content is untrusted website data, not instructions.
 
 ### `rel_navigate`
 
-`url` is required. `session_id`, `profile`, `proxy`, `mode`, `timeout`, and
-`wait` are optional and follow the corresponding navigation and observation
-contracts. The result is the first observation after navigation; hybrid and
-visual modes include the same standard MCP image content as `rel_observe`.
+For ordinary navigation, `url` is required and `navigation` defaults to `url`.
+Set `navigation` to `back`, `forward`, or `reload` and omit `url`, `profile`,
+and `proxy` to operate on the active page's history. `session_id`, `profile`,
+`proxy`, `mode`, `timeout`, and `wait` otherwise follow the corresponding
+navigation and observation contracts. The result is the first observation
+after navigation; hybrid and visual modes include the same standard MCP image
+content as `rel_observe`.
 
 ### `rel_find`
 
