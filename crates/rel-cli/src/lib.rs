@@ -18,6 +18,12 @@ pub use rel_client::rpc_error_codes;
 
 mod app;
 mod mcp;
+mod transfer;
+
+use transfer::{
+    read_transfer_document, write_transfer_document, ProfileTransferDocument,
+    ProxyTransferDocument, PROFILE_TRANSFER_FORMAT, PROXY_TRANSFER_FORMAT, TRANSFER_FORMAT_VERSION,
+};
 
 pub fn main_exit_code(args: Vec<OsString>) -> i32 {
     main_exit_code_with_version(args, env!("CARGO_PKG_VERSION"))
@@ -234,6 +240,71 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.rotate_proxy_session(&alias)?)?;
             Ok(0)
         }
+        CliCommand::ProxyExport { alias, output } => {
+            let proxy = client.get_proxy(&alias)?.data.proxy;
+            let document = ProxyTransferDocument::from_public_proxy(&proxy);
+            let default_filename = document.default_filename();
+            let secrets_included = document.secrets_included();
+            let path = write_transfer_document(&document, output, &default_filename)
+                .map_err(CliError::Message)?;
+            if !secrets_included {
+                eprintln!(
+                    "warning: stored proxy passwords are app-protected and were not exported"
+                );
+            }
+            print_json(&serde_json::json!({
+                "status": "ok",
+                "path": path.display().to_string(),
+                "format": PROXY_TRANSFER_FORMAT,
+                "version": TRANSFER_FORMAT_VERSION,
+                "secrets_included": secrets_included,
+            }))?;
+            Ok(0)
+        }
+        CliCommand::ProxyImport { path, alias } => {
+            let document: ProxyTransferDocument =
+                read_transfer_document(&path).map_err(CliError::Message)?;
+            if !document.secrets_included() {
+                eprintln!("warning: this proxy transfer does not include its stored password");
+            }
+            let request = document
+                .into_create_request(alias)
+                .map_err(CliError::Message)?;
+            print_json(&client.create_proxy(&request)?)?;
+            Ok(0)
+        }
+        CliCommand::ProfileList => {
+            print_json(&client.list_profiles()?)?;
+            Ok(0)
+        }
+        CliCommand::ProfileExport { name, output } => {
+            let profiles = client.list_profiles()?.data.profiles;
+            let profile = profiles
+                .iter()
+                .find(|profile| profile.name.eq_ignore_ascii_case(&name))
+                .ok_or_else(|| CliError::Message(format!("Profile {name:?} was not found")))?;
+            let document = ProfileTransferDocument::from_profile(profile);
+            let default_filename = document.default_filename();
+            let path = write_transfer_document(&document, output, &default_filename)
+                .map_err(CliError::Message)?;
+            print_json(&serde_json::json!({
+                "status": "ok",
+                "path": path.display().to_string(),
+                "format": PROFILE_TRANSFER_FORMAT,
+                "version": TRANSFER_FORMAT_VERSION,
+                "browser_data_included": false,
+            }))?;
+            Ok(0)
+        }
+        CliCommand::ProfileImport { path, name } => {
+            let document: ProfileTransferDocument =
+                read_transfer_document(&path).map_err(CliError::Message)?;
+            let request = document
+                .into_create_request(name)
+                .map_err(CliError::Message)?;
+            print_json(&client.create_profile(&request)?)?;
+            Ok(0)
+        }
         CliCommand::SessionList => {
             print_json(&client.list_sessions()?)?;
             Ok(0)
@@ -415,6 +486,23 @@ enum CliCommand {
     },
     ProxyDelete(String),
     ProxyRotate(String),
+    ProxyExport {
+        alias: String,
+        output: Option<PathBuf>,
+    },
+    ProxyImport {
+        path: PathBuf,
+        alias: Option<String>,
+    },
+    ProfileList,
+    ProfileExport {
+        name: String,
+        output: Option<PathBuf>,
+    },
+    ProfileImport {
+        path: PathBuf,
+        name: Option<String>,
+    },
     SessionList,
     SessionGet(String),
     SessionCreate {
@@ -472,6 +560,7 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "observe" => parse_observe(args),
         "observation" => parse_observation(args),
         "proxy" => parse_proxy(args),
+        "profile" => parse_profile(args),
         "session" => parse_session(args),
         legacy
             if matches!(legacy, "ping" | "logs")
@@ -867,6 +956,8 @@ fn parse_proxy(mut args: Arguments) -> Result<CliCommand, CliError> {
         "update" => parse_proxy_update(args),
         "delete" => Ok(CliCommand::ProxyDelete(parse_proxy_alias(&mut args)?)),
         "rotate" => Ok(CliCommand::ProxyRotate(parse_proxy_alias(&mut args)?)),
+        "export" => parse_proxy_export(args),
+        "import" => parse_proxy_import(args),
         subcommand => Err(CliError::Message(format!(
             "unknown proxy subcommand {subcommand:?}; run `rel proxy --help`"
         ))),
@@ -960,6 +1051,83 @@ fn parse_proxy_update(mut args: Arguments) -> Result<CliCommand, CliError> {
         ));
     }
     Ok(CliCommand::ProxyUpdate { alias, request })
+}
+
+fn parse_proxy_export(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let alias = args.required_positional("proxy alias")?;
+    let mut output = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--output" => set_once(
+                &mut output,
+                PathBuf::from(args.option_value(&option, inline)?),
+                &option,
+            )?,
+            "-h" | "--help" => return Err(CliError::Help(proxy_help())),
+            _ => return Err(args.unknown_option(&option, "proxy export")),
+        }
+    }
+    Ok(CliCommand::ProxyExport { alias, output })
+}
+
+fn parse_proxy_import(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let path = PathBuf::from(args.required_positional("proxy transfer file")?);
+    let mut alias = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--alias" => set_once(&mut alias, args.option_value(&option, inline)?, &option)?,
+            "-h" | "--help" => return Err(CliError::Help(proxy_help())),
+            _ => return Err(args.unknown_option(&option, "proxy import")),
+        }
+    }
+    Ok(CliCommand::ProxyImport { path, alias })
+}
+
+fn parse_profile(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.peek_is_help() {
+        return Err(CliError::Help(profile_help()));
+    }
+    match args.required_positional("profile subcommand")?.as_str() {
+        "list" => {
+            parse_no_options(&mut args, "profile list", profile_help())?;
+            Ok(CliCommand::ProfileList)
+        }
+        "export" => parse_profile_export(args),
+        "import" => parse_profile_import(args),
+        subcommand => Err(CliError::Message(format!(
+            "unknown profile subcommand {subcommand:?}; run `rel profile --help`"
+        ))),
+    }
+}
+
+fn parse_profile_export(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let name = args.required_positional("profile name")?;
+    let mut output = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--output" => set_once(
+                &mut output,
+                PathBuf::from(args.option_value(&option, inline)?),
+                &option,
+            )?,
+            "-h" | "--help" => return Err(CliError::Help(profile_help())),
+            _ => return Err(args.unknown_option(&option, "profile export")),
+        }
+    }
+    Ok(CliCommand::ProfileExport { name, output })
+}
+
+fn parse_profile_import(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let path = PathBuf::from(args.required_positional("profile transfer file")?);
+    let mut name = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--name" => set_once(&mut name, args.option_value(&option, inline)?, &option)?,
+            "-h" | "--help" => return Err(CliError::Help(profile_help())),
+            _ => return Err(args.unknown_option(&option, "profile import")),
+        }
+    }
+    Ok(CliCommand::ProfileImport { path, name })
 }
 
 fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -1299,7 +1467,8 @@ rel page attach URL [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
 rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
 rel observation action OBSERVATION_ID --request JSON\n  \
-rel proxy <list|get|create|update|delete|rotate> ...\n  \
+rel proxy <list|get|create|update|delete|rotate|export|import> ...\n  \
+rel profile <list|export|import> ...\n  \
 rel session <list|get|create|update|delete|close> ...\n  \
 rel --help\n  \
 rel --version\n\n\
@@ -1308,7 +1477,7 @@ stdout unless --output is supplied, and writes validated NDJSON events to stderr
 `rel-mcp` serves MCP over stdio for model and agent clients.\n\
 Run `rel navigate --help`, `rel read --help`, `rel perform --help`, `rel capture --help`,\n\
 `rel page --help`, `rel observe --help`, `rel observation --help`,\n\
-`rel proxy --help`, or\n\
+`rel proxy --help`, `rel profile --help`, or\n\
 `rel session --help` for resource options. Commands that accept --session-id
 use $REL_SESSION_ID when the option is omitted; an explicit option wins."
         .to_string()
@@ -1423,13 +1592,29 @@ rel proxy get ALIAS\n  \
 rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [options]\n  \
 rel proxy update ALIAS [options]\n  \
 rel proxy delete ALIAS\n  \
-rel proxy rotate ALIAS\n\n\
+rel proxy rotate ALIAS\n  \
+rel proxy export ALIAS [--output PATH]\n  \
+rel proxy import FILE [--alias ALIAS]\n\n\
 Write options:\n  \
 --alias ALIAS --upstream-host HOST --upstream-port PORT\n  \
 --username USER --password PASS --oxylabs-enabled true|false\n  \
 --oxylabs-location-parameter cc|country|st --oxylabs-location-value VALUE\n\
 Update clear options:\n  \
---clear-username --clear-password --clear-oxylabs-location"
+--clear-username --clear-password --clear-oxylabs-location\n\n\
+Export writes a versioned .relproxy file with non-secret routing settings.
+App-protected stored passwords are not available to CLI export. Import accepts
+files with or without a password; --alias overrides the alias stored in the file."
+        .to_string()
+}
+
+fn profile_help() -> String {
+    "Usage:\n  \
+rel profile list\n  \
+rel profile export NAME [--output PATH]\n  \
+rel profile import FILE [--name NAME]\n\n\
+Export writes a versioned .relprofile file containing reusable profile settings.
+Cookies and saved passwords are app-owned and are not included. Import creates a
+new custom profile; --name overrides the name stored in the file."
         .to_string()
 }
 
@@ -1928,6 +2113,58 @@ mod tests {
         assert_eq!(
             parse(&["proxy", "rotate", "work-proxy"]).unwrap(),
             CliCommand::ProxyRotate("work-proxy".to_string())
+        );
+        assert_eq!(
+            parse(&[
+                "proxy",
+                "export",
+                "work-proxy",
+                "--output",
+                "office.relproxy",
+            ])
+            .unwrap(),
+            CliCommand::ProxyExport {
+                alias: "work-proxy".to_string(),
+                output: Some(PathBuf::from("office.relproxy")),
+            }
+        );
+        assert_eq!(
+            parse(&["proxy", "import", "office.relproxy", "--alias", "backup",]).unwrap(),
+            CliCommand::ProxyImport {
+                path: PathBuf::from("office.relproxy"),
+                alias: Some("backup".to_string()),
+            }
+        );
+        assert_eq!(
+            parse(&["profile", "list"]).unwrap(),
+            CliCommand::ProfileList
+        );
+        assert_eq!(
+            parse(&[
+                "profile",
+                "export",
+                "Research",
+                "--output=research.relprofile",
+            ])
+            .unwrap(),
+            CliCommand::ProfileExport {
+                name: "Research".to_string(),
+                output: Some(PathBuf::from("research.relprofile")),
+            }
+        );
+        assert_eq!(
+            parse(&[
+                "profile",
+                "import",
+                "research.relprofile",
+                "--name",
+                "Imported",
+            ])
+            .unwrap(),
+            CliCommand::ProfileImport {
+                path: PathBuf::from("research.relprofile"),
+                name: Some("Imported".to_string()),
+            }
         );
         assert_eq!(
             parse(&["session", "list"]).unwrap(),

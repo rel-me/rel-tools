@@ -15,6 +15,24 @@ Manage templates in **REL → Settings… → Profiles**. The built-in Default,
 AdBlock, and BandwidthSaver Profiles are always available. Custom Profiles can
 also use a configured proxy and imported cookies or passwords.
 
+Use **Import Profile…** and **Export Profile…** in that settings tab to move a
+template's reusable settings in a versioned `.relprofile` file. Profile
+transfers deliberately exclude cookies and saved passwords because those are
+machine-bound, app-owned browser data; imported Profiles start without either.
+
+Manage upstream connections in **REL → Settings… → Proxies**. **Import Proxy…**
+and **Export Proxy…** read and write versioned `.relproxy` files. When a Proxy
+has a saved password, REL asks whether to include it. Files that include a
+password contain that value as readable JSON and are saved with owner-only
+permissions; choose the password-free option when the file does not need to
+recreate credentials.
+
+Both file types carry a format identifier and integer version. REL ignores
+unknown additive fields within version 1, while unsupported future versions
+fail with an explanatory error instead of being partially imported. Import
+creates a new Profile or Proxy and does not overwrite an existing name or
+alias.
+
 ## AI models
 
 Configure providers and choose the default AI model in **REL → Settings… →

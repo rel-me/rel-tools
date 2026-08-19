@@ -14,10 +14,10 @@ cargo install --git https://github.com/rel-me/rel-tools \
 
 The CLI is a thin client built on the typed [`rel-client`](SDK.md)
 Rust crate. Ordinary user-facing commands map to [RPC v1](RPC.md) operations;
-`rel read` is a bounded client-side composition of semantic observe and
-navigate-and-observe. The standalone `rel-mcp` binary adapts a focused subset of those
-same operations to stdio MCP; neither client implements another browser or
-reads application data directly.
+`rel read` and the profile/proxy transfer commands are bounded client-side
+compositions of those operations. The standalone `rel-mcp` binary adapts a
+focused subset of the same operations to stdio MCP; neither client implements
+another browser or reads application data directly.
 
 Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
 [RPC](RPC.md).
@@ -43,6 +43,11 @@ rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [option
 rel proxy update ALIAS [options]
 rel proxy delete ALIAS
 rel proxy rotate ALIAS
+rel proxy export ALIAS [--output PATH]
+rel proxy import FILE [--alias ALIAS]
+rel profile list
+rel profile export NAME [--output PATH]
+rel profile import FILE [--name NAME]
 rel session list
 rel session get SESSION_ID
 rel session create [options]
@@ -451,6 +456,49 @@ Rotate the generated sticky session for an Oxylabs-enabled proxy:
 ```sh
 rel proxy rotate office
 ```
+
+Export or import a proxy transfer file:
+
+```sh
+rel proxy export office
+rel proxy import office.relproxy
+rel proxy import office.relproxy --alias office-backup
+```
+
+Export writes `ALIAS.relproxy` in the current directory unless `--output`
+supplies an exact path. It refuses to overwrite an existing file and creates
+the file with owner-only permissions. Stored proxy passwords are protected by
+the app and are not available to CLI export, so `secrets_included` is `false`
+when a password was omitted. Import accepts a versioned `.relproxy` created by
+either the CLI or app; `--alias` overrides the immutable alias stored in the
+file. The app can create a transfer with its stored password after explicit
+user confirmation.
+
+## Profiles
+
+List profiles or transfer their reusable settings:
+
+```sh
+rel profile list
+rel profile export Research
+rel profile import Research.relprofile
+rel profile import Research.relprofile --name "Research Copy"
+```
+
+Export writes `NAME.relprofile` in the current directory unless `--output`
+supplies an exact path. It refuses to overwrite an existing file and creates
+the file with owner-only permissions. A profile transfer contains its name,
+proxy assignment, AdBlock setting, and image policy. Cookies and saved
+passwords are app-owned, machine-bound browser data and are never included;
+the document records both that omission and whether the source profile had
+either category. Import always creates a new custom profile with no browser
+data. `--name` overrides the name stored in the file, which is useful when that
+name already exists.
+
+Both transfer formats are readable JSON with a format identifier and integer
+`version`. Version 1 readers ignore unknown fields so later additive fields
+remain compatible. A breaking format change requires a new version, which old
+readers reject with a clear error. Transfer files are limited to 1 MiB.
 
 ## Sessions
 
