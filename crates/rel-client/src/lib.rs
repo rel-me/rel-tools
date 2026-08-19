@@ -1453,6 +1453,7 @@ pub struct PageObservation {
     pub title: String,
     pub truncated: bool,
     pub omitted_node_count: usize,
+    pub clipped_text_count: usize,
     pub visited_node_count: usize,
     pub semantic_bytes: usize,
     pub viewport: ObservationViewport,
@@ -2317,6 +2318,7 @@ mod tests {
                 title: "Example Guide".to_string(),
                 truncated: false,
                 omitted_node_count: 0,
+                clipped_text_count: 0,
                 visited_node_count: 12,
                 semantic_bytes: 200,
                 viewport: ObservationViewport {
@@ -2655,6 +2657,7 @@ mod tests {
                             "id":"22222222-2222-4222-8222-222222222222",
                             "mode":"semantic","document_sequence":4,"captured_at":"2026-08-17T00:00:00Z",
                             "title":"Example","truncated":false,"omitted_node_count":0,
+                            "clipped_text_count":0,
                             "visited_node_count":3,"semantic_bytes":20,
                             "viewport":{"css_width":1200,"css_height":800,"scroll_x":0,"scroll_y":0,"document_width":1200,"document_height":800},
                             "content":[{"kind":"heading","level":1,"text":"Example"}],

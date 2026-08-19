@@ -2671,7 +2671,7 @@ mod tests {
                 "observation": {
                     "id":"22222222-2222-4222-8222-222222222222","mode":"hybrid",
                     "document_sequence":2,"captured_at":"2026-08-17T00:00:00Z","title":"Example",
-                    "truncated":false,"omitted_node_count":0,"visited_node_count":2,"semantic_bytes":10,
+                    "truncated":false,"omitted_node_count":0,"clipped_text_count":0,"visited_node_count":2,"semantic_bytes":10,
                     "viewport":{"css_width":1200,"css_height":800,"scroll_x":0,"scroll_y":0,"document_width":1200,"document_height":800},
                     "content":[{"kind":"heading","level":1,"text":"Example"}],"elements":[],
                     "screenshot":{"output_path":path.display().to_string(),"bytesize":image_bytes.len(),"format":"png","mime_type":"image/png","width":1200,"height":800,"css_to_image_scale_x":1.0,"css_to_image_scale_y":1.0}
@@ -2713,7 +2713,7 @@ mod tests {
                 "observation": {
                     "id":"33333333-3333-4333-8333-333333333333","mode":"semantic",
                     "document_sequence":3,"captured_at":"2026-08-19T00:00:00Z","title":"Guide",
-                    "truncated":false,"omitted_node_count":0,"visited_node_count":2,"semantic_bytes":20,
+                    "truncated":false,"omitted_node_count":0,"clipped_text_count":0,"visited_node_count":2,"semantic_bytes":20,
                     "viewport":{"css_width":1200,"css_height":800,"scroll_x":0,"scroll_y":0,"document_width":1200,"document_height":800},
                     "content":[{"kind":"paragraph","text":"Install with Cargo."}],"elements":[]
                 }

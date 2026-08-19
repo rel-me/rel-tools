@@ -167,6 +167,10 @@ println!("{}", capture.data.capture.output_path);
 # Ok::<(), rel_client::ClientError>(())
 ```
 
+`capture_current_page` also refreshes the shorthand page binding from the
+currently visible URL. Its returned `page.url` is authoritative after History
+API, query, or fragment changes made by the page.
+
 `navigate` becomes ready after the requested HTTP(S) main frame starts,
 finishes, and has nonempty rendered source. Subframe and page-initiated
 background loading does not hold the request open. Its `wait` value is a
