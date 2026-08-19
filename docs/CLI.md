@@ -443,9 +443,11 @@ explicitly delete them.
 On a normal app quit, REL flushes Chromium cookie stores and saves the selected
 session, tab order, each session's last committed HTTP or HTTPS URL, networking
 pause state, and browser panel layout. The next launch reconciles that workspace
-with the sessions still owned by the agent, reopens their last URLs, and reuses
-each session's isolated Chromium profile. Valid cookies and site storage can
-therefore keep a site signed in across restarts.
+with the sessions still owned by the agent and offers each saved page as an
+`Open {url}` action instead of loading it automatically. This avoids sending
+traffic to saved sites during startup. Opening the saved URL or starting a new
+browser navigation reuses the session's isolated Chromium profile, so valid
+cookies and site storage can keep a site signed in across restarts.
 
 The owner-only workspace file contains no cookies or saved-password entries,
 and REL removes URL-embedded usernames and passwords. The saved URL can still
