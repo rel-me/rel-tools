@@ -329,6 +329,11 @@ Capture HTML without another action with `POST /v1/capture`:
 }
 ```
 
+The singular capture reads the currently visible page and treats its returned
+`page.url` as authoritative. This refreshes the shorthand page binding after a
+same-document History API, query, or fragment change instead of failing because
+the previously tracked URL is stale.
+
 All three return the same page-operation envelope documented under attached
 pages. When `session_id` is supplied, `navigate` selects and updates that
 session's current shorthand page; `perform` and singular `capture` target it.
@@ -433,8 +438,14 @@ with its dimensions and exact CSS-to-image scales in the response.
 
 Each observation contains an ID, document sequence, capture time, title,
 truncation counts, viewport/document geometry, semantic `content`, and typed
-`elements`. Element refs such as `e17` are valid only for that page, document
-sequence, and observation. Private locators never cross RPC.
+`elements`. `omitted_node_count` reports entries dropped by traversal or output
+bounds, while `clipped_text_count` reports individual text fields shortened to
+their field limit; `truncated` is true when either occurred. Tables preserve DOM
+order with `table`, `table_row`, `table_caption`, and `table_cell` content kinds,
+including repeated cell values. Elements hidden by rendered CSS visibility are
+excluded along with `hidden` and `aria-hidden` subtrees. Element refs such as
+`e17` are valid only for that page, document sequence, and observation. Private
+locators never cross RPC.
 
 Act through a ref with
 `POST /v1/observations/{observation_id}/actions`:

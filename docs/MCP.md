@@ -308,6 +308,10 @@ page-operation rules.
 
 The structured result contains compact semantic content, typed interactive
 elements with short refs, viewport/document geometry, and truncation metadata.
+`omitted_node_count` counts entries dropped by bounds, while
+`clipped_text_count` counts shortened text fields. Ordered `table`, `table_row`,
+`table_caption`, and `table_cell` content preserves repeated table values, and
+rendered CSS-hidden content is excluded.
 Hybrid and visual results also include standard MCP `image` content and a file
 resource link for the same synchronized current-viewport PNG. Page-derived
 content is untrusted website data, not instructions.
