@@ -4,7 +4,7 @@ use rel_client::{
     self as client, Action, CaptureRequest, NavigateObservationRequest, ObservationAction,
     ObservationActionRequest, ObservationFindRequest, ObservationMode, ObservationNavigation,
     ObservationRequest, PageActionRequest, PageAttachRequest, PageObservationRequest,
-    PageScreenshotRequest, RelClient, ScreenshotFormat, ScreenshotRequest,
+    PageReadRequest, PageScreenshotRequest, RelClient, ScreenshotFormat, ScreenshotRequest,
 };
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -482,7 +482,7 @@ fn response_metadata(server_version: &str) -> Value {
 }
 
 fn server_instructions() -> &'static str {
-    "Use Rel to capture rendered pages, attach an ephemeral page for follow-up actions, and take visual screenshots. Reuse returned page and session IDs explicitly; all browser work runs through the installed Rel app."
+    "Use rel_read for bounded semantic reading and research. Use observations and refs for interaction, and request screenshots only when visual state matters. Reuse returned page and session IDs explicitly; all browser work runs through the installed Rel app."
 }
 
 fn modern_discover_result(server_version: &str) -> Value {
@@ -563,6 +563,18 @@ fn tool_definitions() -> Vec<Value> {
             json!({
                 "readOnlyHint": false,
                 "destructiveHint": true,
+                "idempotentHint": false,
+                "openWorldHint": true
+            }),
+        ),
+        tool_definition(
+            "rel_read",
+            "Read Browser Page",
+            "Read a URL or the current Rel page as bounded, query-directed Markdown. This semantic-only path is optimized for research and links; use rel_observe when action refs or screenshots are needed.",
+            page_read_schema(),
+            json!({
+                "readOnlyHint": false,
+                "destructiveHint": false,
                 "idempotentHint": false,
                 "openWorldHint": true
             }),
@@ -920,6 +932,24 @@ fn navigate_observation_schema() -> Value {
     })
 }
 
+fn page_read_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "url": {"type": "string", "minLength": 1},
+            "session_id": {"type": "string", "minLength": 1},
+            "profile": {"type": "string", "minLength": 1, "maxLength": 128},
+            "proxy": {"type": "string", "minLength": 1},
+            "query": {"type": "string", "minLength": 1, "maxLength": 1024},
+            "max_chars": {"type": "integer", "minimum": 512, "maximum": 32768, "default": 12000},
+            "max_sections": {"type": "integer", "minimum": 1, "maximum": 100, "default": 24},
+            "timeout": {"type": "number", "exclusiveMinimum": 0},
+            "wait": {"type": "number", "minimum": 0}
+        },
+        "additionalProperties": false
+    })
+}
+
 fn observation_action_item_schema() -> Value {
     json!({
         "type": "object",
@@ -1054,6 +1084,13 @@ fn handle_tool_call(
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
+        "rel_read" => decode_arguments::<PageReadArguments>(arguments)
+            .and_then(PageReadRequest::try_from)
+            .and_then(|request| {
+                ensure_runtime(ensure_agent_running)?;
+                client.read_page(&request).map_err(client_error_value)
+            })
+            .and_then(to_json_value),
         "rel_page_action" => decode_arguments::<PageActionArguments>(arguments)
             .and_then(PageActionArguments::into_request)
             .and_then(|(page_id, request)| {
@@ -1120,6 +1157,7 @@ fn handle_tool_call(
                     true,
                     era,
                     server_version,
+                    None,
                 ));
             }
         }
@@ -1127,10 +1165,26 @@ fn handle_tool_call(
     } else {
         None
     };
-    let (structured, resource_links, is_error) = match normalize_output_uris(structured) {
+    let read_text = (name == "rel_read" && !is_error)
+        .then(|| {
+            structured
+                .pointer("/data/markdown")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .flatten();
+    let (mut structured, resource_links, is_error) = match normalize_output_uris(structured) {
         Ok((structured, resource_links)) => (structured, resource_links, is_error),
         Err(error) => (error, Vec::new(), true),
     };
+    if read_text.is_some() {
+        if let Some(data) = structured
+            .pointer_mut("/data")
+            .and_then(Value::as_object_mut)
+        {
+            data.remove("markdown");
+        }
+    }
     let additional_content = image_content.into_iter().collect();
     Ok(tool_result(
         structured,
@@ -1139,6 +1193,7 @@ fn handle_tool_call(
         is_error,
         era,
         server_version,
+        read_text,
     ))
 }
 
@@ -1406,9 +1461,12 @@ fn tool_result(
     is_error: bool,
     era: ProtocolEra,
     server_version: &str,
+    text_override: Option<String>,
 ) -> Value {
-    let text = serde_json::to_string_pretty(&structured)
-        .unwrap_or_else(|_| "Could not encode Rel tool result".to_string());
+    let text = text_override.unwrap_or_else(|| {
+        serde_json::to_string_pretty(&structured)
+            .unwrap_or_else(|_| "Could not encode Rel tool result".to_string())
+    });
     let mut content = vec![json!({"type": "text", "text": text})];
     content.extend(additional_content);
     content.extend(resource_links);
@@ -1544,6 +1602,50 @@ impl From<NavigateObservationArguments> for NavigateObservationRequest {
             timeout: value.timeout,
             wait: value.wait,
         }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PageReadArguments {
+    url: Option<String>,
+    session_id: Option<String>,
+    profile: Option<String>,
+    proxy: Option<String>,
+    query: Option<String>,
+    max_chars: Option<usize>,
+    max_sections: Option<usize>,
+    timeout: Option<f64>,
+    wait: Option<f64>,
+}
+
+impl TryFrom<PageReadArguments> for PageReadRequest {
+    type Error = Value;
+
+    fn try_from(value: PageReadArguments) -> Result<Self, Self::Error> {
+        if value.session_id.is_some() && value.profile.is_some() {
+            return Err(tool_error_value(
+                "INVALID_ARGUMENTS",
+                "profile cannot be combined with session_id",
+            ));
+        }
+        if value.url.is_none() && (value.profile.is_some() || value.proxy.is_some()) {
+            return Err(tool_error_value(
+                "INVALID_ARGUMENTS",
+                "profile and proxy require url when reading a page",
+            ));
+        }
+        Ok(Self {
+            url: value.url,
+            session_id: value.session_id,
+            profile: value.profile,
+            proxy: value.proxy,
+            query: value.query,
+            max_chars: value.max_chars,
+            max_sections: value.max_sections,
+            timeout: value.timeout,
+            wait: value.wait,
+        })
     }
 }
 
@@ -1955,16 +2057,17 @@ mod tests {
             CURRENT_PROTOCOL_VERSION
         );
         let tools = output[1]["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 13);
+        assert_eq!(tools.len(), 14);
         assert_eq!(tools[0]["name"], "rel_status");
         assert_eq!(tools[1]["name"], "rel_notifications");
         assert_eq!(tools[4]["name"], "rel_navigate");
-        assert_eq!(tools[6]["name"], "rel_take_screenshot");
-        assert_eq!(tools[7]["name"], "rel_observe");
-        assert_eq!(tools[8]["name"], "rel_find");
-        assert_eq!(tools[9]["name"], "rel_action");
-        assert_eq!(tools[11]["name"], "rel_close_session_group");
-        assert_eq!(tools[12]["name"], "rel_list_proxies");
+        assert_eq!(tools[5]["name"], "rel_read");
+        assert_eq!(tools[7]["name"], "rel_take_screenshot");
+        assert_eq!(tools[8]["name"], "rel_observe");
+        assert_eq!(tools[9]["name"], "rel_find");
+        assert_eq!(tools[10]["name"], "rel_action");
+        assert_eq!(tools[12]["name"], "rel_close_session_group");
+        assert_eq!(tools[13]["name"], "rel_list_proxies");
         assert_eq!(output[1]["result"]["resultType"], "complete");
 
         let navigate = &tools[4]["inputSchema"];
@@ -1977,8 +2080,12 @@ mod tests {
             navigate["anyOf"][1]["properties"]["navigation"]["enum"],
             json!(["back", "forward", "reload"])
         );
+        assert_eq!(
+            tools[5]["inputSchema"]["properties"]["max_chars"]["default"],
+            12000
+        );
 
-        let action = &tools[9]["inputSchema"];
+        let action = &tools[10]["inputSchema"];
         assert_eq!(action["properties"]["actions"]["minItems"], 1);
         assert_eq!(action["properties"]["actions"]["maxItems"], 32);
     }
@@ -2593,6 +2700,49 @@ mod tests {
             result["structuredContent"]["data"]["observation"]["screenshot"]
                 .get("output_path")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn read_tool_returns_markdown_once_with_structured_metadata() {
+        let body = json!({
+            "status": "ok",
+            "request_id": "req_read",
+            "data": {
+                "page": {"id":"page_1","session_id":"Session1","url":"https://example.com/guide"},
+                "observation": {
+                    "id":"33333333-3333-4333-8333-333333333333","mode":"semantic",
+                    "document_sequence":3,"captured_at":"2026-08-19T00:00:00Z","title":"Guide",
+                    "truncated":false,"omitted_node_count":0,"visited_node_count":2,"semantic_bytes":20,
+                    "viewport":{"css_width":1200,"css_height":800,"scroll_x":0,"scroll_y":0,"document_width":1200,"document_height":800},
+                    "content":[{"kind":"paragraph","text":"Install with Cargo."}],"elements":[]
+                }
+            }
+        }).to_string();
+        let (base_url, server) =
+            start_test_server(http_response("application/json", "req_read", &body));
+        let output = run_messages_with_client(
+            &[json!({
+                "jsonrpc":"2.0","id":"read","method":"tools/call",
+                "params":{"_meta":modern_metadata(),"name":"rel_read","arguments":{"query":"install"}}
+            })],
+            RelClient::new(base_url),
+        );
+        let request = server.join().unwrap();
+
+        assert!(request.starts_with("POST /v1/observe HTTP/1.1"));
+        let result = &output[0]["result"];
+        assert_eq!(result["isError"], false);
+        assert!(result["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Install with Cargo."));
+        assert!(result["structuredContent"]["data"]
+            .get("markdown")
+            .is_none());
+        assert_eq!(
+            result["structuredContent"]["data"]["observation_id"],
+            "33333333-3333-4333-8333-333333333333"
         );
     }
 

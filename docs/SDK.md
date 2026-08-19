@@ -46,7 +46,9 @@ commands**.
 
 ## API parity
 
-Each method maps to one public RPC route:
+Each transport method maps to one public RPC route. `read_page` is the one
+documented composite helper: it uses semantic `/navigate/observe` when a URL is
+present and semantic `/observe` for the current page.
 
 | Rust method | RPC operation |
 | --- | --- |
@@ -55,6 +57,7 @@ Each method maps to one public RPC route:
 | `list_notifications()` | `GET /v1/notifications` |
 | `navigate(&NavigateRequest)` | `POST /v1/navigate` |
 | `navigate_and_observe(&NavigateObservationRequest)` | `POST /v1/navigate/observe` |
+| `read_page(&PageReadRequest)` | semantic `POST /v1/navigate/observe` or `POST /v1/observe` |
 | `perform(&PerformRequest)` | `POST /v1/perform` |
 | `capture_current_page(&PageCaptureRequest)` | `POST /v1/capture` |
 | `screenshot_current_page(&ScreenshotRequest)` | `POST /v1/screenshot` |
@@ -93,9 +96,9 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all thirteen tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
-`perform_page_action`, both screenshot methods, all observation methods,
+`read_page`, `perform_page_action`, both screenshot methods, all observation methods,
 `list_sessions`, `close_session_group`, and `list_proxies`; it does not maintain
 alternate request types or bypass the RPC transport. For capture, it exhausts
 and validates `CaptureStream` before returning one aggregated MCP result.
@@ -105,6 +108,28 @@ Listing them never starts a model turn; agent clients must keep them in the same
 untrusted-data boundary as page text and pixels.
 
 ## Shorthand page workflow
+
+For retrieval without action refs or pixels, use `PageReadRequest`. The helper
+ranks semantic content and links against `query`, caps the Markdown independently
+from the renderer's semantic bound, and reports both truncation states:
+
+```rust
+use rel_client::{PageReadRequest, RelClient};
+
+let client = RelClient::local();
+let read = client.read_page(&PageReadRequest {
+    url: Some("https://example.com/docs".into()),
+    query: Some("installation".into()),
+    max_chars: Some(6_000),
+    max_sections: Some(16),
+    ..PageReadRequest::default()
+})?;
+println!("{}", read.data.markdown);
+# Ok::<(), rel_client::ClientError>(())
+```
+
+This helper still uses REL's embedded Chromium and the public RPC observation
+routes. It does not fetch through a second HTTP client or browser backend.
 
 The singular page methods can share the agent's process-local current page. Set
 the same `session_id` on each request to scope that page to one browser session:

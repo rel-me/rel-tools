@@ -13,8 +13,9 @@ cargo install --git https://github.com/rel-me/rel-tools \
 ```
 
 The CLI is a thin client built on the typed [`rel-client`](SDK.md)
-Rust crate. Ordinary user-facing commands map directly to an [RPC v1](RPC.md)
-operation. The standalone `rel-mcp` binary adapts a focused subset of those
+Rust crate. Ordinary user-facing commands map to [RPC v1](RPC.md) operations;
+`rel read` is a bounded client-side composition of semantic observe and
+navigate-and-observe. The standalone `rel-mcp` binary adapts a focused subset of those
 same operations to stdio MCP; neither client implements another browser or
 reads application data directly.
 
@@ -27,6 +28,7 @@ Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
 rel health
 rel status
 rel navigate URL [options]
+rel read [URL] [--query TEXT] [options]
 rel perform ACTIONS [options]
 rel capture [options]
 rel URL [options]
@@ -90,6 +92,22 @@ rel observation action OBSERVATION_ID \
 
 The action response contains a new observation. Old observation refs fail with
 `OBSERVATION_STALE` after navigation, document replacement, or bounded eviction.
+
+`rel read` is the smaller retrieval path for reading and research. It observes
+the current shorthand page, or navigates first when `URL` is supplied, then
+returns query-ranked content and links as bounded Markdown. It is always
+semantic-only and does not return action refs or an image. `--max-chars`
+defaults to 12000 (range 512–32768), and `--max-sections` defaults to 24 (range
+1–100). Use `rel observe` instead when interaction refs or visual verification
+are needed:
+
+```sh
+rel read https://example.com/docs --query="installation" --max-chars=6000
+rel read --session-id=Session1 --query="current plan"
+```
+
+The JSON envelope reports the source URL, title, observation ID, selection
+counts, whether the query matched, and independent source/output truncation.
 
 ## Quick examples
 
@@ -199,16 +217,17 @@ The adapter accepts no MCP options; `--help` and `--version` are available for
 direct inspection. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly thirteen tools: `rel_status`,
+`2025-11-25`, and exposes exactly fourteen tools: `rel_status`,
 `rel_notifications`, `rel_capture`,
-`rel_page_attach`, `rel_navigate`, `rel_page_action`, `rel_take_screenshot`,
+`rel_page_attach`, `rel_navigate`, `rel_read`, `rel_page_action`, `rel_take_screenshot`,
 `rel_observe`, `rel_find`, `rel_action`, `rel_list_sessions`,
 `rel_close_session_group`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
-validated NDJSON stream into `{request_id, exit_code, events}`. Every tool
-execution result includes its complete JSON in both a text content block and
-`structuredContent`. Captured files use absolute `file:///` URIs at the MCP
+validated NDJSON stream into `{request_id, exit_code, events}`. Tool results
+normally include their complete JSON in both a text content block and
+`structuredContent`; `rel_read` puts bounded Markdown only in text and keeps
+metadata in `structuredContent` to avoid duplicating page content. Captured files use absolute `file:///` URIs at the MCP
 boundary and are also returned as standard MCP `resource_link` content blocks.
 Screenshot calls without an explicit output URI and hybrid or visual
 observations additionally return standard MCP `image` content for multimodal

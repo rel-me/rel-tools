@@ -7,13 +7,18 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Lines, Read};
 use std::time::Duration;
 
 const DEFAULT_AGENT_PORT: u16 = 17_319;
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const DEFAULT_PAGE_READ_MAX_CHARS: usize = 12_000;
+const MIN_PAGE_READ_MAX_CHARS: usize = 512;
+const MAX_PAGE_READ_MAX_CHARS: usize = 32_768;
+const DEFAULT_PAGE_READ_MAX_SECTIONS: usize = 24;
+const MAX_PAGE_READ_MAX_SECTIONS: usize = 100;
 
 /// Stable application error codes for Rel RPC v1.
 ///
@@ -233,6 +238,65 @@ impl RelClient {
             Some(request),
             page_request_timeout(request.timeout, request.wait),
         )
+    }
+
+    /// Read either a URL or the current shorthand page as bounded,
+    /// query-directed Markdown. This is a semantic-only convenience over the
+    /// canonical `/navigate/observe` and `/observe` RPC v1 operations.
+    pub fn read_page(
+        &self,
+        request: &PageReadRequest,
+    ) -> Result<RpcResponse<PageReadData>, ClientError> {
+        let max_chars = request.max_chars.unwrap_or(DEFAULT_PAGE_READ_MAX_CHARS);
+        if !(MIN_PAGE_READ_MAX_CHARS..=MAX_PAGE_READ_MAX_CHARS).contains(&max_chars) {
+            return Err(ClientError::Protocol(format!(
+                "max_chars must be between {MIN_PAGE_READ_MAX_CHARS} and {MAX_PAGE_READ_MAX_CHARS}"
+            )));
+        }
+        let max_sections = request
+            .max_sections
+            .unwrap_or(DEFAULT_PAGE_READ_MAX_SECTIONS);
+        if !(1..=MAX_PAGE_READ_MAX_SECTIONS).contains(&max_sections) {
+            return Err(ClientError::Protocol(format!(
+                "max_sections must be between 1 and {MAX_PAGE_READ_MAX_SECTIONS}"
+            )));
+        }
+
+        let response = if let Some(url) = request.url.as_deref() {
+            self.navigate_and_observe(&NavigateObservationRequest {
+                url: Some(url.to_string()),
+                session_id: request.session_id.clone(),
+                profile: request.profile.clone(),
+                proxy: request.proxy.clone(),
+                mode: Some(ObservationMode::Semantic),
+                timeout: request.timeout,
+                wait: request.wait,
+                ..NavigateObservationRequest::default()
+            })?
+        } else {
+            if request.profile.is_some() || request.proxy.is_some() {
+                return Err(ClientError::Protocol(
+                    "profile and proxy require a URL when reading a page".to_string(),
+                ));
+            }
+            self.observe_current_page(&ObservationRequest {
+                session_id: request.session_id.clone(),
+                mode: Some(ObservationMode::Semantic),
+                timeout: request.timeout,
+                wait: request.wait,
+            })?
+        };
+
+        let RpcResponse {
+            status,
+            request_id,
+            data,
+        } = response;
+        Ok(RpcResponse {
+            status,
+            request_id,
+            data: page_read_data(data, request.query.as_deref(), max_chars, max_sections),
+        })
     }
 
     pub fn attach_page(
@@ -1163,6 +1227,56 @@ impl NavigateObservationRequest {
     }
 }
 
+/// Parameters for a bounded semantic read of either a URL or the current
+/// shorthand page.
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct PageReadRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_chars: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_sections: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+impl PageReadRequest {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: Some(url.into()),
+            ..Self::default()
+        }
+    }
+}
+
+/// A compact page representation intended for research and reading rather
+/// than interaction. Use an observation when action references are needed.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct PageReadData {
+    pub page: Page,
+    pub observation_id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    pub markdown: String,
+    pub selected_content_count: usize,
+    pub selected_link_count: usize,
+    pub source_truncated: bool,
+    pub truncated: bool,
+    pub matched_query: bool,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ObservationNavigation {
@@ -1399,6 +1513,266 @@ pub struct ObservationScreenshot {
     pub height: u32,
     pub css_to_image_scale_x: f64,
     pub css_to_image_scale_y: f64,
+}
+
+fn page_read_data(
+    data: ObservationOperationData,
+    query: Option<&str>,
+    max_chars: usize,
+    max_sections: usize,
+) -> PageReadData {
+    let ObservationOperationData { page, observation } = data;
+    let normalized_query = query.map(str::trim).filter(|value| !value.is_empty());
+    let terms = page_read_query_terms(normalized_query.unwrap_or_default());
+    let query_active = normalized_query.is_some();
+
+    let mut content = observation
+        .content
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            (
+                index,
+                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading"),
+            )
+        })
+        .collect::<Vec<_>>();
+    let content_matched = query_active && content.iter().any(|(_, score)| *score > 0);
+    if content_matched {
+        content.retain(|(_, score)| *score > 0);
+        content.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+    }
+    content.truncate(max_sections);
+
+    let mut seen_links = BTreeSet::new();
+    let mut links = observation
+        .elements
+        .iter()
+        .enumerate()
+        .filter_map(|(index, element)| {
+            let destination = element.destination.as_deref()?.trim();
+            if destination.is_empty() {
+                return None;
+            }
+            let key = format!("{}\n{}", element.name, destination);
+            if !seen_links.insert(key) {
+                return None;
+            }
+            let searchable = format!("{} {}", element.name, destination);
+            Some((
+                index,
+                page_read_match_score(&searchable, normalized_query, &terms, false),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let links_matched = query_active && links.iter().any(|(_, score)| *score > 0);
+    if links_matched {
+        links.retain(|(_, score)| *score > 0);
+        links.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+    } else if content_matched {
+        links.clear();
+    }
+    if links_matched && !content_matched {
+        content.clear();
+    }
+    let available_link_count = links.len();
+    links.truncate(max_sections);
+
+    let mut markdown = String::new();
+    let title = observation.title.trim().to_string();
+    let heading = if title.is_empty() {
+        page.url.as_str()
+    } else {
+        title.as_str()
+    };
+    push_page_read_block(
+        &mut markdown,
+        &format!("# {}", escape_markdown_text(heading)),
+        max_chars,
+    );
+    push_page_read_block(
+        &mut markdown,
+        &format!("Source: <{}>", escape_markdown_url(&page.url)),
+        max_chars,
+    );
+    if let Some(query) = normalized_query {
+        push_page_read_block(
+            &mut markdown,
+            &format!("Query: {}", escape_markdown_text(query)),
+            max_chars,
+        );
+    }
+
+    let mut selected_content_count = 0;
+    let mut output_truncated = false;
+    for (index, _) in &content {
+        let block = page_read_content_markdown(&observation.content[*index]);
+        let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
+        if added {
+            selected_content_count += 1;
+        }
+        if clipped {
+            output_truncated = true;
+            break;
+        }
+    }
+
+    let mut selected_link_count = 0;
+    if !links.is_empty() && push_page_read_block(&mut markdown, "## Links", max_chars) {
+        for (index, _) in &links {
+            let element = &observation.elements[*index];
+            let destination = element.destination.as_deref().unwrap_or_default();
+            let label = if element.name.trim().is_empty() {
+                destination
+            } else {
+                element.name.trim()
+            };
+            let block = format!(
+                "- [{}](<{}>)",
+                escape_markdown_text(label),
+                escape_markdown_url(destination)
+            );
+            if push_page_read_block(&mut markdown, &block, max_chars) {
+                selected_link_count += 1;
+            } else {
+                output_truncated = true;
+                break;
+            }
+        }
+    } else if !links.is_empty() {
+        output_truncated = true;
+    }
+
+    let available_content_count = if content_matched {
+        observation
+            .content
+            .iter()
+            .filter(|item| {
+                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading")
+                    > 0
+            })
+            .count()
+    } else if links_matched {
+        0
+    } else {
+        observation.content.len()
+    };
+    let content_was_limited = available_content_count > selected_content_count;
+    let links_were_limited = available_link_count > selected_link_count;
+
+    PageReadData {
+        page,
+        observation_id: observation.id,
+        title,
+        query: normalized_query.map(str::to_string),
+        markdown,
+        selected_content_count,
+        selected_link_count,
+        source_truncated: observation.truncated,
+        truncated: observation.truncated
+            || content_was_limited
+            || links_were_limited
+            || output_truncated,
+        matched_query: content_matched || links_matched,
+    }
+}
+
+fn page_read_query_terms(query: &str) -> Vec<String> {
+    const STOP_WORDS: &[&str] = &[
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it",
+        "of", "on", "or", "that", "the", "this", "to", "was", "what", "when", "where", "which",
+        "who", "why", "with",
+    ];
+    query
+        .split(|character: char| !character.is_alphanumeric())
+        .map(str::to_lowercase)
+        .filter(|term| term.len() >= 2 && !STOP_WORDS.contains(&term.as_str()))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn page_read_match_score(
+    text: &str,
+    query: Option<&str>,
+    terms: &[String],
+    is_heading: bool,
+) -> usize {
+    let Some(query) = query else {
+        return 1;
+    };
+    let text = text.to_lowercase();
+    let query = query.to_lowercase();
+    let mut score = if !query.is_empty() && text.contains(&query) {
+        12
+    } else {
+        0
+    };
+    for term in terms {
+        score += text.matches(term).count().min(4) * 3;
+    }
+    if is_heading && score > 0 {
+        score *= 2;
+    }
+    score
+}
+
+fn page_read_content_markdown(content: &ObservationContent) -> String {
+    let text = escape_markdown_text(content.text.trim());
+    match content.kind.as_str() {
+        "heading" => format!(
+            "{} {text}",
+            "#".repeat(content.level.unwrap_or(2).clamp(2, 6) as usize)
+        ),
+        "listitem" | "list_item" | "item" => format!("- {text}"),
+        _ => text,
+    }
+}
+
+fn push_page_read_block(output: &mut String, block: &str, max_chars: usize) -> bool {
+    let separator = if output.is_empty() { "" } else { "\n\n" };
+    let required = separator.chars().count() + block.chars().count();
+    if output.chars().count() + required > max_chars {
+        return false;
+    }
+    output.push_str(separator);
+    output.push_str(block);
+    true
+}
+
+fn push_page_read_excerpt(output: &mut String, block: &str, max_chars: usize) -> (bool, bool) {
+    if push_page_read_block(output, block, max_chars) {
+        return (true, false);
+    }
+    let separator = if output.is_empty() { "" } else { "\n\n" };
+    let used = output.chars().count() + separator.chars().count();
+    let available = max_chars.saturating_sub(used);
+    if available < 2 {
+        return (false, true);
+    }
+    output.push_str(separator);
+    output.extend(block.chars().take(available - 1));
+    output.push('…');
+    (true, true)
+}
+
+fn escape_markdown_text(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\\' | '*' | '_' | '[' | ']' | '`' => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
+            '\r' | '\n' => escaped.push(' '),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
+}
+
+fn escape_markdown_url(value: &str) -> String {
+    value.trim().replace('<', "%3C").replace('>', "%3E")
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
@@ -1929,6 +2303,112 @@ mod tests {
             "is_builtin": true,
             "created_at": 0
         })
+    }
+
+    fn observation_operation() -> ObservationOperationData {
+        ObservationOperationData {
+            page: Page {
+                id: "page-1".to_string(),
+                session_id: "session-1".to_string(),
+                url: "https://example.com/guide".to_string(),
+            },
+            observation: PageObservation {
+                id: "observation-1".to_string(),
+                mode: ObservationMode::Semantic,
+                document_sequence: 1,
+                captured_at: "2026-08-19T00:00:00Z".to_string(),
+                title: "Example Guide".to_string(),
+                truncated: false,
+                omitted_node_count: 0,
+                visited_node_count: 12,
+                semantic_bytes: 200,
+                viewport: ObservationViewport {
+                    css_width: 1280,
+                    css_height: 720,
+                    scroll_x: 0,
+                    scroll_y: 0,
+                    document_width: 1280,
+                    document_height: 1800,
+                },
+                content: vec![
+                    ObservationContent {
+                        kind: "heading".to_string(),
+                        level: Some(2),
+                        text: "Installation".to_string(),
+                    },
+                    ObservationContent {
+                        kind: "paragraph".to_string(),
+                        level: None,
+                        text: "Install the package with Cargo.".to_string(),
+                    },
+                    ObservationContent {
+                        kind: "paragraph".to_string(),
+                        level: None,
+                        text: "Unrelated company history.".to_string(),
+                    },
+                ],
+                elements: vec![ObservationElement {
+                    element_ref: "e1".to_string(),
+                    role: "link".to_string(),
+                    name: "Installation reference".to_string(),
+                    states: Vec::new(),
+                    value: None,
+                    destination: Some("https://example.com/install".to_string()),
+                    in_viewport: true,
+                    bounds: ObservationBounds {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 100.0,
+                        height: 20.0,
+                    },
+                }],
+                screenshot: None,
+            },
+        }
+    }
+
+    #[test]
+    fn page_read_is_query_directed_and_markdown_bounded() {
+        let data = page_read_data(observation_operation(), Some("install package"), 512, 10);
+        assert!(data.markdown.contains("## Installation"));
+        assert!(data.markdown.contains("Install the package with Cargo."));
+        assert!(data.markdown.contains("Installation reference"));
+        assert!(!data.markdown.contains("company history"));
+        assert!(data.matched_query);
+        assert!(data.markdown.chars().count() <= 512);
+
+        let mut operation = observation_operation();
+        operation.observation.content[1].text = "x".repeat(1_000);
+        let bounded = page_read_data(operation, None, 512, 10);
+        assert!(bounded.markdown.chars().count() <= 512);
+        assert!(bounded.markdown.ends_with('…'));
+        assert_eq!(bounded.selected_content_count, 2);
+        assert!(bounded.truncated);
+    }
+
+    #[test]
+    fn page_read_url_uses_semantic_navigate_observe() {
+        let response_body = json!({
+            "status": "ok",
+            "request_id": "request-1",
+            "data": observation_operation()
+        });
+        let (base_url, handle) = start_test_server(1, move |_, _| {
+            http_json(200, "request-1", response_body.clone())
+        });
+        let response = RelClient::new(base_url)
+            .read_page(&PageReadRequest {
+                url: Some("https://example.com/guide".to_string()),
+                query: Some("install".to_string()),
+                ..PageReadRequest::default()
+            })
+            .unwrap();
+        assert_eq!(response.data.observation_id, "observation-1");
+        let requests = handle.join().unwrap();
+        assert_eq!(requests[0].method, "POST");
+        assert_eq!(requests[0].path, "/v1/navigate/observe");
+        let body: Value = serde_json::from_str(&requests[0].body).unwrap();
+        assert_eq!(body["mode"], "semantic");
     }
 
     #[test]

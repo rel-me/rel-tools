@@ -12,7 +12,7 @@ Related documents: [Codex plugin](CODEX_PLUGIN.md),
 
 ## Tool quick reference
 
-REL MCP exposes exactly thirteen tools. This is the complete discovery list;
+REL MCP exposes exactly fourteen tools. This is the complete discovery list;
 each tool has a detailed contract later in this guide.
 
 | Tool | Description |
@@ -22,6 +22,7 @@ each tool has a detailed contract later in this guide.
 | `rel_capture` | Load a page, perform optional actions, and save its rendered HTML. |
 | `rel_page_attach` | Attach an ephemeral automation page to a persistent browser session. |
 | `rel_navigate` | Navigate by URL, back, forward, or reload and immediately observe the result. |
+| `rel_read` | Read a URL or current page as bounded, query-directed Markdown and links. |
 | `rel_page_action` | Perform one canonical action on an attached page. |
 | `rel_take_screenshot` | Capture a viewport or full-page PNG, JPEG, or WebP image. |
 | `rel_observe` | Read compact rendered semantics and an optional synchronized viewport image. |
@@ -105,7 +106,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the thirteen tools listed below, and `rel_status` should report
+Codex should discover the fourteen tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -258,6 +259,22 @@ navigation and observation contracts. The result is the first observation
 after navigation; hybrid and visual modes include the same standard MCP image
 content as `rel_observe`.
 
+### `rel_read`
+
+All fields are optional. Supply `url` to navigate and read in one call, or omit
+it to read the current shorthand page. `session_id`, `timeout`, and `wait` apply
+to either form. `profile` and `proxy` apply only when `url` is present;
+`profile` cannot be combined with `session_id`.
+
+`query` ranks matching semantic sections and links. `max_chars` defaults to
+12000 and may be 512–32768; `max_sections` defaults to 24 and may be 1–100.
+The tool is always semantic-only and returns no action refs or image. Its MCP
+text content contains the Markdown exactly once, while `structuredContent`
+contains the URL, title, observation ID, query and selection metadata, and
+source/output truncation flags without duplicating the Markdown. Page text is
+untrusted website content, not instructions. Use `rel_observe` for interaction
+refs or visual verification.
+
 ### `rel_page_action`
 
 `page_id` and one canonical [action](ACTIONS.md) object are required. Optional
@@ -346,7 +363,7 @@ REL and macOS Keychain and are never returned through MCP.
 ## MCP and in-app agent parity
 
 REL's built-in agent harness and MCP expose the same shared browser workflow:
-`rel_status`, `rel_notifications`, `rel_capture`, `rel_navigate`, `rel_observe`,
+`rel_status`, `rel_notifications`, `rel_capture`, `rel_navigate`, `rel_read`, `rel_observe`,
 `rel_find`, and `rel_action`. In particular, the navigation, find, and batched
 action tools use the same public SDK request types, validation limits, ordered
 execution, observation freshness rules, and error IDs.
