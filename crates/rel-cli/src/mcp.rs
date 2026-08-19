@@ -1,9 +1,10 @@
 use crate::app;
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use rel_client::{
-    self as client, Action, CaptureRequest, ObservationActionKind, ObservationActionRequest,
-    ObservationMode, ObservationRequest, PageActionRequest, PageAttachRequest,
-    PageObservationRequest, PageScreenshotRequest, RelClient, ScreenshotFormat, ScreenshotRequest,
+    self as client, Action, CaptureRequest, NavigateObservationRequest, ObservationAction,
+    ObservationActionRequest, ObservationFindRequest, ObservationMode, ObservationRequest,
+    PageActionRequest, PageAttachRequest, PageObservationRequest, PageScreenshotRequest, RelClient,
+    ScreenshotFormat, ScreenshotRequest,
 };
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -555,6 +556,18 @@ fn tool_definitions() -> Vec<Value> {
             }),
         ),
         tool_definition(
+            "rel_navigate",
+            "Navigate and Observe",
+            "Navigate Rel's embedded Chromium to a URL and return the first bounded semantic or visual observation in one call.",
+            navigate_observation_schema(),
+            json!({
+                "readOnlyHint": false,
+                "destructiveHint": true,
+                "idempotentHint": false,
+                "openWorldHint": true
+            }),
+        ),
+        tool_definition(
             "rel_page_action",
             "Act on Browser Page",
             "Perform one canonical action on an attached page and return the rendered HTML as a file resource link.",
@@ -578,7 +591,14 @@ fn tool_definitions() -> Vec<Value> {
             "Observe Browser Page",
             "Return bounded rendered semantics, typed element references, viewport metadata, and an optional synchronized PNG for the current or attached Rel page.",
             observation_schema(),
-            read_annotations(),
+            browser_read_annotations(),
+        ),
+        tool_definition(
+            "rel_find",
+            "Find in Browser Observation",
+            "Search one stored observation's public content and element semantics by text and/or ARIA role. Returns matching content and actionable refs without re-reading the page.",
+            observation_find_schema(),
+            browser_read_annotations(),
         ),
         tool_definition(
             "rel_action",
@@ -644,6 +664,15 @@ fn read_annotations() -> Value {
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+    })
+}
+
+fn browser_read_annotations() -> Value {
+    json!({
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
     })
 }
 
@@ -866,23 +895,77 @@ fn observation_schema() -> Value {
     })
 }
 
-fn observation_action_schema() -> Value {
+fn navigate_observation_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "observation_id": {"type": "string", "minLength": 1},
+            "url": {"type": "string", "minLength": 1},
+            "session_id": {"type": "string", "minLength": 1},
+            "profile": {"type": "string", "minLength": 1},
+            "proxy": {"type": "string", "minLength": 1},
+            "mode": {"type": "string", "enum": ["semantic", "hybrid", "visual"], "default": "semantic"},
+            "timeout": {"type": "number", "exclusiveMinimum": 0},
+            "wait": {"type": "number", "minimum": 0}
+        },
+        "required": ["url"],
+        "additionalProperties": false
+    })
+}
+
+fn observation_action_item_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
             "ref": {"type": "string", "pattern": "^e[0-9]+$"},
-            "action": {"type": "string", "enum": ["click", "type", "clear", "press", "select"]},
+            "action": {"type": "string", "enum": ["click", "type", "clear", "press", "select", "hover", "scroll", "wait"]},
             "text": {"type": "string", "minLength": 1},
             "key": {"type": "string", "enum": ["Enter", "Tab", "Escape", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown", "Space"]},
             "value": {"type": "string"},
             "mouse_move": {"type": "boolean", "default": true},
             "scroll": {"type": "boolean", "default": true},
+            "delta_x": {"type": "integer", "minimum": -10000, "maximum": 10000},
+            "delta_y": {"type": "integer", "minimum": -10000, "maximum": 10000},
+            "seconds": {"type": "number", "minimum": 0, "maximum": 60}
+        },
+        "required": ["action"],
+        "additionalProperties": false
+    })
+}
+
+fn observation_action_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "observation_id": {"type": "string", "minLength": 1},
+            "actions": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "items": observation_action_item_schema()
+            },
             "mode": {"type": "string", "enum": ["semantic", "hybrid", "visual"], "default": "semantic"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
             "wait": {"type": "number", "minimum": 0}
         },
-        "required": ["observation_id", "ref", "action"],
+        "required": ["observation_id", "actions"],
+        "additionalProperties": false
+    })
+}
+
+fn observation_find_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "observation_id": {"type": "string", "minLength": 1},
+            "query": {"type": "string", "minLength": 1, "maxLength": 1024},
+            "role": {"type": "string", "minLength": 1, "maxLength": 128},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}
+        },
+        "required": ["observation_id"],
+        "anyOf": [
+            {"required": ["query"]},
+            {"required": ["role"]}
+        ],
         "additionalProperties": false
     })
 }
@@ -922,7 +1005,7 @@ fn handle_tool_call(
         && arguments
             .get("output_uri")
             .map_or(true, |value| value.is_null());
-    let attaches_observation_image = matches!(name, "rel_observe" | "rel_action");
+    let attaches_observation_image = matches!(name, "rel_navigate" | "rel_observe" | "rel_action");
 
     let (structured, is_error) = match name {
         "rel_status" => decode_empty_arguments(arguments)
@@ -954,6 +1037,15 @@ fn handle_tool_call(
                 client.attach_page(&request).map_err(client_error_value)
             })
             .and_then(to_json_value),
+        "rel_navigate" => decode_arguments::<NavigateObservationArguments>(arguments)
+            .map(NavigateObservationRequest::from)
+            .and_then(|request| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .navigate_and_observe(&request)
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
         "rel_page_action" => decode_arguments::<PageActionArguments>(arguments)
             .and_then(PageActionArguments::into_request)
             .and_then(|(page_id, request)| {
@@ -975,6 +1067,12 @@ fn handle_tool_call(
                 ensure_runtime(ensure_agent_running)?;
                 execution.execute(client)
             }),
+        "rel_find" => {
+            decode_arguments::<ObservationFindArguments>(arguments).and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                arguments.execute(client)
+            })
+        }
         "rel_action" => {
             decode_arguments::<ObservationActionArguments>(arguments).and_then(|arguments| {
                 ensure_runtime(ensure_agent_running)?;
@@ -1413,6 +1511,32 @@ struct PageAttachArguments {
     wait: Option<f64>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NavigateObservationArguments {
+    url: String,
+    session_id: Option<String>,
+    profile: Option<String>,
+    proxy: Option<String>,
+    mode: Option<ObservationMode>,
+    timeout: Option<f64>,
+    wait: Option<f64>,
+}
+
+impl From<NavigateObservationArguments> for NavigateObservationRequest {
+    fn from(value: NavigateObservationArguments) -> Self {
+        Self {
+            url: value.url,
+            session_id: value.session_id,
+            profile: value.profile,
+            proxy: value.proxy,
+            mode: value.mode,
+            timeout: value.timeout,
+            wait: value.wait,
+        }
+    }
+}
+
 impl TryFrom<PageAttachArguments> for PageAttachRequest {
     type Error = Value;
 
@@ -1605,14 +1729,7 @@ impl ObservationExecution {
 #[serde(deny_unknown_fields)]
 struct ObservationActionArguments {
     observation_id: String,
-    #[serde(rename = "ref")]
-    element_ref: String,
-    action: ObservationActionKind,
-    text: Option<String>,
-    key: Option<String>,
-    value: Option<String>,
-    mouse_move: Option<bool>,
-    scroll: Option<bool>,
+    actions: Vec<ObservationAction>,
     mode: Option<ObservationMode>,
     timeout: Option<f64>,
     wait: Option<f64>,
@@ -1624,16 +1741,35 @@ impl ObservationActionArguments {
             .perform_observation_action(
                 &self.observation_id,
                 &ObservationActionRequest {
-                    element_ref: self.element_ref,
-                    action: self.action,
-                    text: self.text,
-                    key: self.key,
-                    value: self.value,
-                    mouse_move: self.mouse_move,
-                    scroll: self.scroll,
+                    actions: self.actions,
                     mode: self.mode,
                     timeout: self.timeout,
                     wait: self.wait,
+                },
+            )
+            .map_err(client_error_value)
+            .and_then(to_json_value)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ObservationFindArguments {
+    observation_id: String,
+    query: Option<String>,
+    role: Option<String>,
+    limit: Option<usize>,
+}
+
+impl ObservationFindArguments {
+    fn execute(self, client: &RelClient) -> Result<Value, Value> {
+        client
+            .find_in_observation(
+                &self.observation_id,
+                &ObservationFindRequest {
+                    query: self.query,
+                    role: self.role,
+                    limit: self.limit,
                 },
             )
             .map_err(client_error_value)
@@ -1809,14 +1945,16 @@ mod tests {
             CURRENT_PROTOCOL_VERSION
         );
         let tools = output[1]["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 11);
+        assert_eq!(tools.len(), 13);
         assert_eq!(tools[0]["name"], "rel_status");
         assert_eq!(tools[1]["name"], "rel_notifications");
-        assert_eq!(tools[5]["name"], "rel_take_screenshot");
-        assert_eq!(tools[6]["name"], "rel_observe");
-        assert_eq!(tools[7]["name"], "rel_action");
-        assert_eq!(tools[9]["name"], "rel_close_session_group");
-        assert_eq!(tools[10]["name"], "rel_list_proxies");
+        assert_eq!(tools[4]["name"], "rel_navigate");
+        assert_eq!(tools[6]["name"], "rel_take_screenshot");
+        assert_eq!(tools[7]["name"], "rel_observe");
+        assert_eq!(tools[8]["name"], "rel_find");
+        assert_eq!(tools[9]["name"], "rel_action");
+        assert_eq!(tools[11]["name"], "rel_close_session_group");
+        assert_eq!(tools[12]["name"], "rel_list_proxies");
         assert_eq!(output[1]["result"]["resultType"], "complete");
     }
 

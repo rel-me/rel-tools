@@ -122,6 +122,7 @@ navigation. The error details contain the final `url` and exact
 | `GET` | `/v1/status` | App, agent, proxy, and Chromium diagnostic report |
 | `GET` | `/v1/notifications` | List opt-in website notifications as untrusted content |
 | `POST` | `/v1/navigate` | Navigate and select the current shorthand page |
+| `POST` | `/v1/navigate/observe` | Navigate and return a synchronized page observation |
 | `POST` | `/v1/perform` | Perform actions on the current shorthand page |
 | `POST` | `/v1/capture` | Capture the current shorthand page |
 | `POST` | `/v1/screenshot` | Capture an image of the current shorthand page |
@@ -131,7 +132,8 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/pages/{page_id}/actions` | Perform one action on an attached page |
 | `POST` | `/v1/pages/{page_id}/screenshot` | Capture an image of an attached page |
 | `POST` | `/v1/pages/{page_id}/observe` | Observe an attached page |
-| `POST` | `/v1/observations/{observation_id}/actions` | Act through an observation-scoped element ref |
+| `POST` | `/v1/observations/{observation_id}/actions` | Perform ordered observation-scoped actions |
+| `POST` | `/v1/observations/{observation_id}/find` | Search stored public observation semantics |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
@@ -157,7 +159,7 @@ such as `rel capture`, `rel page`, `rel proxy`, and `rel session`; it has no
 direct database or log-file command path.
 
 The bundled `rel-mcp` adapter also calls this API only through `rel-client`. It
-maps eleven MCP tools to status, opt-in website notifications, HTML and image
+maps thirteen MCP tools to status, opt-in website notifications, HTML and image
 capture, page attachment and actions, observations, session-group closing, and
 session and proxy listing.
 MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
@@ -393,7 +395,18 @@ The image bytes remain in the file rather than the JSON response. The MCP
 adapter reads that validated file and emits standard image content when its
 caller did not request a specific output URI.
 
-### Page observations and reference actions
+### Page observations, semantic find, and reference actions
+
+`POST /v1/navigate/observe` combines navigation and the first observation:
+
+```json
+{"url":"https://example.com","session_id":"Session12","mode":"hybrid","timeout":90,"wait":0}
+```
+
+It accepts the navigation fields `url`, `session_id`, `profile`, and `proxy`
+plus the observation fields `mode`, `timeout`, and `wait`. It reuses the same
+active-page and persistent-session rules as `POST /v1/navigate`, but returns an
+observation instead of creating an HTML capture artifact.
 
 `POST /v1/observe` observes the current shorthand page. The attached-page form
 is `POST /v1/pages/{page_id}/observe`:
@@ -418,14 +431,40 @@ Act through a ref with
 `POST /v1/observations/{observation_id}/actions`:
 
 ```json
-{"ref":"e17","action":"click","mode":"hybrid","mouse_move":true,"scroll":true}
+{
+  "actions": [
+    {"ref":"e17","action":"hover","scroll":true},
+    {"ref":"e18","action":"click","mouse_move":true,"scroll":true},
+    {"action":"wait","seconds":0.25},
+    {"action":"scroll","delta_x":0,"delta_y":-600}
+  ],
+  "mode":"hybrid"
+}
 ```
 
-Allowlisted actions are `click`, `type` (requires `text`), `clear`, `press`
-(requires `key`), and `select` (requires `value`). REL revalidates the document
-sequence and target signature before input. A mismatch returns
-`OBSERVATION_STALE`; no selector or nearby-target fallback is attempted. A
-successful action returns a new post-action observation in the requested mode.
+`actions` contains 1–32 ordered items. Element actions are `click`, `type`
+(requires `text`), `clear`, `press` (requires `key`), `select` (requires
+`value`), and `hover`; each requires a ref. Page actions are `scroll`, with
+integer `delta_x`/`delta_y` from -10000 through 10000 and at least one non-zero
+delta, and `wait`, with `seconds` from 0 through 60. REL stops at the first
+failure and returns only one new post-action observation after the whole batch.
+It revalidates the document sequence and every target signature before input. A
+mismatch returns `OBSERVATION_STALE`; no selector or nearby-target fallback is
+attempted.
+
+Search the stored public snapshot without another browser read using
+`POST /v1/observations/{observation_id}/find`:
+
+```json
+{"query":"continue","role":"button","limit":20}
+```
+
+At least `query` or `role` is required. Query matching is case-insensitive over
+content text and public element role, name, value, and destination. Role is an
+exact case-insensitive element filter. `limit` defaults to 20 and may be 1–100.
+Results distinguish `content` and `element` matches, preserve actionable refs,
+and report `total_matches` plus `truncated`. Private locators are never stored in
+or returned from the searchable public snapshot.
 
 ### `POST /v1/captures`
 

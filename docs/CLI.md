@@ -199,11 +199,11 @@ The adapter accepts no MCP options; `--help` and `--version` are available for
 direct inspection. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly eleven tools: `rel_status`,
+`2025-11-25`, and exposes exactly thirteen tools: `rel_status`,
 `rel_notifications`, `rel_capture`,
-`rel_page_attach`, `rel_page_action`, `rel_take_screenshot`,
-`rel_observe`, `rel_action`, `rel_list_sessions`, `rel_close_session_group`, and
-`rel_list_proxies`.
+`rel_page_attach`, `rel_navigate`, `rel_page_action`, `rel_take_screenshot`,
+`rel_observe`, `rel_find`, `rel_action`, `rel_list_sessions`,
+`rel_close_session_group`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
 validated NDJSON stream into `{request_id, exit_code, events}`. Every tool

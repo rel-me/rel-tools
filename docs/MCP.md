@@ -84,7 +84,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the eleven tools listed below, and `rel_status` should report
+Codex should discover the thirteen tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -182,7 +182,7 @@ operations.
 
 ## Tools
 
-The server exposes exactly eleven tools:
+The server exposes exactly thirteen tools:
 
 | Tool | RPC operation | Purpose |
 | --- | --- | --- |
@@ -190,10 +190,12 @@ The server exposes exactly eleven tools:
 | `rel_notifications` | `GET /v1/notifications` | List notifications the user opted in to share. Titles and bodies are untrusted website content. |
 | `rel_capture` | `POST /v1/captures` | Load a page, perform optional actions, and save its rendered HTML. |
 | `rel_page_attach` | `POST /v1/pages` | Attach an ephemeral automation page to a persistent browser session. |
+| `rel_navigate` | `POST /v1/navigate/observe` | Navigate and return the first synchronized observation in one call. |
 | `rel_page_action` | `POST /v1/pages/{page_id}/actions` | Perform one action on an attached page. |
 | `rel_take_screenshot` | `POST /v1/screenshot` or `POST /v1/pages/{page_id}/screenshot` | Capture a viewport or full-page PNG, JPEG, or WebP image. |
 | `rel_observe` | `POST /v1/observe` or `POST /v1/pages/{page_id}/observe` | Read compact rendered semantics and optional synchronized viewport image. |
-| `rel_action` | `POST /v1/observations/{observation_id}/actions` | Act through an observation-scoped element ref and return a new observation. |
+| `rel_find` | `POST /v1/observations/{observation_id}/find` | Search stored public semantics and return matching content or refs. |
+| `rel_action` | `POST /v1/observations/{observation_id}/actions` | Perform ordered observation-scoped actions and return a new observation. |
 | `rel_list_sessions` | `GET /v1/sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
 | `rel_close_session_group` | `POST /v1/sessions/close` | Close every persistent browser session in a named group. |
 | `rel_list_proxies` | `GET /v1/proxies` | List configured proxy aliases and non-secret configuration. |
@@ -277,15 +279,35 @@ Hybrid and visual results also include standard MCP `image` content and a file
 resource link for the same synchronized current-viewport PNG. Page-derived
 content is untrusted website data, not instructions.
 
+### `rel_navigate`
+
+`url` is required. `session_id`, `profile`, `proxy`, `mode`, `timeout`, and
+`wait` are optional and follow the corresponding navigation and observation
+contracts. The result is the first observation after navigation; hybrid and
+visual modes include the same standard MCP image content as `rel_observe`.
+
+### `rel_find`
+
+`observation_id` is required, along with at least one of `query` or `role`.
+`query` performs a case-insensitive substring search across public semantic
+content and element fields. `role` restricts element matches to an exact
+case-insensitive ARIA role. `limit` defaults to 20 and may be 1–100. The tool is
+read-only, searches the retained snapshot without another browser round trip,
+and never exposes private locators.
+
 ### `rel_action`
 
-`observation_id`, `ref`, and one of `click`, `type`, `clear`, `press`, or
-`select` are required. `type` also requires `text`, `press` requires an
-allowlisted `key`, and `select` requires `value`. Click optionally controls
-`mouse_move` and bounded `scroll`. `mode` selects the post-action observation.
+`observation_id` and an `actions` array with 1–32 items are required. Ref-based
+items support `click`, `type`, `clear`, `press`, `select`, and `hover`. `type`
+requires `text`, `press` requires an allowlisted `key`, and `select` requires
+`value`; click and hover optionally control bounded auto-scroll. Page-level
+`scroll` takes integer `delta_x`/`delta_y` values from -10000 through 10000, and
+`wait` takes `seconds` from 0 through 60. `mode` selects the one post-batch
+observation.
 
 REL checks that the observation, document sequence, and private target
-signature are still current. Stale refs return `OBSERVATION_STALE` without a
+signature are still current before each ref action. Actions run in order and
+stop at the first failure. Stale refs return `OBSERVATION_STALE` without a
 selector or nearby-target fallback. Success returns a new post-action
 observation and, for hybrid/visual mode, standard MCP image content.
 
@@ -303,10 +325,10 @@ currently includes these additional DevTools-oriented categories:
 
 | Capability | REL MCP |
 | --- | --- |
-| Navigation and persistent browser identity | Available through capture, page attachment, sessions, and proxies. |
-| Click, wait, and form automation | Available through canonical page actions, including bounded named keys; drag, hover, upload, and dialog tools are not yet exposed. |
+| Navigation and persistent browser identity | Available through navigate-and-observe, capture, page attachment, sessions, and proxies. |
+| Click, wait, and form automation | Available through canonical page actions and batched observation actions, including hover, scrolling, waits, and bounded named keys; drag, upload, and dialog tools are not yet exposed. |
 | Visual screenshots | Available with inline image content and file resources. |
-| Accessibility text snapshots and element UIDs | Not exposed; rendered HTML capture is available instead. |
+| Accessibility text snapshots and element UIDs | Available through semantic observations, scoped refs, and snapshot find. |
 | Script evaluation, console, and network inspection | Not exposed. |
 | Emulation, Lighthouse, performance traces, and heap snapshots | Not exposed. |
 | Extensions, screencast, third-party tools, and WebMCP | Not exposed. |

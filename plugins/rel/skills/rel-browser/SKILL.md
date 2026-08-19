@@ -99,10 +99,12 @@ different target when an action fails.
 - `rel_list_proxies`: list proxy aliases and non-secret configuration.
 - `rel_capture`: load a URL, optionally act, and save rendered HTML.
 - `rel_page_attach`: attach an automation page to a persistent session.
+- `rel_navigate`: navigate and return the first semantic or visual observation.
 - `rel_page_action`: perform one action on an attached page.
 - `rel_take_screenshot`: capture the current or attached page as PNG, JPEG, or
   WebP, inline or at an explicit file URI.
 - `rel_observe`: return bounded rendered semantics and an optional synchronized
   viewport image for the current or attached page.
-- `rel_action`: act through an observation-scoped element reference and return
-  the resulting observation.
+- `rel_find`: search a stored observation's public content and element fields.
+- `rel_action`: perform ordered ref, hover, scroll, and wait actions through one
+  observation and return a single resulting observation.

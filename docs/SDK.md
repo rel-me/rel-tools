@@ -54,6 +54,7 @@ Each method maps to one public RPC route:
 | `status()` | `GET /v1/status` |
 | `list_notifications()` | `GET /v1/notifications` |
 | `navigate(&NavigateRequest)` | `POST /v1/navigate` |
+| `navigate_and_observe(&NavigateObservationRequest)` | `POST /v1/navigate/observe` |
 | `perform(&PerformRequest)` | `POST /v1/perform` |
 | `capture_current_page(&PageCaptureRequest)` | `POST /v1/capture` |
 | `screenshot_current_page(&ScreenshotRequest)` | `POST /v1/screenshot` |
@@ -64,6 +65,7 @@ Each method maps to one public RPC route:
 | `take_page_screenshot(page_id, &PageScreenshotRequest)` | `POST /v1/pages/{page_id}/screenshot` |
 | `observe_page(page_id, &PageObservationRequest)` | `POST /v1/pages/{page_id}/observe` |
 | `perform_observation_action(observation_id, &ObservationActionRequest)` | `POST /v1/observations/{observation_id}/actions` |
+| `find_in_observation(observation_id, &ObservationFindRequest)` | `POST /v1/observations/{observation_id}/find` |
 | `list_proxies()` | `GET /v1/proxies` |
 | `get_proxy(alias)` | `GET /v1/proxies/{alias}` |
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
@@ -91,7 +93,7 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all eleven tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for all thirteen tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
 `perform_page_action`, both screenshot methods, all observation methods,
 `list_sessions`, `close_session_group`, and `list_proxies`; it does not maintain
@@ -170,29 +172,54 @@ semantics minimal:
 
 ```rust
 use rel_client::{
-    ObservationActionKind, ObservationActionRequest, ObservationMode,
-    ObservationRequest, RelClient,
+    NavigateObservationRequest, ObservationAction, ObservationActionKind,
+    ObservationActionRequest, ObservationFindRequest, ObservationMode, RelClient,
 };
 
 let client = RelClient::local();
-let observed = client.observe_current_page(&ObservationRequest {
+let observed = client.navigate_and_observe(&NavigateObservationRequest {
+    url: "https://example.com".into(),
     session_id: Some("Session1".into()),
     mode: Some(ObservationMode::Hybrid),
+    profile: None,
+    proxy: None,
     timeout: None,
     wait: None,
 })?;
 let first_ref = observed.data.observation.elements[0].element_ref.clone();
+let mut hover = ObservationAction::new(first_ref.clone(), ObservationActionKind::Hover);
+hover.scroll = Some(true);
 let next = client.perform_observation_action(
     &observed.data.observation.id,
-    &ObservationActionRequest::new(first_ref, ObservationActionKind::Click),
+    &ObservationActionRequest {
+        actions: vec![
+            hover,
+            ObservationAction::new(first_ref, ObservationActionKind::Click),
+            ObservationAction::wait(0.25),
+            ObservationAction::scroll(0, -600),
+        ],
+        mode: Some(ObservationMode::Semantic),
+        timeout: None,
+        wait: None,
+    },
 )?;
-println!("{}", next.data.observation.id);
+let found = client.find_in_observation(
+    &next.data.observation.id,
+    &ObservationFindRequest {
+        query: Some("continue".into()),
+        role: Some("button".into()),
+        limit: Some(10),
+    },
+)?;
+println!("{}", found.data.total_matches);
 # Ok::<(), rel_client::ClientError>(())
 ```
 
 Refs are scoped to one observation and document sequence. The agent retains
 private locators and returns `OBSERVATION_STALE` instead of retargeting when the
-document or element signature has changed.
+document or element signature has changed. Observation actions execute in order,
+stop at the first failure, and return one post-batch observation. Find searches
+only the stored public snapshot and does not issue another browser read.
 
 `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame commits an HTTP 4xx or 5xx response. By default, detected Cloudflare

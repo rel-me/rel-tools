@@ -221,6 +221,20 @@ impl RelClient {
         )
     }
 
+    /// Navigate in embedded Chromium and return the first synchronized page
+    /// observation without requiring a separate observe request.
+    pub fn navigate_and_observe(
+        &self,
+        request: &NavigateObservationRequest,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        self.request_with_timeout(
+            "POST",
+            "/navigate/observe",
+            Some(request),
+            page_request_timeout(request.timeout, request.wait),
+        )
+    }
+
     pub fn attach_page(
         &self,
         request: &PageAttachRequest,
@@ -293,6 +307,16 @@ impl RelClient {
             Some(request),
             page_request_timeout(request.timeout, request.wait),
         )
+    }
+
+    /// Search one stored observation's public semantic snapshot.
+    pub fn find_in_observation(
+        &self,
+        observation_id: &str,
+        request: &ObservationFindRequest,
+    ) -> Result<RpcResponse<ObservationFindData>, ClientError> {
+        let path = format!("/observations/{}/find", encode_path_segment(observation_id));
+        self.request("POST", &path, Some(request))
     }
 
     pub fn list_proxies(&self) -> Result<RpcResponse<ProxyListData>, ClientError> {
@@ -1111,6 +1135,32 @@ pub struct ObservationRequest {
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct NavigateObservationRequest {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ObservationMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+impl NavigateObservationRequest {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            ..Self::default()
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct PageObservationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ObservationMode>,
@@ -1128,12 +1178,16 @@ pub enum ObservationActionKind {
     Clear,
     Press,
     Select,
+    Hover,
+    Scroll,
+    Wait,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ObservationActionRequest {
+pub struct ObservationAction {
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "ref")]
-    pub element_ref: String,
+    pub element_ref: Option<String>,
     pub action: ObservationActionKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -1146,6 +1200,64 @@ pub struct ObservationActionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta_x: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delta_y: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seconds: Option<f64>,
+}
+
+impl ObservationAction {
+    pub fn new(element_ref: impl Into<String>, action: ObservationActionKind) -> Self {
+        Self {
+            element_ref: Some(element_ref.into()),
+            action,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: None,
+            delta_y: None,
+            seconds: None,
+        }
+    }
+
+    pub fn scroll(delta_x: i32, delta_y: i32) -> Self {
+        Self {
+            element_ref: None,
+            action: ObservationActionKind::Scroll,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: Some(delta_x),
+            delta_y: Some(delta_y),
+            seconds: None,
+        }
+    }
+
+    pub fn wait(seconds: f64) -> Self {
+        Self {
+            element_ref: None,
+            action: ObservationActionKind::Wait,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: None,
+            delta_y: None,
+            seconds: Some(seconds),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationActionRequest {
+    pub actions: Vec<ObservationAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ObservationMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<f64>,
@@ -1156,18 +1268,46 @@ pub struct ObservationActionRequest {
 impl ObservationActionRequest {
     pub fn new(element_ref: impl Into<String>, action: ObservationActionKind) -> Self {
         Self {
-            element_ref: element_ref.into(),
-            action,
-            text: None,
-            key: None,
-            value: None,
-            mouse_move: None,
-            scroll: None,
+            actions: vec![ObservationAction::new(element_ref, action)],
             mode: None,
             timeout: None,
             wait: None,
         }
     }
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ObservationFindRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationFindData {
+    pub observation_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    pub matches: Vec<ObservationFindMatch>,
+    pub total_matches: usize,
+    pub truncated: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ObservationFindMatch {
+    Content {
+        index: usize,
+        content: ObservationContent,
+    },
+    Element {
+        element: ObservationElement,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1920,13 +2060,42 @@ mod tests {
     }
 
     #[test]
+    fn observation_actions_serialize_as_one_sequence() {
+        let mut hover = ObservationAction::new("e2", ObservationActionKind::Hover);
+        hover.scroll = Some(false);
+        let request = ObservationActionRequest {
+            actions: vec![
+                ObservationAction::new("e1", ObservationActionKind::Click),
+                hover,
+                ObservationAction::scroll(0, -600),
+                ObservationAction::wait(0.25),
+            ],
+            mode: Some(ObservationMode::Semantic),
+            timeout: None,
+            wait: None,
+        };
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            json!({
+                "actions": [
+                    {"ref":"e1","action":"click"},
+                    {"ref":"e2","action":"hover","scroll":false},
+                    {"action":"scroll","delta_x":0,"delta_y":-600},
+                    {"action":"wait","seconds":0.25}
+                ],
+                "mode":"semantic"
+            })
+        );
+    }
+
+    #[test]
     fn path_segments_are_percent_encoded() {
         assert_eq!(encode_path_segment("page 1/a"), "page%201%2Fa");
     }
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(29, |index, request| {
+        let (base_url, server) = start_test_server(31, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -1970,7 +2139,8 @@ mod tests {
                     "page":{"id":"page_1","session_id":"machine-a.Session1","url":"https://example.com/"},
                     "screenshot":{"output_path":"/tmp/page.webp","bytesize":11,"format":"webp","mime_type":"image/webp","width":1200,"height":800}
                 }),
-                ("POST", "/v1/observe")
+                ("POST", "/v1/navigate/observe")
+                | ("POST", "/v1/observe")
                 | ("POST", "/v1/pages/page_1/observe")
                 | ("POST", "/v1/observations/11111111-1111-4111-8111-111111111111/actions") => {
                     json!({
@@ -1986,6 +2156,12 @@ mod tests {
                         }
                     })
                 }
+                ("POST", "/v1/observations/11111111-1111-4111-8111-111111111111/find") => json!({
+                    "observation_id":"11111111-1111-4111-8111-111111111111",
+                    "query":"continue","role":"button",
+                    "matches":[{"type":"element","element":{"ref":"e1","role":"button","name":"Continue","states":["enabled"],"in_viewport":true,"bounds":{"x":10.0,"y":20.0,"width":100.0,"height":40.0}}}],
+                    "total_matches":1,"truncated":false
+                }),
                 ("GET", "/v1/proxies") => json!({"proxies":[proxy_json()]}),
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
@@ -2089,12 +2265,25 @@ mod tests {
             })
             .unwrap();
         client
+            .navigate_and_observe(&NavigateObservationRequest::new("example.com"))
+            .unwrap();
+        client
             .observe_page("page_1", &PageObservationRequest::default())
             .unwrap();
         client
             .perform_observation_action(
                 "11111111-1111-4111-8111-111111111111",
                 &ObservationActionRequest::new("e1", ObservationActionKind::Click),
+            )
+            .unwrap();
+        client
+            .find_in_observation(
+                "11111111-1111-4111-8111-111111111111",
+                &ObservationFindRequest {
+                    query: Some("continue".to_string()),
+                    role: Some("button".to_string()),
+                    limit: Some(5),
+                },
             )
             .unwrap();
         client.list_proxies().unwrap();
@@ -2180,10 +2369,15 @@ mod tests {
                 ("POST", "/v1/pages/page_1/actions"),
                 ("POST", "/v1/pages/page_1/screenshot"),
                 ("POST", "/v1/observe"),
+                ("POST", "/v1/navigate/observe"),
                 ("POST", "/v1/pages/page_1/observe"),
                 (
                     "POST",
                     "/v1/observations/11111111-1111-4111-8111-111111111111/actions"
+                ),
+                (
+                    "POST",
+                    "/v1/observations/11111111-1111-4111-8111-111111111111/find"
                 ),
                 ("GET", "/v1/proxies"),
                 ("GET", "/v1/proxies/office"),
@@ -2204,7 +2398,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
@@ -2232,15 +2426,27 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[15].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[11].body).unwrap(),
+            json!({"url":"example.com"})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[13].body).unwrap(),
+            json!({"actions":[{"ref":"e1","action":"click"}]})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[14].body).unwrap(),
+            json!({"query":"continue","role":"button","limit":5})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[17].body).unwrap(),
             json!({"alias":"office","upstream_host":"proxy.example.com","upstream_port":8000})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[16].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[18].body).unwrap(),
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[23].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
             json!({
                 "name":"Research",
                 "adblock_enabled":true,
@@ -2251,11 +2457,11 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[24].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
             json!({"includes_cookies":true,"includes_passwords":true})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

@@ -38,7 +38,7 @@ The plugin contains:
   path;
 - the namespaced `/rel:rel-browser` skill for safe session selection and browser
   workflows;
-- all eleven MCP tools, including opt-in untrusted website notifications,
+- all thirteen MCP tools, including opt-in untrusted website notifications,
   observations, session-group closing, and inline or file-backed screenshots;
 - all eight canonical page actions: `click`, `wait-for`, `type`, `clear`,
   `press`, `select`, `wait`, and `click-link`.
@@ -55,7 +55,7 @@ Begin with a read-only check after restarting or reloading plugins:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Claude Code should discover eleven REL MCP tools without opening REL. If REL is
+Claude Code should discover thirteen REL MCP tools without opening REL. If REL is
 already running, `rel_status` reports the app, local agent, Browser Proxy, and
 embedded Chromium bridge. Otherwise it returns the local connection error
 without launching the app; `rel_list_sessions` then starts REL lazily.
