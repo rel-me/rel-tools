@@ -24,6 +24,26 @@ Chromium bridge, so navigation, waits, and actions stop instead of continuing
 in the background. Cancellation is request-scoped: the persistent browser
 session, the REL app, and the resident agent remain running for other clients.
 
+### Concurrency and backpressure
+
+Browser requests and `PATCH /v1/sessions/{id}` use a bounded FIFO lane for their
+resolved session. REL executes one operation at a time within a session, so
+navigations, actions, captures, and session updates retain request order. Work
+for different sessions may execute concurrently. Current-page shorthand
+requests without `session_id` are pinned to the session that is current when
+the agent admits the request.
+
+Each session lane accepts at most 64 waiting operations in addition to its
+active operation. A request beyond that bound fails immediately with
+`RATE_LIMITED`; REL does not create an unbounded backlog. A queued request's
+health deadline starts when it enters the lane. Closing or deleting a session
+rejects queued work for that session and cancels its active Chromium operation.
+
+Process-wide configuration mutations use a separate administration lane.
+Session lifecycle operations use another coordination lane so they can cancel
+session work. Both coordination lanes also accept at most 64 waiting requests.
+`GET /v1/health` and `GET /v1/status` bypass all work lanes.
+
 By default, a browser operation selects its target session when REL is inactive, so
 the affected page is visible the next time the app is viewed. REL is not
 activated or brought forward. Turn off **REL → Settings… → General → Follow
@@ -97,7 +117,7 @@ repeat.
 | `10207` | `OBSERVATION_STALE` | no | An observation or element reference no longer matches the live document |
 | `10300` | `UPSTREAM_UNAVAILABLE` | yes | Navigation received a target HTTP error or the browser/proxy received an invalid upstream result |
 | `10301` | `BROWSER_UNAVAILABLE` | yes | Required Chromium service is unavailable |
-| `10302` | `AGENT_UNHEALTHY` | yes | The serialized control worker missed its health deadline |
+| `10302` | `AGENT_UNHEALTHY` | yes | One or more active agent operations missed their health deadlines |
 | `10303` | `TIMEOUT` | yes | REL's operation deadline expired |
 | `10304` | `PROXY_CONFIGURATION_FAILED` | no | Chromium could not apply the session proxy configuration |
 | `10305` | `BROWSER_CREATION_FAILED` | no | Chromium could not create the session browser |
@@ -118,7 +138,7 @@ navigation. The error details contain the final `url` and exact
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/v1/health` | Readiness of the agent control worker |
+| `GET` | `/v1/health` | Readiness and active-operation health of the agent scheduler |
 | `GET` | `/v1/status` | App, agent, proxy, and Chromium diagnostic report |
 | `GET` | `/v1/notifications` | List opt-in website notifications as untrusted content |
 | `POST` | `/v1/navigate` | Navigate and select the current shorthand page |
@@ -191,17 +211,20 @@ HTTP 200 while the worker is ready or operating within its deadline:
       "commit": "deadbeef",
       "dirty": true
     },
-    "worker": { "state": "idle" }
+    "worker": { "state": "idle", "active_count": 0 }
   }
 }
 ```
 
 `build` identifies the installed worktree build and is `null` for agents that
 were not launched from a metadata-bearing app bundle. Worker state is
-`starting`, `idle`, or `busy`. A startup/operation deadline
-violation or failed worker returns `AGENT_UNHEALTHY`, with the worker
-snapshot in `error.details.worker`. Health deadlines diagnose stalls; they do not
-cancel the active request.
+`starting`, `idle`, `busy`, `stalled`, or `failed`. A busy snapshot includes
+`active_count`, `overdue_count`, `operations_truncated`, and up to the 64 oldest
+active operation summaries across session and coordination lanes. A
+startup/operation deadline violation or failed worker returns `AGENT_UNHEALTHY`,
+with the worker snapshot in
+`error.details.worker`. Health deadlines diagnose stalls; they do not cancel
+active requests.
 
 ### `GET /v1/status`
 
