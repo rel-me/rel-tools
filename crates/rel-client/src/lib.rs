@@ -1669,10 +1669,7 @@ fn page_read_data(
         selected_content_count,
         selected_link_count,
         source_truncated: observation.truncated,
-        truncated: observation.truncated
-            || content_was_limited
-            || links_were_limited
-            || output_truncated,
+        truncated: content_was_limited || links_were_limited || output_truncated,
         matched_query: content_matched || links_matched,
     }
 }
@@ -2384,6 +2381,12 @@ mod tests {
         assert!(bounded.markdown.ends_with('…'));
         assert_eq!(bounded.selected_content_count, 2);
         assert!(bounded.truncated);
+
+        let mut source_limited = observation_operation();
+        source_limited.observation.truncated = true;
+        let source_limited = page_read_data(source_limited, None, 32_768, 10);
+        assert!(source_limited.source_truncated);
+        assert!(!source_limited.truncated);
     }
 
     #[test]
