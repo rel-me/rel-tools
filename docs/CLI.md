@@ -64,6 +64,13 @@ starts its stdio protocol server without launching the app; its operational
 tools start REL lazily after their arguments have been validated.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
 
+REL requires a valid registration before it starts the local agent. On launch,
+the app verifies the saved registration first and shows its Registration view
+when activation or renewed verification is required. CLI and MCP operations
+that need the local agent remain unavailable until registration succeeds; a
+command waiting for startup reports that the agent did not become ready if
+registration is not completed.
+
 When a browser command targets a session while REL is in the background, REL
 selects that session by default without activating the app. Turn off **REL →
 Settings… → General → Follow browser commands** to keep the current session
