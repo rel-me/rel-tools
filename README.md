@@ -13,6 +13,8 @@ session storage, proxy credentials, or internal service code.
 - [`rel-cli`](crates/rel-cli): the `rel` command and standalone `rel-mcp` stdio
   adapter.
 - [`rel-client`](crates/rel-client): a typed synchronous Rust client for RPC v1.
+- [`rel-crawler`](crawler): a restartable Python crawler that preserves REL
+  sessions and browser history while capturing rendered pages and metadata.
 - [`plugins/rel`](plugins/rel): the shared REL plugin for Codex and Claude Code,
   distributed through this repository's marketplaces.
 - [`docs`](docs): the canonical Actions, CLI, MCP, RPC, and Rust SDK
@@ -91,12 +93,32 @@ println!("{}", status.data.overall_status);
 
 See the [Rust SDK guide](docs/SDK.md) and [RPC v1 contract](docs/RPC.md).
 
+## Use the Python crawler
+
+The crawler is intended for interaction-heavy sites where each selected link
+must be clicked in REL, captured, and followed by browser-history Back. Install
+it from this repository and run the public Hacker News example:
+
+```sh
+cd crawler
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+HN_MAX_LINKS=3 .venv/bin/python examples/hackernews.py
+```
+
+See the [crawler guide](docs/CRAWLER.md) for named Profiles, readiness selectors,
+checkpoints, output metadata, and recovery behavior.
+
 ## Development
 
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+
+cd crawler
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+cd ..
 
 cd docs
 npm ci

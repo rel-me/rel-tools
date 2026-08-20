@@ -1,0 +1,6 @@
+interface:
+  display_name: "REL Website Crawler"
+  short_description: "Build resilient browser-history crawlers with REL"
+  default_prompt: "Use $crawl-websites-with-rel to design a restartable crawl through an interaction-heavy website."
+policy:
+  allow_implicit_invocation: true

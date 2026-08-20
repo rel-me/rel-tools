@@ -11,6 +11,10 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
+cd crawler
+PYTHONPATH=src python3 -m unittest discover -s tests -v
+cd ..
+
 cd docs
 npm ci
 npm run check

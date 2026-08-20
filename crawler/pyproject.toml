@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rel-crawler"
+version = "0.1.0"
+description = "Restartable, history-preserving website crawls through the REL RPC API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "REL" }]
+dependencies = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP :: Browsers",
+]
+
+[project.urls]
+Documentation = "https://docs.rel.me/crawler/"
+Repository = "https://github.com/rel-me/rel-tools/tree/main/crawler"
+Issues = "https://github.com/rel-me/rel-tools/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]

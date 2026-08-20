@@ -47,6 +47,7 @@ export default defineConfig({
             { label: "MCP server", slug: "mcp" },
             { label: "RPC v1", slug: "rpc" },
             { label: "Rust SDK", slug: "sdk" },
+            { label: "Python crawler", slug: "crawler" },
           ],
         },
         {
