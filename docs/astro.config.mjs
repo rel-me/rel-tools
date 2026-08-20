@@ -7,13 +7,21 @@ export default defineConfig({
     starlight({
       title: "REL.me",
       description: "Documentation for REL, a persistent Chromium browser built for agents.",
-      favicon: "/rel-mark.svg",
+      favicon: "/favicon.ico",
       logo: {
-        src: "./public/rel-mark.svg",
+        src: "./public/rel-logo.png",
         alt: "",
       },
       customCss: ["./src/styles/custom.css"],
       head: [
+        {
+          tag: "link",
+          attrs: { rel: "icon", type: "image/png", sizes: "128x128", href: "/favicon.png" },
+        },
+        {
+          tag: "link",
+          attrs: { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
+        },
         {
           tag: "meta",
           attrs: { property: "og:image", content: "https://docs.rel.me/og.png" },
