@@ -2,8 +2,8 @@
 
 The REL plugin connects Codex to REL's persistent embedded Chromium sessions.
 It configures the MCP server bundled with the installed app and adds the
-`rel-browser` skill with workflow, action, screenshot, session, proxy, and safety
-guidance.
+`rel-browser` skill for interactive browser work plus the
+`crawl-websites-with-rel` skill for restartable, history-preserving crawls.
 
 Related documents: [MCP server](MCP.md) and [CLI](CLI.md).
 
@@ -53,6 +53,8 @@ The plugin contains:
 - the bundled REL MCP server configuration, using the absolute installed-app
   path;
 - the `rel-browser` skill for safe session selection and browser workflows;
+- the `crawl-websites-with-rel` skill for rendered-link discovery, readiness,
+  checkpoints, capture metadata, bounded retries, and session recovery;
 - all fourteen MCP tools, including bounded semantic reading, opt-in untrusted website notifications,
   observations, session-group closing, and inline or file-backed screenshots;
 - all eight canonical page actions: `click`, `wait-for`, `type`, `clear`,

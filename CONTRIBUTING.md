@@ -11,6 +11,12 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
+cd crawler
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m unittest discover -s tests -v
+cd ..
+
 cd docs
 npm ci
 npm run check
