@@ -335,10 +335,11 @@ button-down and button-up for hover-dependent controls. Set it to `false` to
 send only button-down and button-up at the target coordinates. Neither mode
 moves the macOS cursor.
 Both click actions also accept an optional `scroll` boolean that defaults to
-`true`. When a target is offscreen, REL sends bounded Chromium wheel input and
-re-reads its bounds until it becomes visible before clicking. Set `scroll` to
-`false` for visible-only targeting. Scrolling never uses page JavaScript, DOM
-mutation, accessibility activation, or Chrome DevTools Protocol.
+`true`. When a target is offscreen or partially clipped, REL sends bounded
+Chromium wheel input and re-reads its bounds until it is fully visible before
+clicking. Set `scroll` to `false` for visible-only targeting. Scrolling never
+uses page JavaScript, DOM mutation, accessibility activation, or Chrome
+DevTools Protocol.
 Supported selectors are comma-separated lists composed of tag, universal, ID,
 class, presence or value attribute selectors, plus descendant, child (`>`),
 adjacent-sibling (`+`), and general-sibling (`~`) combinators. Pseudo-classes,

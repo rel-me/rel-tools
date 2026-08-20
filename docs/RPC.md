@@ -391,7 +391,7 @@ per-request viewport override.
 
 `click` and `wait-for` use CEF's read-only renderer DOM snapshot. `wait-for`
 checks presence without requesting layout bounds. `click` reads the first
-match's bounds, requires a visible intersection with the viewport, and
+match's bounds, brings a normal-size target fully inside the viewport, and
 dispatches CEF mouse input. Click actions return `ACTION_TARGET_NOT_FOUND`
 without polling when the target is absent from the current snapshot; use an
 explicit `wait-for` before a click for asynchronously rendered targets.
@@ -401,8 +401,8 @@ mouse-move event before button-down and button-up; `false` sends only the button
 events at the target coordinates. Neither mode moves the macOS cursor.
 Both click actions accept an optional `scroll` boolean that defaults to `true`.
 REL uses bounded Chromium wheel input and re-reads target bounds after each step
-to bring an offscreen target into view. `scroll: false` preserves visible-only
-targeting.
+to bring an offscreen or partially clipped target fully into view.
+`scroll: false` preserves visible-only targeting.
 Supported selectors are lists composed of tag,
 universal, ID, class, presence or value attribute selectors, and descendant,
 child, adjacent-sibling, or general-sibling combinators. Pseudo-classes,
