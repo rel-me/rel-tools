@@ -189,11 +189,14 @@ session becomes unavailable, a bounded recovery closes it when possible,
 creates a replacement from the same named Profile, reloads the source, and
 resumes. Caller-owned `session_id` values are never replaced automatically.
 
-The defaults retry each link once (`max_attempts=2`) and permit one session
-replacement per link (`max_session_restarts=1`). A terminal action failure or
-HTTP 403, 429, or 5xx result rotates a managed session before the crawler moves
-on. Failed links remain terminal on later invocations unless `retry_failed=True`
-or the CLI's `--retry-failed` flag explicitly requeues them with fresh attempts.
+The defaults retry the initial source load and each link once
+(`max_attempts=2`) and permit one managed-session replacement
+(`max_session_restarts=1`). A source error that does not require a new session,
+including an upstream HTTP failure, is retried in the current session. A
+terminal action failure or HTTP 403, 429, or 5xx result rotates a managed
+session before the crawler moves on. Failed links remain terminal on later
+invocations unless `retry_failed=True` or the CLI's `--retry-failed` flag
+explicitly requeues them with fresh attempts.
 
 ## Capture metadata
 

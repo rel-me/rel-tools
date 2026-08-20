@@ -128,7 +128,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--timeout", type=float)
     run.add_argument("--wait", type=float)
     run.add_argument("--action-delay", type=float)
-    run.add_argument("--max-attempts", type=int)
+    run.add_argument(
+        "--max-attempts",
+        type=int,
+        help="maximum attempts for the initial source load and each link",
+    )
     run.add_argument("--max-session-restarts", type=int)
     run.add_argument("--max-links", type=int)
     run.add_argument(

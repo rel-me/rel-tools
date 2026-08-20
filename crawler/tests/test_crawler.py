@@ -62,6 +62,18 @@ def action_target_not_found() -> RelRpcError:
     )
 
 
+def upstream_unavailable() -> RelRpcError:
+    return RelRpcError(
+        error_id="UPSTREAM_UNAVAILABLE",
+        code=10207,
+        message="The target page returned HTTP 503",
+        retryable=True,
+        details={"target_http_status": 503},
+        request_id="req_upstream_unavailable",
+        http_status=503,
+    )
+
+
 class FakeRelClient:
     def __init__(self) -> None:
         self.session_id: str | None = None
@@ -833,6 +845,34 @@ class RelCrawlerTests(unittest.TestCase):
         self.assertEqual(self.client.deleted, ["Session7"])
         self.assertEqual(self.client.navigated, [SOURCE_URL, SOURCE_URL])
         self.assertEqual(summary.session_id, "Session8")
+
+    def test_source_upstream_failure_retries_in_the_same_session(self) -> None:
+        processed: list[CapturedPage] = []
+        self.client.navigate_failures.append(upstream_unavailable())
+
+        with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
+            summary = self.crawler(self.definition(processed), max_links=1).run()
+
+        self.assertEqual((summary.captured, summary.failed), (1, 0))
+        self.assertEqual(self.client.navigated, [SOURCE_URL, SOURCE_URL])
+        self.assertEqual(self.client.created_profiles, ["Direct"])
+        self.assertEqual(self.client.deleted, [])
+        activity = "\n".join(logs.output)
+        self.assertIn("source load attempt 1/2 failed", activity)
+        self.assertIn("retrying source load in session Session7 (attempt 2/2)", activity)
+
+    def test_source_upstream_failure_stops_after_attempt_budget(self) -> None:
+        processed: list[CapturedPage] = []
+        self.client.navigate_failures.extend(
+            [upstream_unavailable(), upstream_unavailable()]
+        )
+
+        with self.assertRaises(RelRpcError):
+            self.crawler(self.definition(processed), max_links=1).run()
+
+        self.assertEqual(self.client.navigated, [SOURCE_URL, SOURCE_URL])
+        self.assertEqual(self.client.created_profiles, ["Direct"])
+        self.assertEqual(self.client.deleted, [])
 
     def test_failed_session_replacement_resumes_on_the_next_run(self) -> None:
         processed: list[CapturedPage] = []

@@ -187,9 +187,11 @@ when possible, creates a replacement from the same Profile, reloads the source,
 and resumes. Caller-owned session IDs are never replaced or closed
 automatically.
 
-Each link is attempted twice by default. A terminal native-action failure or an
-HTTP 403, 429, or 5xx capture can discard the crawler-owned session before the
-crawler advances. This never requeues the terminal link, so a challenge or
+The initial source load and each link are attempted twice by default. A source
+error that does not require session replacement, including an upstream HTTP
+failure, is retried in the current session. A terminal native-action failure or
+an HTTP 403, 429, or 5xx capture can discard the crawler-owned session before
+the crawler advances. This never requeues the terminal link, so a challenge or
 missing target cannot trap the crawl in a loop. `retry_failed=True` or the CLI
 flag explicitly requeues those entries on a later invocation.
 

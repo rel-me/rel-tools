@@ -18,28 +18,47 @@ class SourceMixin:
     def _load_source_with_session_recovery(
         self, session_id: str, output: Path
     ) -> tuple[str, SourcePage, list[Link]]:
+        attempt = 0
         restarts = 0
         while True:
+            attempt += 1
             try:
                 source = self._load_source(session_id, output)
                 return session_id, source, self._discover_links(session_id, source)
             except Exception as error:
-                if (
-                    restarts >= self.max_session_restarts
-                    or not self._can_restart_session(error)
-                ):
-                    raise
                 _LOGGER.warning(
-                    "source load failed in session %s; replacing session: %s: %s",
+                    "source load attempt %d/%d failed in session %s: %s: %s",
+                    attempt,
+                    self.max_attempts,
                     session_id,
                     type(error).__name__,
                     error,
                 )
-                session_id = self._restart_managed_session(
-                    session_id,
-                    reason=f"source navigation failed: {type(error).__name__}: {error}",
-                )
-                restarts += 1
+                if attempt >= self.max_attempts:
+                    raise
+                if (
+                    restarts < self.max_session_restarts
+                    and self._can_restart_session(error)
+                ):
+                    _LOGGER.warning(
+                        "replacing session %s before retrying the source",
+                        session_id,
+                    )
+                    session_id = self._restart_managed_session(
+                        session_id,
+                        reason=(
+                            "source navigation failed: "
+                            f"{type(error).__name__}: {error}"
+                        ),
+                    )
+                    restarts += 1
+                else:
+                    _LOGGER.warning(
+                        "retrying source load in session %s (attempt %d/%d)",
+                        session_id,
+                        attempt + 1,
+                        self.max_attempts,
+                    )
 
     def _load_source(self, session_id: str, output: Path) -> SourcePage:
         source_uri = canonicalize_url(self.definition.start_url)
