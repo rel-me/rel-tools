@@ -7,8 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from rel_crawler import CrawlItem, Link
-
+from rel_crawler import CrawlApplication, CrawlItem, Link
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "hackernews.py"
 
@@ -26,6 +25,7 @@ class HackerNewsExampleTests(unittest.TestCase):
         cls.is_post = staticmethod(cls.module["is_post"])
         cls.configure_logging = staticmethod(cls.module["configure_logging"])
         cls.definition = cls.module["definition"]
+        cls.app = cls.module["app"]
         cls.crawler = cls.module["crawler"]
 
     @staticmethod
@@ -107,6 +107,9 @@ class HackerNewsExampleTests(unittest.TestCase):
                 self.assertFalse(self.is_post(Link(index=0, url=url, text="post")))
 
     def test_configures_profile_and_readiness(self) -> None:
+        self.assertIsInstance(self.app, CrawlApplication)
+        self.assertEqual(self.app.profile, "Research")
+        self.assertEqual(self.app.max_links, 3)
         self.assertEqual(self.crawler.profile, "Research")
         self.assertEqual(self.crawler.max_links, 3)
         self.assertEqual(self.definition.source_ready_selector, "a.morelink")

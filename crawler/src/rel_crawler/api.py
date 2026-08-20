@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
 import os
-import socket
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -64,6 +64,35 @@ class NavigationOperation:
     page_id: str
     session_id: str
     url: str
+
+
+@dataclass(frozen=True, slots=True)
+class RenderedLink:
+    """One anchor REL reports as an interactive rendered element."""
+
+    index: int
+    url: str
+    text: str
+    in_viewport: bool
+    x: float
+    y: float
+    width: float
+    height: float
+
+
+@dataclass(frozen=True, slots=True)
+class LinkObservation:
+    """Rendered links collected from one REL semantic observation."""
+
+    page_id: str
+    session_id: str
+    url: str
+    observation_id: str
+    links: tuple[RenderedLink, ...]
+    element_count: int
+    truncated: bool
+    omitted_node_count: int
+    visited_node_count: int
 
 
 class RelClient:
@@ -173,6 +202,24 @@ class RelClient:
         )
         return _navigation_operation(data)
 
+    def observe_links(
+        self, *, session_id: str, timeout: float, wait: float
+    ) -> LinkObservation:
+        """Return anchors REL sees as rendered, enabled interactive elements."""
+
+        data = self._request(
+            "POST",
+            "/observe",
+            {
+                "session_id": session_id,
+                "mode": "semantic",
+                "timeout": timeout,
+                "wait": wait,
+            },
+            timeout=_browser_timeout(timeout, wait),
+        )
+        return _link_observation(data)
+
     def _request(
         self,
         method: str,
@@ -203,7 +250,7 @@ class RelClient:
                 raw = error.read()
             finally:
                 error.close()
-        except (URLError, TimeoutError, socket.timeout, OSError) as error:
+        except (URLError, TimeoutError, OSError) as error:
             raise RelTransportError(
                 f"Could not reach REL at {self.base_url}: {error}"
             ) from error
@@ -323,3 +370,87 @@ def _navigation_operation(data: dict[str, Any]) -> NavigationOperation:
     if not all(isinstance(value, str) for value in (page_id, session_id, url)):
         raise RelProtocolError("REL returned malformed navigation data")
     return NavigationOperation(page_id=page_id, session_id=session_id, url=url)
+
+
+def _link_observation(data: dict[str, Any]) -> LinkObservation:
+    page = data.get("page")
+    observation = data.get("observation")
+    if not isinstance(page, dict) or not isinstance(observation, dict):
+        raise RelProtocolError("REL link observation is missing page or observation")
+    page_id = page.get("id")
+    session_id = page.get("session_id")
+    url = page.get("url")
+    observation_id = observation.get("id")
+    elements = observation.get("elements")
+    truncated = observation.get("truncated")
+    omitted_node_count = observation.get("omitted_node_count")
+    visited_node_count = observation.get("visited_node_count")
+    if (
+        not all(
+            isinstance(value, str)
+            for value in (page_id, session_id, url, observation_id)
+        )
+        or not isinstance(elements, list)
+        or not isinstance(truncated, bool)
+        or type(omitted_node_count) is not int
+        or omitted_node_count < 0
+        or type(visited_node_count) is not int
+        or visited_node_count < 0
+    ):
+        raise RelProtocolError("REL returned malformed link observation data")
+
+    links: list[RenderedLink] = []
+    for index, element in enumerate(elements):
+        if not isinstance(element, dict):
+            raise RelProtocolError("REL link observation contains a malformed element")
+        destination = element.get("destination")
+        if destination is None:
+            continue
+        name = element.get("name")
+        states = element.get("states")
+        in_viewport = element.get("in_viewport")
+        bounds = element.get("bounds")
+        if (
+            not isinstance(destination, str)
+            or not destination
+            or not isinstance(name, str)
+            or not isinstance(states, list)
+            or not all(isinstance(state, str) for state in states)
+            or not isinstance(in_viewport, bool)
+            or not isinstance(bounds, dict)
+        ):
+            raise RelProtocolError("REL link observation contains malformed link data")
+        coordinates = tuple(
+            bounds.get(field) for field in ("x", "y", "width", "height")
+        )
+        if not all(
+            type(value) in {int, float} and math.isfinite(float(value))
+            for value in coordinates
+        ):
+            raise RelProtocolError("REL link observation contains malformed bounds")
+        x, y, width, height = (float(value) for value in coordinates)
+        if width <= 0 or height <= 0 or "disabled" in states:
+            continue
+        links.append(
+            RenderedLink(
+                index=index,
+                url=destination,
+                text=name,
+                in_viewport=in_viewport,
+                x=x,
+                y=y,
+                width=width,
+                height=height,
+            )
+        )
+    return LinkObservation(
+        page_id=page_id,
+        session_id=session_id,
+        url=url,
+        observation_id=observation_id,
+        links=tuple(links),
+        element_count=len(elements),
+        truncated=truncated,
+        omitted_node_count=omitted_node_count,
+        visited_node_count=visited_node_count,
+    )

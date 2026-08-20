@@ -12,7 +12,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
 cd crawler
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m unittest discover -s tests -v
 cd ..
 
 cd docs

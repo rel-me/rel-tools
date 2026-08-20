@@ -70,18 +70,18 @@ class LinkExtractionTests(unittest.TestCase):
 
     def test_extracted_unicode_link_keeps_original_and_uses_ascii_uri(self) -> None:
         [link] = extract_links(
-            '<a href="/posts/hello-world/友達がいました/">Post</a>',
-            "https://example.com/feed/",
+            '<a href="/catalog/artist/友達がいました/">Release</a>',
+            "https://music.example/catalog/",
         )
 
         self.assertEqual(
             link.url,
-            "https://example.com/posts/hello-world/"
+            "https://music.example/catalog/artist/"
             "%E5%8F%8B%E9%81%94%E3%81%8C%E3%81%84%E3%81%BE%E3%81%97%E3%81%9F/",
         )
         self.assertEqual(
             link.original_url,
-            "https://example.com/posts/hello-world/友達がいました/",
+            "https://music.example/catalog/artist/友達がいました/",
         )
 
     def test_rejects_non_http_url(self) -> None:
@@ -96,16 +96,16 @@ class LinkExtractionTests(unittest.TestCase):
         metadata = extract_page_metadata(
             """
             <html><head>
-              <title> Post &amp; Comments </title>
-              <link rel="alternate canonical" href="/posts/example/">
-              <meta name="description" content="A post">
-              <meta property="og:type" content="article">
-              <meta property="datePublished" content="2024-11-01">
+              <title> Release &amp; Reviews </title>
+              <link rel="alternate canonical" href="/catalog/releases/example/">
+              <meta name="description" content="A mixtape">
+              <meta property="og:type" content="music.album">
+              <meta property="music:release_date" content="2024-11-01">
               <meta property="article:published_time" content="2025-02-03T04:05:06Z">
               <time itemprop="datePublished" datetime="2025-02-03">Released</time>
               <script type="application/ld+json">
                 {
-                  "@type": "Article",
+                  "@type": "MusicAlbum",
                   "datePublished": "2025-02-03T04:05:06+00:00",
                   "dateModified": "2025-02-04T07:08:09Z"
                 }
@@ -113,20 +113,20 @@ class LinkExtractionTests(unittest.TestCase):
               <meta charset="utf-8">
             </head></html>
             """,
-            "https://example.com/posts/example/?ref=feed",
+            "https://music.example/catalog/releases/example/?ref=new",
         )
 
-        self.assertEqual(metadata["title"], "Post & Comments")
+        self.assertEqual(metadata["title"], "Release & Reviews")
         self.assertEqual(
             metadata["canonical_url"],
-            "https://example.com/posts/example/",
+            "https://music.example/catalog/releases/example/",
         )
         self.assertEqual(
             metadata["meta"],
             [
-                {"name": "description", "content": "A post"},
-                {"property": "og:type", "content": "article"},
-                {"property": "datePublished", "content": "2024-11-01"},
+                {"name": "description", "content": "A mixtape"},
+                {"property": "og:type", "content": "music.album"},
+                {"property": "music:release_date", "content": "2024-11-01"},
                 {
                     "property": "article:published_time",
                     "content": "2025-02-03T04:05:06Z",
@@ -141,7 +141,7 @@ class LinkExtractionTests(unittest.TestCase):
                     {
                         "value": "2024-11-01",
                         "source": "meta",
-                        "field": "datePublished",
+                        "field": "music:release_date",
                         "attribute": "property",
                     },
                     {

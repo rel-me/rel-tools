@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,3 +113,5 @@ class CrawlDefinition:
     link_key: LinkKey = _url_key
     source_ready_selector: str | None = None
     capture_ready_selector: str | None = None
+    load_more_selector: str | None = None
+    load_more_clicks: int = 0

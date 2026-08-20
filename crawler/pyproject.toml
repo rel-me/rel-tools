@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rel-crawler"
-version = "0.1.0"
+version = "0.2.0"
 description = "Restartable, history-preserving website crawls through the REL RPC API"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,5 +27,11 @@ Documentation = "https://docs.rel.me/crawler/"
 Repository = "https://github.com/rel-me/rel-tools/tree/main/crawler"
 Issues = "https://github.com/rel-me/rel-tools/issues"
 
+[project.scripts]
+rel-crawler = "rel_crawler.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+rel_crawler = ["py.typed"]

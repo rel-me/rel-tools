@@ -120,6 +120,109 @@ class RelClientTests(unittest.TestCase):
         self.assertTrue(raised.exception.retryable)
         self.assertEqual(raised.exception.request_id, "req_busy")
 
+    def test_observe_links_keeps_only_enabled_links_with_usable_bounds(self) -> None:
+        self.server.responses.append(
+            (
+                200,
+                {
+                    "status": "ok",
+                    "request_id": "req_observe",
+                    "data": {
+                        "page": {
+                            "id": "page_1",
+                            "session_id": "Session2",
+                            "url": "https://example.com/new/",
+                        },
+                        "observation": {
+                            "id": "11111111-1111-4111-8111-111111111111",
+                            "truncated": False,
+                            "omitted_node_count": 0,
+                            "visited_node_count": 40,
+                            "elements": [
+                                {
+                                    "ref": "e1",
+                                    "role": "link",
+                                    "name": "Visible offscreen link",
+                                    "states": ["enabled"],
+                                    "destination": "https://example.com/release/one",
+                                    "in_viewport": False,
+                                    "bounds": {
+                                        "x": 10,
+                                        "y": 900,
+                                        "width": 120,
+                                        "height": 24,
+                                    },
+                                },
+                                {
+                                    "ref": "e2",
+                                    "role": "link",
+                                    "name": "No layout box",
+                                    "states": ["enabled"],
+                                    "destination": "https://example.com/release/hidden",
+                                    "in_viewport": False,
+                                    "bounds": {
+                                        "x": 0,
+                                        "y": 0,
+                                        "width": 0,
+                                        "height": 0,
+                                    },
+                                },
+                                {
+                                    "ref": "e3",
+                                    "role": "link",
+                                    "name": "Disabled link",
+                                    "states": ["disabled"],
+                                    "destination": (
+                                        "https://example.com/release/disabled"
+                                    ),
+                                    "in_viewport": True,
+                                    "bounds": {
+                                        "x": 10,
+                                        "y": 10,
+                                        "width": 120,
+                                        "height": 24,
+                                    },
+                                },
+                                {
+                                    "ref": "e4",
+                                    "role": "button",
+                                    "name": "Not a link",
+                                    "states": ["enabled"],
+                                    "in_viewport": True,
+                                    "bounds": {
+                                        "x": 10,
+                                        "y": 40,
+                                        "width": 120,
+                                        "height": 24,
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+            )
+        )
+
+        result = self.client.observe_links(
+            session_id="Session2", timeout=10, wait=0
+        )
+
+        self.assertEqual(len(result.links), 1)
+        self.assertEqual(result.links[0].url, "https://example.com/release/one")
+        self.assertFalse(result.links[0].in_viewport)
+        self.assertEqual(result.element_count, 4)
+        method, path, payload = self.server.requests[0]
+        self.assertEqual((method, path), ("POST", "/v1/observe"))
+        self.assertEqual(
+            payload,
+            {
+                "session_id": "Session2",
+                "mode": "semantic",
+                "timeout": 10,
+                "wait": 0,
+            },
+        )
+
     def test_create_session_sends_profile_and_group(self) -> None:
         self.server.responses.append(
             (
@@ -130,19 +233,19 @@ class RelClientTests(unittest.TestCase):
                     "data": {
                         "session": {
                             "id": "Session9",
-                            "profile": "Research",
+                            "profile": "oxylabs",
                         }
                     },
                 },
             )
         )
 
-        session_id = self.client.create_session(profile="Research", group="crawler")
+        session_id = self.client.create_session(profile="oxylabs", group="crawler")
 
         self.assertEqual(session_id, "Session9")
         method, path, payload = self.server.requests[0]
         self.assertEqual((method, path), ("POST", "/v1/sessions"))
-        self.assertEqual(payload, {"profile": "Research", "group": "crawler"})
+        self.assertEqual(payload, {"profile": "oxylabs", "group": "crawler"})
 
     def test_rejects_non_loopback_base_url(self) -> None:
         with self.assertRaises(ValueError):

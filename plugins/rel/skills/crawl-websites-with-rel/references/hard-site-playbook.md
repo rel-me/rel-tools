@@ -14,6 +14,11 @@ selector, session ID, deadline, and operation result around every wait.
 
 ## Link discovery versus interactability
 
+REL's rendered semantic observation is the default discovery source. Keep
+enabled link elements with usable bounds, including off-viewport links because
+native input can scroll to them. Reject a truncated observation rather than
+silently crawling only the observed prefix.
+
 Saved rendered HTML can contain anchors that native input cannot click:
 
 - duplicate navigation for another responsive breakpoint;
@@ -25,14 +30,30 @@ Saved rendered HTML can contain anchors that native input cannot click:
 Native auto-scroll solves ordinary off-viewport and partially clipped targets.
 It cannot make hidden or detached content interactable. If REL reports
 `ACTION_TARGET_NOT_FOUND` while the href exists in HTML, inspect the live page's
-semantic/accessible representation and narrow discovery to the visible link
-region. Do not blindly direct-navigate to the href when the crawl promises to
-exercise the site's click and history behavior.
+semantic/accessible representation. Use a custom captured-HTML extractor only
+when the crawl explicitly needs different discovery semantics; rendered
+observation normally avoids inactive markup duplicates. Do not blindly
+direct-navigate to the href when the crawl promises to exercise the site's click
+and history behavior.
 
 Checkpoint links may disappear when a recovered session reloads a personalized,
 time-ordered, or randomized source. Retry only within the configured bound,
 then record the stale link as failed and continue. A later crawl pass may
 rediscover the current source snapshot under a new checkpoint.
+
+## Incremental and load-more sources
+
+When a source appends link batches without navigating, finish the current
+rendered batch before clicking the configured load-more selector. Scroll to the
+control, click it, and poll new rendered observations until at least one new
+normalized URL appears. Bound the number of clicks and stop cleanly if the
+control disappears.
+
+Persist the completed expansion depth. A replacement session must reload the
+source and replay those clicks before continuing, otherwise checkpointed links
+may not exist in the recovered DOM. Load-more discovery depends on fresh
+rendered observations and must not be combined with a custom captured-HTML
+extractor.
 
 ## Navigation invariants
 
@@ -87,6 +108,8 @@ run can resume cleanly.
 After exhausted native-action failures or HTTP 403, 429, and 5xx captures,
 discard the crawler-owned session before advancing when policy permits. The
 failed link must stay terminal, so session rotation cannot requeue it forever.
+Only an explicit retry-failed operation should reset terminal entries and grant
+fresh attempts on a later run.
 
 ## Challenges and upstream blocks
 

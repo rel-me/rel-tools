@@ -1,6 +1,7 @@
 """Public API for the REL history-preserving crawler."""
 
 from .api import (
+    LinkObservation,
     NavigationOperation,
     PageOperation,
     RelClient,
@@ -8,14 +9,16 @@ from .api import (
     RelProtocolError,
     RelRpcError,
     RelTransportError,
+    RenderedLink,
 )
-from .crawler import (
+from .application import CrawlApplication
+from .crawler import RelCrawler
+from .errors import (
     CrawlAlreadyRunningError,
     CrawlConfigurationError,
     CrawlError,
     CrawlPageError,
     CrawlRecoveryError,
-    RelCrawler,
 )
 from .html import canonicalize_url, extract_links, extract_page_metadata
 from .models import (
@@ -27,10 +30,12 @@ from .models import (
     Link,
     SourcePage,
 )
+from .protocols import CrawlerClient
 
 __all__ = [
     "CapturedPage",
     "CrawlAlreadyRunningError",
+    "CrawlApplication",
     "CrawlConfigurationError",
     "CrawlDefinition",
     "CrawlError",
@@ -39,7 +44,9 @@ __all__ = [
     "CrawlPageError",
     "CrawlRecoveryError",
     "CrawlSummary",
+    "CrawlerClient",
     "Link",
+    "LinkObservation",
     "NavigationOperation",
     "PageOperation",
     "RelClient",
@@ -48,6 +55,7 @@ __all__ = [
     "RelProtocolError",
     "RelRpcError",
     "RelTransportError",
+    "RenderedLink",
     "SourcePage",
     "canonicalize_url",
     "extract_links",

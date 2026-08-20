@@ -10,8 +10,13 @@ import sys
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, urlsplit
 
-from rel_crawler import CapturedPage, CrawlDefinition, CrawlItem, Link, RelCrawler
-
+from rel_crawler import (
+    CapturedPage,
+    CrawlApplication,
+    CrawlDefinition,
+    CrawlItem,
+    Link,
+)
 
 ROOT = Path(__file__).resolve().parent / "hackernews-output"
 START_URL = os.environ.get("HN_START_URL", "https://news.ycombinator.com/news")
@@ -87,8 +92,8 @@ definition = CrawlDefinition(
     capture_ready_selector="table.comment-tree",
 )
 
-crawler = RelCrawler(
-    definition,
+app = CrawlApplication(
+    definition=definition,
     state_path=ROOT / "checkpoint.json",
     profile=PROFILE,
     action_delay=2.0,
@@ -97,6 +102,7 @@ crawler = RelCrawler(
     max_links=MAX_LINKS,
     skip_existing=True,
 )
+crawler = app.create_crawler()
 
 
 def configure_logging() -> None:

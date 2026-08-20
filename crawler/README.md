@@ -38,14 +38,15 @@ not run during tests.
 
 ```sh
 cd crawler
-HN_MAX_LINKS=3 .venv/bin/python examples/hackernews.py
+HN_MAX_LINKS=3 .venv/bin/rel-crawler run examples/hackernews.py:app
 ```
 
 It uses the existing `Direct` Profile by default. To select another existing
 Profile by name:
 
 ```sh
-REL_PROFILE=Research .venv/bin/python examples/hackernews.py
+REL_PROFILE=Research \
+  .venv/bin/rel-crawler run examples/hackernews.py:app
 ```
 
 Omit `HN_MAX_LINKS` to process every selected discussion on the source page. Set
@@ -71,7 +72,7 @@ another. The complete URL remains in the metadata sidecar.
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from rel_crawler import CapturedPage, CrawlDefinition, Link, RelCrawler
+from rel_crawler import CapturedPage, CrawlApplication, CrawlDefinition, Link
 
 root = Path("post-crawl").resolve()
 
@@ -90,20 +91,49 @@ definition = CrawlDefinition(
     capture_ready_selector="article.post",
 )
 
-summary = RelCrawler(
-    definition,
+app = CrawlApplication(
+    definition=definition,
     state_path=root / "checkpoint.json",
     capture_dir=root / "pages",
     profile="Direct",
-).run()
-print(summary)
+)
+
+if __name__ == "__main__":
+    print(app.run())
 ```
 
-`select_link` receives rendered anchors in DOM order. Relative links are
-resolved, fragments removed, non-HTTP links skipped, and internationalized
-URLs converted to stable ASCII URIs for exact clicking. `Link.original_url`
-preserves the readable IRI. Supply `extract_links` when a site's captured HTML
-needs a narrower discovery rule, and `capture_path` for a custom output layout.
+`select_link` receives REL's rendered interactive links in DOM order. The
+default discovery keeps enabled anchors with usable layout bounds, including
+clickable links currently outside the viewport because native clicking can
+scroll to them. Relative links are resolved, fragments removed, non-HTTP links
+skipped, and internationalized URLs converted to stable ASCII URIs for exact
+clicking. `Link.original_url` preserves the readable IRI. Supply
+`extract_links` only when a crawl intentionally needs a custom captured-HTML
+parser, and `capture_path` for a custom output layout.
+
+## Command line
+
+A crawler configuration exports a `CrawlApplication`, conventionally named
+`app`. Run a Python file or importable module; `:app` is optional:
+
+```sh
+.venv/bin/rel-crawler run path/to/crawl.py
+.venv/bin/python -m rel_crawler run package.crawl:app
+```
+
+Runtime flags override application defaults without changing the file. For
+example, retry links previously recorded as terminal failures with fresh
+attempt budgets:
+
+```sh
+.venv/bin/rel-crawler run path/to/crawl.py --retry-failed
+```
+
+Useful overrides include `--profile NAME`, `--max-links N`,
+`--action-delay SECONDS`, `--max-attempts N`, and
+`--max-session-restarts N`. Only a Profile name is accepted; there is no proxy
+alias option. Logs and callback output go to stderr, while the final crawl
+summary is emitted as JSON on stdout.
 
 ## Readiness, pacing, and browser history
 
@@ -119,11 +149,32 @@ that prove the expected content is ready and do not also match the other page.
 The separate `action_delay` defaults to two seconds between browser actions;
 set it to zero to disable crawler-side pacing.
 
-An anchor present in captured HTML is not necessarily interactable: it may be
-hidden, detached, covered, or rendered only in a collapsed panel. Such a link
-is retried within the configured bound and then checkpointed as failed so it
-cannot trap the crawl. Use a custom extractor to restrict discovery to the
-site's visible link region when its HTML contains inactive duplicate anchors.
+The rendered observation rejects disabled and zero-size anchors, reducing stale
+or inactive duplicate links that appear only in captured HTML. A rendered link
+can still detach or change before it is clicked. Such a link is retried within
+the configured bound and then checkpointed as failed so it cannot trap the
+crawl. The crawler refuses a truncated REL observation rather than silently
+processing only part of a source page.
+
+## Incremental source pages
+
+For a source that appends more links in place, configure a clickable control
+and a bounded number of expansions:
+
+```python
+definition = CrawlDefinition(
+    start_url="https://example.com/posts/",
+    select_link=select_post,
+    load_more_selector="button.load-more",
+    load_more_clicks=10,
+)
+```
+
+After finishing each batch, the crawler scrolls to and clicks the control, then
+polls REL's rendered links until new URLs appear. Completed expansions are
+replayed after a managed-session replacement so the crawl resumes at the same
+depth. Load-more mode uses rendered discovery and cannot be combined with a
+custom captured-HTML `extract_links` callback.
 
 ## Checkpoints and session recovery
 
@@ -141,7 +192,8 @@ resumes. Caller-owned `session_id` values are never replaced automatically.
 The defaults retry each link once (`max_attempts=2`) and permit one session
 replacement per link (`max_session_restarts=1`). A terminal action failure or
 HTTP 403, 429, or 5xx result rotates a managed session before the crawler moves
-on. Failed links remain terminal on later invocations.
+on. Failed links remain terminal on later invocations unless `retry_failed=True`
+or the CLI's `--retry-failed` flag explicitly requeues them with fresh attempts.
 
 ## Capture metadata
 
@@ -165,5 +217,5 @@ external website:
 
 ```sh
 cd crawler
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+.venv/bin/python -m unittest discover -s tests -v
 ```

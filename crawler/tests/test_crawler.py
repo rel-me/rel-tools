@@ -12,23 +12,28 @@ from rel_crawler import (
     CapturedPage,
     CrawlConfigurationError,
     CrawlDefinition,
+    CrawlError,
+    LinkObservation,
     NavigationOperation,
     PageOperation,
     RelCrawler,
     RelRpcError,
     RelTransportError,
+    RenderedLink,
     canonicalize_url,
+    extract_links,
 )
 
-
 SOURCE_URL = "https://example.com/new/"
-POST_ONE = "https://example.com/posts/one"
-POST_TWO = "https://example.com/posts/two"
+ALBUM_ONE = "https://example.com/release/album/one"
+ALBUM_TWO = "https://example.com/release/album/two"
+ALBUM_THREE = "https://example.com/release/album/three"
+ALBUM_FOUR = "https://example.com/release/album/four"
 SOURCE_HTML = f"""
 <html><body>
-  <a href="{POST_ONE}">Post one</a>
-  <a href="/about">Artist</a>
-  <a href="{POST_TWO}">Post two</a>
+  <a href="{ALBUM_ONE}">Album one</a>
+  <a href="/artist/not-an-album">Artist</a>
+  <a href="{ALBUM_TWO}">Album two</a>
 </body></html>
 """
 
@@ -41,6 +46,18 @@ def session_not_found() -> RelRpcError:
         retryable=False,
         details=None,
         request_id="req_session_missing",
+        http_status=404,
+    )
+
+
+def action_target_not_found() -> RelRpcError:
+    return RelRpcError(
+        error_id="ACTION_TARGET_NOT_FOUND",
+        code=10204,
+        message="load-more control is gone",
+        retryable=False,
+        details=None,
+        request_id="req_action_missing",
         http_status=404,
     )
 
@@ -64,6 +81,14 @@ class FakeRelClient:
         self.waited_for: list[str] = []
         self.result_urls: dict[str, str | list[str]] = {}
         self.source_html = SOURCE_HTML
+        self.observed_links: list[RenderedLink] | None = None
+        self.observation_count = 0
+        self.observation_failures: list[BaseException] = []
+        self.observation_truncated = False
+        self.load_more_pages: list[str] = []
+        self.load_more_click_count = 0
+        self.load_more_position = 0
+        self.load_more_base_html: str | None = None
 
     def health(self) -> dict[str, Any]:
         return {"version": "test"}
@@ -103,6 +128,11 @@ class FakeRelClient:
         self.navigated.append(url)
         if self.navigate_failures:
             raise self.navigate_failures.pop(0)
+        if self.load_more_pages:
+            if self.load_more_base_html is None:
+                self.load_more_base_html = self.source_html
+            self.source_html = self.load_more_base_html
+            self.load_more_position = 0
         self.current_url = SOURCE_URL
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(self.source_html, encoding="utf-8")
@@ -134,6 +164,26 @@ class FakeRelClient:
                 page_id="page_source",
                 session_id=session_id,
                 url=self.current_url,
+                output_path=output,
+                bytesize=output.stat().st_size,
+                target_http_status=200,
+            )
+        if actions[0]["action"] == "click":
+            if self.load_more_position >= len(self.load_more_pages):
+                raise action_target_not_found()
+            self.load_more_click_count += 1
+            additions = self.load_more_pages[self.load_more_position]
+            self.load_more_position += 1
+            self.source_html = self.source_html.replace(
+                "</body>", f"{additions}</body>"
+            )
+            self.current_url = SOURCE_URL
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(self.source_html, encoding="utf-8")
+            return PageOperation(
+                page_id="page_source",
+                session_id=session_id,
+                url=SOURCE_URL,
                 output_path=output,
                 bytesize=output.stat().st_size,
                 target_http_status=200,
@@ -176,6 +226,39 @@ class FakeRelClient:
             target_http_status=behavior,
         )
 
+    def observe_links(
+        self, *, session_id: str, timeout: float, wait: float
+    ) -> LinkObservation:
+        self.observation_count += 1
+        if self.observation_failures:
+            raise self.observation_failures.pop(0)
+        rendered = self.observed_links
+        if rendered is None:
+            rendered = [
+                RenderedLink(
+                    index=link.index,
+                    url=link.original_url or link.url,
+                    text=link.text,
+                    in_viewport=True,
+                    x=0,
+                    y=float(link.index * 20),
+                    width=100,
+                    height=20,
+                )
+                for link in extract_links(self.source_html, SOURCE_URL)
+            ]
+        return LinkObservation(
+            page_id="page_source",
+            session_id=session_id,
+            url=self.current_url or SOURCE_URL,
+            observation_id=f"observation-{self.observation_count}",
+            links=tuple(rendered),
+            element_count=len(rendered),
+            truncated=self.observation_truncated,
+            omitted_node_count=1 if self.observation_truncated else 0,
+            visited_node_count=20,
+        )
+
     def back(
         self, *, session_id: str, timeout: float, wait: float
     ) -> NavigationOperation:
@@ -198,7 +281,7 @@ class RelCrawlerTests(unittest.TestCase):
     def definition(self, processed: list[CapturedPage]) -> CrawlDefinition:
         return CrawlDefinition(
             start_url=SOURCE_URL,
-            select_link=lambda link: "/posts/" in link.url,
+            select_link=lambda link: "/release/album/" in link.url,
             capture_path=lambda item: self.capture_dir
             / f"{item.index:02d}-{item.link.url.rsplit('/', 1)[-1]}.html",
             process_capture=processed.append,
@@ -221,21 +304,21 @@ class RelCrawlerTests(unittest.TestCase):
 
         summary = self.crawler(self.definition(processed)).run()
 
-        self.assertEqual(self.client.performed, [POST_ONE, POST_TWO])
+        self.assertEqual(self.client.performed, [ALBUM_ONE, ALBUM_TWO])
         self.assertEqual(self.client.back_count, 2)
-        self.assertEqual([capture.url for capture in processed], [POST_ONE, POST_TWO])
+        self.assertEqual([capture.url for capture in processed], [ALBUM_ONE, ALBUM_TWO])
         self.assertTrue(all(capture.output_path.exists() for capture in processed))
         self.assertTrue(all(capture.metadata_path.exists() for capture in processed))
         self.assertEqual(processed[0].metadata_path.name, "00-one.metadata.json")
         metadata = json.loads(processed[0].metadata_path.read_text(encoding="utf-8"))
-        captured_at = datetime.fromisoformat(metadata["captured_at"].replace("Z", "+00:00"))
+        captured_at = datetime.fromisoformat(metadata["captured_at"])
         self.assertTrue(metadata["captured_at"].endswith("Z"))
         self.assertIsNotNone(captured_at.tzinfo)
         self.assertEqual(metadata["schema_version"], 4)
         self.assertEqual(metadata["crawl"]["session_generation"], 1)
-        self.assertEqual(metadata["page"]["url"], POST_ONE)
+        self.assertEqual(metadata["page"]["url"], ALBUM_ONE)
         self.assertEqual(metadata["page"]["target_http_status"], 200)
-        self.assertEqual(metadata["page"]["canonical_url"], POST_ONE)
+        self.assertEqual(metadata["page"]["canonical_url"], ALBUM_ONE)
         self.assertEqual(
             metadata["page"]["meta"],
             [
@@ -260,11 +343,188 @@ class RelCrawlerTests(unittest.TestCase):
         self.assertFalse(metadata["backfilled"])
         self.assertEqual((summary.discovered, summary.captured, summary.failed), (2, 2, 0))
 
+    def test_default_discovery_uses_only_rel_rendered_links(self) -> None:
+        hidden = "https://example.com/release/album/hidden"
+        self.client.source_html = (
+            f'<a href="{hidden}" style="display:none">Hidden</a>'
+            f'<a href="{ALBUM_ONE}">Album one</a>'
+        )
+        self.client.observed_links = [
+            RenderedLink(
+                index=1,
+                url=ALBUM_ONE,
+                text="Album one",
+                in_viewport=False,
+                x=10,
+                y=900,
+                width=120,
+                height=24,
+            )
+        ]
+
+        with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
+            summary = self.crawler(self.definition([])).run()
+
+        self.assertEqual((summary.discovered, summary.captured), (1, 1))
+        self.assertEqual(self.client.performed, [ALBUM_ONE])
+        self.assertEqual(self.client.observation_count, 1)
+        self.assertIn(
+            "REL rendered-link observation found 1 clickable anchors "
+            "(1 currently outside the viewport)",
+            "\n".join(logs.output),
+        )
+
+    def test_pending_checkpoint_link_is_skipped_when_no_longer_rendered(self) -> None:
+        definition = self.definition([])
+        self.crawler(definition).run()
+        checkpoint = json.loads(self.state_path.read_text(encoding="utf-8"))
+        stale = checkpoint["entries"][1]
+        stale["status"] = "pending"
+        stale["attempts"] = 0
+        stale["captured_url"] = None
+        stale["target_http_status"] = None
+        self.state_path.write_text(json.dumps(checkpoint), encoding="utf-8")
+        self.client.performed.clear()
+        self.client.observed_links = [
+            RenderedLink(
+                index=0,
+                url=ALBUM_ONE,
+                text="Album one",
+                in_viewport=True,
+                x=10,
+                y=10,
+                width=120,
+                height=24,
+            )
+        ]
+
+        with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
+            summary = self.crawler(definition).run()
+
+        self.assertEqual(self.client.performed, [])
+        self.assertEqual((summary.pending, summary.failed), (0, 1))
+        updated = json.loads(self.state_path.read_text(encoding="utf-8"))
+        self.assertEqual(updated["entries"][1]["status"], "failed")
+        self.assertIn("CrawlLinkUnavailable", updated["entries"][1]["last_error"])
+        self.assertIn(
+            f"skipping unavailable checkpoint link {ALBUM_TWO}",
+            "\n".join(logs.output),
+        )
+
+    def test_truncated_rendered_link_observation_is_rejected(self) -> None:
+        self.client.observation_truncated = True
+
+        with self.assertRaisesRegex(CrawlError, "refusing partial discovery"):
+            self.crawler(self.definition([])).run()
+
+        self.assertEqual(self.client.performed, [])
+
+    def test_load_more_clicks_wait_for_and_crawl_each_new_link_batch(self) -> None:
+        processed: list[CapturedPage] = []
+        self.client.load_more_pages = [
+            f'<a href="{ALBUM_THREE}">Album three</a>',
+            f'<a href="{ALBUM_FOUR}">Album four</a>',
+        ]
+        definition = CrawlDefinition(
+            start_url=SOURCE_URL,
+            select_link=lambda link: "/release/album/" in link.url,
+            capture_path=lambda item: self.capture_dir / f"{item.index}.html",
+            process_capture=processed.append,
+            load_more_selector="#view-more",
+            load_more_clicks=2,
+        )
+
+        with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
+            summary = self.crawler(definition).run()
+
+        self.assertEqual((summary.discovered, summary.captured), (4, 4))
+        self.assertEqual(
+            self.client.performed,
+            [ALBUM_ONE, ALBUM_TWO, ALBUM_THREE, ALBUM_FOUR],
+        )
+        self.assertEqual(self.client.back_count, 4)
+        self.assertEqual(self.client.load_more_click_count, 2)
+        load_more_actions = [
+            batch[0]
+            for batch in self.client.action_batches
+            if batch[0]["action"] == "click"
+        ]
+        self.assertEqual(
+            load_more_actions,
+            [
+                {"action": "click", "selector": "#view-more", "scroll": True},
+                {"action": "click", "selector": "#view-more", "scroll": True},
+            ],
+        )
+        activity = "\n".join(logs.output)
+        self.assertIn(
+            "loading source batch 1/2: scrolling to and clicking selector '#view-more'",
+            activity,
+        )
+        self.assertIn("load-more click 2 added 1 rendered links", activity)
+
+    def test_load_more_stops_when_control_disappears(self) -> None:
+        self.client.load_more_pages = [
+            f'<a href="{ALBUM_THREE}">Album three</a>',
+        ]
+        definition = CrawlDefinition(
+            start_url=SOURCE_URL,
+            select_link=lambda link: "/release/album/" in link.url,
+            load_more_selector="#view-more",
+            load_more_clicks=3,
+        )
+
+        with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
+            summary = self.crawler(definition).run()
+
+        self.assertEqual((summary.discovered, summary.captured), (3, 3))
+        self.assertEqual(self.client.load_more_click_count, 1)
+        self.assertIn(
+            "pagination is complete",
+            "\n".join(logs.output),
+        )
+
+    def test_session_replacement_replays_completed_load_more_clicks(self) -> None:
+        self.client.load_more_pages = [
+            f'<a href="{ALBUM_THREE}">Album three</a>',
+            f'<a href="{ALBUM_FOUR}">Album four</a>',
+        ]
+        self.client.behaviors[ALBUM_FOUR] = [session_not_found(), 200]
+        definition = CrawlDefinition(
+            start_url=SOURCE_URL,
+            select_link=lambda link: "/release/album/" in link.url,
+            load_more_selector="#view-more",
+            load_more_clicks=2,
+        )
+
+        with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
+            summary = self.crawler(definition).run()
+
+        self.assertEqual((summary.captured, summary.failed), (4, 0))
+        self.assertEqual(self.client.performed.count(ALBUM_FOUR), 2)
+        self.assertEqual(self.client.load_more_click_count, 4)
+        self.assertEqual(summary.session_generation, 2)
+        self.assertIn(
+            "restoring 2 completed load-more clicks",
+            "\n".join(logs.output),
+        )
+
+    def test_observation_session_failure_reloads_source_in_new_session(self) -> None:
+        self.client.observation_failures.append(session_not_found())
+
+        summary = self.crawler(self.definition([]), max_links=1).run()
+
+        self.assertEqual((summary.captured, summary.failed), (1, 0))
+        self.assertEqual(self.client.observation_count, 2)
+        self.assertEqual(self.client.navigated, [SOURCE_URL, SOURCE_URL])
+        self.assertEqual(self.client.deleted, ["Session7"])
+        self.assertEqual(summary.session_id, "Session8")
+
     def test_waits_for_source_and_capture_selectors_after_navigation(self) -> None:
         processed: list[CapturedPage] = []
         definition = CrawlDefinition(
             start_url=SOURCE_URL,
-            select_link=lambda link: "/posts/" in link.url,
+            select_link=lambda link: "/release/album/" in link.url,
             capture_path=lambda item: self.capture_dir / f"{item.index}.html",
             process_capture=processed.append,
             source_ready_selector="#source-ready",
@@ -282,7 +542,7 @@ class RelCrawlerTests(unittest.TestCase):
                 [
                     {
                         "action": "click-link",
-                        "link": POST_ONE,
+                        "link": ALBUM_ONE,
                         "match": {"type": "fuzzy-link", "threshold": 1.0},
                         "scroll": True,
                     },
@@ -298,20 +558,20 @@ class RelCrawlerTests(unittest.TestCase):
         activity = "\n".join(logs.output)
         self.assertIn(f"navigating to source {SOURCE_URL}", activity)
         self.assertIn("waiting for selector '#source-ready'", activity)
-        self.assertIn(f"clicking {POST_ONE} (attempt 1/2)", activity)
+        self.assertIn(f"clicking {ALBUM_ONE} (attempt 1/2)", activity)
         self.assertIn("click-link auto-scroll is enabled", activity)
         self.assertIn("click will wait for target selector '#capture-ready'", activity)
-        self.assertIn(f"click/capture returned url={POST_ONE}", activity)
+        self.assertIn(f"click/capture returned url={ALBUM_ONE}", activity)
         self.assertIn("navigating Back to source", activity)
         self.assertIn("source restored through browser history", activity)
 
     def test_unicode_link_uses_ascii_uri_and_keeps_original_url(self) -> None:
         processed: list[CapturedPage] = []
         original_url = (
-            "https://example.com/posts/hello-world/友達がいました/"
+            "https://example.com/release/album/trooper-salute/友達がいました/"
         )
         uri = canonicalize_url(original_url)
-        self.client.source_html = f'<a href="{original_url}">Post</a>'
+        self.client.source_html = f'<a href="{original_url}">Release</a>'
 
         with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
             summary = self.crawler(self.definition(processed)).run()
@@ -331,10 +591,10 @@ class RelCrawlerTests(unittest.TestCase):
     def test_unicode_checkpoint_url_is_migrated_on_resume(self) -> None:
         processed: list[CapturedPage] = []
         original_url = (
-            "https://example.com/posts/hello-world/友達がいました/"
+            "https://example.com/release/album/trooper-salute/友達がいました/"
         )
         uri = canonicalize_url(original_url)
-        self.client.source_html = f'<a href="{original_url}">Post</a>'
+        self.client.source_html = f'<a href="{original_url}">Release</a>'
         self.crawler(self.definition(processed)).run()
         state = json.loads(self.state_path.read_text(encoding="utf-8"))
         state["entries"][0]["url"] = original_url
@@ -354,15 +614,15 @@ class RelCrawlerTests(unittest.TestCase):
 
     def test_source_page_result_is_retried_instead_of_captured(self) -> None:
         processed: list[CapturedPage] = []
-        self.client.result_urls[POST_ONE] = [SOURCE_URL, POST_ONE]
+        self.client.result_urls[ALBUM_ONE] = [SOURCE_URL, ALBUM_ONE]
 
         summary = self.crawler(self.definition(processed), max_links=1).run()
 
         self.assertEqual((summary.captured, summary.failed), (1, 0))
-        self.assertEqual(self.client.performed, [POST_ONE, POST_ONE])
-        self.assertEqual([capture.url for capture in processed], [POST_ONE])
+        self.assertEqual(self.client.performed, [ALBUM_ONE, ALBUM_ONE])
+        self.assertEqual([capture.url for capture in processed], [ALBUM_ONE])
         metadata = json.loads(processed[0].metadata_path.read_text(encoding="utf-8"))
-        self.assertEqual(metadata["page"]["url"], POST_ONE)
+        self.assertEqual(metadata["page"]["url"], ALBUM_ONE)
 
     def test_old_source_page_capture_is_requeued_and_overwritten(self) -> None:
         processed: list[CapturedPage] = []
@@ -382,17 +642,17 @@ class RelCrawlerTests(unittest.TestCase):
         summary = self.crawler(self.definition(processed), max_links=1).run()
 
         self.assertEqual((summary.captured, summary.failed), (1, 0))
-        self.assertEqual(self.client.performed, [POST_ONE])
-        self.assertEqual([capture.url for capture in processed], [POST_ONE])
+        self.assertEqual(self.client.performed, [ALBUM_ONE])
+        self.assertEqual([capture.url for capture in processed], [ALBUM_ONE])
         repaired = json.loads(self.state_path.read_text(encoding="utf-8"))
-        self.assertEqual(repaired["entries"][0]["captured_url"], POST_ONE)
+        self.assertEqual(repaired["entries"][0]["captured_url"], ALBUM_ONE)
 
     def test_existing_capture_is_skipped_and_backfilled_by_default(self) -> None:
         processed: list[CapturedPage] = []
         output_path = self.capture_dir / "00-one.html"
         output_path.parent.mkdir(parents=True)
         output_path.write_text(
-            f'<html><link rel="canonical" href="{POST_ONE}"></html>',
+            f'<html><link rel="canonical" href="{ALBUM_ONE}"></html>',
             encoding="utf-8",
         )
 
@@ -405,7 +665,7 @@ class RelCrawlerTests(unittest.TestCase):
         self.assertEqual(processed, [])
         self.assertIn(
             f"INFO:rel_crawler.crawler:skipping existing capture "
-            f"{POST_ONE} -> {output_path.resolve()}",
+            f"{ALBUM_ONE} -> {output_path.resolve()}",
             logs.output,
         )
         metadata = json.loads(
@@ -429,7 +689,7 @@ class RelCrawlerTests(unittest.TestCase):
         ).run()
 
         self.assertEqual((summary.captured, summary.skipped_existing), (1, 0))
-        self.assertEqual(self.client.performed, [POST_ONE])
+        self.assertEqual(self.client.performed, [ALBUM_ONE])
         self.assertEqual(len(processed), 1)
         self.assertIn("Captured one", output_path.read_text(encoding="utf-8"))
 
@@ -438,12 +698,12 @@ class RelCrawlerTests(unittest.TestCase):
         new_output = (self.capture_dir / "new.html").resolve()
         old_definition = CrawlDefinition(
             start_url=SOURCE_URL,
-            select_link=lambda link: "/posts/" in link.url,
+            select_link=lambda link: "/release/album/" in link.url,
             capture_path=lambda _item: old_output,
         )
         new_definition = CrawlDefinition(
             start_url=SOURCE_URL,
-            select_link=lambda link: "/posts/" in link.url,
+            select_link=lambda link: "/release/album/" in link.url,
             capture_path=lambda _item: new_output,
         )
         self.crawler(old_definition, max_links=1).run()
@@ -457,13 +717,13 @@ class RelCrawlerTests(unittest.TestCase):
             summary = self.crawler(new_definition, max_links=1).run()
 
         self.assertEqual((summary.captured, summary.failed), (1, 0))
-        self.assertEqual(self.client.performed, [POST_ONE, POST_ONE])
+        self.assertEqual(self.client.performed, [ALBUM_ONE, ALBUM_ONE])
         self.assertTrue(old_output.exists())
         self.assertTrue(new_output.exists())
         refreshed = json.loads(self.state_path.read_text(encoding="utf-8"))
         self.assertEqual(refreshed["entries"][0]["output_path"], str(new_output))
         self.assertIn(
-            f"updated pending capture path for {POST_ONE}: "
+            f"updated pending capture path for {ALBUM_ONE}: "
             f"{old_output} -> {new_output}",
             "\n".join(logs.output),
         )
@@ -471,7 +731,7 @@ class RelCrawlerTests(unittest.TestCase):
     def test_default_action_delay_paces_browser_actions(self) -> None:
         processed: list[CapturedPage] = []
 
-        with patch("rel_crawler.crawler.time.sleep") as sleep:
+        with patch("rel_crawler.sessions.time.sleep") as sleep:
             RelCrawler(
                 self.definition(processed),
                 state_path=self.state_path,
@@ -480,19 +740,19 @@ class RelCrawlerTests(unittest.TestCase):
                 max_links=1,
             ).run()
 
-        self.assertEqual(sleep.call_args_list, [call(2.0), call(2.0)])
+        self.assertEqual(sleep.call_args_list, [call(2.0), call(2.0), call(2.0)])
 
     def test_zero_action_delay_does_not_sleep(self) -> None:
         processed: list[CapturedPage] = []
 
-        with patch("rel_crawler.crawler.time.sleep") as sleep:
+        with patch("rel_crawler.sessions.time.sleep") as sleep:
             self.crawler(self.definition(processed), max_links=1).run()
 
         sleep.assert_not_called()
 
     def test_failed_link_is_checkpointed_and_skipped_on_restart(self) -> None:
         processed: list[CapturedPage] = []
-        self.client.behaviors[POST_ONE] = RuntimeError("broken page")
+        self.client.behaviors[ALBUM_ONE] = RuntimeError("broken page")
 
         with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
             first = self.crawler(self.definition(processed)).run()
@@ -500,27 +760,56 @@ class RelCrawlerTests(unittest.TestCase):
         second = self.crawler(self.definition(processed)).run()
 
         self.assertEqual(
-            performed_after_first_run, [POST_ONE, POST_ONE, POST_TWO]
+            performed_after_first_run, [ALBUM_ONE, ALBUM_ONE, ALBUM_TWO]
         )
         self.assertEqual(self.client.performed, performed_after_first_run)
         self.assertEqual((first.captured, first.failed), (1, 1))
         self.assertEqual((second.captured, second.failed), (1, 1))
         self.assertIn(
-            f"INFO:rel_crawler.crawler:skipping failed link {POST_ONE} after "
+            f"INFO:rel_crawler.crawler:skipping failed link {ALBUM_ONE} after "
             "2 attempts: RuntimeError: broken page",
             logs.output,
         )
         state = json.loads(self.state_path.read_text(encoding="utf-8"))
         self.assertEqual([entry["status"] for entry in state["entries"]], ["failed", "captured"])
 
+    def test_retry_failed_requeues_with_fresh_attempts_and_overwrites_artifact(
+        self,
+    ) -> None:
+        processed: list[CapturedPage] = []
+        definition = self.definition(processed)
+        self.client.behaviors[ALBUM_ONE] = 500
+
+        first = self.crawler(definition, max_links=1).run()
+        state = json.loads(self.state_path.read_text(encoding="utf-8"))
+        output_path = Path(state["entries"][0]["output_path"])
+        self.assertTrue(output_path.is_file())
+        self.assertEqual((first.captured, first.failed), (0, 1))
+
+        self.client.behaviors[ALBUM_ONE] = 200
+        second = self.crawler(
+            definition,
+            max_links=1,
+            retry_failed=True,
+        ).run()
+
+        self.assertEqual((second.captured, second.failed), (1, 0))
+        self.assertEqual(second.skipped_existing, 0)
+        self.assertEqual(self.client.performed.count(ALBUM_ONE), 3)
+        self.assertEqual([capture.url for capture in processed], [ALBUM_ONE])
+        retried = json.loads(self.state_path.read_text(encoding="utf-8"))["entries"][0]
+        self.assertEqual(retried["status"], "captured")
+        self.assertEqual(retried["attempts"], 1)
+        self.assertFalse(retried["retry_requested"])
+
     def test_session_failure_creates_a_new_session_and_retries_the_link(self) -> None:
         processed: list[CapturedPage] = []
-        self.client.behaviors[POST_ONE] = [session_not_found(), 200]
+        self.client.behaviors[ALBUM_ONE] = [session_not_found(), 200]
 
         summary = self.crawler(self.definition(processed)).run()
 
         self.assertEqual((summary.captured, summary.failed), (2, 0))
-        self.assertEqual(self.client.performed, [POST_ONE, POST_ONE, POST_TWO])
+        self.assertEqual(self.client.performed, [ALBUM_ONE, ALBUM_ONE, ALBUM_TWO])
         self.assertEqual(self.client.created_profiles, ["Direct", "Direct"])
         self.assertEqual(self.client.deleted, ["Session7"])
         self.assertEqual(summary.session_id, "Session8")
@@ -547,7 +836,7 @@ class RelCrawlerTests(unittest.TestCase):
 
     def test_failed_session_replacement_resumes_on_the_next_run(self) -> None:
         processed: list[CapturedPage] = []
-        self.client.behaviors[POST_ONE] = [session_not_found(), 200]
+        self.client.behaviors[ALBUM_ONE] = [session_not_found(), 200]
         self.client.create_failures[2] = RelTransportError("REL is restarting")
 
         with self.assertRaises(RelTransportError):
@@ -562,14 +851,14 @@ class RelCrawlerTests(unittest.TestCase):
         summary = self.crawler(self.definition(processed)).run()
 
         self.assertEqual((summary.captured, summary.failed), (2, 0))
-        self.assertEqual(self.client.performed, [POST_ONE, POST_ONE, POST_TWO])
+        self.assertEqual(self.client.performed, [ALBUM_ONE, ALBUM_ONE, ALBUM_TWO])
         self.assertEqual(summary.session_id, "Session9")
         self.assertEqual(summary.session_generation, 2)
         self.assertEqual(summary.session_restart_count, 1)
 
     def test_session_restarts_are_bounded_and_bad_link_is_skipped(self) -> None:
         processed: list[CapturedPage] = []
-        self.client.behaviors[POST_ONE] = session_not_found()
+        self.client.behaviors[ALBUM_ONE] = session_not_found()
 
         first = self.crawler(self.definition(processed)).run()
         performed_after_first_run = list(self.client.performed)
@@ -577,7 +866,7 @@ class RelCrawlerTests(unittest.TestCase):
 
         self.assertEqual((first.captured, first.failed), (1, 1))
         self.assertEqual((second.captured, second.failed), (1, 1))
-        self.assertEqual(performed_after_first_run, [POST_ONE, POST_ONE, POST_TWO])
+        self.assertEqual(performed_after_first_run, [ALBUM_ONE, ALBUM_ONE, ALBUM_TWO])
         self.assertEqual(self.client.performed, performed_after_first_run)
         self.assertEqual(
             self.client.created_profiles, ["Direct", "Direct", "Direct"]
@@ -585,12 +874,12 @@ class RelCrawlerTests(unittest.TestCase):
 
     def test_terminal_upstream_error_rotates_session_before_continuing(self) -> None:
         processed: list[CapturedPage] = []
-        self.client.behaviors[POST_ONE] = 503
+        self.client.behaviors[ALBUM_ONE] = 503
 
         summary = self.crawler(self.definition(processed)).run()
 
         self.assertEqual((summary.captured, summary.failed), (1, 1))
-        self.assertEqual(self.client.performed, [POST_ONE, POST_ONE, POST_TWO])
+        self.assertEqual(self.client.performed, [ALBUM_ONE, ALBUM_ONE, ALBUM_TWO])
         self.assertEqual(self.client.created_profiles, ["Direct", "Direct"])
         self.assertEqual(self.client.deleted, ["Session7"])
         self.assertEqual(summary.session_id, "Session8")
@@ -598,23 +887,23 @@ class RelCrawlerTests(unittest.TestCase):
 
     def test_interrupted_link_consumes_its_attempt_and_resume_continues(self) -> None:
         processed: list[CapturedPage] = []
-        self.client.behaviors[POST_ONE] = KeyboardInterrupt()
+        self.client.behaviors[ALBUM_ONE] = KeyboardInterrupt()
 
         with self.assertRaises(KeyboardInterrupt):
             self.crawler(self.definition(processed)).run()
 
         interrupted = json.loads(self.state_path.read_text(encoding="utf-8"))
         self.assertEqual(interrupted["entries"][0]["status"], "in_progress")
-        self.client.behaviors.pop(POST_ONE)
+        self.client.behaviors.pop(ALBUM_ONE)
 
         summary = self.crawler(self.definition(processed)).run()
 
-        self.assertEqual(self.client.performed, [POST_ONE, POST_ONE, POST_TWO])
+        self.assertEqual(self.client.performed, [ALBUM_ONE, ALBUM_ONE, ALBUM_TWO])
         self.assertEqual((summary.captured, summary.failed), (2, 0))
 
     def test_http_error_is_failed_but_can_be_accepted(self) -> None:
         processed: list[CapturedPage] = []
-        self.client.behaviors[POST_ONE] = 404
+        self.client.behaviors[ALBUM_ONE] = 404
 
         summary = self.crawler(self.definition(processed), max_links=1).run()
 
@@ -655,7 +944,7 @@ class RelCrawlerTests(unittest.TestCase):
     def test_duplicate_capture_paths_are_rejected(self) -> None:
         definition = CrawlDefinition(
             start_url=SOURCE_URL,
-            select_link=lambda link: "/posts/" in link.url,
+            select_link=lambda link: "/release/album/" in link.url,
             capture_path=lambda _item: self.capture_dir / "same.html",
         )
 
@@ -667,10 +956,10 @@ class RelCrawlerTests(unittest.TestCase):
         definition = self.definition(processed)
 
         first = self.crawler(definition, profile="Direct").run()
-        second = self.crawler(definition, profile="Research").run()
+        second = self.crawler(definition, profile="oxylabs").run()
 
         self.assertNotEqual(first.session_id, second.session_id)
-        self.assertEqual(self.client.created_profiles, ["Direct", "Research"])
+        self.assertEqual(self.client.created_profiles, ["Direct", "oxylabs"])
 
     def test_existing_checkpoint_gains_session_tracking_fields(self) -> None:
         processed: list[CapturedPage] = []
@@ -720,7 +1009,7 @@ class RelCrawlerTests(unittest.TestCase):
         upgraded = json.loads(metadata_path.read_text(encoding="utf-8"))
         self.assertEqual(upgraded["schema_version"], 4)
         self.assertEqual(upgraded["captured_at"], captured_at)
-        self.assertEqual(upgraded["link"]["original_url"], POST_ONE)
+        self.assertEqual(upgraded["link"]["original_url"], ALBUM_ONE)
         self.assertEqual(
             upgraded["page"]["content_timestamps"]["published"][0]["value"],
             "2025-02-03T04:05:06Z",

@@ -103,11 +103,12 @@ it from this repository and run the public Hacker News example:
 cd crawler
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
-HN_MAX_LINKS=3 .venv/bin/python examples/hackernews.py
+HN_MAX_LINKS=3 .venv/bin/rel-crawler run examples/hackernews.py:app
 ```
 
 See the [crawler guide](docs/CRAWLER.md) for named Profiles, readiness selectors,
-checkpoints, output metadata, and recovery behavior.
+rendered-link discovery, checkpoints, output metadata, retrying failed entries,
+load-more sources, and recovery behavior.
 
 ## Development
 
@@ -117,7 +118,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
 cd crawler
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m unittest discover -s tests -v
 cd ..
 
 cd docs

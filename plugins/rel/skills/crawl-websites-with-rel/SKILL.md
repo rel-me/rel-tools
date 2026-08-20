@@ -18,8 +18,10 @@ site-specific failure.
    HTML.
 2. Define a `CrawlDefinition`: `start_url`, a strict URL-based `select_link`,
    page-specific readiness selectors, output mapping, and processing callbacks.
-   Use a custom `extract_links` callback when inactive or hidden duplicate
-   anchors appear outside the visible content region.
+   Default discovery uses REL's rendered semantic links and keeps enabled
+   anchors with usable bounds, including off-viewport links that native input
+   can scroll to. Use a custom `extract_links` callback only when the crawl
+   intentionally needs to parse captured HTML.
 3. Use only an existing REL Profile name. Let the crawler create a dedicated
    managed session and deterministic group unless the caller deliberately owns
    the supplied session ID. Never create, edit, or infer a proxy alias.
@@ -39,6 +41,16 @@ site-specific failure.
    it. Test checkpoint resume, existing-file skip, one failed target, Unicode
    URLs, query variants, unexpected Back results, and managed-session rotation
    with a fake REL client rather than an external website.
+8. Export a `CrawlApplication` for reusable operation through `rel-crawler run`.
+   Use `--retry-failed` only when the user intends to requeue terminal entries
+   with fresh attempt budgets. The CLI accepts a Profile name, not a proxy
+   alias, and reserves stdout for the JSON summary.
+
+For a source that appends links in place, configure a bounded
+`load_more_selector` plus `load_more_clicks`. Finish each discovered batch,
+click the control with scrolling, and wait for new rendered URLs. Preserve the
+completed expansion depth and replay it after a managed-session replacement.
+Do not combine load-more mode with captured-HTML extraction.
 
 The maintained implementation and runnable public example are in
 [`rel-tools/crawler`](https://github.com/rel-me/rel-tools/tree/main/crawler).
@@ -53,6 +65,8 @@ For hard-site failure diagnosis and selector rules, read
   successful child capture.
 - Use selector waits after navigate, click, and Back. Fixed pacing may reduce
   load but cannot prove readiness.
+- Reject truncated rendered-link observations instead of silently crawling a
+  partial source page.
 - Do not loop indefinitely on a missing target, challenge page, HTTP error, or
   stale checkpoint link. Exhaust a small attempt budget, record the failure, and
   advance.

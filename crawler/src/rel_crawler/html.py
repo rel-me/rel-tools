@@ -1,4 +1,4 @@
-"""Small rendered-HTML link extractor used by the default crawl definition."""
+"""Serialized-HTML helpers for custom link discovery and page metadata."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from typing import Any
 from urllib.parse import SplitResult, quote, urldefrag, urljoin, urlsplit, urlunsplit
 
 from .models import Link
-
 
 _PUBLISHED_TIMESTAMP_FIELDS = {
     "articlepublishedtime",
@@ -202,7 +201,7 @@ class _AnchorParser(HTMLParser):
 
 
 def extract_links(html: str, base_url: str) -> list[Link]:
-    """Extract absolute, defragmented HTTP(S) links in rendered DOM order."""
+    """Extract absolute, defragmented HTTP(S) links from serialized HTML."""
 
     canonicalize_url(base_url)
     parser = _AnchorParser(base_url)
