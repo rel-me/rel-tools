@@ -55,6 +55,33 @@ rel --version
 `rel --agent` exists only in the proprietary binary bundled with the REL app.
 It is not part of the public `rel-cli` package.
 
+### Python crawler client
+
+The REL repository also contains the typed `rel-crawler` Python package for
+restartable, session-aware browser crawls. Install its `crawler` directory into
+a Python 3.11 or newer environment to expose the separate command:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -e crawler
+.venv/bin/rel-crawler --version
+```
+
+A crawler configuration exports a `CrawlApplication`, which combines site
+callbacks with checkpoint, profile, pacing, retry, and session defaults. Run an
+application from a Python file or importable module; the attribute defaults to
+`app`:
+
+```sh
+rel-crawler run examples/rateyourmusic.py
+rel-crawler run examples/rateyourmusic.py:app --retry-failed
+```
+
+Progress logs use standard error and the final crawl summary is JSON on
+standard output. `rel-crawler run --help` lists runtime overrides. The command
+accepts a REL profile name through `--profile`; it has no proxy-alias option.
+The package can also be invoked with `python -m rel_crawler`.
+
 `health` and `status` inspect the currently running agent without launching the
 app. Every other command, including `mcp`, proxy reads, and session reads,
 starts the REL app in the background when its agent is unavailable. `rel mcp`
