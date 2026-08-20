@@ -373,6 +373,12 @@ truncation counts, viewport/document geometry, semantic `content`, and typed
 `elements`. Element refs such as `e17` are valid only for that page, document
 sequence, and observation. Private locators never cross RPC.
 
+Semantic collection is bounded to 50,000 visited DOM nodes, 5,000 candidates,
+1,500 returned entries, 2,048 bytes per semantic text value, and 512 KiB of
+semantic text per observation. Pages that exceed the collection bounds return
+`truncated: true` with `omitted_node_count` rather than silently dropping the
+condition.
+
 Act through a ref with
 `POST /v1/observations/{observation_id}/actions`:
 
