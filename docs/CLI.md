@@ -52,6 +52,8 @@ rel session list
 rel session get SESSION_ID
 rel session create [options]
 rel session update SESSION_ID [options]
+rel session pause SESSION_ID
+rel session play SESSION_ID
 rel session delete SESSION_ID
 rel session close --group GROUP
 rel-mcp
@@ -502,11 +504,13 @@ readers reject with a clear error. Transfer files are limited to 1 MiB.
 
 ## Sessions
 
-Read and delete persistent browser sessions by their canonical session IDs:
+Read, control, and delete persistent browser sessions by their canonical IDs:
 
 ```sh
 rel session list
 rel session get Session12
+rel session pause Session12
+rel session play Session12
 rel session delete Session12
 ```
 
@@ -536,6 +540,11 @@ remain on standard error with the ordinary nonzero exit status.
 
 REL does not impose a maximum session count. Sessions remain open until you
 explicitly delete them.
+
+`pause` idempotently cancels active requests and blocks new network work for
+the session. `play` idempotently resumes network activity and reloads the
+current page when the pause interrupted or deferred navigation. Both commands
+return the RPC envelope with `data.session_id` and `data.network_paused`.
 
 Close every session in a group. Repeating the command after the group is empty
 succeeds and returns an empty `data.deleted_ids` array:

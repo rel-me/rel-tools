@@ -522,6 +522,30 @@ impl RelClient {
         )
     }
 
+    /// Pause all network activity in a persistent browser session.
+    pub fn pause_session(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionNetworkStateData>, ClientError> {
+        self.request::<SessionNetworkStateData, Value>(
+            "POST",
+            &format!("/sessions/{}/pause", encode_path_segment(id)),
+            None,
+        )
+    }
+
+    /// Resume network activity and reload the current page when needed.
+    pub fn play_session(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionNetworkStateData>, ClientError> {
+        self.request::<SessionNetworkStateData, Value>(
+            "POST",
+            &format!("/sessions/{}/play", encode_path_segment(id)),
+            None,
+        )
+    }
+
     pub fn delete_session(&self, id: &str) -> Result<RpcResponse<DeletedData>, ClientError> {
         self.request::<DeletedData, Value>(
             "DELETE",
@@ -2016,6 +2040,12 @@ pub struct SessionData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SessionNetworkStateData {
+    pub session_id: String,
+    pub network_paused: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ProfileListData {
     pub profiles: Vec<Profile>,
 }
@@ -2664,7 +2694,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(35, |index, request| {
+        let (base_url, server) = start_test_server(37, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -2746,6 +2776,12 @@ mod tests {
                 ("POST", "/v1/proxy-transfers/import") => json!({"proxy":proxy_json()}),
                 ("DELETE", "/v1/sessions/machine-a.Session1") => {
                     json!({"deleted_id":"machine-a.Session1"})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/pause") => {
+                    json!({"session_id":"machine-a.Session1", "network_paused":true})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/play") => {
+                    json!({"session_id":"machine-a.Session1", "network_paused":false})
                 }
                 ("POST", "/v1/sessions/close") => {
                     json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
@@ -2948,6 +2984,10 @@ mod tests {
                 },
             )
             .unwrap();
+        let paused = client.pause_session("machine-a.Session1").unwrap();
+        assert!(paused.data.network_paused);
+        let playing = client.play_session("machine-a.Session1").unwrap();
+        assert!(!playing.data.network_paused);
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
         let closed = client.close_session_group("pgm").unwrap();
@@ -3000,12 +3040,14 @@ mod tests {
                 ("POST", "/v1/profile-transfers/export"),
                 ("POST", "/v1/profile-transfers/import"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
+                ("POST", "/v1/sessions/machine-a.Session1/pause"),
+                ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions/close"),
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[34].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[36].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(

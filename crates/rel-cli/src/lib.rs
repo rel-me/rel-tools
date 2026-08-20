@@ -333,6 +333,14 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.update_session(&id, &request)?)?;
             Ok(0)
         }
+        CliCommand::SessionPause(id) => {
+            print_json(&client.pause_session(&id)?)?;
+            Ok(0)
+        }
+        CliCommand::SessionPlay(id) => {
+            print_json(&client.play_session(&id)?)?;
+            Ok(0)
+        }
         CliCommand::SessionDelete(id) => {
             print_json(&client.delete_session(&id)?)?;
             Ok(0)
@@ -525,6 +533,8 @@ enum CliCommand {
         id: String,
         request: SessionUpdateRequest,
     },
+    SessionPause(String),
+    SessionPlay(String),
     SessionDelete(String),
     SessionCloseGroup(String),
 }
@@ -1154,6 +1164,8 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
         "get" => Ok(CliCommand::SessionGet(parse_session_id(&mut args)?)),
         "create" => parse_session_create(args),
         "update" => parse_session_update(args),
+        "pause" => Ok(CliCommand::SessionPause(parse_session_id(&mut args)?)),
+        "play" => Ok(CliCommand::SessionPlay(parse_session_id(&mut args)?)),
         "delete" => Ok(CliCommand::SessionDelete(parse_session_id(&mut args)?)),
         "close" => parse_session_close_group(args),
         subcommand => Err(CliError::Message(format!(
@@ -1481,7 +1493,7 @@ rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
 rel observation action OBSERVATION_ID --request JSON\n  \
 rel proxy <list|get|create|update|delete|rotate|export|import> ...\n  \
 rel profile <list|export|import> ...\n  \
-rel session <list|get|create|update|delete|close> ...\n  \
+rel session <list|get|create|update|pause|play|delete|close> ...\n  \
 rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
@@ -1636,6 +1648,8 @@ rel session list\n  \
 rel session get SESSION_ID\n  \
 rel session create [options]\n  \
 rel session update SESSION_ID [options]\n  \
+rel session pause SESSION_ID\n  \
+rel session play SESSION_ID\n  \
 rel session delete SESSION_ID\n  \
 rel session close --group GROUP\n\n\
 Options:\n  \
@@ -2189,6 +2203,14 @@ mod tests {
         assert_eq!(
             parse(&["session", "delete", "machine-x.Session4"]).unwrap(),
             CliCommand::SessionDelete("machine-x.Session4".to_string())
+        );
+        assert_eq!(
+            parse(&["session", "pause", "machine-x.Session4"]).unwrap(),
+            CliCommand::SessionPause("machine-x.Session4".to_string())
+        );
+        assert_eq!(
+            parse(&["session", "play", "machine-x.Session4"]).unwrap(),
+            CliCommand::SessionPlay("machine-x.Session4".to_string())
         );
         assert_eq!(
             parse(&["session", "close", "--group", "pgm"]).unwrap(),

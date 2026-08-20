@@ -87,6 +87,8 @@ present and semantic `/observe` for the current page.
 | `export_profile_transfer(&ProfileTransferExportRequest)` | `POST /v1/profile-transfers/export` |
 | `import_profile_transfer(&ProfileTransferImportRequest)` | `POST /v1/profile-transfers/import` |
 | `update_session(id, &SessionUpdateRequest)` | `PATCH /v1/sessions/{id}` |
+| `pause_session(id)` | `POST /v1/sessions/{id}/pause` |
+| `play_session(id)` | `POST /v1/sessions/{id}/play` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
 | `close_session_group(group)` | `POST /v1/sessions/close` |
 
@@ -100,6 +102,10 @@ versioned `.relprofile` and `.relproxy` contracts. Its document types own
 encoding, decoding, size limits, version checks, additive-field compatibility,
 and conversion to create requests. App and CLI file pickers only move the
 opaque encoded bytes returned by the transfer RPC operations.
+
+`pause_session` and `play_session` return `SessionNetworkStateData`, containing
+the canonical `session_id` and resulting `network_paused` value. Both methods
+are idempotent; play reloads when the pause interrupted or deferred navigation.
 
 `Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
 with the installed bundle's ID, configuration, worktree, branch, commit, and

@@ -153,6 +153,8 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/profile-transfers/import` | Import a versioned profile transfer |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
 | `PATCH` | `/v1/sessions/{id}` | Partially update a browser session |
+| `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
+| `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 
 There are deliberately no log read, clear, or ingestion routes.
@@ -693,6 +695,10 @@ A session resource is:
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
 - `PATCH /v1/sessions/{id}` is partial and returns `data.session`.
+- `POST /v1/sessions/{id}/pause` and `/play` take no body and idempotently
+  return `data.session_id` and `data.network_paused`. Pause cancels active
+  requests and blocks new network work. Play resumes network activity and
+  reloads the current page when the pause interrupted or deferred navigation.
 - `DELETE /v1/sessions/{id}` returns the canonical session ID as
   `data.deleted_id`.
 - `POST /v1/sessions/close` accepts `{"group":"pgm"}` and returns the trimmed
