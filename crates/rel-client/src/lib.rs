@@ -247,20 +247,7 @@ impl RelClient {
         &self,
         request: &PageReadRequest,
     ) -> Result<RpcResponse<PageReadData>, ClientError> {
-        let max_chars = request.max_chars.unwrap_or(DEFAULT_PAGE_READ_MAX_CHARS);
-        if !(MIN_PAGE_READ_MAX_CHARS..=MAX_PAGE_READ_MAX_CHARS).contains(&max_chars) {
-            return Err(ClientError::Protocol(format!(
-                "max_chars must be between {MIN_PAGE_READ_MAX_CHARS} and {MAX_PAGE_READ_MAX_CHARS}"
-            )));
-        }
-        let max_sections = request
-            .max_sections
-            .unwrap_or(DEFAULT_PAGE_READ_MAX_SECTIONS);
-        if !(1..=MAX_PAGE_READ_MAX_SECTIONS).contains(&max_sections) {
-            return Err(ClientError::Protocol(format!(
-                "max_sections must be between 1 and {MAX_PAGE_READ_MAX_SECTIONS}"
-            )));
-        }
+        let (max_chars, max_sections) = page_read_limits(request.max_chars, request.max_sections)?;
 
         let response = if let Some(url) = request.url.as_deref() {
             self.navigate_and_observe(&NavigateObservationRequest {
@@ -292,6 +279,39 @@ impl RelClient {
             request_id,
             data,
         } = response;
+        Ok(RpcResponse {
+            status,
+            request_id,
+            data: page_read_data(data, request.query.as_deref(), max_chars, max_sections),
+        })
+    }
+
+    /// Return one retained public semantic observation. Interaction references
+    /// may be stale after navigation; use this operation only for reading.
+    pub fn get_observation(
+        &self,
+        observation_id: &str,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        self.request::<ObservationOperationData, Value>(
+            "GET",
+            &format!("/observations/{}", encode_path_segment(observation_id)),
+            None,
+        )
+    }
+
+    /// Re-read one retained public observation as bounded, query-directed
+    /// Markdown without navigating the browser again.
+    pub fn read_observation(
+        &self,
+        observation_id: &str,
+        request: &ObservationReadRequest,
+    ) -> Result<RpcResponse<PageReadData>, ClientError> {
+        let (max_chars, max_sections) = page_read_limits(request.max_chars, request.max_sections)?;
+        let RpcResponse {
+            status,
+            request_id,
+            data,
+        } = self.get_observation(observation_id)?;
         Ok(RpcResponse {
             status,
             request_id,
@@ -1251,6 +1271,16 @@ pub struct PageReadRequest {
     pub wait: Option<f64>,
 }
 
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ObservationReadRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_chars: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_sections: Option<usize>,
+}
+
 impl PageReadRequest {
     pub fn new(url: impl Into<String>) -> Self {
         Self {
@@ -1527,23 +1557,50 @@ fn page_read_data(
     let terms = page_read_query_terms(normalized_query.unwrap_or_default());
     let query_active = normalized_query.is_some();
 
-    let mut content = observation
+    let scored_content = observation
         .content
         .iter()
         .enumerate()
         .map(|(index, item)| {
-            (
-                index,
-                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading"),
-            )
+            let mut score =
+                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading");
+            if page_read_query_requests_ratings(&terms) && page_read_text_is_rating(&item.text) {
+                score = score.max(2);
+            }
+            (index, score)
         })
         .collect::<Vec<_>>();
-    let content_matched = query_active && content.iter().any(|(_, score)| *score > 0);
+    let content_matched = query_active && scored_content.iter().any(|(_, score)| *score > 0);
+    let mut content_indices = BTreeSet::new();
     if content_matched {
-        content.retain(|(_, score)| *score > 0);
-        content.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+        for (index, _) in scored_content.iter().filter(|(_, score)| *score > 0) {
+            if let Some(heading_index) = (0..=*index)
+                .rev()
+                .find(|candidate| observation.content[*candidate].kind == "heading")
+            {
+                content_indices.insert(heading_index);
+            }
+            content_indices.insert(*index);
+            if page_read_text_is_rating(&observation.content[*index].text) && *index > 0 {
+                content_indices.insert(*index - 1);
+            }
+            if *index > 0 && page_read_text_is_rating(&observation.content[*index - 1].text) {
+                content_indices.insert(*index - 1);
+            }
+            if *index + 1 < observation.content.len()
+                && page_read_text_is_rating(&observation.content[*index + 1].text)
+            {
+                content_indices.insert(*index + 1);
+            }
+        }
+    } else if !query_active {
+        content_indices.extend(0..observation.content.len());
     }
-    content.truncate(max_sections);
+    let available_content_count = content_indices.len();
+    let content = content_indices
+        .into_iter()
+        .take(max_sections)
+        .collect::<Vec<_>>();
 
     let mut seen_links = BTreeSet::new();
     let mut links = observation
@@ -1559,11 +1616,9 @@ fn page_read_data(
             if !seen_links.insert(key) {
                 return None;
             }
-            let searchable = format!("{} {}", element.name, destination);
-            Some((
-                index,
-                page_read_match_score(&searchable, normalized_query, &terms, false),
-            ))
+            let score = page_read_match_score(&element.name, normalized_query, &terms, false)
+                .max(page_read_link_intent_score(destination, &terms));
+            Some((index, score))
         })
         .collect::<Vec<_>>();
     let links_matched = query_active && links.iter().any(|(_, score)| *score > 0);
@@ -1572,9 +1627,6 @@ fn page_read_data(
         links.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
     } else if content_matched {
         links.clear();
-    }
-    if links_matched && !content_matched {
-        content.clear();
     }
     let available_link_count = links.len();
     links.truncate(max_sections);
@@ -1606,7 +1658,7 @@ fn page_read_data(
 
     let mut selected_content_count = 0;
     let mut output_truncated = false;
-    for (index, _) in &content {
+    for index in &content {
         let block = page_read_content_markdown(&observation.content[*index]);
         let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
         if added {
@@ -1644,20 +1696,6 @@ fn page_read_data(
         output_truncated = true;
     }
 
-    let available_content_count = if content_matched {
-        observation
-            .content
-            .iter()
-            .filter(|item| {
-                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading")
-                    > 0
-            })
-            .count()
-    } else if links_matched {
-        0
-    } else {
-        observation.content.len()
-    };
     let content_was_limited = available_content_count > selected_content_count;
     let links_were_limited = available_link_count > selected_link_count;
 
@@ -1675,19 +1713,90 @@ fn page_read_data(
     }
 }
 
+fn page_read_limits(
+    max_chars: Option<usize>,
+    max_sections: Option<usize>,
+) -> Result<(usize, usize), ClientError> {
+    let max_chars = max_chars.unwrap_or(DEFAULT_PAGE_READ_MAX_CHARS);
+    if !(MIN_PAGE_READ_MAX_CHARS..=MAX_PAGE_READ_MAX_CHARS).contains(&max_chars) {
+        return Err(ClientError::Protocol(format!(
+            "max_chars must be between {MIN_PAGE_READ_MAX_CHARS} and {MAX_PAGE_READ_MAX_CHARS}"
+        )));
+    }
+    let max_sections = max_sections.unwrap_or(DEFAULT_PAGE_READ_MAX_SECTIONS);
+    if !(1..=MAX_PAGE_READ_MAX_SECTIONS).contains(&max_sections) {
+        return Err(ClientError::Protocol(format!(
+            "max_sections must be between 1 and {MAX_PAGE_READ_MAX_SECTIONS}"
+        )));
+    }
+    Ok((max_chars, max_sections))
+}
+
 fn page_read_query_terms(query: &str) -> Vec<String> {
     const STOP_WORDS: &[&str] = &[
         "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it",
         "of", "on", "or", "that", "the", "this", "to", "was", "what", "when", "where", "which",
         "who", "why", "with",
     ];
-    query
+    let mut terms = query
         .split(|character: char| !character.is_alphanumeric())
         .map(str::to_lowercase)
         .filter(|term| term.len() >= 2 && !STOP_WORDS.contains(&term.as_str()))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
+        .collect::<BTreeSet<_>>();
+    let originals = terms.iter().cloned().collect::<Vec<_>>();
+    for term in originals {
+        match term.as_str() {
+            "critic" | "critics" | "rating" | "ratings" | "score" | "scores" => {
+                terms.extend(["review", "reviews", "rating", "score"].map(str::to_string));
+            }
+            "genre" | "genres" => {
+                terms.extend(["genre", "genres", "style"].map(str::to_string));
+            }
+            _ => {}
+        }
+    }
+    terms.into_iter().collect()
+}
+
+fn page_read_query_requests_ratings(terms: &[String]) -> bool {
+    terms.iter().any(|term| {
+        matches!(
+            term.as_str(),
+            "critic"
+                | "critics"
+                | "rating"
+                | "ratings"
+                | "review"
+                | "reviews"
+                | "score"
+                | "scores"
+                | "signal"
+        )
+    })
+}
+
+fn page_read_text_is_rating(text: &str) -> bool {
+    let text = text.trim();
+    if let Some(percent) = text.strip_suffix('%') {
+        return percent.parse::<f64>().is_ok();
+    }
+    if let Some((value, scale)) = text.split_once('/') {
+        return value.parse::<f64>().is_ok() && scale.parse::<f64>().is_ok();
+    }
+    text.parse::<u8>().is_ok()
+}
+
+fn page_read_link_intent_score(destination: &str, terms: &[String]) -> usize {
+    let destination = destination.to_ascii_lowercase();
+    let has_term =
+        |candidates: &[&str]| terms.iter().any(|term| candidates.contains(&term.as_str()));
+    if destination.contains("/genres/") && has_term(&["genre", "genres", "style"]) {
+        return 6;
+    }
+    if destination.contains("/label/") && has_term(&["label", "labels"]) {
+        return 6;
+    }
+    0
 }
 
 fn page_read_match_score(
@@ -2392,6 +2501,92 @@ mod tests {
     }
 
     #[test]
+    fn page_read_keeps_rating_pairs_and_ignores_generic_url_path_matches() {
+        let mut operation = observation_operation();
+        operation.observation.title = "Materia by Julia Holter".to_string();
+        operation.observation.content = [
+            ("heading", Some(1), "Materia"),
+            ("paragraph", None, "2026 / Aug 21 / 7 tracks / 35m"),
+            ("text", None, "Metacritic"),
+            ("text", None, "87%"),
+            ("text", None, "Paste"),
+            ("text", None, "8.3/10"),
+            ("paragraph", None, "Unrelated album history"),
+        ]
+        .into_iter()
+        .map(|(kind, level, text)| ObservationContent {
+            kind: kind.to_string(),
+            level,
+            text: text.to_string(),
+        })
+        .collect();
+        operation.observation.elements = vec![
+            ObservationElement {
+                element_ref: "e1".to_string(),
+                role: "link".to_string(),
+                name: "Read Metacritic review".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://reviews.example/materia".to_string()),
+                in_viewport: true,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+            ObservationElement {
+                element_ref: "e2".to_string(),
+                role: "link".to_string(),
+                name: "Other record".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://example.com/album/other".to_string()),
+                in_viewport: false,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+            ObservationElement {
+                element_ref: "e3".to_string(),
+                role: "link".to_string(),
+                name: "Art Pop".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://example.com/genres/pop/art-pop".to_string()),
+                in_viewport: true,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+        ];
+
+        let data = page_read_data(
+            operation,
+            Some("album details, genres, critic ratings and scores"),
+            4_000,
+            20,
+        );
+        let metacritic = data.markdown.find("Metacritic").unwrap();
+        let metacritic_score = data.markdown.find("87%").unwrap();
+        let paste = data.markdown.find("Paste").unwrap();
+        let paste_score = data.markdown.find("8.3/10").unwrap();
+        assert!(metacritic < metacritic_score);
+        assert!(metacritic_score < paste);
+        assert!(paste < paste_score);
+        assert!(data.markdown.contains("Art Pop"));
+        assert!(data.markdown.contains("Read Metacritic review"));
+        assert!(!data.markdown.contains("https://example.com/album/other"));
+    }
+
+    #[test]
     fn page_read_url_uses_semantic_navigate_observe() {
         let response_body = json!({
             "status": "ok",
@@ -2414,6 +2609,31 @@ mod tests {
         assert_eq!(requests[0].path, "/v1/navigate/observe");
         let body: Value = serde_json::from_str(&requests[0].body).unwrap();
         assert_eq!(body["mode"], "semantic");
+    }
+
+    #[test]
+    fn retained_observation_can_be_read_without_navigation() {
+        let response_body = json!({
+            "status": "ok",
+            "request_id": "request-1",
+            "data": observation_operation()
+        });
+        let (base_url, handle) = start_test_server(1, move |_, _| {
+            http_json(200, "request-1", response_body.clone())
+        });
+        let response = RelClient::new(base_url)
+            .read_observation(
+                "observation-1",
+                &ObservationReadRequest {
+                    query: Some("install".to_string()),
+                    ..ObservationReadRequest::default()
+                },
+            )
+            .unwrap();
+        assert!(response.data.markdown.contains("Install the package"));
+        let requests = handle.join().unwrap();
+        assert_eq!(requests[0].method, "GET");
+        assert_eq!(requests[0].path, "/v1/observations/observation-1");
     }
 
     #[test]

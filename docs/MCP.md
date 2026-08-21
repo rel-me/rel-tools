@@ -266,8 +266,10 @@ it to read the current shorthand page. `session_id`, `timeout`, and `wait` apply
 to either form. `profile` and `proxy` apply only when `url` is present;
 `profile` cannot be combined with `session_id`.
 
-`query` ranks matching semantic sections and links. `max_chars` defaults to
-12000 and may be 512–32768; `max_sections` defaults to 24 and may be 1–100.
+`query` ranks matching semantic sections and links. Adjacent rating labels and
+values are kept together, and link labels rank ahead of generic destination
+path text. `max_chars` defaults to 12000 and may be 512–32768;
+`max_sections` defaults to 24 and may be 1–100.
 The tool is always semantic-only and returns no action refs or image. Its MCP
 text content contains the Markdown exactly once, while `structuredContent`
 contains the URL, title, observation ID, query and selection metadata, and
