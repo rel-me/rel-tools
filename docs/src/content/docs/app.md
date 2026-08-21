@@ -24,6 +24,18 @@ Configure providers and choose the default AI model in **REL → Settings… →
 Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
 default model when their new Session starts.
 
+## Agent instructions and current-page context
+
+Open **REL → Settings… → Agent** to edit the system prompt used by native Chat.
+REL adds these instructions after its protected browser and tool rules, and
+changes apply to the next message in existing chats.
+
+Every native Chat turn also includes the current page URL from its attached
+Session. The default system prompt uses that context for requests such as
+“summarize this page” or “summarize the top 3 links”: it reads the current page,
+identifies the requested links in page order, reads their destinations, and
+then answers. Restoring the default prompt returns to this behavior.
+
 ## Scheduled prompts
 
 Open **REL → Settings… → Scheduled** to create repeating prompts. Each schedule
