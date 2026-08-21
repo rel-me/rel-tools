@@ -24,6 +24,12 @@ Configure providers and choose the default AI model in **REL → Settings… →
 Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
 default model when their new Session starts.
 
+In chat, the model picker shows up to eight choices by default: recently
+selected models first, followed by the newest models reported by the provider.
+Search the picker to find any other configured model. Reasoning effort and
+response speed controls appear only when the selected model is known to support
+them.
+
 ## Scheduled prompts
 
 Open **REL → Settings… → Scheduled** to create repeating prompts. Each schedule
