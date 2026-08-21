@@ -213,9 +213,11 @@ Back navigation, recovery, skip decisions, and final counts to stderr.
 If `ACTION_TARGET_NOT_FOUND` names a link visible in captured HTML, inspect the
 live accessible page state. The usual cause is an inactive responsive duplicate,
 collapsed content, hydration replacement, or a changed source snapshot rather
-than a failure to scroll. Keep attempts bounded, checkpoint the stale link, and
-continue. Do not substitute direct navigation when click and history behavior
-are part of the crawl's contract.
+than a failure to scroll. REL prefers fully visible equal-URL anchors and stops
+an auto-scroll attempt if the target bounds repeat or cycle between positions.
+Keep attempts bounded, checkpoint the stale link, and continue. Do not
+substitute direct navigation when click and history behavior are part of the
+crawl's contract.
 
 An upstream 403 challenge can occur before a usable document exists. Surface
 the structured REL error and use an existing, authorized Profile; a post-load

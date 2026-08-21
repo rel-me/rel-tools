@@ -77,7 +77,7 @@ input. A missing click target returns
 | Field | Default | Behavior |
 | --- | --- | --- |
 | `mouse_move` | `true` | Send a Chromium-local mouse-move event before button-down and button-up. |
-| `scroll` | `true` | Use bounded Chromium wheel input and re-read bounds until an offscreen target is visible. |
+| `scroll` | `true` | Use bounded Chromium wheel input and re-read bounds until a normal-size target is fully visible. |
 
 Setting `mouse_move` to `false` sends only button-down and button-up. Neither
 mode moves the macOS cursor. Setting `scroll` to `false` requires the target to
@@ -86,7 +86,11 @@ already be visible.
 `click-link` resolves anchor `href` values in the same read-only snapshot,
 normalizes the requested HTTP(S) URL, and applies its `fuzzy-link` threshold.
 The threshold must be between `0` and `1`; `1` requires an exact normalized URL
-match.
+match. Equal-score matches prefer fully visible anchors, then partially visible
+anchors, then offscreen anchors. Auto-scroll limits each wheel delta to the
+remaining clipped distance and a maximum step, re-reading bounds after every
+step. Repeated bounds and multi-position bounds cycles stop the attempt instead
+of oscillating until its deadline.
 
 Click targeting and dispatch never execute page JavaScript, mutate the DOM,
 invoke accessibility activation, or use Chrome DevTools Protocol. Missing,
