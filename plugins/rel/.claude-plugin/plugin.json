@@ -1,7 +1,7 @@
 {
   "name": "rel",
   "displayName": "REL",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Browse and build restartable crawlers with REL's persistent embedded Chromium sessions.",
   "author": {
     "name": "REL",

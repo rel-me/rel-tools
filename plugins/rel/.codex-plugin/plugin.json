@@ -1,6 +1,6 @@
 {
   "name": "rel",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Browse and build restartable crawlers with REL's persistent embedded Chromium sessions.",
   "author": {
     "name": "REL",
@@ -33,7 +33,6 @@
     "composerIcon": "./assets/rel-mark.svg",
     "logo": "./assets/rel-mark.svg",
     "defaultPrompt": [
-      "Check REL's health and list my browser sessions.",
       "Capture this URL with REL and summarize the page.",
       "Use my existing REL session to inspect the current page.",
       "Design a restartable REL crawl for this website."
