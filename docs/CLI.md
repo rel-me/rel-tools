@@ -67,7 +67,8 @@ tools start REL lazily after their arguments have been validated.
 Set `REL_BYPASS_REGISTRATION=true` in the REL app process environment to skip
 license validation for that run. The flag applies to both the installed Release
 app and development builds; unset it or set it to `false` to use the normal
-registration flow.
+registration flow. Relaunch REL after changing the value because it is read when
+the app process starts.
 
 When a browser command targets a session while REL is in the background, REL
 selects that session by default without activating the app. Turn off **REL →
