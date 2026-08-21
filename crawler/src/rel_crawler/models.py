@@ -82,6 +82,7 @@ CapturePath = Callable[[CrawlItem], str | Path]
 ProcessCapture = Callable[[CapturedPage], None]
 ProcessFailure = Callable[[CrawlFailure], None]
 LinkKey = Callable[[Link], str]
+SkipLink = Callable[[Link], bool]
 
 
 def _select_every_link(_link: Link) -> bool:
@@ -115,3 +116,4 @@ class CrawlDefinition:
     capture_ready_selector: str | None = None
     load_more_selector: str | None = None
     load_more_clicks: int = 0
+    skip_link: SkipLink | None = None

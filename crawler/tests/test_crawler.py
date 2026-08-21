@@ -13,6 +13,7 @@ from rel_crawler import (
     CrawlConfigurationError,
     CrawlDefinition,
     CrawlError,
+    Link,
     LinkObservation,
     NavigationOperation,
     PageOperation,
@@ -692,6 +693,54 @@ class RelCrawlerTests(unittest.TestCase):
         self.assertEqual(self.client.performed, [ALBUM_ONE])
         self.assertEqual(len(processed), 1)
         self.assertIn("Captured one", output_path.read_text(encoding="utf-8"))
+
+    def test_skip_link_callback_skips_external_existing_resource(self) -> None:
+        processed: list[CapturedPage] = []
+        checked: list[str] = []
+
+        def skip_link(link: Link) -> bool:
+            checked.append(link.url)
+            return link.url == ALBUM_ONE
+
+        definition = CrawlDefinition(
+            start_url=SOURCE_URL,
+            select_link=lambda link: "/release/album/" in link.url,
+            capture_path=lambda item: self.capture_dir
+            / f"{item.index:02d}-{item.link.url.rsplit('/', 1)[-1]}.html",
+            process_capture=processed.append,
+            skip_link=skip_link,
+        )
+
+        with self.assertLogs("rel_crawler.crawler", level="INFO") as logs:
+            summary = self.crawler(definition).run()
+
+        self.assertEqual(checked, [ALBUM_ONE, ALBUM_TWO])
+        self.assertEqual((summary.captured, summary.skipped_existing), (2, 1))
+        self.assertEqual(self.client.performed, [ALBUM_TWO])
+        self.assertEqual([capture.url for capture in processed], [ALBUM_TWO])
+        self.assertFalse((self.capture_dir / "00-one.html").exists())
+        state = json.loads(self.state_path.read_text(encoding="utf-8"))
+        self.assertEqual(state["entries"][0]["status"], "captured")
+        self.assertTrue(state["entries"][0]["skipped_existing"])
+        self.assertEqual(state["entries"][0]["captured_url"], ALBUM_ONE)
+        self.assertIn(
+            f"INFO:rel_crawler.crawler:skipping link matched by skip_link "
+            f"callback {ALBUM_ONE}",
+            logs.output,
+        )
+
+    def test_skip_link_callback_must_return_bool(self) -> None:
+        definition = CrawlDefinition(
+            start_url=SOURCE_URL,
+            select_link=lambda link: "/release/album/" in link.url,
+            skip_link=lambda _link: "yes",  # type: ignore[arg-type,return-value]
+        )
+
+        with self.assertRaisesRegex(
+            CrawlConfigurationError,
+            "skip_link must return bool",
+        ):
+            self.crawler(definition).run()
 
     def test_unattempted_pending_entry_refreshes_its_capture_path(self) -> None:
         old_output = (self.capture_dir / "old.html").resolve()

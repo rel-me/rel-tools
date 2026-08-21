@@ -28,6 +28,7 @@ from .models import (
     CrawlItem,
     CrawlSummary,
     Link,
+    SkipLink,
     SourcePage,
 )
 from .protocols import CrawlerClient
@@ -56,6 +57,7 @@ __all__ = [
     "RelRpcError",
     "RelTransportError",
     "RenderedLink",
+    "SkipLink",
     "SourcePage",
     "canonicalize_url",
     "extract_links",
