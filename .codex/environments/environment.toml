@@ -1,0 +1,9 @@
+version = 1
+name = "rel-tools"
+
+[setup]
+script = "npm ci --prefix docs"
+
+[[actions]]
+name = "Start Docs"
+command = "make docs-dev"
