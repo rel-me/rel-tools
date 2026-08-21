@@ -1777,13 +1777,30 @@ fn page_read_query_requests_ratings(terms: &[String]) -> bool {
 
 fn page_read_text_is_rating(text: &str) -> bool {
     let text = text.trim();
-    if let Some(percent) = text.strip_suffix('%') {
-        return percent.parse::<f64>().is_ok();
+    if text.parse::<u8>().is_ok_and(|value| value <= 100) {
+        return true;
     }
-    if let Some((value, scale)) = text.split_once('/') {
-        return value.parse::<f64>().is_ok() && scale.parse::<f64>().is_ok();
-    }
-    text.parse::<u8>().is_ok()
+    text.split_whitespace().any(|token| {
+        let token = token.trim_matches(|character: char| {
+            !character.is_ascii_digit() && !matches!(character, '.' | '/' | '%')
+        });
+        if let Some(percent) = token.strip_suffix('%') {
+            return percent
+                .parse::<f64>()
+                .is_ok_and(|value| (0.0..=100.0).contains(&value));
+        }
+        if let Some((value, scale)) = token.split_once('/') {
+            return value
+                .parse::<f64>()
+                .ok()
+                .zip(scale.parse::<f64>().ok())
+                .is_some_and(|(value, scale)| scale > 0.0 && value >= 0.0 && value <= scale);
+        }
+        token.contains('.')
+            && token
+                .parse::<f64>()
+                .is_ok_and(|value| (0.0..=100.0).contains(&value))
+    })
 }
 
 fn page_read_link_intent_score(destination: &str, terms: &[String]) -> usize {
@@ -2511,6 +2528,8 @@ mod tests {
             ("text", None, "87%"),
             ("text", None, "Paste"),
             ("text", None, "8.3/10"),
+            ("text", None, "Pitchfork 9.2 Adventurous and precise."),
+            ("text", None, "Guardian 5/5 A singular achievement."),
             ("paragraph", None, "Unrelated album history"),
         ]
         .into_iter()
@@ -2578,9 +2597,13 @@ mod tests {
         let metacritic_score = data.markdown.find("87%").unwrap();
         let paste = data.markdown.find("Paste").unwrap();
         let paste_score = data.markdown.find("8.3/10").unwrap();
+        let pitchfork_score = data.markdown.find("Pitchfork 9.2").unwrap();
+        let guardian_score = data.markdown.find("Guardian 5/5").unwrap();
         assert!(metacritic < metacritic_score);
         assert!(metacritic_score < paste);
         assert!(paste < paste_score);
+        assert!(paste_score < pitchfork_score);
+        assert!(pitchfork_score < guardian_score);
         assert!(data.markdown.contains("Art Pop"));
         assert!(data.markdown.contains("Read Metacritic review"));
         assert!(!data.markdown.contains("https://example.com/album/other"));
