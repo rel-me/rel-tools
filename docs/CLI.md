@@ -64,6 +64,11 @@ starts its stdio protocol server without launching the app; its operational
 tools start REL lazily after their arguments have been validated.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
 
+Set `REL_BYPASS_REGISTRATION=true` in the REL app process environment to skip
+license validation for that run. The flag applies to both the installed Release
+app and development builds; unset it or set it to `false` to use the normal
+registration flow.
+
 When a browser command targets a session while REL is in the background, REL
 selects that session by default without activating the app. Turn off **REL →
 Settings… → General → Follow browser commands** to keep the current session
