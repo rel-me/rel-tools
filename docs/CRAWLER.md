@@ -108,6 +108,27 @@ the readable original URL. The crawler rejects truncated rendered observations
 instead of silently using an incomplete link set. A custom `extract_links`
 callback is available only for crawls that intentionally parse captured HTML.
 
+Use `skip_link` when an external system already owns some selected resources.
+The crawler remains unaware of that system: it passes each pending `Link` to
+the callback before any child-page browser action and skips links for which the
+callback returns `True`.
+
+```python
+def already_imported(link: Link) -> bool:
+    return external_catalog_contains(link.url)
+
+definition = CrawlDefinition(
+    start_url="https://example.com/posts/",
+    select_link=select_post,
+    skip_link=already_imported,
+)
+```
+
+Callback skips are checkpointed, logged, and included in `skipped_existing`.
+Exceptions stop the crawl with the affected URL instead of silently crawling
+when the external lookup is unavailable. Keep the callback lightweight and
+cache repeated lookups when appropriate.
+
 ## Command line
 
 Export a `CrawlApplication`, conventionally as `app`, then run its Python file

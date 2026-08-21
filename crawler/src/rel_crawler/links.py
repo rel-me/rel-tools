@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .errors import CrawlConfigurationError
+from .errors import CrawlConfigurationError, CrawlError
 from .html import canonicalize_url
 from .models import CrawlItem, Link
 
@@ -228,6 +228,46 @@ class LinkQueueMixin:
             )
             entry["last_error"] = None
             self._report_skip(f"existing capture {entry['url']} -> {output_path}")
+            changed = True
+        if changed:
+            self._save_state()
+
+    def _skip_callback_links(
+        self,
+        *,
+        allowed_keys: set[str] | None = None,
+    ) -> None:
+        callback = self.definition.skip_link
+        if callback is None:
+            return
+        changed = False
+        for entry in self._state["entries"]:
+            if entry["status"] != "pending" or entry["attempts"] != 0:
+                continue
+            if allowed_keys is not None and entry["key"] not in allowed_keys:
+                continue
+            link = self._item(entry).link
+            _LOGGER.info("checking skip_link callback for %s", link.url)
+            try:
+                should_skip = callback(link)
+            except Exception as error:  # noqa: BLE001 - callback is user code
+                raise CrawlError(
+                    f"skip_link failed for {link.url!r}: "
+                    f"{type(error).__name__}: {error}"
+                ) from error
+            if not isinstance(should_skip, bool):
+                raise CrawlConfigurationError(
+                    f"skip_link must return bool for {link.url!r}"
+                )
+            if not should_skip:
+                continue
+            entry["status"] = "captured"
+            entry["skipped_existing"] = True
+            entry["retry_requested"] = False
+            entry["captured_url"] = link.url
+            entry["target_http_status"] = None
+            entry["last_error"] = None
+            self._report_skip(f"link matched by skip_link callback {link.url}")
             changed = True
         if changed:
             self._save_state()

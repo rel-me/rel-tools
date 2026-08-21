@@ -111,6 +111,12 @@ clicking. `Link.original_url` preserves the readable IRI. Supply
 `extract_links` only when a crawl intentionally needs a custom captured-HTML
 parser, and `capture_path` for a custom output layout.
 
+Set `skip_link` to a lightweight callback when another datastore already owns
+some selected resources. It receives a `Link` before the child-page browser
+action; returning `True` checkpoints and logs the link as skipped. The crawler
+does not depend on or know about the external datastore. Callback failures stop
+the crawl with the affected URL rather than silently bypassing the lookup.
+
 ## Command line
 
 A crawler configuration exports a `CrawlApplication`, conventionally named

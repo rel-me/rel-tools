@@ -204,6 +204,7 @@ class RelCrawler(
                     reconcile_unavailable=False,
                 )
                 self._skip_existing_captures(allowed_keys=active_keys)
+                self._skip_callback_links(allowed_keys=active_keys)
                 self._backfill_metadata()
                 session_id = self._crawl_pending(
                     session_id,
@@ -225,6 +226,7 @@ class RelCrawler(
                         reconcile_unavailable=False,
                     )
                     self._skip_existing_captures(allowed_keys=active_keys)
+                    self._skip_callback_links(allowed_keys=active_keys)
                     self._backfill_metadata()
                     session_id = self._crawl_pending(
                         session_id,
