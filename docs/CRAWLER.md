@@ -193,6 +193,11 @@ crawler advances. This never requeues the terminal link, so a challenge or
 missing target cannot trap the crawl in a loop. `retry_failed=True` or the CLI
 flag explicitly requeues those entries on a later invocation.
 
+When a clicked page completes with HTTP 4xx or 5xx and does not contain the
+configured capture-readiness selector, REL returns the HTTP failure immediately
+instead of waiting for the selector timeout. The crawler applies its ordinary
+bounded retry and managed-session recovery policy to that failure.
+
 ## Metadata
 
 Each sidecar contains a UTC `captured_at` timestamp; checkpoint, link, and

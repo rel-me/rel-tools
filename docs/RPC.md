@@ -113,6 +113,11 @@ managed Cloudflare challenge pages receive up to 15 seconds to continue before
 that error is returned. This also applies to browser capture and page-creation
 navigation. The error details contain the final `url` and exact
 `target_http_status`; the navigated session remains selected.
+When an action triggers a completed HTTP 4xx or 5xx navigation, a following
+`wait-for` checks its selector once on the error document. If it is absent, the
+action batch returns `UPSTREAM_UNAVAILABLE` immediately rather than waiting for
+the action or operation deadline; error details include the final URL and
+`target_http_status`.
 
 ## Routes
 

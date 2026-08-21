@@ -65,8 +65,13 @@ optional positive `timeout` is measured from the start of that action and is
 capped by the enclosing operation's remaining deadline. Omitting it preserves
 the enclosing deadline. If its own timeout expires first, REL returns
 `ACTION_TIMEOUT`; if the enclosing deadline expires first, REL returns
-`TIMEOUT`. `click` reads the first match's bounds and dispatches CEF mouse
-input. A missing click target returns
+`TIMEOUT`. If an earlier action completes a main-frame navigation with HTTP 4xx
+or 5xx, REL checks the selector once on that completed error document. When the
+selector is absent, `wait-for` returns `UPSTREAM_UNAVAILABLE` immediately with
+the final URL and `target_http_status` instead of consuming either timeout. A
+selector that is present on the error document still succeeds. `click` reads
+the first match's bounds and dispatches CEF mouse input. A missing click target
+returns
 `ACTION_TARGET_NOT_FOUND` without polling, so put `wait-for` immediately before
 `click` when a page renders the target asynchronously.
 
