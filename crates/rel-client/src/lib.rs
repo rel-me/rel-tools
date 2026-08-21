@@ -1,4 +1,4 @@
-//! Typed Rust client for Rel RPC v1.
+//! Typed Rust client for REL RPC v1.
 //!
 //! This module contains no desktop-app lifecycle or local-file behavior. It can
 //! therefore be used by other Rust programs without adopting the bundled CLI's
@@ -20,7 +20,7 @@ const MAX_PAGE_READ_MAX_CHARS: usize = 32_768;
 const DEFAULT_PAGE_READ_MAX_SECTIONS: usize = 24;
 const MAX_PAGE_READ_MAX_SECTIONS: usize = 100;
 
-/// Stable application error codes for Rel RPC v1.
+/// Stable application error codes for REL RPC v1.
 ///
 /// Codes begin at 10,000 so they cannot be mistaken for HTTP transport
 /// statuses. String error IDs remain available for readable diagnostics.
@@ -111,7 +111,7 @@ pub struct RelClient {
 }
 
 impl RelClient {
-    /// Connect to the standard loopback Rel RPC v1 endpoint.
+    /// Connect to the standard loopback REL RPC v1 endpoint.
     pub fn local() -> Self {
         let port = std::env::var("REL_AGENT_PORT")
             .ok()
@@ -553,7 +553,7 @@ impl RelClient {
     {
         if self.base_url.is_empty() {
             return Err(ClientError::Protocol(
-                "Rel RPC base URL cannot be empty".to_string(),
+                "REL RPC base URL cannot be empty".to_string(),
             ));
         }
         let url = format!("{}{}", self.base_url, path);
@@ -675,7 +675,7 @@ fn parse_rpc_success<T: DeserializeOwned>(
     let envelope = serde_json::from_str::<RpcResponse<T>>(&body).map_err(ClientError::Json)?;
     if envelope.status != "ok" {
         return Err(ClientError::Protocol(format!(
-            "Rel RPC success response has status {:?}",
+            "REL RPC success response has status {:?}",
             envelope.status
         )));
     }
@@ -696,13 +696,13 @@ fn parse_rpc_failure(status: u16, response: ureq::Response) -> ClientError {
         Ok(failure) => failure,
         Err(error) => {
             return ClientError::Protocol(format!(
-                "Rel RPC returned HTTP {status} with an invalid error envelope: {error}"
+                "REL RPC returned HTTP {status} with an invalid error envelope: {error}"
             ))
         }
     };
     if failure.status != "error" {
         return ClientError::Protocol(format!(
-            "Rel RPC error response has status {:?}",
+            "REL RPC error response has status {:?}",
             failure.status
         ));
     }
@@ -714,7 +714,7 @@ fn parse_rpc_failure(status: u16, response: ureq::Response) -> ClientError {
         || failure.error.message.trim().is_empty()
     {
         return ClientError::Protocol(
-            "Rel RPC error response has an incomplete error object".to_string(),
+            "REL RPC error response has an incomplete error object".to_string(),
         );
     }
     if failure
@@ -723,7 +723,7 @@ fn parse_rpc_failure(status: u16, response: ureq::Response) -> ClientError {
         .as_ref()
         .is_some_and(|details| !details.is_object())
     {
-        return ClientError::Protocol("Rel RPC error details must be a JSON object".to_string());
+        return ClientError::Protocol("REL RPC error details must be a JSON object".to_string());
     }
     ClientError::Rpc(Box::new(failure))
 }
@@ -737,7 +737,7 @@ fn validate_json_content_type(response: &ureq::Response) -> Result<(), ClientErr
         Ok(())
     } else {
         Err(ClientError::Protocol(format!(
-            "Rel RPC returned unsupported Content-Type {content_type:?}"
+            "REL RPC returned unsupported Content-Type {content_type:?}"
         )))
     }
 }
@@ -745,16 +745,16 @@ fn validate_json_content_type(response: &ureq::Response) -> Result<(), ClientErr
 fn validate_request_id(header: Option<&str>, body: &str) -> Result<(), ClientError> {
     if body.trim().is_empty() {
         return Err(ClientError::Protocol(
-            "Rel RPC response is missing request_id".to_string(),
+            "REL RPC response is missing request_id".to_string(),
         ));
     }
     match header {
         Some(header) if header == body => Ok(()),
         Some(header) => Err(ClientError::Protocol(format!(
-            "Rel RPC request ID mismatch: header {header:?}, body {body:?}"
+            "REL RPC request ID mismatch: header {header:?}, body {body:?}"
         ))),
         None => Err(ClientError::Protocol(
-            "Rel RPC response is missing X-Request-Id".to_string(),
+            "REL RPC response is missing X-Request-Id".to_string(),
         )),
     }
 }
@@ -776,14 +776,14 @@ impl CaptureStream {
             .starts_with("application/x-ndjson")
         {
             return Err(ClientError::Protocol(format!(
-                "Rel capture returned unsupported Content-Type {content_type:?}"
+                "REL capture returned unsupported Content-Type {content_type:?}"
             )));
         }
         let request_id = response
             .header("X-Request-Id")
             .filter(|value| !value.trim().is_empty())
             .ok_or_else(|| {
-                ClientError::Protocol("Rel capture response is missing X-Request-Id".to_string())
+                ClientError::Protocol("REL capture response is missing X-Request-Id".to_string())
             })?
             .to_string();
         Ok(Self {
@@ -825,13 +825,13 @@ impl Iterator for CaptureStream {
         };
         if event.request_id != self.request_id {
             return Some(Err(ClientError::Protocol(format!(
-                "Rel capture request ID mismatch: header {:?}, event {:?}",
+                "REL capture request ID mismatch: header {:?}, event {:?}",
                 self.request_id, event.request_id
             ))));
         }
         if event.event.trim().is_empty() {
             return Some(Err(ClientError::Protocol(
-                "Rel capture event is missing its event name".to_string(),
+                "REL capture event is missing its event name".to_string(),
             )));
         }
         match event.status.as_str() {
@@ -844,7 +844,7 @@ impl Iterator for CaptureStream {
                 }) => {}
             _ => {
                 return Some(Err(ClientError::Protocol(format!(
-                    "Rel capture event {:?} has an invalid envelope",
+                    "REL capture event {:?} has an invalid envelope",
                     event.event
                 ))))
             }
@@ -858,7 +858,7 @@ impl Iterator for CaptureStream {
                 .and_then(|code| i32::try_from(code).ok());
             let Some(exit_code) = exit_code else {
                 return Some(Err(ClientError::Protocol(
-                    "Rel capture.finished event is missing a valid exit_code".to_string(),
+                    "REL capture.finished event is missing a valid exit_code".to_string(),
                 )));
             };
             self.exit_code = Some(exit_code);

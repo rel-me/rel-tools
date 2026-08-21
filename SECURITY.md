@@ -8,4 +8,4 @@ credentials, private browsing data, or other sensitive user data unless we
 coordinate a secure transfer method first.
 
 The local API is bound to loopback and is intended for trusted software running
-as the same macOS user. Rel.app remains the only supported browser runtime.
+as the same macOS user. REL.app remains the only supported browser runtime.

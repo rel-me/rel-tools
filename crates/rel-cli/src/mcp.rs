@@ -470,9 +470,9 @@ fn supported_protocol_versions() -> Vec<&'static str> {
 fn server_info(server_version: &str) -> Value {
     json!({
         "name": "rel",
-        "title": "Rel",
+        "title": "REL",
         "version": server_version,
-        "description": "Browser capture and automation through Rel's embedded Chromium runtime",
+        "description": "Browser capture and automation through REL's embedded Chromium runtime",
         "websiteUrl": "https://rel.me"
     })
 }
@@ -482,7 +482,7 @@ fn response_metadata(server_version: &str) -> Value {
 }
 
 fn server_instructions() -> &'static str {
-    "Use rel_read for bounded semantic reading and research. Use observations and refs for interaction, and request screenshots only when visual state matters. Reuse returned page and session IDs explicitly; all browser work runs through the installed Rel app."
+    "Use rel_read for bounded semantic reading and research. Use observations and refs for interaction, and request screenshots only when visual state matters. Reuse returned page and session IDs explicitly; all browser work runs through the installed REL app."
 }
 
 fn modern_discover_result(server_version: &str) -> Value {
@@ -519,8 +519,8 @@ fn tool_definitions() -> Vec<Value> {
     vec![
         tool_definition(
             "rel_status",
-            "Rel Status",
-            "Inspect the installed Rel app, local agent, browser proxy, and Chromium bridge.",
+            "REL Status",
+            "Inspect the installed REL app, local agent, browser proxy, and Chromium bridge.",
             empty_object_schema(),
             read_annotations(),
         ),
@@ -534,7 +534,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_capture",
             "Capture Rendered Page",
-            "Load a URL in Rel's embedded Chromium, optionally perform ordered actions, and save rendered HTML. Returns the complete validated capture event stream and an output file URI.",
+            "Load a URL in REL's embedded Chromium, optionally perform ordered actions, and save rendered HTML. Returns the complete validated capture event stream and an output file URI.",
             capture_schema(),
             json!({
                 "readOnlyHint": false,
@@ -546,7 +546,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_page_attach",
             "Attach Browser Page",
-            "Create or attach an ephemeral Rel automation page and return its page ID for later rel_page_action calls.",
+            "Create or attach an ephemeral REL automation page and return its page ID for later rel_page_action calls.",
             page_attach_schema(),
             json!({
                 "readOnlyHint": false,
@@ -558,7 +558,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_navigate",
             "Navigate and Observe",
-            "Navigate Rel's embedded Chromium by URL, back, forward, or reload and return the first bounded semantic or visual observation in one call.",
+            "Navigate REL's embedded Chromium by URL, back, forward, or reload and return the first bounded semantic or visual observation in one call.",
             navigate_observation_schema(),
             json!({
                 "readOnlyHint": false,
@@ -570,7 +570,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_read",
             "Read Browser Page",
-            "Read a URL or the current Rel page as bounded, query-directed Markdown. This semantic-only path is optimized for research and links; use rel_observe when action refs or screenshots are needed.",
+            "Read a URL or the current REL page as bounded, query-directed Markdown. This semantic-only path is optimized for research and links; use rel_observe when action refs or screenshots are needed.",
             page_read_schema(),
             json!({
                 "readOnlyHint": false,
@@ -594,14 +594,14 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_take_screenshot",
             "Take Page Screenshot",
-            "Take a PNG, JPEG, or WebP screenshot of an attached or current Rel page. Returns an MCP image when output_uri is omitted; set output_uri to save only a file resource.",
+            "Take a PNG, JPEG, or WebP screenshot of an attached or current REL page. Returns an MCP image when output_uri is omitted; set output_uri to save only a file resource.",
             screenshot_schema(),
             read_annotations(),
         ),
         tool_definition(
             "rel_observe",
             "Observe Browser Page",
-            "Return bounded rendered semantics, typed element references, viewport metadata, and an optional synchronized PNG for the current or attached Rel page.",
+            "Return bounded rendered semantics, typed element references, viewport metadata, and an optional synchronized PNG for the current or attached REL page.",
             observation_schema(),
             browser_read_annotations(),
         ),
@@ -627,14 +627,14 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_list_sessions",
             "List Browser Sessions",
-            "List persistent Rel browser sessions and their canonical Session<number> IDs, groups, proxy assignments, and filtering settings.",
+            "List persistent REL browser sessions and their canonical Session<number> IDs, groups, proxy assignments, and filtering settings.",
             empty_object_schema(),
             read_annotations(),
         ),
         tool_definition(
             "rel_close_session_group",
             "Close Browser Session Group",
-            "Close every persistent Rel browser session in a named group.",
+            "Close every persistent REL browser session in a named group.",
             session_group_schema(),
             json!({
                 "readOnlyHint": false,
@@ -646,7 +646,7 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_list_proxies",
             "List Proxies",
-            "List configured Rel proxy aliases and non-secret connection metadata.",
+            "List configured REL proxy aliases and non-secret connection metadata.",
             empty_object_schema(),
             read_annotations(),
         ),
@@ -1207,7 +1207,7 @@ fn to_json_value<T: serde::Serialize>(value: T) -> Result<Value, Value> {
     serde_json::to_value(value).map_err(|error| {
         tool_error_value(
             "MCP_ENCODING_ERROR",
-            &format!("Could not encode Rel response: {error}"),
+            &format!("Could not encode REL response: {error}"),
         )
     })
 }
@@ -1235,7 +1235,7 @@ fn capture_tool(client: &RelClient, request: &CaptureRequest) -> Result<Value, V
             "request_id": request_id,
             "error": {
                 "id": "INCOMPLETE_CAPTURE_STREAM",
-                "message": "Rel capture stream ended before capture.finished"
+                "message": "REL capture stream ended before capture.finished"
             },
             "events": events
         }));
@@ -1325,7 +1325,7 @@ fn screenshot_image_content(structured: &Value) -> Result<Value, Value> {
         .ok_or_else(|| {
             tool_error_value(
                 "INVALID_SCREENSHOT_RESULT",
-                "Rel screenshot response is missing screenshot metadata",
+                "REL screenshot response is missing screenshot metadata",
             )
         })?;
     let output_path = screenshot
@@ -1334,14 +1334,14 @@ fn screenshot_image_content(structured: &Value) -> Result<Value, Value> {
         .ok_or_else(|| {
             tool_error_value(
                 "INVALID_SCREENSHOT_RESULT",
-                "Rel screenshot response is missing output_path",
+                "REL screenshot response is missing output_path",
             )
         })?;
     let path = Path::new(output_path);
     if !path.is_absolute() {
         return Err(tool_error_value(
             "INVALID_SCREENSHOT_RESULT",
-            "Rel screenshot output_path must be absolute",
+            "REL screenshot output_path must be absolute",
         ));
     }
     let mime_type = screenshot
@@ -1351,25 +1351,25 @@ fn screenshot_image_content(structured: &Value) -> Result<Value, Value> {
         .ok_or_else(|| {
             tool_error_value(
                 "INVALID_SCREENSHOT_RESULT",
-                "Rel screenshot response has an unsupported MIME type",
+                "REL screenshot response has an unsupported MIME type",
             )
         })?;
     let bytes = fs::read(path).map_err(|error| {
         tool_error_value(
             "SCREENSHOT_READ_ERROR",
-            &format!("Could not read Rel screenshot {output_path:?}: {error}"),
+            &format!("Could not read REL screenshot {output_path:?}: {error}"),
         )
     })?;
     if bytes.is_empty() {
         return Err(tool_error_value(
             "INVALID_SCREENSHOT_RESULT",
-            "Rel screenshot file is empty",
+            "REL screenshot file is empty",
         ));
     }
     if screenshot.get("bytesize").and_then(Value::as_u64) != Some(bytes.len() as u64) {
         return Err(tool_error_value(
             "INVALID_SCREENSHOT_RESULT",
-            "Rel screenshot file size does not match its metadata",
+            "REL screenshot file size does not match its metadata",
         ));
     }
     Ok(json!({
@@ -1400,19 +1400,19 @@ fn normalize_output_uris_in_value(
         Value::Object(object) => {
             if let Some(output_path) = object.remove("output_path") {
                 let output_path = output_path.as_str().ok_or_else(|| {
-                    tool_error_value("INVALID_OUTPUT_PATH", "Rel output_path must be a string")
+                    tool_error_value("INVALID_OUTPUT_PATH", "REL output_path must be a string")
                 })?;
                 let path = Path::new(output_path);
                 if !path.is_absolute() {
                     return Err(tool_error_value(
                         "INVALID_OUTPUT_PATH",
-                        &format!("Rel returned a relative output path: {output_path}"),
+                        &format!("REL returned a relative output path: {output_path}"),
                     ));
                 }
                 let uri = url::Url::from_file_path(path).map_err(|()| {
                     tool_error_value(
                         "INVALID_OUTPUT_PATH",
-                        &format!("Could not convert Rel output path to a file URI: {output_path}"),
+                        &format!("Could not convert REL output path to a file URI: {output_path}"),
                     )
                 })?;
                 let uri = uri.to_string();
@@ -1427,9 +1427,9 @@ fn normalize_output_uris_in_value(
                         .and_then(Value::as_str)
                         .unwrap_or("text/html");
                     let description = if mime_type.starts_with("image/") {
-                        "Page screenshot captured by Rel"
+                        "Page screenshot captured by REL"
                     } else {
-                        "Rendered HTML captured by Rel"
+                        "Rendered HTML captured by REL"
                     };
                     resource_links.push(json!({
                         "type": "resource_link",
@@ -1465,7 +1465,7 @@ fn tool_result(
 ) -> Value {
     let text = text_override.unwrap_or_else(|| {
         serde_json::to_string_pretty(&structured)
-            .unwrap_or_else(|_| "Could not encode Rel tool result".to_string())
+            .unwrap_or_else(|_| "Could not encode REL tool result".to_string())
     });
     let mut content = vec![json!({"type": "text", "text": text})];
     content.extend(additional_content);
@@ -2398,7 +2398,7 @@ mod tests {
         let starts_for_runtime = starts.clone();
         let runtime: EnsureAgentRunning = Arc::new(move || {
             starts_for_runtime.fetch_add(1, Ordering::SeqCst);
-            Err("Rel startup failed for test".to_string())
+            Err("REL startup failed for test".to_string())
         });
         let output = run_messages_with_client_and_runtime(
             &[json!({

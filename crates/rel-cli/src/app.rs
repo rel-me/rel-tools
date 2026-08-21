@@ -36,7 +36,7 @@ fn acquire_launch_lock(port: u16) -> Result<File, String> {
         .truncate(false)
         .mode(0o600)
         .open(&path)
-        .map_err(|error| format!("Could not open Rel launch lock {}: {error}", path.display()))?;
+        .map_err(|error| format!("Could not open REL launch lock {}: {error}", path.display()))?;
 
     loop {
         // SAFETY: `file` owns a valid descriptor for the duration of the lock,
@@ -48,7 +48,7 @@ fn acquire_launch_lock(port: u16) -> Result<File, String> {
         let error = io::Error::last_os_error();
         if error.kind() != io::ErrorKind::Interrupted {
             return Err(format!(
-                "Could not lock Rel launch coordination file {}: {error}",
+                "Could not lock REL launch coordination file {}: {error}",
                 path.display()
             ));
         }
@@ -85,14 +85,14 @@ fn wait_for_agent(port: u16, timeout: Duration) -> Result<(), String> {
         thread::sleep(Duration::from_millis(150));
     }
     Err(format!(
-        "Rel agent did not become ready on 127.0.0.1:{port}"
+        "REL agent did not become ready on 127.0.0.1:{port}"
     ))
 }
 
 fn launch_app() -> Result<(), String> {
     let Some(app_path) = app_path() else {
         return Err(
-            "Rel.app was not found. Install Rel in /Applications from https://rel.me.".to_string(),
+            "REL.app was not found. Install REL in /Applications from https://rel.me.".to_string(),
         );
     };
     let status = Command::new("/usr/bin/open")
@@ -105,7 +105,7 @@ fn launch_app() -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "Could not launch Rel.app at {}",
+            "Could not launch REL.app at {}",
             app_path.display()
         ))
     }
@@ -118,7 +118,7 @@ fn app_path() -> Option<PathBuf> {
         }
     }
 
-    let installed_app = PathBuf::from("/Applications/Rel.app");
+    let installed_app = PathBuf::from("/Applications/REL.app");
     installed_app.is_dir().then_some(installed_app)
 }
 
@@ -136,8 +136,8 @@ mod tests {
     #[test]
     fn finds_an_app_bundle_ancestor() {
         assert_eq!(
-            app_bundle_ancestor(Path::new("/Applications/Rel.app/Contents/Resources/rel")),
-            Some(PathBuf::from("/Applications/Rel.app"))
+            app_bundle_ancestor(Path::new("/Applications/REL.app/Contents/Resources/rel")),
+            Some(PathBuf::from("/Applications/REL.app"))
         );
         assert_eq!(app_bundle_ancestor(Path::new("/usr/local/bin/rel")), None);
     }
