@@ -45,20 +45,25 @@ and common credential fields, but tool output can still contain sensitive page
 content.
 
 Choose **Chat Options → Replay Debug Log…** to replay a completed schema-v1
-export in the selected chat. A setup sheet lets you choose playback speed, the
-maximum pause between replay events, and whether recorded pages load live. The
-defaults are 3× speed, a two-second maximum pause, and live page loading. REL
-replaces the selected chat, waits four seconds so you can start recording,
+export in the selected chat. A setup sheet lets you choose the recording start
+delay, playback speed, maximum pause between replay events, whether recorded
+pages load live, and whether REL preloads those pages. The defaults are a
+four-second start delay, 3× speed, a two-second maximum pause, live page loading,
+and no preloading. REL replaces the selected chat, optionally visits each unique
+recorded page and waits for it to load, waits for the selected start delay,
 moves the pointer to Chat, rapidly types and submits the exported user prompt,
 then reveals the saved assistant response after the activity replay. Press
-Escape during the countdown, or use the chat's **Stop** button after submission,
-to stop early.
+Escape during preloading or the countdown, or use the chat's **Stop** button
+after submission, to stop early.
 
 Recorded `rel_navigate` calls and URL-based `rel_read` calls load their HTTP or
 HTTPS destinations in the embedded browser as the replay advances when live
-page loading is enabled. These are live page loads, so their content can differ
-from the original run. Replay does not execute recorded page clicks or
-keystrokes and never injects recorded tool output into the page.
+page loading is enabled. Replay waits for each main page to finish loading
+before it advances. When preloading is enabled, REL first visits each unique
+recorded destination in replay order to warm the browser cache, then begins the
+start delay. These are live page loads, so their content can differ from the
+original run. Replay does not execute recorded page clicks or keystrokes and
+never injects recorded tool output into the page.
 
 ## Scheduled prompts
 
