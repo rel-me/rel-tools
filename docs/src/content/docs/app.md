@@ -36,6 +36,24 @@ Session. The default system prompt uses that context for requests such as
 identifies the requested links in page order, reads their destinations, and
 then answers. Restoring the default prompt returns to this behavior.
 
+## Replay a chat demo
+
+Choose **Chat Options → Export Debug Log…** to save a chat transcript, recorded
+agent actions, errors, usage, and diagnostics. Tool arguments redact typed text
+and common credential fields, but tool output can still contain sensitive page
+content.
+
+Choose **Chat Options → Replay Debug Log…** to replay a completed schema-v1
+export in the selected chat. REL replaces that chat and replays its recorded
+activity at 3× speed before revealing the saved assistant response. Use the
+chat's **Stop** button or press Escape to stop early.
+
+Recorded `rel_navigate` calls and URL-based `rel_read` calls load their HTTP or
+HTTPS destinations in the embedded browser as the replay advances. These are
+live page loads, so their content can differ from the original run. Replay does
+not execute recorded clicks or typing and never injects recorded tool output
+into the page.
+
 ## Scheduled prompts
 
 Open **REL → Settings… → Scheduled** to create repeating prompts. Each schedule
