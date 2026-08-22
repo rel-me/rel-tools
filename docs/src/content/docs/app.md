@@ -30,6 +30,10 @@ Open **REL → Settings… → Agent** to edit the system prompt used by native 
 REL adds these instructions after its protected browser and tool rules, and
 changes apply to the next message in existing chats.
 
+Completed assistant messages include a **Copy response** button beneath the
+response. It copies the complete response, including its Markdown source, to
+the Mac clipboard.
+
 Every native Chat turn also includes the current page URL from its attached
 Session. The default system prompt uses that context for requests such as
 “summarize this page” or “summarize the top 3 links”: it reads the current page,
