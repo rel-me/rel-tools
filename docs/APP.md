@@ -17,9 +17,12 @@ also use a configured proxy and imported cookies or passwords.
 
 ## AI models
 
-Configure providers and choose the default AI model in **REL → Settings… →
-Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
-default model when their new Session starts.
+Configure model providers in **REL → Settings… → Providers**. API keys are
+stored in macOS Keychain. When Chat has no remembered model selection, REL uses
+a sensible default for the default provider: OpenAI uses **5.6 Sol**, while
+other providers use their first available model. Choosing another model in Chat
+remembers that choice for later new conversations. Scheduled prompts use the
+provider default when their new Session starts.
 
 ## Agent instructions and current-page context
 
