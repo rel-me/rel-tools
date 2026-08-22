@@ -44,15 +44,17 @@ and common credential fields, but tool output can still contain sensitive page
 content.
 
 Choose **Chat Options → Replay Debug Log…** to replay a completed schema-v1
-export in the selected chat. REL replaces that chat and replays its recorded
-activity at 3× speed before revealing the saved assistant response. Use the
-chat's **Stop** button or press Escape to stop early.
+export in the selected chat. A setup sheet lets you choose playback speed, the
+maximum pause between replay events, and whether recorded pages load live. The
+defaults are 3× speed, a two-second maximum pause, and live page loading. REL
+replaces the selected chat and reveals the saved assistant response after the
+activity replay. Use the chat's **Stop** button or press Escape to stop early.
 
 Recorded `rel_navigate` calls and URL-based `rel_read` calls load their HTTP or
-HTTPS destinations in the embedded browser as the replay advances. These are
-live page loads, so their content can differ from the original run. Replay does
-not execute recorded clicks or typing and never injects recorded tool output
-into the page.
+HTTPS destinations in the embedded browser as the replay advances when live
+page loading is enabled. These are live page loads, so their content can differ
+from the original run. Replay does not execute recorded clicks or typing and
+never injects recorded tool output into the page.
 
 ## Scheduled prompts
 
