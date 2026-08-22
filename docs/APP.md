@@ -19,10 +19,18 @@ also use a configured proxy and imported cookies or passwords.
 
 Configure model providers in **REL → Settings… → Providers**. API keys are
 stored in macOS Keychain. When Chat has no remembered model selection, REL uses
-a sensible default for the default provider: OpenAI uses **5.6 Sol**, while
-other providers use their first available model. Choosing another model in Chat
-remembers that choice for later new conversations. Scheduled prompts use the
-provider default when their new Session starts.
+a sensible available default for the default provider:
+
+- OpenAI uses **5.6 Sol**;
+- Anthropic uses **Claude Sonnet 5**;
+- Google Gemini uses **Gemini 3.7 Flash**; and
+- Ollama uses **Qwen 3.5**.
+
+OpenAI-compatible endpoints prefer the same common model families. If a
+preferred model is unavailable, REL uses the provider's first general chat
+model instead of a specialized embedding, media, or moderation model. Choosing
+another model in Chat remembers that choice for later new conversations.
+Scheduled prompts use the provider default when their new Session starts.
 
 ## Agent instructions and current-page context
 
