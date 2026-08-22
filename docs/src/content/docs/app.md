@@ -51,14 +51,17 @@ Choose **Chat Options → Replay Debug Log…** to replay a completed schema-v1
 export in the selected chat. A setup sheet lets you choose playback speed, the
 maximum pause between replay events, and whether recorded pages load live. The
 defaults are 3× speed, a two-second maximum pause, and live page loading. REL
-replaces the selected chat and reveals the saved assistant response after the
-activity replay. Use the chat's **Stop** button or press Escape to stop early.
+replaces the selected chat, waits four seconds so you can start recording,
+moves the pointer to Chat, rapidly types and submits the exported user prompt,
+then reveals the saved assistant response after the activity replay. Press
+Escape during the countdown, or use the chat's **Stop** button after submission,
+to stop early.
 
 Recorded `rel_navigate` calls and URL-based `rel_read` calls load their HTTP or
 HTTPS destinations in the embedded browser as the replay advances when live
 page loading is enabled. These are live page loads, so their content can differ
-from the original run. Replay does not execute recorded clicks or typing and
-never injects recorded tool output into the page.
+from the original run. Replay does not execute recorded page clicks or
+keystrokes and never injects recorded tool output into the page.
 
 ## Scheduled prompts
 
