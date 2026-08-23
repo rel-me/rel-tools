@@ -7,6 +7,19 @@ The macOS app owns REL's embedded Chromium runtime, persistent Sessions, browser
 Profiles, and AI chat. Keep REL running whenever local clients or scheduled
 prompts need to use it.
 
+## Updates
+
+REL checks the signed release feed on [rel.me](https://rel.me) once when the app
+starts, before it starts the local agent or scheduled prompts. A normal update
+opens the standard macOS update window and can be installed, deferred, or
+skipped. Use **REL → Check for Updates…** to check again at any time.
+
+An update marked required for the installed build blocks browser and agent use
+until the newer version is installed. Choose **Update REL** to continue through
+the signed in-app installer, or **Download from rel.me** to replace the app
+manually. If the startup check cannot reach rel.me, REL continues so existing
+local and offline workflows remain available.
+
 ## Profiles and Sessions
 
 A **Profile** is a reusable template for a new Session. Profiles select the
