@@ -2,14 +2,15 @@
 
 `rel-playwright` provides a scraping-focused subset of Playwright's Python API
 while using the Chromium browser and saved configuration in REL. Change the
-import, select an existing REL Profile or Session, and keep the familiar
-browser/page/locator workflow.
+import and keep the familiar browser/page/locator workflow. Launching without
+options uses REL's built-in `Direct` Profile; select another saved Profile or
+Session only when the scraper needs it.
 
 ```python
 from rel_playwright.sync_api import sync_playwright
 
 with sync_playwright() as playwright:
-    browser = playwright.chromium.launch(profile="Research")
+    browser = playwright.chromium.launch()
     page = browser.new_page()
     response = page.goto("https://example.com")
 
@@ -64,11 +65,12 @@ REL-specific changes. The executable versions live in
   full-page screenshot;
 - `playwright_locators.py` extracts a list through a CSS locator; and
 - `playwright_actions.py` fills and submits REL's deterministic browser-action
-  fixture.
+  fixture with Enter.
 
 Each keeps the documented Playwright browser/page/locator shape. The import
-changes to `rel_playwright`, and `chromium.launch()` selects the REL Profile
-whose browser identity, storage, proxy, and filtering should be used.
+changes to `rel_playwright`, and a zero-argument `chromium.launch()` uses REL's
+built-in `Direct` Profile. Pass `profile="Research"` when another saved
+Profile's browser identity, storage, proxy, and filtering should be used.
 
 Release REL uses `http://127.0.0.1:17319/v1` by default. `REL_AGENT_PORT` or
 the `rel_base_url` launch option can select another supported runtime;
@@ -76,15 +78,14 @@ RELDebug normally uses port `27319`.
 
 ## Port an existing scraper
 
-Change the import and provide the REL Profile at launch:
+Change the import. The unchanged zero-argument launch uses the `Direct` Profile:
 
 ```diff
 -from playwright.sync_api import sync_playwright
 +from rel_playwright.sync_api import sync_playwright
 
  with sync_playwright() as playwright:
--    browser = playwright.chromium.launch()
-+    browser = playwright.chromium.launch(profile="Research")
+     browser = playwright.chromium.launch()
      page = browser.new_page()
      page.goto("https://example.com")
 ```
@@ -98,7 +99,7 @@ from rel_playwright.async_api import async_playwright
 
 async def main() -> None:
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(profile="Research")
+        browser = await playwright.chromium.launch()
         page = await browser.new_page()
         await page.goto("https://example.com")
         print(await page.locator("main a").all_inner_texts())
@@ -117,7 +118,7 @@ Sessions concurrently.
 
 | Option | Meaning |
 | --- | --- |
-| `profile="Direct"` | Existing REL Profile copied into every new page Session. |
+| `profile="Direct"` | Existing REL Profile copied into every new page Session. `Direct` is the default when omitted. |
 | `session_id="Session12"` | Use one existing persistent Session instead of creating one. |
 | `group="crawler-run"` | Group assigned to Sessions created by this Browser. A unique group is generated when omitted. |
 | `persist=False` | Leave adapter-created Sessions open after close when true. Existing Sessions are never deleted. |
