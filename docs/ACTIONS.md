@@ -209,7 +209,7 @@ let actions = vec![
 ## Viewport and failures
 
 Browser sessions controlled while not visible use the **Background Browser
-Size** preset in **REL → Settings… → General**, which defaults to 1,920 × 947
+Size** preset in **REL → Settings → General**, which defaults to 1,920 × 947
 CSS pixels. Visible sessions follow the resizable REL window. The viewport is a
 global app setting rather than an action field.
 

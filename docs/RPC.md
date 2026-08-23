@@ -26,7 +26,7 @@ session, the REL app, and the resident agent remain running for other clients.
 
 By default, a browser operation selects its target session when REL is inactive, so
 the affected page is visible the next time the app is viewed. REL is not
-activated or brought forward. Turn off **REL → Settings… → General → Follow
+activated or brought forward. Turn off **REL → Settings → General → Follow
 browser commands** to preserve the current selection. This presentation setting
 does not change RPC results or session behavior.
 
@@ -107,7 +107,7 @@ repeat.
 A target website returning 404 or 429 is not a REL RPC error for capture
 operations. Its status is reported as `target_http_status` in capture data.
 `POST /v1/navigate` instead returns `UPSTREAM_UNAVAILABLE` when its main frame
-commits an HTTP 4xx or 5xx response. With the default **REL → Settings… →
+commits an HTTP 4xx or 5xx response. With the default **REL → Settings →
 General → Wait for Cloudflare Turnstile** setting, detected Turnstile and
 managed Cloudflare challenge pages receive up to 15 seconds to continue before
 that error is returned. This also applies to browser capture and page-creation

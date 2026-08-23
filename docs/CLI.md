@@ -1,7 +1,7 @@
 # REL CLI
 
 The recommended CLI is the `rel` binary bundled in `/Applications/REL.app` and
-linked from a writable directory already in `PATH`. Use **REL → Settings… →
+linked from a writable directory already in `PATH`. Use **REL → Settings →
 General → Install Command Line** to create the link. If no safe destination is
 available, REL leaves the filesystem unchanged so you can create the link
 manually. The matching public client can also be installed from source:
@@ -66,7 +66,7 @@ tools start REL lazily after their arguments have been validated.
 
 When a browser command targets a session while REL is in the background, REL
 selects that session by default without activating the app. Turn off **REL →
-Settings… → General → Follow browser commands** to keep the current session
+Settings → General → Follow browser commands** to keep the current session
 selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
@@ -277,7 +277,7 @@ unsuccessfully as soon as Chromium commits that response instead of waiting for
 all background loading to stop. By default, REL first detects Cloudflare
 Turnstile and managed challenge pages and gives them up to 15 seconds to
 continue. A successful redirect completes normally; otherwise the original
-target error is returned. Turn off **REL → Settings… → General → Wait for
+target error is returned. Turn off **REL → Settings → General → Wait for
 Cloudflare Turnstile** to restore immediate failure for every HTTP error. The
 `UPSTREAM_UNAVAILABLE` error message and details include the exact target status
 and final URL. The rendered page remains selected in the session.
@@ -349,7 +349,7 @@ For an existing session, omission preserves its current assignment; an explicit
 proxy updates the assignment.
 
 Sessions controlled while not visible use the **Background Browser Size** preset in
-**REL → Settings… → General**. The default viewport is 1,920 × 947 CSS pixels,
+**REL → Settings → General**. The default viewport is 1,920 × 947 CSS pixels,
 matching a common maximized browser on a 1,920 × 1,080 display. A visible
 session follows the resizable REL window. This is a global app setting, not a
 capture option.
@@ -476,7 +476,7 @@ rel session create \
 ```
 
 Every create option is optional. `--profile` accepts the unique name shown in
-**REL → Settings… → Profiles**; omission uses **Default**. Omitted proxy and
+**REL → Settings → Profiles**; omission uses **Default**. Omitted proxy and
 filtering options use the selected profile. Use `--direct` to override it with
 a direct connection. `--image-blocking-mode` is `none`, `all`, or
 `over_limit`; `none` allows every image without changing AdBlock.

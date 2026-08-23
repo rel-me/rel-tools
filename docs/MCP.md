@@ -234,7 +234,7 @@ the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
 absolute local `file:///` URI.
 
 Sessions controlled while not visible use the **Background Browser Size**
-preset in **REL → Settings… → General**, defaulting to a 1,920 × 947 CSS pixel
+preset in **REL → Settings → General**, defaulting to a 1,920 × 947 CSS pixel
 viewport. Visible sessions follow the resizable REL window. MCP does not expose a
 per-call viewport override.
 
@@ -468,7 +468,7 @@ block links the file directly:
 includes the terminal `capture.finished` event, and `exit_code` is taken from
 that event. A target website status such as 404 remains capture data and can
 produce exit code 1 and `isError:true`; it is not a REL RPC or MCP protocol
-error. With **REL → Settings… → General → Wait for Cloudflare Turnstile** on by
+error. With **REL → Settings → General → Wait for Cloudflare Turnstile** on by
 default, REL detects Turnstile and managed Cloudflare challenge pages and gives
 them up to 15 seconds to continue before returning their target error.
 

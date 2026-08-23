@@ -11,19 +11,19 @@ connection, network filters, and any browser data that should be copied when a
 Session is created. A **Session** is the persistent browser created from that
 template; later Profile changes do not modify existing Sessions.
 
-Manage templates in **REL → Settings… → Profiles**. The built-in Default,
+Manage templates in **REL → Settings → Profiles**. The built-in Default,
 AdBlock, and BandwidthSaver Profiles are always available. Custom Profiles can
 also use a configured proxy and imported cookies or passwords.
 
 ## AI models
 
-Configure providers and choose the default AI model in **REL → Settings… →
+Configure providers and choose the default AI model in **REL → Settings →
 Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
 default model when their new Session starts.
 
 ## Agent instructions and current-page context
 
-Open **REL → Settings… → Agent** to edit the system prompt used by native Chat.
+Open **REL → Settings → Agent** to edit the system prompt used by native Chat.
 REL adds these instructions after its protected browser and tool rules, and
 changes apply to the next message in existing chats.
 
@@ -35,7 +35,7 @@ then answers. Restoring the default prompt returns to this behavior.
 
 ## Scheduled prompts
 
-Open **REL → Settings… → Scheduled** to create repeating prompts. Each schedule
+Open **REL → Settings → Scheduled** to create repeating prompts. Each schedule
 contains:
 
 - a name;
