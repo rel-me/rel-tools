@@ -1617,8 +1617,9 @@ Write options:\n  \
 Update clear options:\n  \
 --clear-username --clear-password --clear-oxylabs-location\n\n\
 Export writes a versioned .relproxy file with non-secret routing settings.
-App-protected stored passwords are not available to CLI export. Import accepts
-files with or without a password; --alias overrides the alias stored in the file."
+App-protected credentials are not available to CLI export. Import accepts
+settings-only SQLite archives; --alias overrides the alias stored in the file.
+Use the REL app for passphrase-protected credential transfers."
         .to_string()
 }
 
@@ -1627,9 +1628,10 @@ fn profile_help() -> String {
 rel profile list\n  \
 rel profile export NAME [--output PATH]\n  \
 rel profile import FILE [--name NAME]\n\n\
-Export writes a versioned .relprofile file containing reusable profile settings.
-Cookies and saved passwords are app-owned and are not included. Import creates a
-new custom profile; --name overrides the name stored in the file."
+Export writes a versioned SQLite .relprofile file containing reusable settings.
+Cookies, saved passwords, and proxy credentials are not included. Import creates
+a new custom profile; --name overrides the name stored in the file. Use the REL
+app for passphrase-protected private-data transfers."
         .to_string()
 }
 
