@@ -7,6 +7,18 @@ The macOS app owns REL's embedded Chromium runtime, persistent Sessions, browser
 Profiles, and AI chat. Keep REL running whenever local clients or scheduled
 prompts need to use it.
 
+## Free and Pro
+
+REL Free does not require registration. It includes one Session at a time, one
+scheduled prompt, one custom Profile, and one configured AI model provider.
+Proxies cannot be created, configured, assigned, or used on the Free plan.
+
+Register a REL Pro license in **REL → Settings… → Plan** to use proxies and
+remove those limits. If Pro registration expires or is removed, REL preserves
+existing Sessions and configuration instead of deleting them. Free prevents
+additional creation beyond its limits, and any stored proxy assignment runs as
+a direct connection until Pro access is restored.
+
 ## Profiles and Sessions
 
 A **Profile** is a reusable template for a new Session. Profiles select the
@@ -22,7 +34,8 @@ also use a configured proxy and imported cookies or passwords.
 
 Configure providers and choose the default AI model in **REL → Settings… →
 Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
-default model when their new Session starts.
+default model when their new Session starts. REL Free supports one configured
+provider; REL Pro supports multiple providers.
 
 ## Agent instructions and current-page context
 
@@ -46,6 +59,8 @@ contains:
 - the prompt that runs in that Session;
 - one or more weekdays and one local time; and
 - an enabled or disabled state.
+
+REL Free supports one saved schedule; REL Pro supports multiple schedules.
 
 Create separate schedule rows when the same prompt should run at multiple times
 on the selected days. Times follow the Mac's current time zone.

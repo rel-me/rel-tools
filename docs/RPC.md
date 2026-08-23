@@ -95,6 +95,7 @@ repeat.
 | `10205` | `RATE_LIMITED` | yes | REL itself is rate limiting the caller |
 | `10206` | `ACTION_TIMEOUT` | yes | A browser action's local timeout expired |
 | `10207` | `OBSERVATION_STALE` | no | An observation or element reference no longer matches the live document |
+| `10208` | `PRO_REQUIRED` | no | The Free plan does not include the requested resource or capability |
 | `10300` | `UPSTREAM_UNAVAILABLE` | yes | Navigation received a target HTTP error or the browser/proxy received an invalid upstream result |
 | `10301` | `BROWSER_UNAVAILABLE` | yes | Required Chromium service is unavailable |
 | `10302` | `AGENT_UNHEALTHY` | yes | The serialized control worker missed its health deadline |
@@ -113,6 +114,19 @@ managed Cloudflare challenge pages receive up to 15 seconds to continue before
 that error is returned. This also applies to browser capture and page-creation
 navigation. The error details contain the final `url` and exact
 `target_http_status`; the navigated session remains selected.
+
+### Free and Pro access
+
+The running app selects the agent's access plan; RPC callers cannot override it.
+REL Free permits one persistent Session and one custom Profile. Creating
+another returns `PRO_REQUIRED`. Proxy creation, update, rotation, assignment,
+and use also return `PRO_REQUIRED`; listing, reading, deleting, and detaching
+previously stored resources remain available.
+
+`PRO_REQUIRED` uses HTTP 403 and includes stable `details.feature` and
+`details.plan` strings. The currently returned feature values are `proxies`,
+`additional_sessions`, and `additional_custom_profiles`. Register REL Pro in
+**REL → Settings… → Plan** to remove these limits.
 
 ## Routes
 

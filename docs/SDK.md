@@ -369,8 +369,8 @@ flags after REL.app stages an import; no cookie or password values cross RPC.
 Re-importing a selected category replaces that category in the template.
 Built-ins cannot be modified or deleted. `ImageBlockingMode::None` allows every
 image without disabling AdBlock. Existing sessions retain copied settings and
-data after their source profile is changed or deleted. REL does not impose a
-maximum session count.
+data after their source profile is changed or deleted. REL Free can create one
+persistent Session and one custom Profile; REL Pro removes those limits.
 
 `Session::profile` exposes the source profile name and
 `Session::profile_data_id` identifies the custom browser-data template copied
@@ -382,7 +382,9 @@ an empty group succeeds with an empty `deleted_ids` vector.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy
-resources never expose or accept numeric IDs or UUIDs.
+resources never expose or accept numeric IDs or UUIDs. Proxy creation, update,
+rotation, assignment, and use require REL Pro. On Free, those calls return a
+non-retryable `PRO_REQUIRED` error with feature and plan details.
 
 Sessions similarly expose their immutable canonical `id` (for example,
 `Session12`) as their sole public identifier. The typed session

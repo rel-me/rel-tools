@@ -71,6 +71,13 @@ selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
+REL Free supports one persistent Session and one custom Profile, and does not
+allow proxy creation, configuration, assignment, or use. Mutations that require
+REL Pro fail with the non-retryable `PRO_REQUIRED` RPC error. Register Pro in
+**REL → Settings… → Plan** to remove these limits. Read and delete operations
+remain available so stored resources can be inspected or reduced after a
+downgrade.
+
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free
 `rel capture` instead captures the current shorthand page selected by
@@ -412,6 +419,9 @@ proxy selected by `page attach`. Page IDs disappear when the agent restarts.
 Every proxy has a required, case-insensitively unique alias. The alias is its
 only public identifier: use it for every CLI and RPC reference. Numeric database
 IDs and UUIDs are not accepted or returned by the public API.
+
+Creating, updating, rotating, assigning, or using a proxy requires REL Pro.
+REL Free can list, inspect, and delete proxies that were saved previously.
 
 ```sh
 rel proxy list

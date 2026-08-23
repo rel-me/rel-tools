@@ -50,6 +50,7 @@ pub mod rpc_error_codes {
     pub const RATE_LIMITED: u32 = 10_205;
     pub const ACTION_TIMEOUT: u32 = 10_206;
     pub const OBSERVATION_STALE: u32 = 10_207;
+    pub const PRO_REQUIRED: u32 = 10_208;
 
     pub const UPSTREAM_UNAVAILABLE: u32 = 10_300;
     pub const BROWSER_UNAVAILABLE: u32 = 10_301;
@@ -84,6 +85,7 @@ pub mod rpc_error_codes {
             "RATE_LIMITED" => RATE_LIMITED,
             "ACTION_TIMEOUT" => ACTION_TIMEOUT,
             "OBSERVATION_STALE" => OBSERVATION_STALE,
+            "PRO_REQUIRED" => PRO_REQUIRED,
             "UPSTREAM_UNAVAILABLE" => UPSTREAM_UNAVAILABLE,
             "BROWSER_UNAVAILABLE" => BROWSER_UNAVAILABLE,
             "AGENT_UNHEALTHY" => AGENT_UNHEALTHY,
@@ -2147,6 +2149,7 @@ mod tests {
             rpc_error_codes::RATE_LIMITED,
             rpc_error_codes::ACTION_TIMEOUT,
             rpc_error_codes::OBSERVATION_STALE,
+            rpc_error_codes::PRO_REQUIRED,
             rpc_error_codes::UPSTREAM_UNAVAILABLE,
             rpc_error_codes::BROWSER_UNAVAILABLE,
             rpc_error_codes::AGENT_UNHEALTHY,
