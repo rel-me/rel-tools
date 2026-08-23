@@ -15,6 +15,8 @@ session storage, proxy credentials, or internal service code.
 - [`rel-client`](crates/rel-client): a typed synchronous Rust client for RPC v1.
 - [`rel-crawler`](crawler): a restartable Python crawler that preserves REL
   sessions and browser history while capturing rendered pages and metadata.
+- [`rel-playwright`](playwright): a Playwright-shaped sync and async Python
+  scraping API backed by REL Profiles and Sessions.
 - [`plugins/rel`](plugins/rel): the shared REL plugin for Codex and Claude Code,
   distributed through this repository's marketplaces.
 - [`docs`](docs): the canonical Actions, CLI, MCP, RPC, and Rust SDK
@@ -110,6 +112,24 @@ See the [crawler guide](docs/CRAWLER.md) for named Profiles, readiness selectors
 rendered-link discovery, checkpoints, output metadata, retrying failed entries,
 load-more sources, and recovery behavior.
 
+## Port a Playwright scraper
+
+The Python compatibility package keeps the common Playwright browser, page,
+and CSS-locator shape while REL owns Chromium and its saved configuration:
+
+```sh
+cd playwright
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python examples/hackernews.py
+```
+
+Change imports from `playwright.sync_api` or `playwright.async_api` to the
+corresponding `rel_playwright` module, then select a Profile at
+`chromium.launch(profile="Research")`. See the
+[Playwright compatibility guide](docs/PLAYWRIGHT.md) for supported methods and
+explicit limits.
+
 ## Development
 
 ```sh
@@ -118,6 +138,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
 cd crawler
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m unittest discover -s tests -v
+cd ..
+
+cd playwright
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
 .venv/bin/python -m unittest discover -s tests -v

@@ -4,6 +4,7 @@
 /docs/node_modules/
 /docs/src/content/docs/cli.md
 /docs/src/content/docs/crawler.md
+/docs/src/content/docs/playwright.md
 /docs/src/content/docs/actions.md
 /docs/src/content/docs/mcp.md
 /docs/src/content/docs/rpc.md
