@@ -54,6 +54,12 @@ const pages = [
     title: "Rust SDK",
     description: "Use the typed rel-client Rust crate for every public REL RPC v1 operation.",
   },
+  {
+    source: "CRAWLER.md",
+    output: "crawler.md",
+    title: "Python crawler",
+    description: "Build restartable, history-preserving website crawls through REL's embedded Chromium sessions.",
+  },
 ];
 
 const siteLinks = new Map([
@@ -65,11 +71,12 @@ const siteLinks = new Map([
   ["MCP.md", "/mcp/"],
   ["RPC.md", "/rpc/"],
   ["SDK.md", "/sdk/"],
+  ["CRAWLER.md", "/crawler/"],
 ]);
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

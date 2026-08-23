@@ -453,6 +453,11 @@ excluded along with `hidden` and `aria-hidden` subtrees. Element refs such as
 `e17` are valid only for that page, document sequence, and observation. Private
 locators never cross RPC.
 
+Semantic observations visit at most 50,000 DOM nodes, retain at most 5,000
+candidates and returned entries, limit individual text fields to 2,048 bytes,
+and limit total returned semantics to 512 KiB. REL reports rather than silently
+hiding any truncation caused by these independent bounds.
+
 Act through a ref with
 `POST /v1/observations/{observation_id}/actions`:
 

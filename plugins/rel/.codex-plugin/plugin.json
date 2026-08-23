@@ -1,7 +1,7 @@
 {
   "name": "rel",
-  "version": "0.3.0",
-  "description": "Use REL's persistent embedded Chromium sessions from Codex.",
+  "version": "0.4.1",
+  "description": "Browse and build restartable crawlers with REL's persistent embedded Chromium sessions.",
   "author": {
     "name": "REL",
     "url": "https://rel.me"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "REL",
     "shortDescription": "Browse with persistent local Chromium sessions.",
-    "longDescription": "Control REL's app-owned Chromium sessions from Codex. Inspect service health, reuse persistent sessions, capture rendered HTML and screenshots, and perform page actions through REL's local MCP adapter.",
+    "longDescription": "Control REL's app-owned Chromium sessions from Codex. Inspect service health, reuse persistent sessions, capture rendered HTML and screenshots, perform page actions, and design restartable browser-history crawlers through REL's local MCP adapter.",
     "developerName": "REL",
     "category": "Engineering",
     "capabilities": [
@@ -33,9 +33,9 @@
     "composerIcon": "./assets/rel-mark.svg",
     "logo": "./assets/rel-mark.svg",
     "defaultPrompt": [
-      "Check REL's health and list my browser sessions.",
       "Capture this URL with REL and summarize the page.",
-      "Use my existing REL session to inspect the current page."
+      "Use my existing REL session to inspect the current page.",
+      "Design a restartable REL crawl for this website."
     ]
   },
   "mcpServers": "./.mcp.json"
