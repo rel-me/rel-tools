@@ -53,6 +53,23 @@ python3 -m venv .venv
 
 There is no `playwright install` step and no Playwright browser download.
 
+## Verified Playwright examples
+
+The [`rel.me/playwright`](https://rel.me/playwright) walkthrough ports three
+examples from Playwright's official Python documentation and records the small
+REL-specific changes. The executable versions live in
+[`playwright/examples`](https://github.com/rel-me/rel-tools/tree/main/playwright/examples):
+
+- `playwright_quickstart.py` navigates, reads the page title, and captures a
+  full-page screenshot;
+- `playwright_locators.py` extracts a list through a CSS locator; and
+- `playwright_actions.py` fills and submits REL's deterministic browser-action
+  fixture.
+
+Each keeps the documented Playwright browser/page/locator shape. The import
+changes to `rel_playwright`, and `chromium.launch()` selects the REL Profile
+whose browser identity, storage, proxy, and filtering should be used.
+
 Release REL uses `http://127.0.0.1:17319/v1` by default. `REL_AGENT_PORT` or
 the `rel_base_url` launch option can select another supported runtime;
 RELDebug normally uses port `27319`.
