@@ -4,6 +4,7 @@
 //! therefore be used by other Rust programs without adopting the bundled CLI's
 //! macOS-specific conveniences.
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
@@ -1954,14 +1955,28 @@ pub struct Proxy {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ProxyTransferExportRequest {
     pub alias: String,
-    pub include_password: bool,
+    pub include_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ProxyTransferImportRequest {
-    pub contents: String,
+    pub contents_base64: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+impl ProxyTransferImportRequest {
+    pub fn from_bytes(data: &[u8], alias: Option<String>, passphrase: Option<String>) -> Self {
+        Self {
+            contents_base64: BASE64_STANDARD.encode(data),
+            alias,
+            passphrase,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
@@ -2072,19 +2087,51 @@ pub struct Profile {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct TransferExportData {
     pub filename: String,
-    pub contents: String,
+    pub contents_base64: String,
+}
+
+impl TransferExportData {
+    pub fn contents(&self) -> Result<Vec<u8>, String> {
+        BASE64_STANDARD
+            .decode(&self.contents_base64)
+            .map_err(|error| format!("REL returned invalid transfer data: {error}"))
+    }
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ProfileTransferExportRequest {
     pub name: String,
+    pub include_cookies: bool,
+    pub include_passwords: bool,
+    pub include_proxy_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ProfileTransferImportRequest {
-    pub contents: String,
+    pub contents_base64: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+    #[serde(skip_serializing_if = "is_false")]
+    pub browser_data_ready: bool,
+}
+
+impl ProfileTransferImportRequest {
+    pub fn from_bytes(data: &[u8], name: Option<String>, passphrase: Option<String>) -> Self {
+        Self {
+            contents_base64: BASE64_STANDARD.encode(data),
+            name,
+            passphrase,
+            browser_data_ready: false,
+        }
+    }
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -2771,7 +2818,7 @@ mod tests {
                     json!({"deleted_alias":"office"})
                 }
                 ("POST", "/v1/proxy-transfers/export") => {
-                    json!({"filename":"office.relproxy","contents":"{}\n"})
+                    json!({"filename":"office.relproxy","contents_base64":"U1FMaXRlIGZvcm1hdCAzAA=="})
                 }
                 ("POST", "/v1/proxy-transfers/import") => json!({"proxy":proxy_json()}),
                 ("DELETE", "/v1/sessions/machine-a.Session1") => {
@@ -2798,7 +2845,7 @@ mod tests {
                     json!({"deleted_id":"custom-profile-id"})
                 }
                 ("POST", "/v1/profile-transfers/export") => {
-                    json!({"filename":"Research.relprofile","contents":"{}\n"})
+                    json!({"filename":"Research.relprofile","contents_base64":"U1FMaXRlIGZvcm1hdCAzAA=="})
                 }
                 ("POST", "/v1/profile-transfers/import") => {
                     json!({"profile":profile_json()})
@@ -2926,14 +2973,16 @@ mod tests {
         client
             .export_proxy_transfer(&ProxyTransferExportRequest {
                 alias: "office".to_string(),
-                include_password: false,
+                include_credentials: false,
+                passphrase: None,
             })
             .unwrap();
         client
-            .import_proxy_transfer(&ProxyTransferImportRequest {
-                contents: "{}\n".to_string(),
-                alias: Some("backup".to_string()),
-            })
+            .import_proxy_transfer(&ProxyTransferImportRequest::from_bytes(
+                b"SQLite format 3\0",
+                Some("backup".to_string()),
+                None,
+            ))
             .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
@@ -2967,13 +3016,18 @@ mod tests {
         client
             .export_profile_transfer(&ProfileTransferExportRequest {
                 name: "Research".to_string(),
+                include_cookies: false,
+                include_passwords: false,
+                include_proxy_credentials: false,
+                passphrase: None,
             })
             .unwrap();
         client
-            .import_profile_transfer(&ProfileTransferImportRequest {
-                contents: "{}\n".to_string(),
-                name: Some("Research Copy".to_string()),
-            })
+            .import_profile_transfer(&ProfileTransferImportRequest::from_bytes(
+                b"SQLite format 3\0",
+                Some("Research Copy".to_string()),
+                None,
+            ))
             .unwrap();
         client
             .update_session(
@@ -3096,11 +3150,11 @@ mod tests {
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[21].body).unwrap(),
-            json!({"alias":"office","include_password":false})
+            json!({"alias":"office","include_credentials":false})
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[22].body).unwrap(),
-            json!({"contents":"{}\n","alias":"backup"})
+            json!({"contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==","alias":"backup"})
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[27].body).unwrap(),
@@ -3119,11 +3173,19 @@ mod tests {
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[30].body).unwrap(),
-            json!({"name":"Research"})
+            json!({
+                "name":"Research",
+                "include_cookies":false,
+                "include_passwords":false,
+                "include_proxy_credentials":false
+            })
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[31].body).unwrap(),
-            json!({"contents":"{}\n","name":"Research Copy"})
+            json!({
+                "contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==",
+                "name":"Research Copy"
+            })
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[32].body).unwrap(),

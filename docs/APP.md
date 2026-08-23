@@ -16,22 +16,25 @@ AdBlock, and BandwidthSaver Profiles are always available. Custom Profiles can
 also use a configured proxy and imported cookies or passwords.
 
 Use **Import Profile…** and **Export Profile…** in that settings tab to move a
-template's reusable settings in a versioned `.relprofile` file. Profile
-transfers deliberately exclude cookies and saved passwords because those are
-machine-bound, app-owned browser data; imported Profiles start without either.
+template in a versioned `.relprofile` SQLite archive. An export can include the
+Profile's cookies, saved passwords, referenced Proxy configuration, and saved
+Proxy credentials. REL requires a transfer passphrase whenever any of those
+secrets are selected. On import, REL previews the included data and asks for
+the passphrase before creating the Profile and restoring its browser data.
 
 Manage upstream connections in **REL → Settings… → Proxies**. **Import Proxy…**
-and **Export Proxy…** read and write versioned `.relproxy` files. When a Proxy
-has a saved password, REL asks whether to include it. Files that include a
-password contain that value as readable JSON and are saved with owner-only
-permissions; choose the password-free option when the file does not need to
-recreate credentials.
+and **Export Proxy…** read and write versioned `.relproxy` SQLite archives. An
+export can omit credentials or include the saved username and password in
+passphrase-protected form. Choose the credential-free option when the file
+only needs to recreate routing settings.
 
-Both file types carry a format identifier and integer version. REL ignores
-unknown additive fields within version 1, while unsupported future versions
-fail with an explanatory error instead of being partially imported. Import
-creates a new Profile or Proxy and does not overwrite an existing name or
-alias.
+Both file types use the same versioned SQLite schema: `metadata`, `proxies`,
+`profiles`, `cookies`, and `passwords`. A standalone Proxy archive and a Proxy
+embedded in a Profile archive use the identical `proxies` table. Secret values
+are stored only as encrypted BLOBs; the passphrase is not written into the
+file. Import creates a new Profile or Proxy and does not overwrite an existing
+name or alias. Version 1 imports accept only this SQLite format; legacy JSON
+transfers are not supported.
 
 ## AI models
 

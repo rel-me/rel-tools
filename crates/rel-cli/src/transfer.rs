@@ -72,7 +72,7 @@ mod tests {
         let directory = std::env::temp_dir().join(format!("rel-transfer-test-{}", Uuid::new_v4()));
         fs::create_dir(&directory).unwrap();
         let path = directory.join("profile.relprofile");
-        let data = br#"{"format":"rel.profile","version":1}"#;
+        let data = b"SQLite format 3\0transfer-test";
 
         let written = write_transfer_file(data, Some(path.clone()), "unused").unwrap();
         assert_eq!(written, path);

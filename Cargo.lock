@@ -116,6 +116,7 @@ dependencies = [
 name = "rel-client"
 version = "0.1.5"
 dependencies = [
+ "base64",
  "serde",
  "serde_json",
  "ureq",

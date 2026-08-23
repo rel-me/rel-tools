@@ -1,6 +1,5 @@
 use rel_client::transfer::{
-    ProfileTransferDocument, ProxyTransferDocument, PROFILE_TRANSFER_FORMAT, PROXY_TRANSFER_FORMAT,
-    TRANSFER_FORMAT_VERSION,
+    validate_transfer_file, PROFILE_TRANSFER_FORMAT, PROXY_TRANSFER_FORMAT, TRANSFER_FORMAT_VERSION,
 };
 use rel_client::{
     self as client, Action, CaptureEvent, CaptureRequest, Change, ImageBlockingMode,
@@ -246,40 +245,31 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             let transfer = client
                 .export_proxy_transfer(&ProxyTransferExportRequest {
                     alias,
-                    include_password: false,
+                    include_credentials: false,
+                    passphrase: None,
                 })?
                 .data;
-            let document = ProxyTransferDocument::decode(transfer.contents.as_bytes())
+            let contents = transfer.contents().map_err(CliError::Message)?;
+            validate_transfer_file(&contents).map_err(CliError::Message)?;
+            let path = write_transfer_file(&contents, output, &transfer.filename)
                 .map_err(CliError::Message)?;
-            let secrets_included = document.secrets_included();
-            let path =
-                write_transfer_file(transfer.contents.as_bytes(), output, &transfer.filename)
-                    .map_err(CliError::Message)?;
-            if !secrets_included {
-                eprintln!(
-                    "warning: stored proxy passwords are app-protected and were not exported"
-                );
-            }
+            eprintln!("warning: proxy credentials are app-protected and were not exported");
             print_json(&serde_json::json!({
                 "status": "ok",
                 "path": path.display().to_string(),
                 "format": PROXY_TRANSFER_FORMAT,
                 "version": TRANSFER_FORMAT_VERSION,
-                "secrets_included": secrets_included,
+                "credentials_included": false,
             }))?;
             Ok(0)
         }
         CliCommand::ProxyImport { path, alias } => {
             let data = read_transfer_file(&path).map_err(CliError::Message)?;
-            let document = ProxyTransferDocument::decode(&data).map_err(CliError::Message)?;
-            if !document.secrets_included() {
-                eprintln!("warning: this proxy transfer does not include its stored password");
-            }
-            let contents = String::from_utf8(data).map_err(|error| {
-                CliError::Message(format!("Proxy transfer must be UTF-8 JSON: {error}"))
-            })?;
+            validate_transfer_file(&data).map_err(CliError::Message)?;
             print_json(
-                &client.import_proxy_transfer(&ProxyTransferImportRequest { contents, alias })?,
+                &client.import_proxy_transfer(&ProxyTransferImportRequest::from_bytes(
+                    &data, alias, None,
+                ))?,
             )?;
             Ok(0)
         }
@@ -289,13 +279,18 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
         }
         CliCommand::ProfileExport { name, output } => {
             let transfer = client
-                .export_profile_transfer(&ProfileTransferExportRequest { name })?
+                .export_profile_transfer(&ProfileTransferExportRequest {
+                    name,
+                    include_cookies: false,
+                    include_passwords: false,
+                    include_proxy_credentials: false,
+                    passphrase: None,
+                })?
                 .data;
-            ProfileTransferDocument::decode(transfer.contents.as_bytes())
+            let contents = transfer.contents().map_err(CliError::Message)?;
+            validate_transfer_file(&contents).map_err(CliError::Message)?;
+            let path = write_transfer_file(&contents, output, &transfer.filename)
                 .map_err(CliError::Message)?;
-            let path =
-                write_transfer_file(transfer.contents.as_bytes(), output, &transfer.filename)
-                    .map_err(CliError::Message)?;
             print_json(&serde_json::json!({
                 "status": "ok",
                 "path": path.display().to_string(),
@@ -307,14 +302,10 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
         }
         CliCommand::ProfileImport { path, name } => {
             let data = read_transfer_file(&path).map_err(CliError::Message)?;
-            ProfileTransferDocument::decode(&data).map_err(CliError::Message)?;
-            let contents = String::from_utf8(data).map_err(|error| {
-                CliError::Message(format!("Profile transfer must be UTF-8 JSON: {error}"))
-            })?;
-            print_json(
-                &client
-                    .import_profile_transfer(&ProfileTransferImportRequest { contents, name })?,
-            )?;
+            validate_transfer_file(&data).map_err(CliError::Message)?;
+            print_json(&client.import_profile_transfer(
+                &ProfileTransferImportRequest::from_bytes(&data, name, None),
+            )?)?;
             Ok(0)
         }
         CliCommand::SessionList => {

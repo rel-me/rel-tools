@@ -470,11 +470,10 @@ rel proxy import office.relproxy --alias office-backup
 Export writes `ALIAS.relproxy` in the current directory unless `--output`
 supplies an exact path. It refuses to overwrite an existing file and creates
 the file with owner-only permissions. Stored proxy passwords are protected by
-the app and are not available to CLI export, so `secrets_included` is `false`
-when a password was omitted. Import accepts a versioned `.relproxy` created by
-either the CLI or app; `--alias` overrides the immutable alias stored in the
-file. The app can create a transfer with its stored password after explicit
-user confirmation.
+the app and are not available to CLI export, so `credentials_included` is
+`false`. Import accepts an unprotected, versioned `.relproxy` SQLite archive;
+`--alias` overrides the immutable alias stored in the file. Use the app to
+export or import credentials with a transfer passphrase.
 
 ## Profiles
 
@@ -490,17 +489,14 @@ rel profile import Research.relprofile --name "Research Copy"
 Export writes `NAME.relprofile` in the current directory unless `--output`
 supplies an exact path. It refuses to overwrite an existing file and creates
 the file with owner-only permissions. A profile transfer contains its name,
-proxy assignment, AdBlock setting, and image policy. Cookies and saved
-passwords are app-owned, machine-bound browser data and are never included;
-the document records both that omission and whether the source profile had
-either category. Import always creates a new custom profile with no browser
-data. `--name` overrides the name stored in the file, which is useful when that
-name already exists.
+referenced Proxy configuration, AdBlock setting, and image policy. CLI export
+does not include cookies, saved passwords, or Proxy credentials. CLI import
+accepts an unprotected archive and creates a custom Profile; `--name` overrides
+the stored name when that name already exists. Use the app for
+passphrase-protected browser data or Proxy credentials.
 
-Both transfer formats are readable JSON with a format identifier and integer
-`version`. Version 1 readers ignore unknown fields so later additive fields
-remain compatible. A breaking format change requires a new version, which old
-readers reject with a clear error. Transfer files are limited to 1 MiB.
+Both transfer formats are SQLite containers with the same version 1 schema.
+They are limited to 12 MiB. Legacy JSON transfer files are not accepted.
 
 ## Sessions
 

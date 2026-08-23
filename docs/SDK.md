@@ -97,11 +97,14 @@ and the typed `data` resource. Resources include `Health`, `StatusReport`,
 `BrowserNotification`, `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
 match RPC v1.
 
-The `rel_client::transfer` module is the canonical Rust implementation of the
-versioned `.relprofile` and `.relproxy` contracts. Its document types own
-encoding, decoding, size limits, version checks, additive-field compatibility,
-and conversion to create requests. App and CLI file pickers only move the
-opaque encoded bytes returned by the transfer RPC operations.
+The `rel_client::transfer` module validates the size and SQLite header of
+versioned `.relprofile` and `.relproxy` archives and provides their safe output
+filenames. `TransferExportData::contents()` decodes the RPC's base64 field, and
+the transfer import request `from_bytes` helpers perform the inverse encoding.
+The agent owns full schema validation, version checks, and protected Proxy
+credential encryption. Both archive types share one five-table SQLite schema;
+legacy JSON transfer documents are not supported. The 12 MiB transfer limit is
+available as `MAX_TRANSFER_FILE_BYTES`.
 
 `pause_session` and `play_session` return `SessionNetworkStateData`, containing
 the canonical `session_id` and resulting `network_paused` value. Both methods
