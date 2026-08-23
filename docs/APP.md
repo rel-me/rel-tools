@@ -15,6 +15,25 @@ Manage templates in **REL → Settings… → Profiles**. The built-in Default,
 AdBlock, and BandwidthSaver Profiles are always available. Custom Profiles can
 also use a configured proxy and imported cookies or passwords.
 
+### Import browser data
+
+Choose **Browser → Import Cookies and Passwords…** to import from a closed
+local Chromium-family profile into the current Session. Each selected category
+is a full replacement: Cookies removes the Session's existing cookie jar before
+writing the source rows, and Saved passwords replaces its existing saved-login
+data. Unselected categories remain unchanged.
+
+Cookie import preserves compatible Chromium metadata, including partition
+keys, source scheme and port, SameSite, HTTP-only, and cross-site-ancestor
+state. REL briefly closes only the selected Session, re-encrypts imported
+values with REL Safe Storage, writes the replacement transactionally, and
+reopens the Session at its current URL. Other Sessions continue running.
+
+The same replacement behavior applies when importing browser data into a
+custom Profile in **REL → Settings… → Profiles**. Existing Sessions created
+from that Profile are unchanged. A website can still invalidate imported login
+cookies when its sessions are device-bound, network-bound, expired, or revoked.
+
 ## AI models
 
 Configure providers and choose the default AI model in **REL → Settings… →
