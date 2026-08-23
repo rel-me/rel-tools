@@ -18,6 +18,28 @@ Manage templates in **REL → Settings… → Profiles**. The built-in Default,
 AdBlock, and BandwidthSaver Profiles are always available. Custom Profiles can
 also use a configured proxy and imported cookies or passwords.
 
+### Import cookies and saved passwords
+
+To replace browser data in one Session, select it and choose **Browser → Import
+Cookies and Passwords…**. To update a reusable template, open **REL →
+Settings… → Profiles**, select a custom Profile, and choose **Import Cookies
+and Passwords**. Each selected category replaces that category in the target;
+an unselected category remains unchanged. Updating a Profile affects only
+Sessions created afterward.
+
+The source Chromium-family browser may remain open. REL reads each selected
+source database inside a read-only SQLite transaction, producing one committed
+snapshot when that database permits concurrent readers. Some browser
+databases, commonly saved passwords, use exclusive locking. If a selected
+database remains busy or locked after a short wait, REL asks you to quit that
+browser and retry. No target category is replaced unless all selected source
+data loads successfully.
+
+REL never modifies the source browser profile. Supported values are decrypted
+locally in memory and re-encrypted with REL's own Safe Storage key for the
+destination. macOS may ask you to authorize access to the source browser's
+Keychain item.
+
 ## AI models
 
 Configure providers and choose the default AI model in **REL → Settings… →
