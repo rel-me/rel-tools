@@ -144,24 +144,27 @@ rel https://rel.me > rel.html 2> capture.ndjson
 
 ### Navigate, perform, and capture in one session
 
-Create a session with `--id-only` so command substitution receives only its
-canonical ID, then use that ID for the complete stateful workflow:
+Create a session, then let later CLI calls select that newest session for the
+complete stateful workflow:
 
 ```sh
-session_id="$(rel session create --name Research --id-only)"
+rel session create --name Research --id-only
+# Session12
 
-rel navigate https://rel.me --session-id="$session_id"
-rel perform '[{"action":"wait","seconds":0.5}]' --session-id="$session_id"
-rel capture --session-id="$session_id" > rel.html
+rel navigate https://rel.me
+rel perform '[{"action":"wait","seconds":0.5}]'
+rel capture > rel.html
 ```
 
 The final argument-free `rel capture` reads the page selected by `rel navigate`
-after `rel perform` finishes.
+after `rel perform` finishes. Each CLI process asks REL for the newest existing
+session, so this sequence needs no shell variable or CLI state file.
 
-For a sequence of commands, export the ID under REL's standard environment
-variable and omit the repeated options:
+To pin a sequence while another shell or process may create sessions, export an
+ID under REL's standard environment variable:
 
 ```sh
+session_id="$(rel session create --name Research --id-only)"
 export REL_SESSION_ID="$session_id"
 
 rel navigate https://example.com
@@ -169,7 +172,8 @@ rel perform '[{"action":"wait","seconds":0.5}]'
 rel capture > example.html
 ```
 
-An explicit `--session-id` always takes precedence over `REL_SESSION_ID`.
+An explicit `--session-id` takes precedence over `REL_SESSION_ID`, which takes
+precedence over the newest existing session.
 
 ## Output and errors
 
@@ -271,12 +275,13 @@ rel capture > final.html
 ```
 
 `navigate` calls `POST /v1/navigate`, navigates the current shorthand page, and
-prints the ordinary JSON response envelope. Its first call reuses the first
-persisted session unless `--session-id` or `REL_SESSION_ID` supplies one,
-creating a session only when none exists. Later calls without a session ID reuse
-the current page and session. Supplying `--profile NAME` intentionally creates
-a new session from that profile and conflicts with `--session-id`. It also
-accepts `--proxy`, `--output`, `--timeout`, and `--wait`.
+prints the ordinary JSON response envelope. Its first call reuses the newest
+existing session unless `--session-id` or `REL_SESSION_ID` supplies one,
+creating a session only when none exists. Later calls without a session ID
+resolve the newest session again and reuse its current page. Supplying
+`--profile NAME` intentionally creates a new session from that profile and
+conflicts with `--session-id`. It also accepts `--proxy`, `--output`,
+`--timeout`, and `--wait`.
 
 Navigation becomes ready after REL observes the requested HTTP(S) main-frame
 load, that main frame finishes, and its rendered source is available. Subframe
@@ -309,12 +314,13 @@ options such as `--action`, `--proxy`, or `--retry`. It also accepts
 `--session-id`.
 
 For `navigate`, `perform`, and argument-free `capture`, `--session-id` defaults
-to `REL_SESSION_ID` when set. The agent keeps a distinct current shorthand page
-for each session, so embedded terminals can use these commands concurrently.
-An explicit option always wins. The shorthand registry is process-local and a
-session's entry disappears when the agent restarts or that session closes.
-Concurrent work within the same session should use `page attach` and
-`page action` with explicit page IDs.
+to `REL_SESSION_ID` when set, then the newest existing session. The agent keeps
+a distinct current shorthand page for each session, so embedded terminals can
+use these commands concurrently. An explicit option always wins. The shorthand
+registry is process-local and a session's entry disappears when the agent
+restarts or that session closes. Concurrent workflows that may create sessions
+should set `REL_SESSION_ID` or pass `--session-id`; concurrent work within the
+same session should use `page attach` and `page action` with explicit page IDs.
 
 ## Capture
 
@@ -333,9 +339,9 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--wait SECONDS` | `wait` | Nonnegative finite settling delay after the final main-frame readiness; default `1`. Background loading does not restart it. |
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
-| `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set; otherwise create a persistent session. |
-| `--profile NAME` | `profile` | Create the session from this built-in or custom profile. Conflicts with `--session-id` and suppresses the `REL_SESSION_ID` default. |
-| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses the `REL_SESSION_ID` default. |
+| `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set, then the newest existing session. Create a persistent session only when none exists. |
+| `--profile NAME` | `profile` | Create the session from this built-in or custom profile. Conflicts with `--session-id` and suppresses both implicit defaults. |
+| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses both implicit defaults. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
@@ -345,10 +351,11 @@ addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
 When `--session-id`, `--profile`, and `--group` are omitted, the CLI uses
-`REL_SESSION_ID` if it is set. This
-is exported automatically by each embedded session terminal. An explicit option
-always wins. If neither is present, capture creates a persistent browser session.
-Its default label is `Session<ID>` and its immutable identifier is:
+`REL_SESSION_ID` if it is set, then the newest existing session. The environment
+variable is exported automatically by each embedded session terminal. An
+explicit option always wins. If neither the environment variable nor an
+existing session is present, capture creates a persistent browser session. Its
+default label is `Session<ID>` and its immutable identifier is:
 
 ```text
 Session<ID>
@@ -407,7 +414,8 @@ rel page attach https://example.com \
 `page attach` accepts `--session-id`, `--profile`, `--proxy`, `--output`,
 `--timeout`, and `--wait`. It also accepts `--group` when creating a session.
 `--profile` conflicts with `--session-id`; either creation option suppresses
-the `REL_SESSION_ID` default. Its result contains a process-local `page.id`.
+both implicit defaults. Otherwise the CLI uses `REL_SESSION_ID` when set, then
+the newest existing session. Its result contains a process-local `page.id`.
 
 Perform one canonical [browser action](ACTIONS.md) on that attachment:
 
@@ -543,6 +551,11 @@ ID. Group matching is case-insensitive.
 `--id-only` changes successful output to the new canonical
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
+
+After a successful create, that session is the newest session and therefore the
+default for later CLI commands. Creating or deleting sessions in another shell
+can change this default; use `REL_SESSION_ID` or `--session-id` to pin concurrent
+workflows.
 
 REL does not impose a maximum session count. Sessions remain open until you
 explicitly delete them.
