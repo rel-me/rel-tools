@@ -60,6 +60,12 @@ const pages = [
     title: "Python crawler",
     description: "Build restartable, history-preserving website crawls through REL's embedded Chromium sessions.",
   },
+  {
+    source: "PLAYWRIGHT.md",
+    output: "playwright.md",
+    title: "Playwright-compatible Python",
+    description: "Port Playwright-shaped Python scrapers to REL Profiles and persistent Chromium sessions.",
+  },
 ];
 
 const siteLinks = new Map([
@@ -72,11 +78,12 @@ const siteLinks = new Map([
   ["RPC.md", "/rpc/"],
   ["SDK.md", "/sdk/"],
   ["CRAWLER.md", "/crawler/"],
+  ["PLAYWRIGHT.md", "/playwright/"],
 ]);
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|MCP|PLAYWRIGHT|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

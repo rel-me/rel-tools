@@ -398,7 +398,10 @@ explicit attached page:
 ignored for PNG. `full_page` defaults to false; true captures content beyond
 the visible viewport. `output` follows the same absolute-response-path contract
 as HTML capture. When omitted, REL writes under its temporary `screenshots`
-directory.
+directory. Every encoded image is limited to 16,384 pixels on either axis and
+16,000,000 pixels total. REL checks full-page document dimensions before asking
+Chromium to render the image and returns `OBSERVATION_TOO_LARGE` immediately
+when the scaled page exceeds either bound.
 
 Success uses the ordinary RPC envelope:
 
