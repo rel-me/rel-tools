@@ -12,6 +12,7 @@ and [docs.rel.me](https://docs.rel.me):
 - `RPC.md` → `/rpc/`
 - `SDK.md` → `/sdk/`
 - `CRAWLER.md` → `/crawler/`
+- `PLAYWRIGHT.md` → `/playwright/`
 
 Edit those source files, not the generated guide files under
 `src/content/docs/`. `scripts/sync-docs.mjs` prepares the Markdown for

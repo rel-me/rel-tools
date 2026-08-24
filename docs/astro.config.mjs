@@ -51,6 +51,7 @@ export default defineConfig({
             { label: "RPC v1", slug: "rpc" },
             { label: "Rust SDK", slug: "sdk" },
             { label: "Python crawler", slug: "crawler" },
+            { label: "Playwright-compatible Python", slug: "playwright" },
           ],
         },
         {
