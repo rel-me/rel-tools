@@ -18,8 +18,9 @@ also use a configured proxy and imported cookies or passwords.
 ## AI models
 
 Configure providers and choose the default AI model in **REL → Settings… →
-Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
-default model when their new Session starts.
+Providers**. API keys are stored in macOS Keychain. Scheduled prompts use this
+default model when their new Session starts. See [AI model providers](AI.md) for
+provider-specific setup and behavior.
 
 ## Agent instructions and current-page context
 

@@ -5,6 +5,7 @@ and [docs.rel.me](https://docs.rel.me):
 
 - `CLI.md` → `/cli/`
 - `APP.md` → `/app/`
+- `AI.md` → `/ai/`
 - `ACTIONS.md` → `/actions/`
 - `CODEX_PLUGIN.md` → `/codex-plugin/`
 - `CLAUDE_CODE_PLUGIN.md` → `/claude-code-plugin/`

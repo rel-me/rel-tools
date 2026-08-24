@@ -13,6 +13,12 @@ const pages = [
     description: "Configure REL Profiles, AI models, Sessions, and repeating scheduled prompts in the macOS app.",
   },
   {
+    source: "AI.md",
+    output: "ai.md",
+    title: "AI model providers",
+    description: "Connect OpenAI, OpenRouter, Anthropic, Gemini, Ollama, and OpenAI-compatible providers to REL Chat.",
+  },
+  {
     source: "CODEX_PLUGIN.md",
     output: "codex-plugin.md",
     title: "Codex plugin",
@@ -70,6 +76,7 @@ const pages = [
 
 const siteLinks = new Map([
   ["APP.md", "/app/"],
+  ["AI.md", "/ai/"],
   ["CODEX_PLUGIN.md", "/codex-plugin/"],
   ["CLAUDE_CODE_PLUGIN.md", "/claude-code-plugin/"],
   ["CLI.md", "/cli/"],
@@ -83,7 +90,7 @@ const siteLinks = new Map([
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|MCP|PLAYWRIGHT|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|AI|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|MCP|PLAYWRIGHT|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

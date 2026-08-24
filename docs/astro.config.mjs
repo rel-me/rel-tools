@@ -40,6 +40,7 @@ export default defineConfig({
           items: [
             { label: "Overview", slug: "index" },
             { label: "macOS app", slug: "app" },
+            { label: "AI model providers", slug: "ai" },
             { label: "Actions", slug: "actions" },
           ],
         },
