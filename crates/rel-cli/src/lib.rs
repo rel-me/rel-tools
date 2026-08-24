@@ -80,7 +80,12 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
         }
     }
 
-    match run_command(RelClient::local(), command) {
+    let client = RelClient::local();
+    if let Err(error) = apply_latest_session_default(&client, &mut command) {
+        return print_cli_error(error);
+    }
+
+    match run_command(client, command) {
         Ok(exit_code) => exit_code,
         Err(error) => print_cli_error(error),
     }
@@ -495,39 +500,12 @@ fn apply_session_id_environment_default(
     command: &mut CliCommand,
     environment_value: Option<OsString>,
 ) -> Result<(), CliError> {
-    let session_id = match command {
-        CliCommand::Navigate(request)
-            if request.session_id.is_none() && request.profile.is_none() =>
-        {
-            &mut request.session_id
-        }
-        CliCommand::Read(request) if request.session_id.is_none() && request.profile.is_none() => {
-            &mut request.session_id
-        }
-        CliCommand::Capture(request)
-            if request.session_id.is_none()
-                && request.group.is_none()
-                && request.profile.is_none() =>
-        {
-            &mut request.session_id
-        }
-        CliCommand::CaptureCurrent(request) if request.session_id.is_none() => {
-            &mut request.session_id
-        }
-        CliCommand::Perform(request) if request.session_id.is_none() => &mut request.session_id,
-        CliCommand::PageAttach(request)
-            if request.session_id.is_none()
-                && request.group.is_none()
-                && request.profile.is_none() =>
-        {
-            &mut request.session_id
-        }
-        CliCommand::Observe {
-            page_id: None,
-            request,
-        } if request.session_id.is_none() => &mut request.session_id,
-        _ => return Ok(()),
+    let Some(session_id) = session_id_default_target(command) else {
+        return Ok(());
     };
+    if session_id.is_some() {
+        return Ok(());
+    }
     let Some(environment_value) = environment_value else {
         return Ok(());
     };
@@ -547,6 +525,64 @@ fn apply_session_id_environment_default(
     }
     *session_id = Some(environment_value.to_string());
     Ok(())
+}
+
+fn apply_latest_session_default(
+    client: &RelClient,
+    command: &mut CliCommand,
+) -> Result<(), CliError> {
+    if !needs_session_id_default(command) {
+        return Ok(());
+    }
+    let sessions = client.list_sessions()?.data.sessions;
+    apply_latest_session_id(command, sessions.iter().map(|session| session.id.as_str()));
+    Ok(())
+}
+
+fn needs_session_id_default(command: &mut CliCommand) -> bool {
+    session_id_default_target(command).is_some_and(|session_id| session_id.is_none())
+}
+
+fn apply_latest_session_id<'a>(
+    command: &mut CliCommand,
+    session_ids: impl IntoIterator<Item = &'a str>,
+) {
+    let Some(session_id) = session_id_default_target(command) else {
+        return;
+    };
+    if session_id.is_none() {
+        *session_id = latest_session_id(session_ids).map(str::to_string);
+    }
+}
+
+fn session_id_default_target(command: &mut CliCommand) -> Option<&mut Option<String>> {
+    match command {
+        CliCommand::Navigate(request) if request.profile.is_none() => Some(&mut request.session_id),
+        CliCommand::Read(request) if request.profile.is_none() => Some(&mut request.session_id),
+        CliCommand::Capture(request) if request.group.is_none() && request.profile.is_none() => {
+            Some(&mut request.session_id)
+        }
+        CliCommand::CaptureCurrent(request) => Some(&mut request.session_id),
+        CliCommand::Perform(request) => Some(&mut request.session_id),
+        CliCommand::PageAttach(request) if request.group.is_none() && request.profile.is_none() => {
+            Some(&mut request.session_id)
+        }
+        CliCommand::Observe {
+            page_id: None,
+            request,
+        } => Some(&mut request.session_id),
+        _ => None,
+    }
+}
+
+fn latest_session_id<'a>(session_ids: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
+    session_ids
+        .into_iter()
+        .max_by_key(|session_id| canonical_session_number(session_id))
+}
+
+fn canonical_session_number(session_id: &str) -> Option<u64> {
+    session_id.strip_prefix("Session")?.parse().ok()
 }
 
 fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -1310,7 +1346,8 @@ Run `rel navigate --help`, `rel read --help`, `rel perform --help`, `rel capture
 `rel page --help`, `rel observe --help`, `rel observation --help`,\n\
 `rel proxy --help`, or\n\
 `rel session --help` for resource options. Commands that accept --session-id
-use $REL_SESSION_ID when the option is omitted; an explicit option wins."
+use $REL_SESSION_ID when set, then the newest existing session; an explicit
+option wins."
         .to_string()
 }
 
@@ -1337,7 +1374,7 @@ Options:\n  \
 --wait SECONDS\n  \
 --action JSON                 Repeat for multiple canonical action objects\n  \
 --actions JSON                Canonical action object array\n  \
---session-id ID              Default: $REL_SESSION_ID when set\n  \
+--session-id ID              Default: $REL_SESSION_ID, then newest session\n  \
 --profile NAME               Create the session from this named profile\n  \
 --group GROUP                Group a new URL-capture session; conflicts with --session-id\n  \
 --proxy ALIAS\n  \
@@ -1352,10 +1389,11 @@ to stderr."
 fn navigate_help() -> String {
     "Usage:\n  \
 rel navigate URL [--session-id ID | --profile NAME] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n\n\
-Navigates the current shorthand page. The first call reuses a persisted session,\n\
-creating one only when none exists; later calls reuse that page and session.
---session-id defaults to $REL_SESSION_ID when set; --profile creates a session
-from a named profile and suppresses that default."
+Navigates the current shorthand page. The first call reuses the newest existing\n\
+session, creating one only when none exists; later calls reuse that page and
+session. --session-id defaults to $REL_SESSION_ID when set, then the newest
+session; --profile creates a session from a named profile and suppresses that
+default."
         .to_string()
 }
 
@@ -1366,7 +1404,7 @@ Options:\n  \
 --query TEXT\n  \
 --max-chars COUNT           512-32768; default 12000\n  \
 --max-sections COUNT        1-100; default 24\n  \
---session-id ID             Default: $REL_SESSION_ID when set\n  \
+--session-id ID             Default: $REL_SESSION_ID, then newest session\n  \
 --profile NAME              Create the session from this named profile\n  \
 --proxy ALIAS\n  \
 --timeout SECONDS\n  \
@@ -1384,7 +1422,7 @@ rel perform ACTIONS [--session-id ID] [--output PATH] [--timeout S] [--wait S]\n
 ACTIONS is a non-empty JSON array of canonical action objects. Actions run in\n\
 array order. Run `rel navigate URL` first. --session-id defaults to
 \
-$REL_SESSION_ID when set; an explicit value wins."
+$REL_SESSION_ID when set, then the newest existing session; an explicit value wins."
         .to_string()
 }
 
@@ -1392,9 +1430,10 @@ fn page_help() -> String {
     "Usage:\n  \
 rel page attach URL [--session-id ID | --profile NAME] [--group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
 rel page action PAGE_ID --action JSON [--output PATH] [--timeout S] [--wait S]\n\n\
-For page attach, --session-id defaults to $REL_SESSION_ID when set. --profile
-creates a session from a named profile; --group labels a newly created session.
-Either creation option suppresses that environment default."
+For page attach, --session-id defaults to $REL_SESSION_ID when set, then the
+newest existing session. --profile creates a session from a named profile;
+--group labels a newly created session. Either creation option suppresses that
+default."
         .to_string()
 }
 
@@ -1403,7 +1442,8 @@ fn observe_help() -> String {
 rel observe [--page-id ID] [--session-id ID] [--mode semantic|hybrid|visual] [--timeout S] [--wait S]\n\n\
 Observe the current shorthand page or one attached page. Hybrid and visual modes\n\
 include a synchronized current-viewport PNG resource. --session-id defaults to\n\
-$REL_SESSION_ID and cannot be combined with --page-id."
+$REL_SESSION_ID when set, then the newest session, and cannot be combined with
+--page-id."
         .to_string()
 }
 
@@ -1542,6 +1582,37 @@ mod tests {
     }
 
     #[test]
+    fn latest_session_defaults_commands_to_the_highest_assigned_id() {
+        let mut command = parse(&["navigate", "https://example.com"]).unwrap();
+        apply_latest_session_id(&mut command, ["Session2", "Session10", "Session9"]);
+        let CliCommand::Navigate(navigate) = command else {
+            panic!("expected navigate");
+        };
+        assert_eq!(navigate.session_id.as_deref(), Some("Session10"));
+
+        assert_eq!(latest_session_id(std::iter::empty::<&str>()), None);
+    }
+
+    #[test]
+    fn latest_session_default_does_not_override_explicit_or_creation_options() {
+        let mut explicit =
+            parse(&["capture", "https://example.com", "--session-id", "Session4"]).unwrap();
+        apply_latest_session_id(&mut explicit, ["Session5"]);
+        let CliCommand::Capture(explicit) = explicit else {
+            panic!("expected capture");
+        };
+        assert_eq!(explicit.session_id.as_deref(), Some("Session4"));
+
+        let mut profile =
+            parse(&["capture", "https://example.com", "--profile", "Research"]).unwrap();
+        apply_latest_session_id(&mut profile, ["Session5"]);
+        let CliCommand::Capture(profile) = profile else {
+            panic!("expected capture");
+        };
+        assert_eq!(profile.session_id, None);
+    }
+
+    #[test]
     fn explicit_session_id_wins_over_environment_default() {
         let CliCommand::Capture(request) = parse_with_session_default(
             &[
@@ -1663,6 +1734,7 @@ mod tests {
             page_help(),
         ] {
             assert!(help.contains("REL_SESSION_ID"));
+            assert!(help.contains("newest"));
         }
     }
 
