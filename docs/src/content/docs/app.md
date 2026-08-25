@@ -24,6 +24,22 @@ Configure providers and choose the default AI model in **REL → Settings… →
 Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
 default model when their new Session starts.
 
+New chats use Medium reasoning effort and a 24-model-call limit by default.
+You can choose a different effort per chat and configure a provider limit up to
+128 calls. REL keeps model requests bounded by advertising only browser tools
+that are useful for the current step, compacting older chat context, limiting
+page evidence, and resizing large visual observations. OpenAI chat requests use
+stable prompt-cache routing and bounded output; Anthropic chat requests enable
+automatic prompt caching.
+
+Turn on **REL → Settings… → General → Show token usage** to display the current
+response's rounded token count and estimated cost above the chat input. Click
+the badge for uncached and cached input, output, reasoning tokens, model calls,
+the current-chat total, and the retained total for the selected model. Clearing
+or starting a chat resets the response and chat totals, while the model total
+remains available for comparison. Provider billing is authoritative, and REL
+shows an em dash when it does not have pricing for the selected model.
+
 ## Agent instructions and current-page context
 
 Open **REL → Settings… → Agent** to edit the system prompt used by native Chat.
