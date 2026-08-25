@@ -24,6 +24,33 @@ Configure providers and choose the default AI model in **REL → Settings… →
 Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
 default model when their new Session starts.
 
+REL loads each configured provider's current model list and removes known
+non-chat model families. OpenRouter results must explicitly support tool calls
+and completion-token limits because native Chat sends both on every request.
+Models with a **REL Verified** badge have completed REL's bounded text and
+synthetic tool-call round trip. Other models may remain available as
+provider-compatible or unverified as provider catalogs change.
+
+Use **Compatibility Test → Test** while adding or editing a provider to run the
+same small, explicit check for one model. The test can incur a small provider
+charge. Its result distinguishes an unsupported model from temporary quota,
+rate-limit, or service failures; it does not open or control a browser.
+
+Clients can inspect REL's versioned verification catalog at
+[`https://rel.me/supported-models.json`](https://rel.me/supported-models.json).
+The JSON response includes `schema_version`, `catalog_version`,
+`minimum_rel_version`, the verification contract, provider adapters, exact
+model IDs, verification dates, and tested capabilities. Treat the list as a
+curated compatibility floor rather than a complete provider catalog: a missing
+model is unverified, not necessarily unsupported.
+
+OpenRouter requests require routed endpoints to honor REL's parameters and cap
+each completion at 1,024 output tokens; other providers use an 8,192-token
+ceiling. REL preserves the account's existing
+privacy and data-retention restrictions rather than weakening them to find an
+endpoint. When OpenRouter reports a request cost, native Chat displays that
+amount in its token/cost overlay.
+
 ## Agent instructions and current-page context
 
 Open **REL → Settings… → Agent** to edit the system prompt used by native Chat.
