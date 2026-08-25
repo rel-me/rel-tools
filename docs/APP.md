@@ -57,3 +57,14 @@ Use **Run Now** to execute a schedule immediately without changing its next
 repeating run. Disable a row to pause it without deleting its configuration.
 If its Profile is later deleted, REL marks the Profile as missing and the
 schedule cannot run until it is edited to select an available Profile.
+
+## Report a bug
+
+Select the bug icon in the main window toolbar, or choose **Help → Report a
+Bug…** (`Shift-Command-B`). Describe the problem and optionally include an
+email address if you want the REL team to follow up.
+
+REL includes the app version and build, macOS version, and internal build ID
+with the report. It does not include tab URLs, browsing data, logs, or
+credentials. The REL website stores the report before attempting to notify the
+team in Slack, so a notification failure does not discard the report.
