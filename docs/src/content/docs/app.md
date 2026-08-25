@@ -24,6 +24,13 @@ Configure providers and choose the default AI model in **REL → Settings… →
 Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
 default model when their new Session starts.
 
+## Update channel
+
+Choose **REL → Settings… → General → Update Channel** to control which signed
+updates REL accepts. **Regular** is the default and receives published releases.
+Choose **Beta** to receive preview updates in addition to regular releases.
+Changing the channel applies to the next update check.
+
 ## Agent instructions and current-page context
 
 Open **REL → Settings… → Agent** to edit the system prompt used by native Chat.
