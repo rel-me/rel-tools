@@ -58,9 +58,23 @@ Enable **Run Shortcut** and enter a shortcut's exact name to hand off the final
 assistant response after a successful prompt. REL supplies Shortcut Input as a
 private temporary UTF-8 text file and removes it when the shortcut finishes. A
 shortcut can read that input and use actions such as **Send Message**, **Send
-Email**, or **Show Notification**. If the shortcut cannot be opened or exits
-with an error, REL marks the scheduled run as failed and shows the error in the
-schedule's last-run status.
+Email**, **Show Notification**, or a third-party app action such as WhatsApp's
+**Send Message**. If the shortcut cannot be opened or exits with an error, REL
+marks the scheduled run as failed and shows the error in the schedule's
+last-run status.
+
+To deliver a result with WhatsApp, install and sign in to WhatsApp on the Mac,
+then create a shortcut that:
+
+1. uses **Get Text from Shortcut Input** to read REL's result;
+2. passes that text to WhatsApp's **Send Message** action;
+3. selects the recipient or group; and
+4. does not ask for input or show a compose prompt when it runs.
+
+Enter that shortcut's exact name in the schedule. Run it once from Shortcuts to
+grant any requested app or contact permissions before relying on unattended
+scheduled delivery. WhatsApp availability and actions depend on the installed
+WhatsApp version and the signed-in account.
 
 Use **Run Now** to execute a schedule immediately without changing its next
 repeating run. Disable a row to pause it without deleting its configuration.
