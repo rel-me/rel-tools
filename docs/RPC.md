@@ -647,6 +647,9 @@ Passwords are accepted on writes but never returned.
 - `POST /v1/proxies` requires `alias`, `upstream_host`, and `upstream_port`. Optional
   write fields are `username`, `password`, `oxylabs_enabled`,
   `oxylabs_location_parameter`, and `oxylabs_location_value`.
+  The Free plan can create one proxy. Creating an additional proxy returns
+  `PRO_REQUIRED` with `details.feature` set to `additional_proxies`; REL Pro
+  removes this creation limit.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
   `username:null` or `password:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns

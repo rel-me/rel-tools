@@ -4,6 +4,13 @@ The macOS app owns REL's embedded Chromium runtime, persistent Sessions, browser
 Profiles, and AI chat. Keep REL running whenever local clients or scheduled
 prompts need to use it.
 
+## REL and REL Pro
+
+REL includes one open Session, scheduled prompt, custom Profile, model provider,
+and proxy. REL Pro removes those one-item limits. When a Free plan reaches a
+limit, the app explains which additional item requires registration before it
+opens the activation form.
+
 ## Profiles and Sessions
 
 A **Profile** is a reusable template for a new Session. Profiles select the
