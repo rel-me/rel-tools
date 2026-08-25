@@ -145,7 +145,7 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/sessions/close` | Close every browser session in a group |
 | `GET` | `/v1/profiles` | List built-in and custom session profiles |
 | `POST` | `/v1/profiles` | Create a custom session profile |
-| `PATCH` | `/v1/profiles/{id}` | Update custom-profile browser-data availability |
+| `PATCH` | `/v1/profiles/{id}` | Partially update a custom session profile |
 | `DELETE` | `/v1/profiles/{id}` | Delete a custom session profile |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
 | `PATCH` | `/v1/sessions/{id}` | Partially update a browser session |
@@ -728,10 +728,14 @@ blocked). A profile resource is:
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
   the proxy, filtering, and browser-data inclusion fields above and returns
   `data.profile`.
-- `PATCH /v1/profiles/{id}` accepts `includes_cookies` and/or
-  `includes_passwords` booleans and returns the updated custom profile in
-  `data.profile`. REL.app uses this metadata update after it has safely staged
-  imported browser data; cookie and password values never cross RPC.
+- `PATCH /v1/profiles/{id}` accepts one or more mutable fields: `name`,
+  `proxy_alias`, `adblock_enabled`, `image_blocking_mode`,
+  `image_size_limit_kb`, `includes_cookies`, or `includes_passwords`. It
+  returns the updated custom profile in `data.profile`. `name` remains
+  case-insensitively unique, and `proxy_alias:null` switches the profile to a
+  direct connection. REL.app uses the browser-data metadata fields only after
+  it has safely staged imported data; cookie and password values never cross
+  RPC.
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
