@@ -34,7 +34,9 @@ Every native Chat turn also includes the current page URL from its attached
 Session. The default system prompt uses that context for requests such as
 “summarize this page” or “summarize the top 3 links”: it reads the current page,
 identifies the requested links in page order, reads their destinations, and
-then answers. Restoring the default prompt returns to this behavior.
+then answers. Current-page reads recover automatically when normal browsing has
+moved the Session since the agent's prior page operation. Restoring the default
+prompt returns to this behavior.
 
 ## Scheduled prompts
 
