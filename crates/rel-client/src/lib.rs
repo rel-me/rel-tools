@@ -152,6 +152,24 @@ impl RelClient {
         self.request::<StatusReport, Value>("GET", "/status", None)
     }
 
+    pub fn configuration(&self) -> Result<RpcResponse<ConfigurationData>, ClientError> {
+        self.request::<ConfigurationData, Value>("GET", "/configuration", None)
+    }
+
+    pub fn replace_configuration(
+        &self,
+        documents: &ConfigurationDocuments,
+    ) -> Result<RpcResponse<ConfigurationData>, ClientError> {
+        self.request("PUT", "/configuration", Some(documents))
+    }
+
+    pub fn update_configuration(
+        &self,
+        documents: &ConfigurationUpdate,
+    ) -> Result<RpcResponse<ConfigurationData>, ClientError> {
+        self.request("PATCH", "/configuration", Some(documents))
+    }
+
     /// Export all portable REL configuration as a credential-free SQLite
     /// `.rel` archive.
     pub fn export_configuration(
@@ -2221,6 +2239,31 @@ pub struct ConfigurationExportData {
     pub credentials_included: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigurationData {
+    pub app_settings: Option<Value>,
+    pub ai_model_settings: Option<Value>,
+    pub scheduled_prompts: Option<Value>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ConfigurationDocuments {
+    pub app_settings: Value,
+    pub ai_model_settings: Value,
+    pub scheduled_prompts: Value,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ConfigurationUpdate {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_settings: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_model_settings: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scheduled_prompts: Option<Value>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ConfigurationExportWireData {
@@ -2648,6 +2691,60 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Value>(&requests[1].body).unwrap()["contents_base64"],
             encoded_archive
+        );
+    }
+
+    #[test]
+    fn configuration_documents_use_get_put_and_patch_routes() {
+        let response_body = json!({
+            "status": "ok",
+            "request_id": "request-configuration",
+            "data": {
+                "app_settings": {"schemaVersion": 1},
+                "ai_model_settings": {"schemaVersion": 3, "profiles": []},
+                "scheduled_prompts": {"schemaVersion": 1, "schedules": []}
+            }
+        });
+        let (base_url, handle) = start_test_server(3, move |_, _| {
+            http_json(200, "request-configuration", response_body.clone())
+        });
+        let client = RelClient::new(base_url);
+        let documents = ConfigurationDocuments {
+            app_settings: json!({"schemaVersion": 1}),
+            ai_model_settings: json!({"schemaVersion": 3, "profiles": []}),
+            scheduled_prompts: json!({"schemaVersion": 1, "schedules": []}),
+        };
+
+        client.configuration().unwrap();
+        client.replace_configuration(&documents).unwrap();
+        client
+            .update_configuration(&ConfigurationUpdate {
+                app_settings: Some(json!({"schemaVersion": 1})),
+                ..ConfigurationUpdate::default()
+            })
+            .unwrap();
+
+        let requests = handle.join().unwrap();
+        assert_eq!(
+            (requests[0].method.as_str(), requests[0].path.as_str()),
+            ("GET", "/v1/configuration")
+        );
+        assert_eq!(
+            (requests[1].method.as_str(), requests[1].path.as_str()),
+            ("PUT", "/v1/configuration")
+        );
+        assert_eq!(
+            (requests[2].method.as_str(), requests[2].path.as_str()),
+            ("PATCH", "/v1/configuration")
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[2].body)
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>(),
+            vec!["app_settings"]
         );
     }
 

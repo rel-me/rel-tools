@@ -54,6 +54,9 @@ present and semantic `/observe` for the current page.
 | --- | --- |
 | `health()` | `GET /v1/health` |
 | `status()` | `GET /v1/status` |
+| `configuration()` | `GET /v1/configuration` |
+| `replace_configuration(&ConfigurationDocuments)` | `PUT /v1/configuration` |
+| `update_configuration(&ConfigurationUpdate)` | `PATCH /v1/configuration` |
 | `export_configuration()` | `POST /v1/configuration/export` |
 | `import_configuration(contents)` | `POST /v1/configuration/import` |
 | `list_notifications()` | `GET /v1/notifications` |
@@ -142,6 +145,12 @@ The SDK is transport-only and does not inspect or modify the SQLite file. The
 agent performs strict archive validation and the transactional replacement. Use
 the CLI when owner-only file permissions, refusal to overwrite an export, and
 automatic app launch are desired.
+
+The document-level methods expose the app-owned JSON as `serde_json::Value` so
+clients do not invent a second copy of the Swift settings schema.
+`ConfigurationDocuments` requires all three documents for replacement;
+`ConfigurationUpdate` omits `None` fields for a partial update. The agent still
+validates the current `schemaVersion` values and required top-level collections.
 
 The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
