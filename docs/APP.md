@@ -33,6 +33,19 @@ Session. The default system prompt uses that context for requests such as
 identifies the requested links in page order, reads their destinations, and
 then answers. Restoring the default prompt returns to this behavior.
 
+## Logs
+
+Open a Session's bottom panel and choose **Logs** to inspect that Session's
+proxy and network events. Choose **View → Show System Logs** (`⌥⌘L`) to open a
+separate window for application-wide and agent events. Both views update live,
+filter by category, preserve standard macOS multi-selection and copying, and
+show the complete message for the focused row.
+
+Session and system logs are separate append-only files under REL's Application
+Support directory. **Clear Logs** removes only the file shown in the current
+viewer. Logs remain local to the app and are not exposed through the CLI, MCP,
+or RPC interfaces.
+
 ## Scheduled prompts
 
 Open **REL → Settings… → Scheduled** to create repeating prompts. Each schedule
