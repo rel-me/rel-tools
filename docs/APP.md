@@ -37,14 +37,17 @@ then answers. Restoring the default prompt returns to this behavior.
 
 Open a Session's bottom panel and choose **Logs** to inspect that Session's
 proxy and network events. Choose **View → Show System Logs** (`⌥⌘L`) to open a
-separate window for application-wide and agent events. Both views update live,
-filter by category, preserve standard macOS multi-selection and copying, and
-show the complete message for the focused row.
+separate window. Its source picker shows **REL** application and agent events,
+raw **Chromium** runtime records, or **Profile Diagnostics** assembled from
+Chromium's internal profile messages and REL's browser-startup checkpoints.
+Both windows update live, filter by category, preserve standard macOS
+multi-selection and copying, and show the complete message for the focused row.
 
 Session and system logs are separate append-only files under REL's Application
-Support directory. **Clear Logs** removes only the file shown in the current
-viewer. Logs remain local to the app and are not exposed through the CLI, MCP,
-or RPC interfaces.
+Support directory. **Clear Logs** removes the selected REL-owned log. Chromium
+owns `Data/Chromium/chrome_debug.log`, so the Chromium and Profile Diagnostics
+sources are read-only. Logs remain local to the app and are not exposed through
+the CLI, MCP, or RPC interfaces.
 
 ## Scheduled prompts
 
