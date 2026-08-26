@@ -166,7 +166,7 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             }
             if !stream.is_finished() {
                 return Err(CliError::Message(
-                    "Rel capture stream ended before capture.finished".to_string(),
+                    "REL capture stream ended before capture.finished".to_string(),
                 ));
             }
             if completed {
@@ -175,7 +175,7 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
                 }
             } else if capture_to_stdout && stream.exit_code() == Some(0) {
                 return Err(CliError::Message(
-                    "Rel capture finished successfully without capture.completed".to_string(),
+                    "REL capture finished successfully without capture.completed".to_string(),
                 ));
             }
             Ok(stream.exit_code().unwrap_or(1))
@@ -1284,7 +1284,7 @@ impl Arguments {
 }
 
 fn root_help() -> String {
-    "Rel CLI — typed client for Rel RPC v1\n\n\
+    "REL CLI — typed client for REL RPC v1\n\n\
 Usage:\n  \
 rel URL [options]\n  \
 rel health\n  \
