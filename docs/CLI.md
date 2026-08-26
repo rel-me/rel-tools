@@ -27,13 +27,13 @@ Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
 ```text
 rel health
 rel status
-rel navigate URL [options]
+rel navigate [URL] [options]
 rel read [URL] [--query TEXT] [options]
 rel perform ACTIONS [options]
 rel capture [options]
 rel URL [options]
 rel capture URL [options]
-rel page attach URL [options]
+rel page attach [URL] [options]
 rel page action PAGE_ID --action JSON [options]
 rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]
 rel observation action OBSERVATION_ID --request JSON
@@ -63,6 +63,11 @@ starts the REL app in the background when its agent is unavailable. `rel-mcp`
 starts its stdio protocol server without launching the app; its operational
 tools start REL lazily after their arguments have been validated.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
+
+`rel navigate` and `rel page attach` use `REL_SESSION_URL` when their otherwise
+required positional URL is omitted. An explicit URL always wins. Argument-free
+`rel read` and `rel capture` retain their current-page behavior and do not
+reload from `REL_SESSION_URL`.
 
 When a browser command targets a session while REL is in the background, REL
 selects that session by default without activating the app. Turn off **REL →
@@ -144,18 +149,21 @@ rel capture --session-id="$session_id" > rel.html
 The final argument-free `rel capture` reads the page selected by `rel navigate`
 after `rel perform` finishes.
 
-For a sequence of commands, export the ID under REL's standard environment
-variable and omit the repeated options:
+For a sequence of commands, export the session defaults and omit the repeated
+arguments and options:
 
 ```sh
 export REL_SESSION_ID="$session_id"
+export REL_SESSION_URL="https://example.com"
 
-rel navigate https://example.com
+rel navigate
 rel perform '[{"action":"wait","seconds":0.5}]'
 rel capture > example.html
 ```
 
-An explicit `--session-id` always takes precedence over `REL_SESSION_ID`.
+An explicit URL or `--session-id` always takes precedence over its environment
+default. REL's embedded terminal exports both variables for its browser session
+when the shell starts or restarts.
 
 ## Output and errors
 
@@ -262,7 +270,8 @@ persisted session unless `--session-id` or `REL_SESSION_ID` supplies one,
 creating a session only when none exists. Later calls without a session ID reuse
 the current page and session. Supplying `--profile NAME` intentionally creates
 a new session from that profile and conflicts with `--session-id`. It also
-accepts `--proxy`, `--output`, `--timeout`, and `--wait`.
+accepts `--proxy`, `--output`, `--timeout`, and `--wait`. The positional URL may
+be omitted when `REL_SESSION_URL` is set; an explicit URL always wins.
 
 Navigation becomes ready after REL observes the requested HTTP(S) main-frame
 load, that main frame finishes, and its rendered source is available. Subframe
@@ -393,7 +402,8 @@ rel page attach https://example.com \
 `page attach` accepts `--session-id`, `--profile`, `--proxy`, `--output`,
 `--timeout`, and `--wait`. It also accepts `--group` when creating a session.
 `--profile` conflicts with `--session-id`; either creation option suppresses
-the `REL_SESSION_ID` default. Its result contains a process-local `page.id`.
+the `REL_SESSION_ID` default. Its positional URL defaults to `REL_SESSION_URL`
+when omitted. Its result contains a process-local `page.id`.
 
 Perform one canonical [browser action](ACTIONS.md) on that attachment:
 
