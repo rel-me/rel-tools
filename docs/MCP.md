@@ -172,8 +172,8 @@ The dedicated process name makes adapters clearly identifiable separately from
 the `rel` CLI and app-owned `rel --agent` process.
 
 Browser tool calls also use the [RPC session-selection behavior](RPC.md#transport):
-while REL is inactive, their target session is selected by default without bringing
-the app forward. The General setting **Follow browser commands** controls this.
+they run in their target session without replacing the current selection or
+bringing the app forward.
 
 ## Transport and protocol versions
 

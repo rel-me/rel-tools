@@ -70,11 +70,7 @@ required positional URL is omitted. An explicit URL always wins. Argument-free
 reload from `REL_SESSION_URL`.
 
 When a browser command targets a session while REL is in the background, REL
-selects that session by default without activating the app. Turn off **REL →
-Settings… → General → Follow browser commands** to keep the current session
-selected instead.
-Internal session synchronization and read-only resource commands do not change
-the selection.
+runs it without replacing the current session selection or activating the app.
 
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free

@@ -40,9 +40,8 @@ installed app and agent are running. The bundled CLI adds app-launch behavior
 for Chromium and mutation commands around this same client.
 
 SDK browser methods inherit the [RPC session-selection behavior](RPC.md#transport):
-when REL is inactive, the target session is selected by default without activating
-the app. Users can disable this with the General setting **Follow browser
-commands**.
+they run in their target session without replacing the current selection or
+activating the app.
 
 ## API parity
 
