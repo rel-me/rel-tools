@@ -96,3 +96,20 @@ Use **Run Now** to execute a schedule immediately without changing its next
 repeating run. Disable a row to pause it without deleting its configuration.
 If its Profile is later deleted, REL marks the Profile as missing and the
 schedule cannot run until it is edited to select an available Profile.
+
+## Configuration storage and transfer
+
+REL stores providers, schedules, preferences, proxies, and custom Profiles in
+the current `Data/rel-data.sqlite3` application database. Existing installations
+migrate the former preferences documents into SQLite once, then remove the old
+UserDefaults values and generated provider registry. AI API keys and proxy
+credentials remain in macOS Keychain rather than SQLite.
+
+Use `rel config export FILE.rel` and `rel config import FILE.rel` to move or
+back up portable configuration. A `.rel` file is a versioned SQLite
+configuration database using the corresponding application tables. It never
+contains Keychain credentials, cookies, passwords, Sessions, browser history,
+logs, or license state. Import overwrites the portable configuration after
+creating a pre-import backup and normally requires reopening REL. See the
+[CLI configuration archive guide](/cli/#configuration-archives) for the exact
+workflow and exclusions.

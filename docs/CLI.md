@@ -27,6 +27,8 @@ Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
 ```text
 rel health
 rel status
+rel config export FILE.rel
+rel config import FILE.rel
 rel navigate URL [options]
 rel read [URL] [--query TEXT] [options]
 rel perform ACTIONS [options]
@@ -122,6 +124,40 @@ rel read --session-id=Session1 --query="current plan"
 
 The JSON envelope reports the source URL, title, observation ID, selection
 counts, whether the query matched, and independent source/output truncation.
+
+## Configuration archives
+
+Export the app's portable configuration to a `.rel` file:
+
+```sh
+rel config export workstation.rel
+```
+
+The output file is a SQLite database with owner-only (`0600`) permissions. It
+contains app preferences, AI provider profiles, scheduled prompts, proxies, and
+custom browser Profiles. It deliberately excludes AI API keys, proxy
+credentials, cookies, passwords, live Sessions, browser history, request logs,
+licenses, and other secrets or runtime data. Export refuses to replace an
+existing file.
+
+Replace the app configuration from an archive:
+
+```sh
+rel config import workstation.rel
+```
+
+Import validates the complete archive before changing application data, makes a
+credential-free pre-import backup under REL's `Data/Configuration Backups`
+directory, and then replaces the current configuration transactionally. Existing
+Keychain credentials are preserved separately when their provider or proxy
+identity still matches; credentials never come from the archive. The JSON
+response reports imported counts, the backup path, and `restart_required`. Quit
+and reopen REL when that field is `true`.
+
+Configuration commands start REL when necessary and briefly retry while a newly
+launched app initializes its SQLite configuration rows. `.rel` files are limited
+to 8 MiB and are versioned against the application database schema; an
+incompatible archive fails without applying a partial import.
 
 ## Quick examples
 

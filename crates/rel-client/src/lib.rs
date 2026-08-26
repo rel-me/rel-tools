@@ -152,6 +152,49 @@ impl RelClient {
         self.request::<StatusReport, Value>("GET", "/status", None)
     }
 
+    /// Export all portable REL configuration as a credential-free SQLite
+    /// `.rel` archive.
+    pub fn export_configuration(
+        &self,
+    ) -> Result<RpcResponse<ConfigurationExportData>, ClientError> {
+        let response = self.request::<ConfigurationExportWireData, Value>(
+            "POST",
+            "/configuration/export",
+            Some(&serde_json::json!({})),
+        )?;
+        let contents = BASE64_STANDARD
+            .decode(&response.data.contents_base64)
+            .map_err(|_| {
+                ClientError::Protocol(
+                    "Rel RPC configuration export contains invalid base64".to_string(),
+                )
+            })?;
+        Ok(RpcResponse {
+            status: response.status,
+            request_id: response.request_id,
+            data: ConfigurationExportData {
+                filename: response.data.filename,
+                contents,
+                credentials_included: response.data.credentials_included,
+            },
+        })
+    }
+
+    /// Replace the app configuration from a `.rel` archive. API keys, proxy
+    /// credentials, browser data, and other secrets are not imported.
+    pub fn import_configuration(
+        &self,
+        contents: &[u8],
+    ) -> Result<RpcResponse<ConfigurationImportData>, ClientError> {
+        self.request(
+            "POST",
+            "/configuration/import",
+            Some(&ConfigurationImportRequest {
+                contents_base64: BASE64_STANDARD.encode(contents),
+            }),
+        )
+    }
+
     /// List the bounded in-memory queue of website notifications that the user
     /// explicitly opted in to share with agents.
     pub fn list_notifications(
@@ -2171,6 +2214,44 @@ pub struct ProxyDeletedData {
     pub deleted_alias: String,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConfigurationExportData {
+    pub filename: String,
+    pub contents: Vec<u8>,
+    pub credentials_included: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConfigurationExportWireData {
+    filename: String,
+    contents_base64: String,
+    credentials_included: bool,
+}
+
+#[derive(Serialize)]
+struct ConfigurationImportRequest {
+    contents_base64: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigurationImportData {
+    pub imported: ConfigurationImportCounts,
+    pub backup_path: String,
+    pub credentials_imported: bool,
+    pub restart_required: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigurationImportCounts {
+    pub providers: usize,
+    pub profiles: usize,
+    pub proxies: usize,
+    pub schedules: usize,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Health {
     pub version: String,
@@ -2505,6 +2586,69 @@ mod tests {
                 screenshot: None,
             },
         }
+    }
+
+    #[test]
+    fn configuration_archives_use_typed_bytes_and_current_routes() {
+        let archive = b"SQLite format 3\0configuration".to_vec();
+        let encoded_archive = BASE64_STANDARD.encode(&archive);
+        let response_archive = encoded_archive.clone();
+        let (base_url, handle) = start_test_server(2, move |index, _| {
+            if index == 0 {
+                http_json(
+                    200,
+                    "request-export",
+                    json!({
+                        "status": "ok",
+                        "request_id": "request-export",
+                        "data": {
+                            "filename": "rel-configuration.rel",
+                            "contents_base64": response_archive,
+                            "credentials_included": false
+                        }
+                    }),
+                )
+            } else {
+                http_json(
+                    200,
+                    "request-import",
+                    json!({
+                        "status": "ok",
+                        "request_id": "request-import",
+                        "data": {
+                            "imported": {
+                                "providers": 2,
+                                "profiles": 3,
+                                "proxies": 1,
+                                "schedules": 4
+                            },
+                            "backup_path": "/tmp/before-import.rel",
+                            "credentials_imported": false,
+                            "restart_required": true
+                        }
+                    }),
+                )
+            }
+        });
+        let client = RelClient::new(base_url);
+
+        let exported = client.export_configuration().unwrap();
+        assert_eq!(exported.data.contents, archive);
+        assert!(!exported.data.credentials_included);
+        let imported = client.import_configuration(&archive).unwrap();
+        assert_eq!(imported.data.imported.providers, 2);
+        assert!(imported.data.restart_required);
+
+        let requests = handle.join().unwrap();
+        assert_eq!(requests[0].method, "POST");
+        assert_eq!(requests[0].path, "/v1/configuration/export");
+        assert_eq!(requests[0].body, "{}");
+        assert_eq!(requests[1].method, "POST");
+        assert_eq!(requests[1].path, "/v1/configuration/import");
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[1].body).unwrap()["contents_base64"],
+            encoded_archive
+        );
     }
 
     #[test]

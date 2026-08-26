@@ -12,10 +12,11 @@ use rel_client::{
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::ffi::OsString;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
-use std::os::unix::fs::DirBuilderExt;
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::PathBuf;
+use std::time::Duration;
 use uuid::Uuid;
 
 pub use rel_client::rpc_error_codes;
@@ -25,6 +26,9 @@ mod mcp;
 mod transfer;
 
 use transfer::{read_transfer_file, write_transfer_file};
+
+const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
+const MAX_CONFIGURATION_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 pub fn main_exit_code(args: Vec<OsString>) -> i32 {
     main_exit_code_with_version(args, env!("CARGO_PKG_VERSION"))
@@ -125,6 +129,28 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             let exit_code = i32::from(response.data.overall_status != "ok");
             print_json(&response)?;
             Ok(exit_code)
+        }
+        CliCommand::ConfigExport(path) => {
+            let response = retry_configuration_operation(|| client.export_configuration())?;
+            validate_configuration_bytes(&response.data.contents)?;
+            write_new_configuration_file(&path, &response.data.contents)?;
+            print_json(&serde_json::json!({
+                "status": response.status,
+                "request_id": response.request_id,
+                "data": {
+                    "path": path.display().to_string(),
+                    "bytes": response.data.contents.len(),
+                    "credentials_included": response.data.credentials_included
+                }
+            }))?;
+            Ok(0)
+        }
+        CliCommand::ConfigImport(path) => {
+            let contents = read_configuration_file(&path)?;
+            print_json(&retry_configuration_operation(|| {
+                client.import_configuration(&contents)
+            })?)?;
+            Ok(0)
         }
         CliCommand::Navigate(request) => {
             print_json(&client.navigate(&request)?)?;
@@ -348,6 +374,27 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
     }
 }
 
+fn retry_configuration_operation<T>(
+    mut operation: impl FnMut() -> Result<T, client::ClientError>,
+) -> Result<T, client::ClientError> {
+    const ATTEMPTS: usize = 51;
+    for attempt in 0..ATTEMPTS {
+        match operation() {
+            Ok(value) => return Ok(value),
+            Err(error)
+                if attempt + 1 < ATTEMPTS
+                    && error.rpc_failure().is_some_and(|failure| {
+                        failure.error.id == "CONFLICT" && failure.error.retryable
+                    }) =>
+            {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!("configuration retry loop always returns")
+}
+
 fn print_json(value: &impl Serialize) -> Result<(), CliError> {
     let stdout = io::stdout();
     let mut output = stdout.lock();
@@ -358,6 +405,79 @@ fn write_json(output: &mut dyn Write, value: &impl Serialize) -> Result<(), CliE
     serde_json::to_writer_pretty(&mut *output, value)
         .map_err(|error| CliError::Message(error.to_string()))?;
     writeln!(output).map_err(|error| CliError::Message(error.to_string()))
+}
+
+fn validate_configuration_extension(path: &std::path::Path) -> Result<(), CliError> {
+    if path.extension().and_then(|extension| extension.to_str()) == Some("rel") {
+        Ok(())
+    } else {
+        Err(CliError::Message(
+            "configuration files must use the .rel extension".to_string(),
+        ))
+    }
+}
+
+fn validate_configuration_bytes(contents: &[u8]) -> Result<(), CliError> {
+    if contents.len() < SQLITE_HEADER.len()
+        || contents.len() as u64 > MAX_CONFIGURATION_FILE_BYTES
+        || !contents.starts_with(SQLITE_HEADER)
+    {
+        return Err(CliError::Message(
+            "the configuration file is not a valid REL SQLite archive".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn read_configuration_file(path: &std::path::Path) -> Result<Vec<u8>, CliError> {
+    let metadata = fs::metadata(path).map_err(|error| {
+        CliError::Message(format!(
+            "Could not inspect configuration {}: {error}",
+            path.display()
+        ))
+    })?;
+    if metadata.len() > MAX_CONFIGURATION_FILE_BYTES {
+        return Err(CliError::Message(format!(
+            "Configuration {} exceeds the 8 MiB limit",
+            path.display()
+        )));
+    }
+    let contents = fs::read(path).map_err(|error| {
+        CliError::Message(format!(
+            "Could not read configuration {}: {error}",
+            path.display()
+        ))
+    })?;
+    validate_configuration_bytes(&contents)?;
+    Ok(contents)
+}
+
+fn write_new_configuration_file(path: &std::path::Path, contents: &[u8]) -> Result<(), CliError> {
+    let mut output = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+        .map_err(|error| {
+            CliError::Message(format!(
+                "Could not create configuration {}: {error}",
+                path.display()
+            ))
+        })?;
+    let result = output
+        .write_all(contents)
+        .and_then(|()| output.sync_all())
+        .map_err(|error| {
+            CliError::Message(format!(
+                "Could not write configuration {}: {error}",
+                path.display()
+            ))
+        });
+    drop(output);
+    if result.is_err() {
+        let _ = fs::remove_file(path);
+    }
+    result
 }
 
 fn print_session_create_response(
@@ -475,6 +595,8 @@ impl From<client::ClientError> for CliError {
 enum CliCommand {
     Health,
     Status,
+    ConfigExport(PathBuf),
+    ConfigImport(PathBuf),
     Navigate(NavigateRequest),
     Read(PageReadRequest),
     Perform(PerformRequest),
@@ -570,6 +692,7 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
             parse_no_options(&mut args, "status", root_help())?;
             Ok(CliCommand::Status)
         }
+        "config" => parse_config(args),
         "navigate" => parse_navigate(args),
         "read" => parse_read(args),
         "perform" => parse_perform(args),
@@ -595,6 +718,26 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
             args.values.push_front(url.to_string());
             parse_capture(args)
         }
+    }
+}
+
+fn parse_config(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.peek_is_help() {
+        return Err(CliError::Help(config_help()));
+    }
+    let subcommand = args.required_positional("config subcommand")?;
+    if !matches!(subcommand.as_str(), "export" | "import") {
+        return Err(CliError::Message(format!(
+            "unknown config subcommand {subcommand:?}; run `rel config --help`"
+        )));
+    }
+    let path = PathBuf::from(args.required_positional("configuration file")?);
+    args.finish()?;
+    validate_configuration_extension(&path)?;
+    match subcommand.as_str() {
+        "export" => Ok(CliCommand::ConfigExport(path)),
+        "import" => Ok(CliCommand::ConfigImport(path)),
+        _ => unreachable!("config subcommand was validated"),
     }
 }
 
@@ -1508,6 +1651,8 @@ Usage:\n  \
 rel URL [options]\n  \
 rel health\n  \
 rel status\n  \
+rel config export FILE.rel\n  \
+rel config import FILE.rel\n  \
 rel-mcp\n  \
 rel navigate URL [options]\n  \
 rel read [URL] [--query TEXT] [options]\n  \
@@ -1528,10 +1673,22 @@ stdout unless --output is supplied, and writes validated NDJSON events to stderr
 `rel-mcp` serves MCP over stdio for model and agent clients.\n\
 Run `rel navigate --help`, `rel read --help`, `rel perform --help`, `rel capture --help`,\n\
 `rel page --help`, `rel observe --help`, `rel observation --help`,\n\
-`rel proxy --help`, `rel profile --help`, or\n\
+`rel config --help`, `rel proxy --help`, `rel profile --help`, or\n\
 `rel session --help` for resource options. Commands that accept --session-id
 use $REL_SESSION_ID when set, then the newest existing session; an explicit
 option wins."
+        .to_string()
+}
+
+fn config_help() -> String {
+    "Usage:\n  \
+rel config export FILE.rel\n  \
+rel config import FILE.rel\n\n\
+Exports or replaces providers, profiles, schedules, proxies, and app preferences\n\
+using a SQLite configuration archive. API keys, proxy credentials, cookies,\n\
+passwords, browser sessions, and history are never included. Export refuses to\n\
+overwrite an existing file. Import overwrites the app configuration, creates an\n\
+automatic pre-import backup, and reports whether an app restart is required."
         .to_string()
 }
 
@@ -1947,6 +2104,46 @@ mod tests {
         assert!(root_help().contains("rel-mcp"));
         assert!(mcp_help().contains("Usage:\n  rel-mcp"));
         assert!(mcp_help().contains("do not launch REL.app"));
+    }
+
+    #[test]
+    fn parses_configuration_import_and_export_files() {
+        assert_eq!(
+            parse(&["config", "export", "backup.rel"]).unwrap(),
+            CliCommand::ConfigExport(PathBuf::from("backup.rel"))
+        );
+        assert_eq!(
+            parse(&["config", "import", "/tmp/settings.rel"]).unwrap(),
+            CliCommand::ConfigImport(PathBuf::from("/tmp/settings.rel"))
+        );
+        assert!(parse(&["config", "export", "backup.sqlite"]).is_err());
+        assert!(parse(&["config", "replace", "backup.rel"]).is_err());
+        assert!(config_help().contains("overwrites the app configuration"));
+        assert!(config_help().contains("never included"));
+    }
+
+    #[test]
+    fn configuration_files_are_private_and_never_overwritten() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory =
+            std::env::temp_dir().join(format!("rel-cli-configuration-test-{}", Uuid::new_v4()));
+        fs::create_dir(&directory).unwrap();
+        let path = directory.join("settings.rel");
+        let contents = b"SQLite format 3\0configuration";
+
+        write_new_configuration_file(&path, contents).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), contents);
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(write_new_configuration_file(&path, b"replacement").is_err());
+        assert_eq!(fs::read(&path).unwrap(), contents);
+        assert_eq!(read_configuration_file(&path).unwrap(), contents);
+
+        fs::remove_file(&path).unwrap();
+        fs::remove_dir(&directory).unwrap();
     }
 
     #[test]

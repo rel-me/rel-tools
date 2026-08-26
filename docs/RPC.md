@@ -134,6 +134,11 @@ previously stored resources remain available.
 | --- | --- | --- |
 | `GET` | `/v1/health` | Readiness of the agent control worker |
 | `GET` | `/v1/status` | App, agent, proxy, and Chromium diagnostic report |
+| `GET` | `/v1/configuration` | Read the three typed configuration documents |
+| `PUT` | `/v1/configuration` | Replace all three configuration documents |
+| `PATCH` | `/v1/configuration` | Update one or more configuration documents |
+| `POST` | `/v1/configuration/export` | Export a credential-free SQLite `.rel` archive |
+| `POST` | `/v1/configuration/import` | Validate and replace configuration from a `.rel` archive |
 | `GET` | `/v1/notifications` | List opt-in website notifications as untrusted content |
 | `POST` | `/v1/navigate` | Navigate and select the current shorthand page |
 | `POST` | `/v1/navigate/observe` | Navigate and return a synchronized page observation |
@@ -188,6 +193,70 @@ MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
 `rel_read` is a `rel-client` composition over `POST /v1/navigate/observe` and
 `POST /v1/observe`; it deliberately adds no retrieval route or alternate
 browser transport.
+
+## Configuration
+
+REL stores app preferences, AI provider profiles, and scheduled prompts as
+versioned JSON documents in the current application SQLite database. Proxies and
+custom browser Profiles use their existing relational tables in that same
+database.
+
+`GET /v1/configuration` returns:
+
+```json
+{
+  "status": "ok",
+  "request_id": "req_...",
+  "data": {
+    "app_settings": { "schemaVersion": 1 },
+    "ai_model_settings": { "schemaVersion": 3, "profiles": [] },
+    "scheduled_prompts": { "schemaVersion": 1, "schedules": [] }
+  }
+}
+```
+
+A document is `null` only while a newly migrated app is initializing its first
+SQLite values. `PUT /v1/configuration` requires all three fields. `PATCH`
+requires at least one and rejects unknown fields. Both validate document schema
+versions and replace only the document rows; proxy and browser Profile mutation
+continues to use their resource routes.
+
+`POST /v1/configuration/export` accepts `{}` and returns `filename`,
+`contents_base64`, and `credentials_included:false`. The decoded bytes are a
+versioned SQLite `.rel` file, limited to 8 MiB, with metadata plus the app
+settings, AI model settings, scheduled prompts, proxies, and custom session
+profile tables.
+
+`POST /v1/configuration/import` accepts only `contents_base64`. REL verifies the
+SQLite header, size, application ID, format version, integrity, exact tables and
+columns, absence of triggers or views, application database schema version,
+document versions, IDs, names, proxy references, and bounded values before
+opening an import transaction. On success it returns:
+
+```json
+{
+  "status": "ok",
+  "request_id": "req_...",
+  "data": {
+    "imported": {
+      "providers": 2,
+      "profiles": 3,
+      "proxies": 1,
+      "schedules": 4
+    },
+    "backup_path": "/.../Data/Configuration Backups/before-import-....rel",
+    "credentials_imported": false,
+    "restart_required": true
+  }
+}
+```
+
+Import creates the backup before mutation and replaces the three documents,
+proxies, and custom Profiles in one transaction. It detaches live Sessions from
+replaced proxies. AI API keys and proxy credentials remain in macOS Keychain and
+are neither exported nor imported. Cookies, passwords, active Sessions, browser
+history, request history, logs, licenses, and caches are also outside this
+format. Clients should restart the app when `restart_required` is true.
 
 ## Health
 

@@ -54,6 +54,8 @@ present and semantic `/observe` for the current page.
 | --- | --- |
 | `health()` | `GET /v1/health` |
 | `status()` | `GET /v1/status` |
+| `export_configuration()` | `POST /v1/configuration/export` |
+| `import_configuration(contents)` | `POST /v1/configuration/import` |
 | `list_notifications()` | `GET /v1/notifications` |
 | `navigate(&NavigateRequest)` | `POST /v1/navigate` |
 | `navigate_and_observe(&NavigateObservationRequest)` | `POST /v1/navigate/observe` |
@@ -114,6 +116,32 @@ are idempotent; play reloads when the pause interrupted or deferred navigation.
 with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
+
+## Configuration archives
+
+`export_configuration()` decodes the wire's base64 field and returns the exact
+SQLite bytes in `ConfigurationExportData::contents`. `import_configuration`
+accepts those bytes and returns typed counts, the automatic pre-import backup
+path, and the restart flag:
+
+```rust
+use rel_client::RelClient;
+use std::fs;
+
+let client = RelClient::local();
+let exported = client.export_configuration()?;
+fs::write("workstation.rel", &exported.data.contents)?;
+
+let imported = client.import_configuration(&fs::read("workstation.rel")?)?;
+assert!(!imported.data.credentials_imported);
+println!("backup: {}", imported.data.backup_path);
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+The SDK is transport-only and does not inspect or modify the SQLite file. The
+agent performs strict archive validation and the transactional replacement. Use
+the CLI when owner-only file permissions, refusal to overwrite an export, and
+automatic app launch are desired.
 
 The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
