@@ -468,6 +468,10 @@ rel session get Session12
 rel session delete Session12
 ```
 
+REL creates at most the number of Sessions configured in **REL → Settings… →
+General → Maximum Tabs**. The setting defaults to 32 and cannot exceed 32.
+Close a Session before creating another when the configured limit is reached.
+
 Create a session:
 
 ```sh

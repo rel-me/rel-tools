@@ -18,6 +18,11 @@ Manage templates in **REL → Settings… → Profiles**. The built-in Default,
 AdBlock, and BandwidthSaver Profiles are always available. Custom Profiles can
 also use a configured proxy and imported cookies or passwords.
 
+Use **REL → Settings… → General → Maximum Tabs** to limit new Sessions. The
+default and highest supported value is 32; the setting accepts values from 1
+through 32. Lowering it does not close existing Sessions, but REL rejects new
+Session creation until the open count is below the configured limit.
+
 ## AI models
 
 Configure providers and choose the default AI model in **REL → Settings… →

@@ -85,7 +85,7 @@ repeat.
 | `10102` | `PAGE_MISMATCH` | no | Attached page state no longer matches the request |
 | `10103` | `PROXY_NOT_FOUND` | no | Proxy does not exist |
 | `10104` | `ACTIVE_PAGE_NOT_FOUND` | no | The shorthand workflow has no current page |
-| `10200` | `CONFLICT` | no | Name/state/last-session conflict |
+| `10200` | `CONFLICT` | no | Name, state, last-session, or configured session-capacity conflict |
 | `10201` | `BROWSER_BUSY` | yes | Chromium is servicing incompatible work |
 | `10202` | `NETWORK_PAUSED` | no | Session networking is paused |
 | `10203` | `ACTION_TARGET_NOT_FOUND` | no | Click target could not be found |
@@ -150,6 +150,11 @@ navigation. The error details contain the final `url` and exact
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 
 There are deliberately no log read, clear, or ingestion routes.
+
+`POST /v1/sessions` and any operation that implicitly creates a Session return
+non-retryable `CONFLICT` when the open count has reached **REL → Settings… →
+General → Maximum Tabs**. The error details contain `current` and `maximum`.
+The setting accepts 1 through 32 and defaults to the hard ceiling of 32.
 
 The [`rel-client`](SDK.md) Rust crate exposes one typed method for every route
 in this table. The bundled CLI is built on that crate and uses resource commands
