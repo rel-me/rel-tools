@@ -15,9 +15,9 @@ Each REL tab is one isolated Session. When a page uses a user-initiated
 `window.open` or new-window link, REL shows the new page in the same Session
 viewport and keeps its opener alive underneath. The child shares the Session's
 cookies, storage, proxy, and network policy. Browser tools follow the visible
-child page. Use **Return** in the browser toolbar, or let the site close its
-window, to restore the opener. REL blocks page-created popups that do not have a
-user gesture.
+child page. Use **Return** in the browser toolbar, press **Command-W**, or let
+the site close its window to restore the opener. REL blocks page-created popups
+that do not have a user gesture.
 
 Manage templates in **REL → Settings… → Profiles**. The built-in Default,
 AdBlock, and BandwidthSaver Profiles are always available. Custom Profiles can
