@@ -17,9 +17,15 @@ also use a configured proxy and imported cookies or passwords.
 
 ## AI models
 
-Configure providers and choose the default AI model in **REL → Settings… →
-Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
-default model when their new Session starts.
+Configure provider connections in **REL → Settings… → Providers**. API keys
+are stored in macOS Keychain. For OpenAI, OpenRouter, Anthropic, and Gemini,
+enter an optional **Gateway URL** to route provider requests through an
+enterprise or self-hosted gateway while retaining the provider's native API
+adapter. Leave it blank to connect to the provider directly. The generic
+OpenAI-compatible provider instead requires an **Endpoint**.
+
+Choose the default AI model in Chat. Scheduled prompts use that default model
+when their new Session starts.
 
 ## Agent instructions and current-page context
 
