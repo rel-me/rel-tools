@@ -18,6 +18,17 @@ Manage templates in **REL → Settings… → Profiles**. The built-in Default,
 AdBlock, and BandwidthSaver Profiles are always available. Custom Profiles can
 also use a configured proxy and imported cookies or passwords.
 
+## Session identity
+
+Sessions use native Chromium identity behavior by default. In the Create
+Session sheet, a Custom Session can opt into a curated compatibility profile
+with a coherent User-Agent, hardware profile, locale, time zone, and network
+profile. REL generates a fresh numeric seed when it creates each custom
+Session, then keeps that seed stable for the life of the Session.
+
+Use the Session's tab menu to inspect, change, or disable its identity profile.
+Identity is configured per Session; there is no app-wide identity setting.
+
 ## AI models
 
 Configure providers and choose the default AI model in **REL → Settings… →
