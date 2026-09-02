@@ -77,7 +77,7 @@ input. A missing click target returns
 | Field | Default | Behavior |
 | --- | --- | --- |
 | `mouse_move` | `true` | Send a Chromium-local mouse-move event before button-down and button-up. |
-| `scroll` | `true` | Use bounded Chromium wheel input and re-read bounds until an offscreen target is visible. |
+| `scroll` | `true` | Use bounded native Chromium wheel input toward the viewport center and re-read bounds until the target is fully visible. |
 
 Setting `mouse_move` to `false` sends only button-down and button-up. Neither
 mode moves the macOS cursor. Setting `scroll` to `false` requires the target to
