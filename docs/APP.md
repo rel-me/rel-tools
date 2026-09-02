@@ -26,6 +26,38 @@ Custom creation form to opt out.
 
 Use the Session's tab menu to inspect, change, or disable its identity profile.
 Identity is configured per Session; there is no app-wide identity setting.
+Saving an identity change closes and recreates only that Session's Chromium
+context, then returns it to the same page. Choose Native Chromium to remove the
+profile and use the embedded Chromium runtime without identity overrides.
+
+Compatibility profiles keep the selected browser, platform, locale, time zone,
+hardware, screen, graphics, storage, and network claims coherent. REL applies
+small deterministic changes to copied Canvas, WebGL, and Web Audio readbacks so
+two Sessions use different values while one Session stays stable. Text and
+element geometry remains native so clicks, accessibility bounds, and
+screenshots keep matching the page. A profiled Session reports WebGPU as
+unavailable rather than exposing native graphics details that contradict its
+profile. Font enumeration and other unlisted surfaces remain native.
+
+An identity profile is a compatibility tool, not an anonymity guarantee. Its
+seed is stable across sites in that Session, so sites may still correlate
+visits. Network identity is also separate: use a Session proxy when traffic
+must leave through another route. Proxied Sessions prevent WebRTC from using a
+non-proxied UDP route, but REL does not turn a direct Session into a VPN.
+
+## Site permissions
+
+Website permissions are stored by origin inside each Session's isolated
+Chromium profile. A request for location, notifications, microphone, camera,
+or clipboard access shows a browser-attached prompt with **Not Now**, **Don't
+Allow**, and **Allow**. Not Now saves no decision. Don't Allow remains denied,
+and Allow is reported only after Chromium stores the real permission.
+
+Open the Session tab menu and choose **Site Permissions** to inspect the current
+site. **Revoke** returns one capability to Chromium's default prompt state for
+that origin and Session. Decisions do not move to another Session. Before a
+microphone or camera allow decision, device enumeration hides device labels and
+stable IDs.
 
 ## AI models
 
