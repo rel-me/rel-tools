@@ -341,7 +341,7 @@ update.
 ## Session profiles
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
-built-in **Default** profile. Set `profile` to select **AdBlock**,
+built-in **Direct** profile. Set `profile` to select **AdBlock**,
 **BandwidthSaver**, or a case-insensitively unique custom name. Explicit proxy
 and filtering fields override the selected profile; use
 `Change::Set("alias".into())` for a proxy or `Change::Clear` for direct
@@ -362,7 +362,8 @@ RelClient::local().close_session_group("pgm")?;
 ```
 
 `Profile` contains its public `id`, unique `name`, proxy and filtering policy,
-browser-data inclusion flags, built-in status, and creation time.
+browser-data inclusion flags, optional fingerprint identity template, built-in
+status, and creation time.
 `ProfileCreateRequest` creates a custom settings template; browser-data import
 itself remains app-owned. `ProfileDataUpdateRequest` updates the two inclusion
 flags after REL.app stages an import; no cookie or password values cross RPC.
@@ -371,6 +372,12 @@ Built-ins cannot be modified or deleted. `ImageBlockingMode::None` allows every
 image without disabling AdBlock. Existing sessions retain copied settings and
 data after their source profile is changed or deleted. REL does not impose a
 maximum session count.
+
+`ProfileCreateRequest::fingerprint_profile` uses `Change::Unchanged` to select
+the default compatibility template, `Change::Clear` for native Chromium, and
+`Change::Set(profile)` for explicit identity settings. REL.app preserves those
+settings but generates a fresh seed whenever it creates a session from the
+profile. The three built-in profiles use the compatibility template.
 
 `Session::profile` exposes the source profile name and
 `Session::profile_data_id` identifies the custom browser-data template copied

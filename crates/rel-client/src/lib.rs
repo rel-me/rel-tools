@@ -1944,6 +1944,8 @@ pub struct ProfileCreateRequest {
     pub includes_cookies: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub includes_passwords: Option<bool>,
+    #[serde(skip_serializing_if = "Change::is_unchanged")]
+    pub fingerprint_profile: Change<FingerprintProfile>,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -1958,6 +1960,67 @@ pub enum ImageBlockingMode {
     None,
     All,
     OverLimit,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct FingerprintProfile {
+    pub schema_version: u64,
+    pub seed: String,
+    pub platform: FingerprintPlatform,
+    pub browser_brand: FingerprintBrowserBrand,
+    pub browser_version: String,
+    pub user_agent: String,
+    pub locale: String,
+    pub timezone: String,
+    pub network_profile: FingerprintNetworkProfile,
+    pub hardware_concurrency: u64,
+    pub device_memory_gib: u64,
+    pub max_touch_points: u64,
+    pub screen: FingerprintScreen,
+    pub graphics_profile: String,
+    pub storage_quota_bytes: u64,
+    pub canvas_noise_mode: FingerprintNoiseMode,
+    pub audio_noise_mode: FingerprintNoiseMode,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintPlatform {
+    Macos,
+    Linux,
+    Windows,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintBrowserBrand {
+    Chromium,
+    Chrome,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintNetworkProfile {
+    Desktop,
+    Residential,
+    Datacenter,
+    Mobile,
+    Slow,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintNoiseMode {
+    Native,
+    Deterministic,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct FingerprintScreen {
+    pub width: u64,
+    pub height: u64,
+    pub available_height: u64,
+    pub device_scale_factor: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1992,6 +2055,8 @@ pub struct Profile {
     pub image_size_limit_kb: i64,
     pub includes_cookies: bool,
     pub includes_passwords: bool,
+    #[serde(default)]
+    pub fingerprint_profile: Option<FingerprintProfile>,
     pub is_builtin: bool,
     pub created_at: i64,
 }
@@ -2291,13 +2356,37 @@ mod tests {
     fn profile_json() -> Value {
         json!({
             "id": "builtin-default",
-            "name": "Default",
+            "name": "Direct",
             "proxy_alias": null,
             "adblock_enabled": false,
             "image_blocking_mode": "none",
             "image_size_limit_kb": 100,
             "includes_cookies": false,
             "includes_passwords": false,
+            "fingerprint_profile": {
+                "schema_version": 1,
+                "seed": "12345",
+                "platform": "macos",
+                "browser_brand": "chromium",
+                "browser_version": "151.0.7922.76",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.76 Safari/537.36",
+                "locale": "en-US",
+                "timezone": "America/Los_Angeles",
+                "network_profile": "desktop",
+                "hardware_concurrency": 8,
+                "device_memory_gib": 8,
+                "max_touch_points": 0,
+                "screen": {
+                    "width": 1920,
+                    "height": 1080,
+                    "available_height": 985,
+                    "device_scale_factor": 2
+                },
+                "graphics_profile": "apple-m2",
+                "storage_quota_bytes": 107374182400_u64,
+                "canvas_noise_mode": "deterministic",
+                "audio_noise_mode": "deterministic"
+            },
             "is_builtin": true,
             "created_at": 0
         })
@@ -2823,7 +2912,14 @@ mod tests {
         client
             .create_session(&SessionCreateRequest::default())
             .unwrap();
-        client.list_profiles().unwrap();
+        let profiles = client.list_profiles().unwrap();
+        assert_eq!(
+            profiles.data.profiles[0]
+                .fingerprint_profile
+                .as_ref()
+                .map(|profile| profile.seed.as_str()),
+            Some("12345")
+        );
         client
             .create_profile(&ProfileCreateRequest {
                 name: "Research".to_string(),
@@ -2833,6 +2929,7 @@ mod tests {
                 image_size_limit_kb: Some(10),
                 includes_cookies: Some(false),
                 includes_passwords: Some(false),
+                fingerprint_profile: Change::Unchanged,
             })
             .unwrap();
         client
