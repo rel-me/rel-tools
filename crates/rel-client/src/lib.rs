@@ -1879,8 +1879,6 @@ pub struct ProxyData {
 pub struct OxylabsProxy {
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub session_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub location_parameter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location_value: Option<String>,

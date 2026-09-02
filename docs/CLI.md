@@ -456,7 +456,8 @@ rel proxy update office --clear-oxylabs-location
 An update requires at least one mutable option. The clear options send explicit
 JSON `null` values instead of omitting their fields.
 
-Rotate the generated sticky session for an Oxylabs-enabled proxy:
+Rotate the session-owned sticky IDs for every open session using an
+Oxylabs-enabled proxy:
 
 ```sh
 rel proxy rotate office
@@ -489,7 +490,9 @@ Every create option is optional. `--profile` accepts the unique name shown in
 **REL → Settings… → Profiles**; omission uses **Default**. Omitted proxy and
 filtering options use the selected profile. Use `--direct` to override it with
 a direct connection. `--image-blocking-mode` is `none`, `all`, or
-`over_limit`; `none` allows every image without changing AdBlock.
+`over_limit`; `none` allows every image without changing AdBlock. Each session
+created with an Oxylabs-enabled proxy receives its own fresh sticky session ID;
+the reusable proxy configuration does not hold sticky session state.
 `--group` labels the new session without changing its unique name or canonical
 ID. Group matching is case-insensitive.
 `--id-only` changes successful output to the new canonical

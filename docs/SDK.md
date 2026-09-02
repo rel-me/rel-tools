@@ -86,6 +86,9 @@ present and semantic `/observe` for the current page.
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
 | `close_session_group(group)` | `POST /v1/sessions/close` |
 
+`rotate_proxy_session` replaces the distinct sticky ID owned by each open
+session currently assigned to the Oxylabs-enabled proxy.
+
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
 `BrowserNotification`, `PageOperationData`, `Proxy`, and `Session`, with list/data wrapper types that
