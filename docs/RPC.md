@@ -704,7 +704,7 @@ shared by any number of sessions.
 ## Profiles
 
 Profiles are named templates copied into future sessions. The three generated
-built-ins are **Default** (direct connection, filters off), **AdBlock**
+built-ins are **Direct** (direct connection, filters off), **AdBlock**
 (AdBlock on), and **BandwidthSaver** (AdBlock on and images larger than 10 kB
 blocked). A profile resource is:
 
@@ -718,6 +718,30 @@ blocked). A profile resource is:
   "image_size_limit_kb": 10,
   "includes_cookies": false,
   "includes_passwords": false,
+  "fingerprint_profile": {
+    "schema_version": 1,
+    "seed": "12345",
+    "platform": "macos",
+    "browser_brand": "chromium",
+    "browser_version": "151.0.7922.76",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.76 Safari/537.36",
+    "locale": "en-US",
+    "timezone": "America/Los_Angeles",
+    "network_profile": "desktop",
+    "hardware_concurrency": 8,
+    "device_memory_gib": 8,
+    "max_touch_points": 0,
+    "screen": {
+      "width": 1920,
+      "height": 1080,
+      "available_height": 985,
+      "device_scale_factor": 2
+    },
+    "graphics_profile": "apple-m2",
+    "storage_quota_bytes": 107374182400,
+    "canvas_noise_mode": "deterministic",
+    "audio_noise_mode": "deterministic"
+  },
   "is_builtin": true,
   "created_at": 0
 }
@@ -726,18 +750,19 @@ blocked). A profile resource is:
 - `GET /v1/profiles` returns built-ins first, then custom profiles, in
   `data.profiles`.
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
-  the proxy, filtering, and browser-data inclusion fields above and returns
-  `data.profile`.
-- `PATCH /v1/profiles/{id}` accepts `includes_cookies` and/or
-  `includes_passwords` booleans and returns the updated custom profile in
-  `data.profile`. REL.app uses this metadata update after it has safely staged
-  imported browser data; cookie and password values never cross RPC.
+  the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
+  fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
+  the compatibility template. Set it to `null` for native Chromium identity.
+- `PATCH /v1/profiles/{id}` accepts any editable profile setting and returns
+  the updated custom profile in `data.profile`. REL.app uses the browser-data
+  flags only after it has safely staged imported browser data; cookie and
+  password values never cross RPC.
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
 Profile names contain 1–128 non-control characters after trimming and are the
 selector used during session creation. On `POST /v1/sessions`, omission selects
-**Default**. Explicit session settings override the selected profile. A present
+**Direct**. Explicit session settings override the selected profile. A present
 `proxy_alias:null` is a direct override; a non-null value must reference an
 existing proxy. Automatically created sessions for capture, navigation, and
 attached pages follow the same rule. Capture events and page responses include
@@ -745,3 +770,8 @@ the effective session ID. Browser-data payloads remain app-owned and never
 cross RPC; the inclusion flags describe what the app has attached to a custom
 profile. Importing a selected category again replaces that category in the
 app-owned template without changing sessions already created from it.
+
+The fingerprint object is an identity template. When REL.app creates a session
+from a named profile, it preserves the template settings and generates a fresh
+seed before the session's Chromium context is used. The built-in profiles use
+the compatibility template by default.
