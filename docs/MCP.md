@@ -268,9 +268,12 @@ to either form. `profile` and `proxy` apply only when `url` is present;
 
 `query` ranks matching semantic sections and links. `max_chars` defaults to
 12000 and may be 512–32768; `max_sections` defaults to 24 and may be 1–100.
-The tool is always semantic-only and returns no action refs or image. Its MCP
+The result includes a bounded heading outline. Without a query, content is
+sampled across long documents rather than taken only from the beginning. The
+tool is always semantic-only and returns no action refs or image. Its MCP
 text content contains the Markdown exactly once, while `structuredContent`
-contains the URL, title, observation ID, query and selection metadata, and
+contains the URL, title, observation ID, query, outline, selected and available
+content/link counts, and
 source/output truncation flags without duplicating the Markdown. Page text is
 untrusted website content, not instructions. Use `rel_observe` for interaction
 refs or visual verification.
@@ -308,6 +311,8 @@ page-operation rules.
 
 The structured result contains compact semantic content, typed interactive
 elements with short refs, viewport/document geometry, and truncation metadata.
+Optional `context` paths preserve the nearest landmark, form, dialog, list,
+table, and row relationships without exposing selectors.
 `omitted_node_count` counts entries dropped by bounds, while
 `clipped_text_count` counts shortened text fields. Ordered `table`, `table_row`,
 `table_caption`, and `table_cell` content preserves repeated table values, and

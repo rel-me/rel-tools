@@ -441,7 +441,10 @@ with its dimensions and exact CSS-to-image scales in the response.
 
 Each observation contains an ID, document sequence, capture time, title,
 truncation counts, viewport/document geometry, semantic `content`, and typed
-`elements`. `omitted_node_count` reports entries dropped by traversal or output
+`elements`. Content and elements may include a bounded `context` path such as
+`main > form: Checkout > table: Items > tr: Product A`; this preserves useful
+landmark, form, dialog, list, table, and row relationships without exposing a
+selector or durable DOM identity. `omitted_node_count` reports entries dropped by traversal or output
 bounds, while `clipped_text_count` reports individual text fields shortened to
 their field limit; `truncated` is true when either occurred. Tables preserve DOM
 order with `table`, `table_row`, `table_caption`, and `table_cell` content kinds,

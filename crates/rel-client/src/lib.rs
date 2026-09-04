@@ -1270,8 +1270,11 @@ pub struct PageReadData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query: Option<String>,
     pub markdown: String,
+    pub selected_outline_count: usize,
     pub selected_content_count: usize,
     pub selected_link_count: usize,
+    pub available_content_count: usize,
+    pub available_link_count: usize,
     pub source_truncated: bool,
     pub truncated: bool,
     pub matched_query: bool,
@@ -1478,6 +1481,8 @@ pub struct ObservationContent {
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub level: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub text: String,
 }
 
@@ -1492,6 +1497,8 @@ pub struct ObservationElement {
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub destination: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub in_viewport: bool,
     pub bounds: ObservationBounds,
 }
@@ -1542,8 +1549,13 @@ fn page_read_data(
     if content_matched {
         content.retain(|(_, score)| *score > 0);
         content.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+        content =
+            page_read_matched_content_with_headings(&observation.content, &content, max_sections);
+    } else if !query_active {
+        content = page_read_coverage_content(&observation.content, max_sections);
+    } else {
+        content.truncate(max_sections);
     }
-    content.truncate(max_sections);
 
     let mut seen_links = BTreeSet::new();
     let mut links = observation
@@ -1604,17 +1616,36 @@ fn page_read_data(
         );
     }
 
+    let outline = page_read_outline(&observation.content, max_sections.min(16));
+    let mut selected_outline_count = 0;
+    if !outline.is_empty() && push_page_read_block(&mut markdown, "## Page outline", max_chars) {
+        for index in outline {
+            let heading = &observation.content[index];
+            let indent = "  ".repeat(heading.level.unwrap_or(2).saturating_sub(2) as usize);
+            let block = format!("{indent}- {}", escape_markdown_text(heading.text.trim()));
+            if push_page_read_block(&mut markdown, &block, max_chars) {
+                selected_outline_count += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
     let mut selected_content_count = 0;
     let mut output_truncated = false;
     for (index, _) in &content {
-        let block = page_read_content_markdown(&observation.content[*index]);
+        let (block, block_clipped) = page_read_bounded_content_block(
+            page_read_content_markdown(&observation.content[*index]),
+            max_chars,
+        );
+        output_truncated |= block_clipped;
         let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
         if added {
             selected_content_count += 1;
         }
         if clipped {
             output_truncated = true;
-            break;
+            continue;
         }
     }
 
@@ -1667,12 +1698,106 @@ fn page_read_data(
         title,
         query: normalized_query.map(str::to_string),
         markdown,
+        selected_outline_count,
         selected_content_count,
         selected_link_count,
+        available_content_count,
+        available_link_count,
         source_truncated: observation.truncated,
         truncated: content_was_limited || links_were_limited || output_truncated,
         matched_query: content_matched || links_matched,
     }
+}
+
+fn page_read_matched_content_with_headings(
+    content: &[ObservationContent],
+    ranked: &[(usize, usize)],
+    limit: usize,
+) -> Vec<(usize, usize)> {
+    let mut selected = BTreeSet::new();
+    for (index, _) in ranked.iter().take(limit) {
+        selected.insert(*index);
+    }
+    for (index, _) in ranked.iter().take(limit) {
+        if selected.len() >= limit {
+            break;
+        }
+        if let Some(heading) = content[..*index]
+            .iter()
+            .rposition(|item| item.kind == "heading")
+        {
+            selected.insert(heading);
+        }
+    }
+    selected
+        .into_iter()
+        .map(|index| {
+            let score = ranked
+                .iter()
+                .find_map(|(candidate, score)| (*candidate == index).then_some(*score))
+                .unwrap_or_default();
+            (index, score)
+        })
+        .collect()
+}
+
+fn page_read_coverage_content(content: &[ObservationContent], limit: usize) -> Vec<(usize, usize)> {
+    if content.len() <= limit {
+        return (0..content.len()).map(|index| (index, 1)).collect();
+    }
+    if limit == 1 {
+        return vec![(0, 1)];
+    }
+    let mut selected = BTreeSet::new();
+    selected.insert(0);
+    selected.insert(content.len() - 1);
+    let heading_budget = (limit / 3).clamp(1, 8);
+    let headings = content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| (item.kind == "heading").then_some(index))
+        .collect::<Vec<_>>();
+    for index in evenly_spaced_indices(headings.len(), heading_budget.min(headings.len())) {
+        selected.insert(headings[index]);
+    }
+    for index in evenly_spaced_indices(content.len(), limit) {
+        if selected.len() >= limit {
+            break;
+        }
+        selected.insert(index);
+    }
+    if selected.len() < limit {
+        for index in 0..content.len() {
+            if selected.len() >= limit {
+                break;
+            }
+            selected.insert(index);
+        }
+    }
+    selected.into_iter().map(|index| (index, 1)).collect()
+}
+
+fn evenly_spaced_indices(length: usize, count: usize) -> Vec<usize> {
+    match (length, count) {
+        (_, 0) | (0, _) => Vec::new(),
+        (_, 1) => vec![0],
+        _ if count >= length => (0..length).collect(),
+        _ => (0..count)
+            .map(|slot| slot * (length - 1) / (count - 1))
+            .collect(),
+    }
+}
+
+fn page_read_outline(content: &[ObservationContent], limit: usize) -> Vec<usize> {
+    let headings = content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| (item.kind == "heading").then_some(index))
+        .collect::<Vec<_>>();
+    evenly_spaced_indices(headings.len(), limit.min(headings.len()))
+        .into_iter()
+        .map(|index| headings[index])
+        .collect()
 }
 
 fn page_read_query_terms(query: &str) -> Vec<String> {
@@ -1717,14 +1842,36 @@ fn page_read_match_score(
 
 fn page_read_content_markdown(content: &ObservationContent) -> String {
     let text = escape_markdown_text(content.text.trim());
-    match content.kind.as_str() {
+    let block = match content.kind.as_str() {
         "heading" => format!(
             "{} {text}",
             "#".repeat(content.level.unwrap_or(2).clamp(2, 6) as usize)
         ),
         "listitem" | "list_item" | "item" => format!("- {text}"),
         _ => text,
+    };
+    match content
+        .context
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(context) => format!("Context: {}\n\n{block}", escape_markdown_text(context)),
+        None => block,
     }
+}
+
+fn page_read_bounded_content_block(block: String, max_chars: usize) -> (String, bool) {
+    let maximum = (max_chars / 3).clamp(128, 2_048);
+    if block.chars().count() <= maximum {
+        return (block, false);
+    }
+    let mut bounded = block
+        .chars()
+        .take(maximum.saturating_sub(1))
+        .collect::<String>();
+    bounded.push('…');
+    (bounded, true)
 }
 
 fn push_page_read_block(output: &mut String, block: &str, max_chars: usize) -> bool {
@@ -2422,16 +2569,19 @@ mod tests {
                     ObservationContent {
                         kind: "heading".to_string(),
                         level: Some(2),
+                        context: Some("main".to_string()),
                         text: "Installation".to_string(),
                     },
                     ObservationContent {
                         kind: "paragraph".to_string(),
                         level: None,
+                        context: Some("main > section: Installation".to_string()),
                         text: "Install the package with Cargo.".to_string(),
                     },
                     ObservationContent {
                         kind: "paragraph".to_string(),
                         level: None,
+                        context: Some("main > section: History".to_string()),
                         text: "Unrelated company history.".to_string(),
                     },
                 ],
@@ -2442,6 +2592,7 @@ mod tests {
                     states: Vec::new(),
                     value: None,
                     destination: Some("https://example.com/install".to_string()),
+                    context: Some("main > navigation: Documentation".to_string()),
                     in_viewport: true,
                     bounds: ObservationBounds {
                         x: 0.0,
@@ -2461,6 +2612,7 @@ mod tests {
         assert!(data.markdown.contains("## Installation"));
         assert!(data.markdown.contains("Install the package with Cargo."));
         assert!(data.markdown.contains("Installation reference"));
+        assert!(data.markdown.contains("Context: main"));
         assert!(!data.markdown.contains("company history"));
         assert!(data.matched_query);
         assert!(data.markdown.chars().count() <= 512);
@@ -2469,8 +2621,8 @@ mod tests {
         operation.observation.content[1].text = "x".repeat(1_000);
         let bounded = page_read_data(operation, None, 512, 10);
         assert!(bounded.markdown.chars().count() <= 512);
-        assert!(bounded.markdown.ends_with('…'));
-        assert_eq!(bounded.selected_content_count, 2);
+        assert!(bounded.markdown.contains('…'));
+        assert!(bounded.selected_content_count >= 2);
         assert!(bounded.truncated);
 
         let mut source_limited = observation_operation();
@@ -2478,6 +2630,33 @@ mod tests {
         let source_limited = page_read_data(source_limited, None, 32_768, 10);
         assert!(source_limited.source_truncated);
         assert!(!source_limited.truncated);
+    }
+
+    #[test]
+    fn unqueried_page_read_samples_the_whole_document_and_reports_availability() {
+        let mut operation = observation_operation();
+        operation.observation.content = (0..30)
+            .map(|index| ObservationContent {
+                kind: if index % 10 == 0 {
+                    "heading".to_string()
+                } else {
+                    "paragraph".to_string()
+                },
+                level: (index % 10 == 0).then_some(2),
+                context: Some(format!("main > section {}", index / 10 + 1)),
+                text: format!("Document section {index}"),
+            })
+            .collect();
+
+        let data = page_read_data(operation, None, 8_000, 6);
+
+        assert!(data.markdown.contains("## Page outline"));
+        assert!(data.markdown.contains("Document section 0"));
+        assert!(data.markdown.contains("Document section 29"));
+        assert_eq!(data.available_content_count, 30);
+        assert_eq!(data.selected_content_count, 6);
+        assert!(data.selected_outline_count > 0);
+        assert!(data.truncated);
     }
 
     #[test]

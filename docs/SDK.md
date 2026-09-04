@@ -111,7 +111,10 @@ untrusted-data boundary as page text and pixels.
 
 For retrieval without action refs or pixels, use `PageReadRequest`. The helper
 ranks semantic content and links against `query`, caps the Markdown independently
-from the renderer's semantic bound, and reports both truncation states:
+from the renderer's semantic bound, and reports both truncation states. Reads
+include a bounded page-wide heading outline. Unqueried reads sample content
+across the document rather than returning only its first sections, and the
+result reports available as well as selected content and link counts:
 
 ```rust
 use rel_client::{PageReadRequest, RelClient};
@@ -197,7 +200,8 @@ println!("{}", screenshot.data.screenshot.output_path);
 
 Request compact rendered semantics and typed element refs with
 `ObservationRequest`. Hybrid adds a current-viewport PNG resource; visual keeps
-semantics minimal:
+semantics minimal. Optional `context` paths on content and elements preserve
+their nearest landmark, form, dialog, list, table, and row relationships:
 
 ```rust
 use rel_client::{

@@ -100,7 +100,9 @@ The action response contains a new observation. Old observation refs fail with
 
 `rel read` is the smaller retrieval path for reading and research. It observes
 the current shorthand page, or navigates first when `URL` is supplied, then
-returns query-ranked content and links as bounded Markdown. It is always
+returns query-ranked content and links as bounded Markdown. A compact heading
+outline covers the page, and an unqueried read samples across long documents
+instead of stopping at their first sections. It is always
 semantic-only and does not return action refs or an image. `--max-chars`
 defaults to 12000 (range 512–32768), and `--max-sections` defaults to 24 (range
 1–100). Use `rel observe` instead when interaction refs or visual verification
@@ -111,8 +113,9 @@ rel read https://example.com/docs --query="installation" --max-chars=6000
 rel read --session-id=Session1 --query="current plan"
 ```
 
-The JSON envelope reports the source URL, title, observation ID, selection
-counts, whether the query matched, and independent source/output truncation.
+The JSON envelope reports the source URL, title, observation ID, outline and
+selection counts, available content and link counts, whether the query matched,
+and independent source/output truncation.
 
 ## Quick examples
 
