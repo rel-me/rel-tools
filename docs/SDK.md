@@ -46,9 +46,10 @@ commands**.
 
 ## API parity
 
-Each transport method maps to one public RPC route. `read_page` is the one
-documented composite helper: it uses semantic `/navigate/observe` when a URL is
-present and semantic `/observe` for the current page.
+Each transport method maps to one public RPC route. `read_page` and
+`read_observation` are documented composite helpers: the former obtains a new
+semantic observation, while the latter re-queries a retained public snapshot
+without navigating.
 
 | Rust method | RPC operation |
 | --- | --- |
@@ -69,6 +70,8 @@ present and semantic `/observe` for the current page.
 | `observe_page(page_id, &PageObservationRequest)` | `POST /v1/pages/{page_id}/observe` |
 | `perform_observation_action(observation_id, &ObservationActionRequest)` | `POST /v1/observations/{observation_id}/actions` |
 | `find_in_observation(observation_id, &ObservationFindRequest)` | `POST /v1/observations/{observation_id}/find` |
+| `get_observation(observation_id)` | `GET /v1/observations/{observation_id}` |
+| `read_observation(observation_id, &ObservationReadRequest)` | composite over `GET /v1/observations/{observation_id}` |
 | `list_proxies()` | `GET /v1/proxies` |
 | `get_proxy(alias)` | `GET /v1/proxies/{alias}` |
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
@@ -131,8 +134,11 @@ println!("{}", read.data.markdown);
 # Ok::<(), rel_client::ClientError>(())
 ```
 
-This helper still uses REL's embedded Chromium and the public RPC observation
-routes. It does not fetch through a second HTTP client or browser backend.
+Matched rating values retain their adjacent labels, semantic link categories
+such as genres and labels remain available, and link ranking does not treat a
+generic URL path segment as a label match. This helper still uses REL's
+embedded Chromium and the public RPC observation routes. It does not fetch
+through a second HTTP client or browser backend.
 
 The singular page methods can share the agent's process-local current page. Set
 the same `session_id` on each request to scope that page to one browser session:
@@ -206,7 +212,8 @@ their nearest landmark, form, dialog, list, table, and row relationships:
 ```rust
 use rel_client::{
     NavigateObservationRequest, ObservationAction, ObservationActionKind,
-    ObservationActionRequest, ObservationFindRequest, ObservationMode, RelClient,
+    ObservationActionRequest, ObservationFindRequest, ObservationMode,
+    ObservationReadRequest, RelClient,
 };
 
 let client = RelClient::local();
@@ -246,6 +253,15 @@ let found = client.find_in_observation(
     },
 )?;
 println!("{}", found.data.total_matches);
+let recalled = client.read_observation(
+    &observed.data.observation.id,
+    &ObservationReadRequest {
+        query: Some("important facts and ratings".into()),
+        max_chars: Some(6_000),
+        max_sections: Some(20),
+    },
+)?;
+println!("{}", recalled.data.markdown);
 # Ok::<(), rel_client::ClientError>(())
 ```
 
@@ -254,6 +270,10 @@ private locators and returns `OBSERVATION_STALE` instead of retargeting when the
 document or element signature has changed. Observation actions execute in order,
 stop at the first failure, and return one post-batch observation. Find searches
 only the stored public snapshot and does not issue another browser read.
+Navigation invalidates and erases private locators but retains the bounded public
+snapshot for reading until the 32-observation registry evicts it, the session
+closes, or the agent exits. Retained snapshots are evidence, not actionable page
+state.
 
 `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame commits an HTTP 4xx or 5xx response. By default, detected Cloudflare

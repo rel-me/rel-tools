@@ -134,6 +134,7 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/pages/{page_id}/observe` | Observe an attached page |
 | `POST` | `/v1/observations/{observation_id}/actions` | Perform ordered observation-scoped actions |
 | `POST` | `/v1/observations/{observation_id}/find` | Search stored public observation semantics |
+| `GET` | `/v1/observations/{observation_id}` | Read one retained public semantic snapshot |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
@@ -166,8 +167,9 @@ session and proxy listing.
 MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
 [MCP](MCP.md) for its stdio lifecycle and result wrapping.
 `rel_read` is a `rel-client` composition over `POST /v1/navigate/observe` and
-`POST /v1/observe`; it deliberately adds no retrieval route or alternate
-browser transport.
+`POST /v1/observe`. The SDK's `read_observation` helper applies the same bounded
+selection to `GET /v1/observations/{observation_id}`; neither helper adds an
+alternate browser transport.
 
 ## Health
 
@@ -499,6 +501,13 @@ exact case-insensitive element filter. `limit` defaults to 20 and may be 1–100
 Results distinguish `content` and `element` matches, preserve actionable refs,
 and report `total_matches` plus `truncated`. Private locators are never stored in
 or returned from the searchable public snapshot.
+
+Read the complete retained public snapshot using
+`GET /v1/observations/{observation_id}`. It returns the ordinary page and
+observation envelope. After the page navigates, REL erases the observation's
+private locators and rejects actions with `OBSERVATION_STALE`, but its public
+semantic content remains readable. The process-local registry retains at most
+32 observations and removes them when their session closes or the agent exits.
 
 ### `POST /v1/captures`
 
