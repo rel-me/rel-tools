@@ -4,6 +4,7 @@
 //! therefore be used by other Rust programs without adopting the bundled CLI's
 //! macOS-specific conveniences.
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
@@ -11,6 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Lines, Read};
 use std::time::Duration;
+
+pub mod transfer;
 
 const DEFAULT_AGENT_PORT: u16 = 17_319;
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -50,6 +53,7 @@ pub mod rpc_error_codes {
     pub const RATE_LIMITED: u32 = 10_205;
     pub const ACTION_TIMEOUT: u32 = 10_206;
     pub const OBSERVATION_STALE: u32 = 10_207;
+    pub const PRO_REQUIRED: u32 = 10_208;
 
     pub const UPSTREAM_UNAVAILABLE: u32 = 10_300;
     pub const BROWSER_UNAVAILABLE: u32 = 10_301;
@@ -84,6 +88,7 @@ pub mod rpc_error_codes {
             "RATE_LIMITED" => RATE_LIMITED,
             "ACTION_TIMEOUT" => ACTION_TIMEOUT,
             "OBSERVATION_STALE" => OBSERVATION_STALE,
+            "PRO_REQUIRED" => PRO_REQUIRED,
             "UPSTREAM_UNAVAILABLE" => UPSTREAM_UNAVAILABLE,
             "BROWSER_UNAVAILABLE" => BROWSER_UNAVAILABLE,
             "AGENT_UNHEALTHY" => AGENT_UNHEALTHY,
@@ -247,20 +252,7 @@ impl RelClient {
         &self,
         request: &PageReadRequest,
     ) -> Result<RpcResponse<PageReadData>, ClientError> {
-        let max_chars = request.max_chars.unwrap_or(DEFAULT_PAGE_READ_MAX_CHARS);
-        if !(MIN_PAGE_READ_MAX_CHARS..=MAX_PAGE_READ_MAX_CHARS).contains(&max_chars) {
-            return Err(ClientError::Protocol(format!(
-                "max_chars must be between {MIN_PAGE_READ_MAX_CHARS} and {MAX_PAGE_READ_MAX_CHARS}"
-            )));
-        }
-        let max_sections = request
-            .max_sections
-            .unwrap_or(DEFAULT_PAGE_READ_MAX_SECTIONS);
-        if !(1..=MAX_PAGE_READ_MAX_SECTIONS).contains(&max_sections) {
-            return Err(ClientError::Protocol(format!(
-                "max_sections must be between 1 and {MAX_PAGE_READ_MAX_SECTIONS}"
-            )));
-        }
+        let (max_chars, max_sections) = page_read_limits(request.max_chars, request.max_sections)?;
 
         let response = if let Some(url) = request.url.as_deref() {
             self.navigate_and_observe(&NavigateObservationRequest {
@@ -292,6 +284,39 @@ impl RelClient {
             request_id,
             data,
         } = response;
+        Ok(RpcResponse {
+            status,
+            request_id,
+            data: page_read_data(data, request.query.as_deref(), max_chars, max_sections),
+        })
+    }
+
+    /// Return one retained public semantic observation. Interaction references
+    /// may be stale after navigation; use this operation only for reading.
+    pub fn get_observation(
+        &self,
+        observation_id: &str,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        self.request::<ObservationOperationData, Value>(
+            "GET",
+            &format!("/observations/{}", encode_path_segment(observation_id)),
+            None,
+        )
+    }
+
+    /// Re-read one retained public observation as bounded, query-directed
+    /// Markdown without navigating the browser again.
+    pub fn read_observation(
+        &self,
+        observation_id: &str,
+        request: &ObservationReadRequest,
+    ) -> Result<RpcResponse<PageReadData>, ClientError> {
+        let (max_chars, max_sections) = page_read_limits(request.max_chars, request.max_sections)?;
+        let RpcResponse {
+            status,
+            request_id,
+            data,
+        } = self.get_observation(observation_id)?;
         Ok(RpcResponse {
             status,
             request_id,
@@ -430,6 +455,20 @@ impl RelClient {
         )
     }
 
+    pub fn export_proxy_transfer(
+        &self,
+        request: &ProxyTransferExportRequest,
+    ) -> Result<RpcResponse<TransferExportData>, ClientError> {
+        self.request("POST", "/proxy-transfers/export", Some(request))
+    }
+
+    pub fn import_proxy_transfer(
+        &self,
+        request: &ProxyTransferImportRequest,
+    ) -> Result<RpcResponse<ProxyData>, ClientError> {
+        self.request("POST", "/proxy-transfers/import", Some(request))
+    }
+
     pub fn list_sessions(&self) -> Result<RpcResponse<SessionListData>, ClientError> {
         self.request::<SessionListData, Value>("GET", "/sessions", None)
     }
@@ -480,6 +519,20 @@ impl RelClient {
         )
     }
 
+    pub fn export_profile_transfer(
+        &self,
+        request: &ProfileTransferExportRequest,
+    ) -> Result<RpcResponse<TransferExportData>, ClientError> {
+        self.request("POST", "/profile-transfers/export", Some(request))
+    }
+
+    pub fn import_profile_transfer(
+        &self,
+        request: &ProfileTransferImportRequest,
+    ) -> Result<RpcResponse<ProfileData>, ClientError> {
+        self.request("POST", "/profile-transfers/import", Some(request))
+    }
+
     pub fn update_session(
         &self,
         id: &str,
@@ -489,6 +542,30 @@ impl RelClient {
             "PATCH",
             &format!("/sessions/{}", encode_path_segment(id)),
             Some(request),
+        )
+    }
+
+    /// Pause all network activity in a persistent browser session.
+    pub fn pause_session(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionNetworkStateData>, ClientError> {
+        self.request::<SessionNetworkStateData, Value>(
+            "POST",
+            &format!("/sessions/{}/pause", encode_path_segment(id)),
+            None,
+        )
+    }
+
+    /// Resume network activity and reload the current page when needed.
+    pub fn play_session(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionNetworkStateData>, ClientError> {
+        self.request::<SessionNetworkStateData, Value>(
+            "POST",
+            &format!("/sessions/{}/play", encode_path_segment(id)),
+            None,
         )
     }
 
@@ -1251,6 +1328,16 @@ pub struct PageReadRequest {
     pub wait: Option<f64>,
 }
 
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ObservationReadRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_chars: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_sections: Option<usize>,
+}
+
 impl PageReadRequest {
     pub fn new(url: impl Into<String>) -> Self {
         Self {
@@ -1270,8 +1357,11 @@ pub struct PageReadData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub query: Option<String>,
     pub markdown: String,
+    pub selected_outline_count: usize,
     pub selected_content_count: usize,
     pub selected_link_count: usize,
+    pub available_content_count: usize,
+    pub available_link_count: usize,
     pub source_truncated: bool,
     pub truncated: bool,
     pub matched_query: bool,
@@ -1478,6 +1568,8 @@ pub struct ObservationContent {
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub level: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub text: String,
 }
 
@@ -1492,6 +1584,8 @@ pub struct ObservationElement {
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub destination: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub in_viewport: bool,
     pub bounds: ObservationBounds,
 }
@@ -1527,22 +1621,38 @@ fn page_read_data(
     let terms = page_read_query_terms(normalized_query.unwrap_or_default());
     let query_active = normalized_query.is_some();
 
-    let mut content = observation
+    let scored_content = observation
         .content
         .iter()
         .enumerate()
         .map(|(index, item)| {
-            (
-                index,
-                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading"),
-            )
+            let mut score =
+                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading");
+            if page_read_query_requests_ratings(&terms) && page_read_text_is_rating(&item.text) {
+                score = score.max(2);
+            }
+            (index, score)
         })
         .collect::<Vec<_>>();
-    let content_matched = query_active && content.iter().any(|(_, score)| *score > 0);
-    if content_matched {
-        content.retain(|(_, score)| *score > 0);
-        content.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
-    }
+    let content_matched = query_active && scored_content.iter().any(|(_, score)| *score > 0);
+    let mut content = if content_matched {
+        let mut ranked = scored_content
+            .iter()
+            .copied()
+            .filter(|(_, score)| *score > 0)
+            .collect::<Vec<_>>();
+        ranked.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+        page_read_matched_content_with_context(&observation.content, &ranked)
+    } else if !query_active {
+        page_read_coverage_content(&observation.content, max_sections)
+    } else {
+        Vec::new()
+    };
+    let available_content_count = if query_active {
+        content.len()
+    } else {
+        observation.content.len()
+    };
     content.truncate(max_sections);
 
     let mut seen_links = BTreeSet::new();
@@ -1559,11 +1669,9 @@ fn page_read_data(
             if !seen_links.insert(key) {
                 return None;
             }
-            let searchable = format!("{} {}", element.name, destination);
-            Some((
-                index,
-                page_read_match_score(&searchable, normalized_query, &terms, false),
-            ))
+            let score = page_read_match_score(&element.name, normalized_query, &terms, false)
+                .max(page_read_link_intent_score(destination, &terms));
+            Some((index, score))
         })
         .collect::<Vec<_>>();
     let links_matched = query_active && links.iter().any(|(_, score)| *score > 0);
@@ -1572,9 +1680,6 @@ fn page_read_data(
         links.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
     } else if content_matched {
         links.clear();
-    }
-    if links_matched && !content_matched {
-        content.clear();
     }
     let available_link_count = links.len();
     links.truncate(max_sections);
@@ -1604,17 +1709,36 @@ fn page_read_data(
         );
     }
 
+    let outline = page_read_outline(&observation.content, max_sections.min(16));
+    let mut selected_outline_count = 0;
+    if !outline.is_empty() && push_page_read_block(&mut markdown, "## Page outline", max_chars) {
+        for index in outline {
+            let heading = &observation.content[index];
+            let indent = "  ".repeat(heading.level.unwrap_or(2).saturating_sub(2) as usize);
+            let block = format!("{indent}- {}", escape_markdown_text(heading.text.trim()));
+            if push_page_read_block(&mut markdown, &block, max_chars) {
+                selected_outline_count += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
     let mut selected_content_count = 0;
     let mut output_truncated = false;
     for (index, _) in &content {
-        let block = page_read_content_markdown(&observation.content[*index]);
+        let (block, block_clipped) = page_read_bounded_content_block(
+            page_read_content_markdown(&observation.content[*index]),
+            max_chars,
+        );
+        output_truncated |= block_clipped;
         let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
         if added {
             selected_content_count += 1;
         }
         if clipped {
             output_truncated = true;
-            break;
+            continue;
         }
     }
 
@@ -1644,20 +1768,6 @@ fn page_read_data(
         output_truncated = true;
     }
 
-    let available_content_count = if content_matched {
-        observation
-            .content
-            .iter()
-            .filter(|item| {
-                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading")
-                    > 0
-            })
-            .count()
-    } else if links_matched {
-        0
-    } else {
-        observation.content.len()
-    };
     let content_was_limited = available_content_count > selected_content_count;
     let links_were_limited = available_link_count > selected_link_count;
 
@@ -1667,12 +1777,128 @@ fn page_read_data(
         title,
         query: normalized_query.map(str::to_string),
         markdown,
+        selected_outline_count,
         selected_content_count,
         selected_link_count,
+        available_content_count,
+        available_link_count,
         source_truncated: observation.truncated,
         truncated: content_was_limited || links_were_limited || output_truncated,
         matched_query: content_matched || links_matched,
     }
+}
+
+fn page_read_matched_content_with_context(
+    content: &[ObservationContent],
+    ranked: &[(usize, usize)],
+) -> Vec<(usize, usize)> {
+    let mut selected = BTreeSet::new();
+    for (index, _) in ranked {
+        if let Some(heading) = (0..=*index)
+            .rev()
+            .find(|candidate| content[*candidate].kind == "heading")
+        {
+            selected.insert(heading);
+        }
+        selected.insert(*index);
+        if page_read_text_is_rating(&content[*index].text) && *index > 0 {
+            selected.insert(*index - 1);
+        }
+        if *index > 0 && page_read_text_is_rating(&content[*index - 1].text) {
+            selected.insert(*index - 1);
+        }
+        if *index + 1 < content.len() && page_read_text_is_rating(&content[*index + 1].text) {
+            selected.insert(*index + 1);
+        }
+    }
+    selected
+        .into_iter()
+        .map(|index| {
+            let score = ranked
+                .iter()
+                .find_map(|(candidate, score)| (*candidate == index).then_some(*score))
+                .unwrap_or_default();
+            (index, score)
+        })
+        .collect()
+}
+
+fn page_read_coverage_content(content: &[ObservationContent], limit: usize) -> Vec<(usize, usize)> {
+    if content.len() <= limit {
+        return (0..content.len()).map(|index| (index, 1)).collect();
+    }
+    if limit == 1 {
+        return vec![(0, 1)];
+    }
+    let mut selected = BTreeSet::new();
+    selected.insert(0);
+    selected.insert(content.len() - 1);
+    let heading_budget = (limit / 3).clamp(1, 8);
+    let headings = content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| (item.kind == "heading").then_some(index))
+        .collect::<Vec<_>>();
+    for index in evenly_spaced_indices(headings.len(), heading_budget.min(headings.len())) {
+        selected.insert(headings[index]);
+    }
+    for index in evenly_spaced_indices(content.len(), limit) {
+        if selected.len() >= limit {
+            break;
+        }
+        selected.insert(index);
+    }
+    if selected.len() < limit {
+        for index in 0..content.len() {
+            if selected.len() >= limit {
+                break;
+            }
+            selected.insert(index);
+        }
+    }
+    selected.into_iter().map(|index| (index, 1)).collect()
+}
+
+fn evenly_spaced_indices(length: usize, count: usize) -> Vec<usize> {
+    match (length, count) {
+        (_, 0) | (0, _) => Vec::new(),
+        (_, 1) => vec![0],
+        _ if count >= length => (0..length).collect(),
+        _ => (0..count)
+            .map(|slot| slot * (length - 1) / (count - 1))
+            .collect(),
+    }
+}
+
+fn page_read_outline(content: &[ObservationContent], limit: usize) -> Vec<usize> {
+    let headings = content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| (item.kind == "heading").then_some(index))
+        .collect::<Vec<_>>();
+    evenly_spaced_indices(headings.len(), limit.min(headings.len()))
+        .into_iter()
+        .map(|index| headings[index])
+        .collect()
+}
+
+fn page_read_limits(
+    max_chars: Option<usize>,
+    max_sections: Option<usize>,
+) -> Result<(usize, usize), ClientError> {
+    let max_chars = max_chars.unwrap_or(DEFAULT_PAGE_READ_MAX_CHARS);
+    if !(MIN_PAGE_READ_MAX_CHARS..=MAX_PAGE_READ_MAX_CHARS).contains(&max_chars) {
+        return Err(ClientError::Protocol(format!(
+            "max_chars must be between {MIN_PAGE_READ_MAX_CHARS} and {MAX_PAGE_READ_MAX_CHARS}"
+        )));
+    }
+    let max_sections = max_sections.unwrap_or(DEFAULT_PAGE_READ_MAX_SECTIONS);
+    if !(1..=MAX_PAGE_READ_MAX_SECTIONS).contains(&max_sections) {
+        return Err(ClientError::Protocol(format!(
+            "max_sections must be between 1 and {MAX_PAGE_READ_MAX_SECTIONS}"
+        )));
+    }
+    Ok((max_chars, max_sections))
 }
 
 fn page_read_query_terms(query: &str) -> Vec<String> {
@@ -1681,13 +1907,82 @@ fn page_read_query_terms(query: &str) -> Vec<String> {
         "of", "on", "or", "that", "the", "this", "to", "was", "what", "when", "where", "which",
         "who", "why", "with",
     ];
-    query
+    let mut terms = query
         .split(|character: char| !character.is_alphanumeric())
         .map(str::to_lowercase)
         .filter(|term| term.len() >= 2 && !STOP_WORDS.contains(&term.as_str()))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
+        .collect::<BTreeSet<_>>();
+    let originals = terms.iter().cloned().collect::<Vec<_>>();
+    for term in originals {
+        match term.as_str() {
+            "critic" | "critics" | "rating" | "ratings" | "score" | "scores" => {
+                terms.extend(["review", "reviews", "rating", "score"].map(str::to_string));
+            }
+            "genre" | "genres" => {
+                terms.extend(["genre", "genres", "style"].map(str::to_string));
+            }
+            _ => {}
+        }
+    }
+    terms.into_iter().collect()
+}
+
+fn page_read_query_requests_ratings(terms: &[String]) -> bool {
+    terms.iter().any(|term| {
+        matches!(
+            term.as_str(),
+            "critic"
+                | "critics"
+                | "rating"
+                | "ratings"
+                | "review"
+                | "reviews"
+                | "score"
+                | "scores"
+                | "signal"
+        )
+    })
+}
+
+fn page_read_text_is_rating(text: &str) -> bool {
+    let text = text.trim();
+    if text.parse::<u8>().is_ok_and(|value| value <= 100) {
+        return true;
+    }
+    text.split_whitespace().any(|token| {
+        let token = token.trim_matches(|character: char| {
+            !character.is_ascii_digit() && !matches!(character, '.' | '/' | '%')
+        });
+        if let Some(percent) = token.strip_suffix('%') {
+            return percent
+                .parse::<f64>()
+                .is_ok_and(|value| (0.0..=100.0).contains(&value));
+        }
+        if let Some((value, scale)) = token.split_once('/') {
+            return value
+                .parse::<f64>()
+                .ok()
+                .zip(scale.parse::<f64>().ok())
+                .is_some_and(|(value, scale)| scale > 0.0 && value >= 0.0 && value <= scale);
+        }
+        token.contains('.')
+            && token
+                .parse::<f64>()
+                .is_ok_and(|value| (0.0..=100.0).contains(&value))
+    })
+}
+
+fn page_read_link_intent_score(destination: &str, terms: &[String]) -> usize {
+    let destination = destination.to_ascii_lowercase();
+    let has_term =
+        |candidates: &[&str]| terms.iter().any(|term| candidates.contains(&term.as_str()));
+    if destination.contains("/genres/") && has_term(&["genre", "genres", "style"]) {
+        return 6;
+    }
+    if destination.contains("/label/") && has_term(&["label", "labels"]) {
+        return 6;
+    }
+    0
 }
 
 fn page_read_match_score(
@@ -1717,14 +2012,36 @@ fn page_read_match_score(
 
 fn page_read_content_markdown(content: &ObservationContent) -> String {
     let text = escape_markdown_text(content.text.trim());
-    match content.kind.as_str() {
+    let block = match content.kind.as_str() {
         "heading" => format!(
             "{} {text}",
             "#".repeat(content.level.unwrap_or(2).clamp(2, 6) as usize)
         ),
         "listitem" | "list_item" | "item" => format!("- {text}"),
         _ => text,
+    };
+    match content
+        .context
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(context) => format!("Context: {}\n\n{block}", escape_markdown_text(context)),
+        None => block,
     }
+}
+
+fn page_read_bounded_content_block(block: String, max_chars: usize) -> (String, bool) {
+    let maximum = (max_chars / 3).clamp(128, 2_048);
+    if block.chars().count() <= maximum {
+        return (block, false);
+    }
+    let mut bounded = block
+        .chars()
+        .take(maximum.saturating_sub(1))
+        .collect::<String>();
+    bounded.push('…');
+    (bounded, true)
 }
 
 fn push_page_read_block(output: &mut String, block: &str, max_chars: usize) -> bool {
@@ -1897,6 +2214,33 @@ pub struct Proxy {
     pub oxylabs: Option<OxylabsProxy>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProxyTransferExportRequest {
+    pub alias: String,
+    pub include_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProxyTransferImportRequest {
+    pub contents_base64: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+impl ProxyTransferImportRequest {
+    pub fn from_bytes(data: &[u8], alias: Option<String>, passphrase: Option<String>) -> Self {
+        Self {
+            contents_base64: BASE64_STANDARD.encode(data),
+            alias,
+            passphrase,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2036,6 +2380,12 @@ pub struct SessionData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SessionNetworkStateData {
+    pub session_id: String,
+    pub network_paused: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ProfileListData {
     pub profiles: Vec<Profile>,
 }
@@ -2059,6 +2409,56 @@ pub struct Profile {
     pub fingerprint_profile: Option<FingerprintProfile>,
     pub is_builtin: bool,
     pub created_at: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct TransferExportData {
+    pub filename: String,
+    pub contents_base64: String,
+}
+
+impl TransferExportData {
+    pub fn contents(&self) -> Result<Vec<u8>, String> {
+        BASE64_STANDARD
+            .decode(&self.contents_base64)
+            .map_err(|error| format!("REL returned invalid transfer data: {error}"))
+    }
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileTransferExportRequest {
+    pub name: String,
+    pub include_cookies: bool,
+    pub include_passwords: bool,
+    pub include_proxy_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileTransferImportRequest {
+    pub contents_base64: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+    #[serde(skip_serializing_if = "is_false")]
+    pub browser_data_ready: bool,
+}
+
+impl ProfileTransferImportRequest {
+    pub fn from_bytes(data: &[u8], name: Option<String>, passphrase: Option<String>) -> Self {
+        Self {
+            contents_base64: BASE64_STANDARD.encode(data),
+            name,
+            passphrase,
+            browser_data_ready: false,
+        }
+    }
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -2212,6 +2612,7 @@ mod tests {
             rpc_error_codes::RATE_LIMITED,
             rpc_error_codes::ACTION_TIMEOUT,
             rpc_error_codes::OBSERVATION_STALE,
+            rpc_error_codes::PRO_REQUIRED,
             rpc_error_codes::UPSTREAM_UNAVAILABLE,
             rpc_error_codes::BROWSER_UNAVAILABLE,
             rpc_error_codes::AGENT_UNHEALTHY,
@@ -2422,16 +2823,19 @@ mod tests {
                     ObservationContent {
                         kind: "heading".to_string(),
                         level: Some(2),
+                        context: Some("main".to_string()),
                         text: "Installation".to_string(),
                     },
                     ObservationContent {
                         kind: "paragraph".to_string(),
                         level: None,
+                        context: Some("main > section: Installation".to_string()),
                         text: "Install the package with Cargo.".to_string(),
                     },
                     ObservationContent {
                         kind: "paragraph".to_string(),
                         level: None,
+                        context: Some("main > section: History".to_string()),
                         text: "Unrelated company history.".to_string(),
                     },
                 ],
@@ -2442,6 +2846,7 @@ mod tests {
                     states: Vec::new(),
                     value: None,
                     destination: Some("https://example.com/install".to_string()),
+                    context: Some("main > navigation: Documentation".to_string()),
                     in_viewport: true,
                     bounds: ObservationBounds {
                         x: 0.0,
@@ -2461,6 +2866,7 @@ mod tests {
         assert!(data.markdown.contains("## Installation"));
         assert!(data.markdown.contains("Install the package with Cargo."));
         assert!(data.markdown.contains("Installation reference"));
+        assert!(data.markdown.contains("Context: main"));
         assert!(!data.markdown.contains("company history"));
         assert!(data.matched_query);
         assert!(data.markdown.chars().count() <= 512);
@@ -2469,8 +2875,8 @@ mod tests {
         operation.observation.content[1].text = "x".repeat(1_000);
         let bounded = page_read_data(operation, None, 512, 10);
         assert!(bounded.markdown.chars().count() <= 512);
-        assert!(bounded.markdown.ends_with('…'));
-        assert_eq!(bounded.selected_content_count, 2);
+        assert!(bounded.markdown.contains('…'));
+        assert!(bounded.selected_content_count >= 2);
         assert!(bounded.truncated);
 
         let mut source_limited = observation_operation();
@@ -2478,6 +2884,129 @@ mod tests {
         let source_limited = page_read_data(source_limited, None, 32_768, 10);
         assert!(source_limited.source_truncated);
         assert!(!source_limited.truncated);
+    }
+
+    #[test]
+    fn unqueried_page_read_samples_the_whole_document_and_reports_availability() {
+        let mut operation = observation_operation();
+        operation.observation.content = (0..30)
+            .map(|index| ObservationContent {
+                kind: if index % 10 == 0 {
+                    "heading".to_string()
+                } else {
+                    "paragraph".to_string()
+                },
+                level: (index % 10 == 0).then_some(2),
+                context: Some(format!("main > section {}", index / 10 + 1)),
+                text: format!("Document section {index}"),
+            })
+            .collect();
+
+        let data = page_read_data(operation, None, 8_000, 6);
+
+        assert!(data.markdown.contains("## Page outline"));
+        assert!(data.markdown.contains("Document section 0"));
+        assert!(data.markdown.contains("Document section 29"));
+        assert_eq!(data.available_content_count, 30);
+        assert_eq!(data.selected_content_count, 6);
+        assert!(data.selected_outline_count > 0);
+        assert!(data.truncated);
+    }
+
+    #[test]
+    fn page_read_keeps_rating_pairs_and_ignores_generic_url_path_matches() {
+        let mut operation = observation_operation();
+        operation.observation.title = "Materia by Julia Holter".to_string();
+        operation.observation.content = [
+            ("heading", Some(1), "Materia"),
+            ("paragraph", None, "2026 / Aug 21 / 7 tracks / 35m"),
+            ("text", None, "Metacritic"),
+            ("text", None, "87%"),
+            ("text", None, "Paste"),
+            ("text", None, "8.3/10"),
+            ("text", None, "Pitchfork 9.2 Adventurous and precise."),
+            ("text", None, "Guardian 5/5 A singular achievement."),
+            ("paragraph", None, "Unrelated album history"),
+        ]
+        .into_iter()
+        .map(|(kind, level, text)| ObservationContent {
+            kind: kind.to_string(),
+            level,
+            context: None,
+            text: text.to_string(),
+        })
+        .collect();
+        operation.observation.elements = vec![
+            ObservationElement {
+                element_ref: "e1".to_string(),
+                role: "link".to_string(),
+                name: "Read Metacritic review".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://reviews.example/materia".to_string()),
+                context: None,
+                in_viewport: true,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+            ObservationElement {
+                element_ref: "e2".to_string(),
+                role: "link".to_string(),
+                name: "Other record".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://example.com/album/other".to_string()),
+                context: None,
+                in_viewport: false,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+            ObservationElement {
+                element_ref: "e3".to_string(),
+                role: "link".to_string(),
+                name: "Art Pop".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://example.com/genres/pop/art-pop".to_string()),
+                context: None,
+                in_viewport: true,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+        ];
+
+        let data = page_read_data(
+            operation,
+            Some("album details, genres, critic ratings and scores"),
+            4_000,
+            20,
+        );
+        let metacritic = data.markdown.find("Metacritic").unwrap();
+        let metacritic_score = data.markdown.find("87%").unwrap();
+        let paste = data.markdown.find("Paste").unwrap();
+        let paste_score = data.markdown.find("8.3/10").unwrap();
+        let pitchfork_score = data.markdown.find("Pitchfork 9.2").unwrap();
+        let guardian_score = data.markdown.find("Guardian 5/5").unwrap();
+        assert!(metacritic < metacritic_score);
+        assert!(metacritic_score < paste);
+        assert!(paste < paste_score);
+        assert!(paste_score < pitchfork_score);
+        assert!(pitchfork_score < guardian_score);
+        assert!(data.markdown.contains("Art Pop"));
+        assert!(data.markdown.contains("Read Metacritic review"));
+        assert!(!data.markdown.contains("https://example.com/album/other"));
     }
 
     #[test]
@@ -2503,6 +3032,31 @@ mod tests {
         assert_eq!(requests[0].path, "/v1/navigate/observe");
         let body: Value = serde_json::from_str(&requests[0].body).unwrap();
         assert_eq!(body["mode"], "semantic");
+    }
+
+    #[test]
+    fn retained_observation_can_be_read_without_navigation() {
+        let response_body = json!({
+            "status": "ok",
+            "request_id": "request-1",
+            "data": observation_operation()
+        });
+        let (base_url, handle) = start_test_server(1, move |_, _| {
+            http_json(200, "request-1", response_body.clone())
+        });
+        let response = RelClient::new(base_url)
+            .read_observation(
+                "observation-1",
+                &ObservationReadRequest {
+                    query: Some("install".to_string()),
+                    ..ObservationReadRequest::default()
+                },
+            )
+            .unwrap();
+        assert!(response.data.markdown.contains("Install the package"));
+        let requests = handle.join().unwrap();
+        assert_eq!(requests[0].method, "GET");
+        assert_eq!(requests[0].path, "/v1/observations/observation-1");
     }
 
     #[test]
@@ -2692,7 +3246,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(31, |index, request| {
+        let (base_url, server) = start_test_server(37, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -2768,8 +3322,18 @@ mod tests {
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }
+                ("POST", "/v1/proxy-transfers/export") => {
+                    json!({"filename":"office.relproxy","contents_base64":"U1FMaXRlIGZvcm1hdCAzAA=="})
+                }
+                ("POST", "/v1/proxy-transfers/import") => json!({"proxy":proxy_json()}),
                 ("DELETE", "/v1/sessions/machine-a.Session1") => {
                     json!({"deleted_id":"machine-a.Session1"})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/pause") => {
+                    json!({"session_id":"machine-a.Session1", "network_paused":true})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/play") => {
+                    json!({"session_id":"machine-a.Session1", "network_paused":false})
                 }
                 ("POST", "/v1/sessions/close") => {
                     json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
@@ -2784,6 +3348,12 @@ mod tests {
                 }
                 ("DELETE", "/v1/profiles/custom-profile-id") => {
                     json!({"deleted_id":"custom-profile-id"})
+                }
+                ("POST", "/v1/profile-transfers/export") => {
+                    json!({"filename":"Research.relprofile","contents_base64":"U1FMaXRlIGZvcm1hdCAzAA=="})
+                }
+                ("POST", "/v1/profile-transfers/import") => {
+                    json!({"profile":profile_json()})
                 }
                 route => panic!("unexpected route {route:?}"),
             };
@@ -2905,6 +3475,20 @@ mod tests {
             .unwrap();
         client.delete_proxy("office").unwrap();
         client.rotate_proxy_session("office").unwrap();
+        client
+            .export_proxy_transfer(&ProxyTransferExportRequest {
+                alias: "office".to_string(),
+                include_credentials: false,
+                passphrase: None,
+            })
+            .unwrap();
+        client
+            .import_proxy_transfer(&ProxyTransferImportRequest::from_bytes(
+                b"SQLite format 3\0",
+                Some("backup".to_string()),
+                None,
+            ))
+            .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
         assert_eq!(sessions.data.sessions[0].group.as_deref(), Some("pgm"));
@@ -2943,6 +3527,22 @@ mod tests {
             .unwrap();
         client.delete_profile("custom-profile-id").unwrap();
         client
+            .export_profile_transfer(&ProfileTransferExportRequest {
+                name: "Research".to_string(),
+                include_cookies: false,
+                include_passwords: false,
+                include_proxy_credentials: false,
+                passphrase: None,
+            })
+            .unwrap();
+        client
+            .import_profile_transfer(&ProfileTransferImportRequest::from_bytes(
+                b"SQLite format 3\0",
+                Some("Research Copy".to_string()),
+                None,
+            ))
+            .unwrap();
+        client
             .update_session(
                 "machine-a.Session1",
                 &SessionUpdateRequest {
@@ -2951,6 +3551,10 @@ mod tests {
                 },
             )
             .unwrap();
+        let paused = client.pause_session("machine-a.Session1").unwrap();
+        assert!(paused.data.network_paused);
+        let playing = client.play_session("machine-a.Session1").unwrap();
+        assert!(!playing.data.network_paused);
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
         let closed = client.close_session_group("pgm").unwrap();
@@ -2991,6 +3595,8 @@ mod tests {
                 ("PATCH", "/v1/proxies/office"),
                 ("DELETE", "/v1/proxies/office"),
                 ("POST", "/v1/proxies/office/rotate-session"),
+                ("POST", "/v1/proxy-transfers/export"),
+                ("POST", "/v1/proxy-transfers/import"),
                 ("GET", "/v1/sessions"),
                 ("GET", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions"),
@@ -2998,13 +3604,17 @@ mod tests {
                 ("POST", "/v1/profiles"),
                 ("PATCH", "/v1/profiles/custom-profile-id"),
                 ("DELETE", "/v1/profiles/custom-profile-id"),
+                ("POST", "/v1/profile-transfers/export"),
+                ("POST", "/v1/profile-transfers/import"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
+                ("POST", "/v1/sessions/machine-a.Session1/pause"),
+                ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions/close"),
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[36].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
@@ -3052,7 +3662,15 @@ mod tests {
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[21].body).unwrap(),
+            json!({"alias":"office","include_credentials":false})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
+            json!({"contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==","alias":"backup"})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[27].body).unwrap(),
             json!({
                 "name":"Research",
                 "adblock_enabled":true,
@@ -3063,11 +3681,27 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({"includes_cookies":true,"includes_passwords":true})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
+            json!({
+                "name":"Research",
+                "include_cookies":false,
+                "include_passwords":false,
+                "include_proxy_credentials":false
+            })
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
+            json!({
+                "contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==",
+                "name":"Research Copy"
+            })
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

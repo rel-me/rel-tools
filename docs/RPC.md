@@ -95,6 +95,7 @@ repeat.
 | `10205` | `RATE_LIMITED` | yes | REL itself is rate limiting the caller |
 | `10206` | `ACTION_TIMEOUT` | yes | A browser action's local timeout expired |
 | `10207` | `OBSERVATION_STALE` | no | An observation or element reference no longer matches the live document |
+| `10208` | `PRO_REQUIRED` | no | The Free plan does not include the requested resource or capability |
 | `10300` | `UPSTREAM_UNAVAILABLE` | yes | Navigation received a target HTTP error or the browser/proxy received an invalid upstream result |
 | `10301` | `BROWSER_UNAVAILABLE` | yes | Required Chromium service is unavailable |
 | `10302` | `AGENT_UNHEALTHY` | yes | The serialized control worker missed its health deadline |
@@ -113,6 +114,19 @@ managed Cloudflare challenge pages receive up to 15 seconds to continue before
 that error is returned. This also applies to browser capture and page-creation
 navigation. The error details contain the final `url` and exact
 `target_http_status`; the navigated session remains selected.
+
+### Free and Pro access
+
+The running app selects the agent's access plan; RPC callers cannot override it.
+REL Free permits one persistent Session and one custom Profile. Creating
+another returns `PRO_REQUIRED`. Proxy creation, update, rotation, assignment,
+and use also return `PRO_REQUIRED`; listing, reading, deleting, and detaching
+previously stored resources remain available.
+
+`PRO_REQUIRED` uses HTTP 403 and includes stable `details.feature` and
+`details.plan` strings. The currently returned feature values are `proxies`,
+`additional_sessions`, and `additional_custom_profiles`. Register REL Pro in
+**REL → Settings… → Plan** to remove these limits.
 
 ## Routes
 
@@ -134,12 +148,15 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/pages/{page_id}/observe` | Observe an attached page |
 | `POST` | `/v1/observations/{observation_id}/actions` | Perform ordered observation-scoped actions |
 | `POST` | `/v1/observations/{observation_id}/find` | Search stored public observation semantics |
+| `GET` | `/v1/observations/{observation_id}` | Read one retained public semantic snapshot |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
 | `POST` | `/v1/proxies/{alias}/rotate-session` | Rotate an Oxylabs session |
+| `POST` | `/v1/proxy-transfers/export` | Export a versioned proxy transfer |
+| `POST` | `/v1/proxy-transfers/import` | Import a versioned proxy transfer |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
 | `POST` | `/v1/sessions/close` | Close every browser session in a group |
@@ -147,8 +164,12 @@ navigation. The error details contain the final `url` and exact
 | `POST` | `/v1/profiles` | Create a custom session profile |
 | `PATCH` | `/v1/profiles/{id}` | Update custom-profile browser-data availability |
 | `DELETE` | `/v1/profiles/{id}` | Delete a custom session profile |
+| `POST` | `/v1/profile-transfers/export` | Export a versioned profile transfer |
+| `POST` | `/v1/profile-transfers/import` | Import a versioned profile transfer |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
 | `PATCH` | `/v1/sessions/{id}` | Partially update a browser session |
+| `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
+| `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 
 There are deliberately no log read, clear, or ingestion routes.
@@ -166,8 +187,9 @@ session and proxy listing.
 MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
 [MCP](MCP.md) for its stdio lifecycle and result wrapping.
 `rel_read` is a `rel-client` composition over `POST /v1/navigate/observe` and
-`POST /v1/observe`; it deliberately adds no retrieval route or alternate
-browser transport.
+`POST /v1/observe`. The SDK's `read_observation` helper applies the same bounded
+selection to `GET /v1/observations/{observation_id}`; neither helper adds an
+alternate browser transport.
 
 ## Health
 
@@ -441,7 +463,10 @@ with its dimensions and exact CSS-to-image scales in the response.
 
 Each observation contains an ID, document sequence, capture time, title,
 truncation counts, viewport/document geometry, semantic `content`, and typed
-`elements`. `omitted_node_count` reports entries dropped by traversal or output
+`elements`. Content and elements may include a bounded `context` path such as
+`main > form: Checkout > table: Items > tr: Product A`; this preserves useful
+landmark, form, dialog, list, table, and row relationships without exposing a
+selector or durable DOM identity. `omitted_node_count` reports entries dropped by traversal or output
 bounds, while `clipped_text_count` reports individual text fields shortened to
 their field limit; `truncated` is true when either occurred. Tables preserve DOM
 order with `table`, `table_row`, `table_caption`, and `table_cell` content kinds,
@@ -496,6 +521,13 @@ exact case-insensitive element filter. `limit` defaults to 20 and may be 1–100
 Results distinguish `content` and `element` matches, preserve actionable refs,
 and report `total_matches` plus `truncated`. Private locators are never stored in
 or returned from the searchable public snapshot.
+
+Read the complete retained public snapshot using
+`GET /v1/observations/{observation_id}`. It returns the ordinary page and
+observation envelope. After the page navigates, REL erases the observation's
+private locators and rejects actions with `OBSERVATION_STALE`, but its public
+semantic content remains readable. The process-local registry retains at most
+32 observations and removes them when their session closes or the agent exits.
 
 ### `POST /v1/captures`
 
@@ -662,6 +694,18 @@ Oxylabs location requires both parameter and value; parameter is `cc`, `country`
 or `st`. `oxylabs.session_id` is generated by REL and is read-only; rotate it
 with the dedicated rotate-session operation.
 
+`POST /v1/proxy-transfers/export` accepts `alias`, `include_credentials`, and
+an optional `passphrase`. It returns `data.filename` and `data.contents_base64`,
+where `contents_base64` decodes to the complete versioned `.relproxy` SQLite
+archive. Ordinary clients must set `include_credentials:false`. Including
+app-protected credentials requires a nonempty passphrase and the private
+authorization header held by the owning REL app.
+
+`POST /v1/proxy-transfers/import` accepts `contents_base64`, an optional `alias`
+override, and the passphrase when credentials are included. It validates and
+decrypts the transfer in Rust and returns the newly created `data.proxy`.
+Transfers are limited to 12 MiB and never overwrite an existing alias.
+
 ## Sessions
 
 A session resource is:
@@ -687,6 +731,10 @@ A session resource is:
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
 - `PATCH /v1/sessions/{id}` is partial and returns `data.session`.
+- `POST /v1/sessions/{id}/pause` and `/play` take no body and idempotently
+  return `data.session_id` and `data.network_paused`. Pause cancels active
+  requests and blocks new network work. Play resumes network activity and
+  reloads the current page when the pause interrupted or deferred navigation.
 - `DELETE /v1/sessions/{id}` returns the canonical session ID as
   `data.deleted_id`.
 - `POST /v1/sessions/close` accepts `{"group":"pgm"}` and returns the trimmed
@@ -760,6 +808,27 @@ blocked). A profile resource is:
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
+`POST /v1/profile-transfers/export` accepts `name`, `include_cookies`,
+`include_passwords`, `include_proxy_credentials`, and an optional `passphrase`.
+It returns `data.filename` plus `data.contents_base64`, which decodes to the
+versioned `.relprofile` SQLite archive. A passphrase and the owning app's
+private authorization header are required when any secret category is
+selected. The Rust response contains the schema and Profile/Proxy records; the
+app adds encrypted browser records before presenting the file to the user.
+
+`POST /v1/profile-transfers/import` accepts `contents_base64`, optional `name`
+and `passphrase` fields, and app-only `browser_data_ready`. It validates the
+archive in Rust, decrypts embedded Proxy credentials, and returns the newly
+created `data.profile`. The owning app sets `browser_data_ready:true` only
+after it has authenticated and decrypted the browser records for restoration.
+Transfer files are limited to 12 MiB and never overwrite an existing name.
+
+Both transfer types use SQLite `application_id` `RELT`, schema version 1, and
+the same five tables: `metadata`, `proxies`, `profiles`, `cookies`, and
+`passwords`. The `proxies` table is identical for standalone Proxy archives
+and Proxies embedded in Profile archives. Protected credential and browser
+payloads are encrypted BLOBs. Version 1 accepts no legacy JSON representation.
+
 Profile names contain 1–128 non-control characters after trimming and are the
 selector used during session creation. On `POST /v1/sessions`, omission selects
 **Direct**. Explicit session settings override the selected profile. A present
@@ -767,7 +836,7 @@ selector used during session creation. On `POST /v1/sessions`, omission selects
 existing proxy. Automatically created sessions for capture, navigation, and
 attached pages follow the same rule. Capture events and page responses include
 the effective session ID. Browser-data payloads remain app-owned and never
-cross RPC; the inclusion flags describe what the app has attached to a custom
+cross RPC in plaintext; the inclusion flags describe what the app has attached to a custom
 profile. Importing a selected category again replaces that category in the
 app-owned template without changing sessions already created from it.
 

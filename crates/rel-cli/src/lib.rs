@@ -1,9 +1,13 @@
+use rel_client::transfer::{
+    validate_transfer_file, PROFILE_TRANSFER_FORMAT, PROXY_TRANSFER_FORMAT, TRANSFER_FORMAT_VERSION,
+};
 use rel_client::{
     self as client, Action, CaptureEvent, CaptureRequest, Change, ImageBlockingMode,
     NavigateRequest, ObservationActionRequest, ObservationMode, ObservationRequest,
     PageActionRequest, PageAttachRequest, PageCaptureRequest, PageObservationRequest,
-    PageReadRequest, PerformRequest, ProxyCreateRequest, ProxyUpdateRequest, RelClient,
-    SessionCreateRequest, SessionUpdateRequest,
+    PageReadRequest, PerformRequest, ProfileTransferExportRequest, ProfileTransferImportRequest,
+    ProxyCreateRequest, ProxyTransferExportRequest, ProxyTransferImportRequest, ProxyUpdateRequest,
+    RelClient, SessionCreateRequest, SessionUpdateRequest,
 };
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -18,6 +22,9 @@ pub use rel_client::rpc_error_codes;
 
 mod app;
 mod mcp;
+mod transfer;
+
+use transfer::{read_transfer_file, write_transfer_file};
 
 pub fn main_exit_code(args: Vec<OsString>) -> i32 {
     main_exit_code_with_version(args, env!("CARGO_PKG_VERSION"))
@@ -85,7 +92,12 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
         }
     }
 
-    match run_command(RelClient::local(), command) {
+    let client = RelClient::local();
+    if let Err(error) = apply_latest_session_default(&client, &mut command) {
+        return print_cli_error(error);
+    }
+
+    match run_command(client, command) {
         Ok(exit_code) => exit_code,
         Err(error) => print_cli_error(error),
     }
@@ -239,6 +251,73 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.rotate_proxy_session(&alias)?)?;
             Ok(0)
         }
+        CliCommand::ProxyExport { alias, output } => {
+            let transfer = client
+                .export_proxy_transfer(&ProxyTransferExportRequest {
+                    alias,
+                    include_credentials: false,
+                    passphrase: None,
+                })?
+                .data;
+            let contents = transfer.contents().map_err(CliError::Message)?;
+            validate_transfer_file(&contents).map_err(CliError::Message)?;
+            let path = write_transfer_file(&contents, output, &transfer.filename)
+                .map_err(CliError::Message)?;
+            eprintln!("warning: proxy credentials are app-protected and were not exported");
+            print_json(&serde_json::json!({
+                "status": "ok",
+                "path": path.display().to_string(),
+                "format": PROXY_TRANSFER_FORMAT,
+                "version": TRANSFER_FORMAT_VERSION,
+                "credentials_included": false,
+            }))?;
+            Ok(0)
+        }
+        CliCommand::ProxyImport { path, alias } => {
+            let data = read_transfer_file(&path).map_err(CliError::Message)?;
+            validate_transfer_file(&data).map_err(CliError::Message)?;
+            print_json(
+                &client.import_proxy_transfer(&ProxyTransferImportRequest::from_bytes(
+                    &data, alias, None,
+                ))?,
+            )?;
+            Ok(0)
+        }
+        CliCommand::ProfileList => {
+            print_json(&client.list_profiles()?)?;
+            Ok(0)
+        }
+        CliCommand::ProfileExport { name, output } => {
+            let transfer = client
+                .export_profile_transfer(&ProfileTransferExportRequest {
+                    name,
+                    include_cookies: false,
+                    include_passwords: false,
+                    include_proxy_credentials: false,
+                    passphrase: None,
+                })?
+                .data;
+            let contents = transfer.contents().map_err(CliError::Message)?;
+            validate_transfer_file(&contents).map_err(CliError::Message)?;
+            let path = write_transfer_file(&contents, output, &transfer.filename)
+                .map_err(CliError::Message)?;
+            print_json(&serde_json::json!({
+                "status": "ok",
+                "path": path.display().to_string(),
+                "format": PROFILE_TRANSFER_FORMAT,
+                "version": TRANSFER_FORMAT_VERSION,
+                "browser_data_included": false,
+            }))?;
+            Ok(0)
+        }
+        CliCommand::ProfileImport { path, name } => {
+            let data = read_transfer_file(&path).map_err(CliError::Message)?;
+            validate_transfer_file(&data).map_err(CliError::Message)?;
+            print_json(&client.import_profile_transfer(
+                &ProfileTransferImportRequest::from_bytes(&data, name, None),
+            )?)?;
+            Ok(0)
+        }
         CliCommand::SessionList => {
             print_json(&client.list_sessions()?)?;
             Ok(0)
@@ -253,6 +332,14 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
         }
         CliCommand::SessionUpdate { id, request } => {
             print_json(&client.update_session(&id, &request)?)?;
+            Ok(0)
+        }
+        CliCommand::SessionPause(id) => {
+            print_json(&client.pause_session(&id)?)?;
+            Ok(0)
+        }
+        CliCommand::SessionPlay(id) => {
+            print_json(&client.play_session(&id)?)?;
             Ok(0)
         }
         CliCommand::SessionDelete(id) => {
@@ -420,6 +507,23 @@ enum CliCommand {
     },
     ProxyDelete(String),
     ProxyRotate(String),
+    ProxyExport {
+        alias: String,
+        output: Option<PathBuf>,
+    },
+    ProxyImport {
+        path: PathBuf,
+        alias: Option<String>,
+    },
+    ProfileList,
+    ProfileExport {
+        name: String,
+        output: Option<PathBuf>,
+    },
+    ProfileImport {
+        path: PathBuf,
+        name: Option<String>,
+    },
     SessionList,
     SessionGet(String),
     SessionCreate {
@@ -430,6 +534,8 @@ enum CliCommand {
         id: String,
         request: SessionUpdateRequest,
     },
+    SessionPause(String),
+    SessionPlay(String),
     SessionDelete(String),
     SessionCloseGroup(String),
 }
@@ -477,6 +583,7 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "observe" => parse_observe(args),
         "observation" => parse_observation(args),
         "proxy" => parse_proxy(args),
+        "profile" => parse_profile(args),
         "session" => parse_session(args),
         legacy
             if matches!(legacy, "ping" | "logs")
@@ -539,39 +646,12 @@ fn apply_session_id_environment_default(
     command: &mut CliCommand,
     environment_value: Option<OsString>,
 ) -> Result<(), CliError> {
-    let session_id = match command {
-        CliCommand::Navigate(request)
-            if request.session_id.is_none() && request.profile.is_none() =>
-        {
-            &mut request.session_id
-        }
-        CliCommand::Read(request) if request.session_id.is_none() && request.profile.is_none() => {
-            &mut request.session_id
-        }
-        CliCommand::Capture(request)
-            if request.session_id.is_none()
-                && request.group.is_none()
-                && request.profile.is_none() =>
-        {
-            &mut request.session_id
-        }
-        CliCommand::CaptureCurrent(request) if request.session_id.is_none() => {
-            &mut request.session_id
-        }
-        CliCommand::Perform(request) if request.session_id.is_none() => &mut request.session_id,
-        CliCommand::PageAttach(request)
-            if request.session_id.is_none()
-                && request.group.is_none()
-                && request.profile.is_none() =>
-        {
-            &mut request.session_id
-        }
-        CliCommand::Observe {
-            page_id: None,
-            request,
-        } if request.session_id.is_none() => &mut request.session_id,
-        _ => return Ok(()),
+    let Some(session_id) = session_id_default_target(command) else {
+        return Ok(());
     };
+    if session_id.is_some() {
+        return Ok(());
+    }
     let Some(environment_value) = environment_value else {
         return Ok(());
     };
@@ -591,6 +671,64 @@ fn apply_session_id_environment_default(
     }
     *session_id = Some(environment_value.to_string());
     Ok(())
+}
+
+fn apply_latest_session_default(
+    client: &RelClient,
+    command: &mut CliCommand,
+) -> Result<(), CliError> {
+    if !needs_session_id_default(command) {
+        return Ok(());
+    }
+    let sessions = client.list_sessions()?.data.sessions;
+    apply_latest_session_id(command, sessions.iter().map(|session| session.id.as_str()));
+    Ok(())
+}
+
+fn needs_session_id_default(command: &mut CliCommand) -> bool {
+    session_id_default_target(command).is_some_and(|session_id| session_id.is_none())
+}
+
+fn apply_latest_session_id<'a>(
+    command: &mut CliCommand,
+    session_ids: impl IntoIterator<Item = &'a str>,
+) {
+    let Some(session_id) = session_id_default_target(command) else {
+        return;
+    };
+    if session_id.is_none() {
+        *session_id = latest_session_id(session_ids).map(str::to_string);
+    }
+}
+
+fn session_id_default_target(command: &mut CliCommand) -> Option<&mut Option<String>> {
+    match command {
+        CliCommand::Navigate(request) if request.profile.is_none() => Some(&mut request.session_id),
+        CliCommand::Read(request) if request.profile.is_none() => Some(&mut request.session_id),
+        CliCommand::Capture(request) if request.group.is_none() && request.profile.is_none() => {
+            Some(&mut request.session_id)
+        }
+        CliCommand::CaptureCurrent(request) => Some(&mut request.session_id),
+        CliCommand::Perform(request) => Some(&mut request.session_id),
+        CliCommand::PageAttach(request) if request.group.is_none() && request.profile.is_none() => {
+            Some(&mut request.session_id)
+        }
+        CliCommand::Observe {
+            page_id: None,
+            request,
+        } => Some(&mut request.session_id),
+        _ => None,
+    }
+}
+
+fn latest_session_id<'a>(session_ids: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
+    session_ids
+        .into_iter()
+        .max_by_key(|session_id| canonical_session_number(session_id))
+}
+
+fn canonical_session_number(session_id: &str) -> Option<u64> {
+    session_id.strip_prefix("Session")?.parse().ok()
 }
 
 fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -911,6 +1049,8 @@ fn parse_proxy(mut args: Arguments) -> Result<CliCommand, CliError> {
         "update" => parse_proxy_update(args),
         "delete" => Ok(CliCommand::ProxyDelete(parse_proxy_alias(&mut args)?)),
         "rotate" => Ok(CliCommand::ProxyRotate(parse_proxy_alias(&mut args)?)),
+        "export" => parse_proxy_export(args),
+        "import" => parse_proxy_import(args),
         subcommand => Err(CliError::Message(format!(
             "unknown proxy subcommand {subcommand:?}; run `rel proxy --help`"
         ))),
@@ -1006,6 +1146,83 @@ fn parse_proxy_update(mut args: Arguments) -> Result<CliCommand, CliError> {
     Ok(CliCommand::ProxyUpdate { alias, request })
 }
 
+fn parse_proxy_export(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let alias = args.required_positional("proxy alias")?;
+    let mut output = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--output" => set_once(
+                &mut output,
+                PathBuf::from(args.option_value(&option, inline)?),
+                &option,
+            )?,
+            "-h" | "--help" => return Err(CliError::Help(proxy_help())),
+            _ => return Err(args.unknown_option(&option, "proxy export")),
+        }
+    }
+    Ok(CliCommand::ProxyExport { alias, output })
+}
+
+fn parse_proxy_import(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let path = PathBuf::from(args.required_positional("proxy transfer file")?);
+    let mut alias = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--alias" => set_once(&mut alias, args.option_value(&option, inline)?, &option)?,
+            "-h" | "--help" => return Err(CliError::Help(proxy_help())),
+            _ => return Err(args.unknown_option(&option, "proxy import")),
+        }
+    }
+    Ok(CliCommand::ProxyImport { path, alias })
+}
+
+fn parse_profile(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.peek_is_help() {
+        return Err(CliError::Help(profile_help()));
+    }
+    match args.required_positional("profile subcommand")?.as_str() {
+        "list" => {
+            parse_no_options(&mut args, "profile list", profile_help())?;
+            Ok(CliCommand::ProfileList)
+        }
+        "export" => parse_profile_export(args),
+        "import" => parse_profile_import(args),
+        subcommand => Err(CliError::Message(format!(
+            "unknown profile subcommand {subcommand:?}; run `rel profile --help`"
+        ))),
+    }
+}
+
+fn parse_profile_export(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let name = args.required_positional("profile name")?;
+    let mut output = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--output" => set_once(
+                &mut output,
+                PathBuf::from(args.option_value(&option, inline)?),
+                &option,
+            )?,
+            "-h" | "--help" => return Err(CliError::Help(profile_help())),
+            _ => return Err(args.unknown_option(&option, "profile export")),
+        }
+    }
+    Ok(CliCommand::ProfileExport { name, output })
+}
+
+fn parse_profile_import(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let path = PathBuf::from(args.required_positional("profile transfer file")?);
+    let mut name = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--name" => set_once(&mut name, args.option_value(&option, inline)?, &option)?,
+            "-h" | "--help" => return Err(CliError::Help(profile_help())),
+            _ => return Err(args.unknown_option(&option, "profile import")),
+        }
+    }
+    Ok(CliCommand::ProfileImport { path, name })
+}
+
 fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
     if args.peek_is_help() {
         return Err(CliError::Help(session_help()));
@@ -1018,6 +1235,8 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
         "get" => Ok(CliCommand::SessionGet(parse_session_id(&mut args)?)),
         "create" => parse_session_create(args),
         "update" => parse_session_update(args),
+        "pause" => Ok(CliCommand::SessionPause(parse_session_id(&mut args)?)),
+        "play" => Ok(CliCommand::SessionPlay(parse_session_id(&mut args)?)),
         "delete" => Ok(CliCommand::SessionDelete(parse_session_id(&mut args)?)),
         "close" => parse_session_close_group(args),
         subcommand => Err(CliError::Message(format!(
@@ -1343,8 +1562,9 @@ rel page attach [URL] [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
 rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
 rel observation action OBSERVATION_ID --request JSON\n  \
-rel proxy <list|get|create|update|delete|rotate> ...\n  \
-rel session <list|get|create|update|delete|close> ...\n  \
+rel proxy <list|get|create|update|delete|rotate|export|import> ...\n  \
+rel profile <list|export|import> ...\n  \
+rel session <list|get|create|update|pause|play|delete|close> ...\n  \
 rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
@@ -1352,10 +1572,11 @@ stdout unless --output is supplied, and writes validated NDJSON events to stderr
 `rel-mcp` serves MCP over stdio for model and agent clients.\n\
 Run `rel navigate --help`, `rel read --help`, `rel perform --help`, `rel capture --help`,\n\
 `rel page --help`, `rel observe --help`, `rel observation --help`,\n\
-`rel proxy --help`, or\n\
+`rel proxy --help`, `rel profile --help`, or\n\
 `rel session --help` for resource options. Commands that accept --session-id
-use $REL_SESSION_ID when the option is omitted. Required URL arguments use
-$REL_SESSION_URL when omitted. Explicit arguments and options always win."
+use $REL_SESSION_ID when set, then the newest existing session; an explicit
+option wins. Required URL arguments use $REL_SESSION_URL when omitted, and an
+explicit URL wins."
         .to_string()
 }
 
@@ -1382,7 +1603,7 @@ Options:\n  \
 --wait SECONDS\n  \
 --action JSON                 Repeat for multiple canonical action objects\n  \
 --actions JSON                Canonical action object array\n  \
---session-id ID              Default: $REL_SESSION_ID when set\n  \
+--session-id ID              Default: $REL_SESSION_ID, then newest session\n  \
 --profile NAME               Create the session from this named profile\n  \
 --group GROUP                Group a new URL-capture session; conflicts with --session-id\n  \
 --proxy ALIAS\n  \
@@ -1397,11 +1618,11 @@ to stderr."
 fn navigate_help() -> String {
     "Usage:\n  \
 rel navigate [URL] [--session-id ID | --profile NAME] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n\n\
-Navigates the current shorthand page. The first call reuses a persisted session,\n\
-creating one only when none exists; later calls reuse that page and session.
-URL defaults to $REL_SESSION_URL when omitted; an explicit URL wins.
---session-id defaults to $REL_SESSION_ID when set; --profile creates a session
-from a named profile and suppresses that default."
+Navigates the current shorthand page. The first call reuses the newest existing\n\
+session, creating one only when none exists; later calls reuse that page and
+session. --session-id defaults to $REL_SESSION_ID when set, then the newest
+session; --profile creates a session from a named profile and suppresses that
+default. URL defaults to $REL_SESSION_URL when omitted; an explicit URL wins."
         .to_string()
 }
 
@@ -1412,7 +1633,7 @@ Options:\n  \
 --query TEXT\n  \
 --max-chars COUNT           512-32768; default 12000\n  \
 --max-sections COUNT        1-100; default 24\n  \
---session-id ID             Default: $REL_SESSION_ID when set\n  \
+--session-id ID             Default: $REL_SESSION_ID, then newest session\n  \
 --profile NAME              Create the session from this named profile\n  \
 --proxy ALIAS\n  \
 --timeout SECONDS\n  \
@@ -1430,7 +1651,7 @@ rel perform ACTIONS [--session-id ID] [--output PATH] [--timeout S] [--wait S]\n
 ACTIONS is a non-empty JSON array of canonical action objects. Actions run in\n\
 array order. Run `rel navigate URL` first. --session-id defaults to
 \
-$REL_SESSION_ID when set; an explicit value wins."
+$REL_SESSION_ID when set, then the newest existing session; an explicit value wins."
         .to_string()
 }
 
@@ -1438,10 +1659,11 @@ fn page_help() -> String {
     "Usage:\n  \
 rel page attach [URL] [--session-id ID | --profile NAME] [--group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
 rel page action PAGE_ID --action JSON [--output PATH] [--timeout S] [--wait S]\n\n\
-For page attach, URL defaults to $REL_SESSION_URL when omitted and --session-id
-defaults to $REL_SESSION_ID when set. An explicit URL or session ID wins. --profile
-creates a session from a named profile; --group labels a newly created session.
-Either creation option suppresses that environment default."
+For page attach, --session-id defaults to $REL_SESSION_ID when set, then the
+newest existing session. --profile creates a session from a named profile;
+--group labels a newly created session. Either creation option suppresses that
+default. URL defaults to $REL_SESSION_URL when omitted; an explicit URL or
+session ID wins."
         .to_string()
 }
 
@@ -1450,7 +1672,8 @@ fn observe_help() -> String {
 rel observe [--page-id ID] [--session-id ID] [--mode semantic|hybrid|visual] [--timeout S] [--wait S]\n\n\
 Observe the current shorthand page or one attached page. Hybrid and visual modes\n\
 include a synchronized current-viewport PNG resource. --session-id defaults to\n\
-$REL_SESSION_ID and cannot be combined with --page-id."
+$REL_SESSION_ID when set, then the newest session, and cannot be combined with
+--page-id."
         .to_string()
 }
 
@@ -1470,13 +1693,31 @@ rel proxy get ALIAS\n  \
 rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [options]\n  \
 rel proxy update ALIAS [options]\n  \
 rel proxy delete ALIAS\n  \
-rel proxy rotate ALIAS\n\n\
+rel proxy rotate ALIAS\n  \
+rel proxy export ALIAS [--output PATH]\n  \
+rel proxy import FILE [--alias ALIAS]\n\n\
 Write options:\n  \
 --alias ALIAS --upstream-host HOST --upstream-port PORT\n  \
 --username USER --password PASS --oxylabs-enabled true|false\n  \
 --oxylabs-location-parameter cc|country|st --oxylabs-location-value VALUE\n\
 Update clear options:\n  \
---clear-username --clear-password --clear-oxylabs-location"
+--clear-username --clear-password --clear-oxylabs-location\n\n\
+Export writes a versioned .relproxy file with non-secret routing settings.
+App-protected credentials are not available to CLI export. Import accepts
+settings-only SQLite archives; --alias overrides the alias stored in the file.
+Use the REL app for passphrase-protected credential transfers."
+        .to_string()
+}
+
+fn profile_help() -> String {
+    "Usage:\n  \
+rel profile list\n  \
+rel profile export NAME [--output PATH]\n  \
+rel profile import FILE [--name NAME]\n\n\
+Export writes a versioned SQLite .relprofile file containing reusable settings.
+Cookies, saved passwords, and proxy credentials are not included. Import creates
+a new custom profile; --name overrides the name stored in the file. Use the REL
+app for passphrase-protected private-data transfers."
         .to_string()
 }
 
@@ -1486,6 +1727,8 @@ rel session list\n  \
 rel session get SESSION_ID\n  \
 rel session create [options]\n  \
 rel session update SESSION_ID [options]\n  \
+rel session pause SESSION_ID\n  \
+rel session play SESSION_ID\n  \
 rel session delete SESSION_ID\n  \
 rel session close --group GROUP\n\n\
 Options:\n  \
@@ -1595,6 +1838,37 @@ mod tests {
             panic!("expected current-page capture");
         };
         assert_eq!(capture.session_id.as_deref(), expected);
+    }
+
+    #[test]
+    fn latest_session_defaults_commands_to_the_highest_assigned_id() {
+        let mut command = parse(&["navigate", "https://example.com"]).unwrap();
+        apply_latest_session_id(&mut command, ["Session2", "Session10", "Session9"]);
+        let CliCommand::Navigate(navigate) = command else {
+            panic!("expected navigate");
+        };
+        assert_eq!(navigate.session_id.as_deref(), Some("Session10"));
+
+        assert_eq!(latest_session_id(std::iter::empty::<&str>()), None);
+    }
+
+    #[test]
+    fn latest_session_default_does_not_override_explicit_or_creation_options() {
+        let mut explicit =
+            parse(&["capture", "https://example.com", "--session-id", "Session4"]).unwrap();
+        apply_latest_session_id(&mut explicit, ["Session5"]);
+        let CliCommand::Capture(explicit) = explicit else {
+            panic!("expected capture");
+        };
+        assert_eq!(explicit.session_id.as_deref(), Some("Session4"));
+
+        let mut profile =
+            parse(&["capture", "https://example.com", "--profile", "Research"]).unwrap();
+        apply_latest_session_id(&mut profile, ["Session5"]);
+        let CliCommand::Capture(profile) = profile else {
+            panic!("expected capture");
+        };
+        assert_eq!(profile.session_id, None);
     }
 
     #[test]
@@ -1793,6 +2067,7 @@ mod tests {
             page_help(),
         ] {
             assert!(help.contains("REL_SESSION_ID"));
+            assert!(help.contains("newest"));
         }
         for help in [root_help(), navigate_help(), page_help()] {
             assert!(help.contains("REL_SESSION_URL"));
@@ -2063,6 +2338,58 @@ mod tests {
             CliCommand::ProxyRotate("work-proxy".to_string())
         );
         assert_eq!(
+            parse(&[
+                "proxy",
+                "export",
+                "work-proxy",
+                "--output",
+                "office.relproxy",
+            ])
+            .unwrap(),
+            CliCommand::ProxyExport {
+                alias: "work-proxy".to_string(),
+                output: Some(PathBuf::from("office.relproxy")),
+            }
+        );
+        assert_eq!(
+            parse(&["proxy", "import", "office.relproxy", "--alias", "backup",]).unwrap(),
+            CliCommand::ProxyImport {
+                path: PathBuf::from("office.relproxy"),
+                alias: Some("backup".to_string()),
+            }
+        );
+        assert_eq!(
+            parse(&["profile", "list"]).unwrap(),
+            CliCommand::ProfileList
+        );
+        assert_eq!(
+            parse(&[
+                "profile",
+                "export",
+                "Research",
+                "--output=research.relprofile",
+            ])
+            .unwrap(),
+            CliCommand::ProfileExport {
+                name: "Research".to_string(),
+                output: Some(PathBuf::from("research.relprofile")),
+            }
+        );
+        assert_eq!(
+            parse(&[
+                "profile",
+                "import",
+                "research.relprofile",
+                "--name",
+                "Imported",
+            ])
+            .unwrap(),
+            CliCommand::ProfileImport {
+                path: PathBuf::from("research.relprofile"),
+                name: Some("Imported".to_string()),
+            }
+        );
+        assert_eq!(
             parse(&["session", "list"]).unwrap(),
             CliCommand::SessionList
         );
@@ -2073,6 +2400,14 @@ mod tests {
         assert_eq!(
             parse(&["session", "delete", "machine-x.Session4"]).unwrap(),
             CliCommand::SessionDelete("machine-x.Session4".to_string())
+        );
+        assert_eq!(
+            parse(&["session", "pause", "machine-x.Session4"]).unwrap(),
+            CliCommand::SessionPause("machine-x.Session4".to_string())
+        );
+        assert_eq!(
+            parse(&["session", "play", "machine-x.Session4"]).unwrap(),
+            CliCommand::SessionPlay("machine-x.Session4".to_string())
         );
         assert_eq!(
             parse(&["session", "close", "--group", "pgm"]).unwrap(),
