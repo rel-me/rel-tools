@@ -4,6 +4,7 @@
 //! therefore be used by other Rust programs without adopting the bundled CLI's
 //! macOS-specific conveniences.
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
@@ -11,6 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Lines, Read};
 use std::time::Duration;
+
+pub mod transfer;
 
 const DEFAULT_AGENT_PORT: u16 = 17_319;
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -50,6 +53,7 @@ pub mod rpc_error_codes {
     pub const RATE_LIMITED: u32 = 10_205;
     pub const ACTION_TIMEOUT: u32 = 10_206;
     pub const OBSERVATION_STALE: u32 = 10_207;
+    pub const PRO_REQUIRED: u32 = 10_208;
 
     pub const UPSTREAM_UNAVAILABLE: u32 = 10_300;
     pub const BROWSER_UNAVAILABLE: u32 = 10_301;
@@ -84,6 +88,7 @@ pub mod rpc_error_codes {
             "RATE_LIMITED" => RATE_LIMITED,
             "ACTION_TIMEOUT" => ACTION_TIMEOUT,
             "OBSERVATION_STALE" => OBSERVATION_STALE,
+            "PRO_REQUIRED" => PRO_REQUIRED,
             "UPSTREAM_UNAVAILABLE" => UPSTREAM_UNAVAILABLE,
             "BROWSER_UNAVAILABLE" => BROWSER_UNAVAILABLE,
             "AGENT_UNHEALTHY" => AGENT_UNHEALTHY,
@@ -450,6 +455,20 @@ impl RelClient {
         )
     }
 
+    pub fn export_proxy_transfer(
+        &self,
+        request: &ProxyTransferExportRequest,
+    ) -> Result<RpcResponse<TransferExportData>, ClientError> {
+        self.request("POST", "/proxy-transfers/export", Some(request))
+    }
+
+    pub fn import_proxy_transfer(
+        &self,
+        request: &ProxyTransferImportRequest,
+    ) -> Result<RpcResponse<ProxyData>, ClientError> {
+        self.request("POST", "/proxy-transfers/import", Some(request))
+    }
+
     pub fn list_sessions(&self) -> Result<RpcResponse<SessionListData>, ClientError> {
         self.request::<SessionListData, Value>("GET", "/sessions", None)
     }
@@ -500,6 +519,20 @@ impl RelClient {
         )
     }
 
+    pub fn export_profile_transfer(
+        &self,
+        request: &ProfileTransferExportRequest,
+    ) -> Result<RpcResponse<TransferExportData>, ClientError> {
+        self.request("POST", "/profile-transfers/export", Some(request))
+    }
+
+    pub fn import_profile_transfer(
+        &self,
+        request: &ProfileTransferImportRequest,
+    ) -> Result<RpcResponse<ProfileData>, ClientError> {
+        self.request("POST", "/profile-transfers/import", Some(request))
+    }
+
     pub fn update_session(
         &self,
         id: &str,
@@ -509,6 +542,30 @@ impl RelClient {
             "PATCH",
             &format!("/sessions/{}", encode_path_segment(id)),
             Some(request),
+        )
+    }
+
+    /// Pause all network activity in a persistent browser session.
+    pub fn pause_session(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionNetworkStateData>, ClientError> {
+        self.request::<SessionNetworkStateData, Value>(
+            "POST",
+            &format!("/sessions/{}/pause", encode_path_segment(id)),
+            None,
+        )
+    }
+
+    /// Resume network activity and reload the current page when needed.
+    pub fn play_session(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionNetworkStateData>, ClientError> {
+        self.request::<SessionNetworkStateData, Value>(
+            "POST",
+            &format!("/sessions/{}/play", encode_path_segment(id)),
+            None,
         )
     }
 
@@ -2157,6 +2214,33 @@ pub struct Proxy {
     pub oxylabs: Option<OxylabsProxy>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProxyTransferExportRequest {
+    pub alias: String,
+    pub include_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProxyTransferImportRequest {
+    pub contents_base64: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+impl ProxyTransferImportRequest {
+    pub fn from_bytes(data: &[u8], alias: Option<String>, passphrase: Option<String>) -> Self {
+        Self {
+            contents_base64: BASE64_STANDARD.encode(data),
+            alias,
+            passphrase,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2296,6 +2380,12 @@ pub struct SessionData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SessionNetworkStateData {
+    pub session_id: String,
+    pub network_paused: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ProfileListData {
     pub profiles: Vec<Profile>,
 }
@@ -2319,6 +2409,56 @@ pub struct Profile {
     pub fingerprint_profile: Option<FingerprintProfile>,
     pub is_builtin: bool,
     pub created_at: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct TransferExportData {
+    pub filename: String,
+    pub contents_base64: String,
+}
+
+impl TransferExportData {
+    pub fn contents(&self) -> Result<Vec<u8>, String> {
+        BASE64_STANDARD
+            .decode(&self.contents_base64)
+            .map_err(|error| format!("REL returned invalid transfer data: {error}"))
+    }
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileTransferExportRequest {
+    pub name: String,
+    pub include_cookies: bool,
+    pub include_passwords: bool,
+    pub include_proxy_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileTransferImportRequest {
+    pub contents_base64: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+    #[serde(skip_serializing_if = "is_false")]
+    pub browser_data_ready: bool,
+}
+
+impl ProfileTransferImportRequest {
+    pub fn from_bytes(data: &[u8], name: Option<String>, passphrase: Option<String>) -> Self {
+        Self {
+            contents_base64: BASE64_STANDARD.encode(data),
+            name,
+            passphrase,
+            browser_data_ready: false,
+        }
+    }
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -2472,6 +2612,7 @@ mod tests {
             rpc_error_codes::RATE_LIMITED,
             rpc_error_codes::ACTION_TIMEOUT,
             rpc_error_codes::OBSERVATION_STALE,
+            rpc_error_codes::PRO_REQUIRED,
             rpc_error_codes::UPSTREAM_UNAVAILABLE,
             rpc_error_codes::BROWSER_UNAVAILABLE,
             rpc_error_codes::AGENT_UNHEALTHY,
@@ -3105,7 +3246,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(31, |index, request| {
+        let (base_url, server) = start_test_server(37, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -3181,8 +3322,18 @@ mod tests {
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }
+                ("POST", "/v1/proxy-transfers/export") => {
+                    json!({"filename":"office.relproxy","contents_base64":"U1FMaXRlIGZvcm1hdCAzAA=="})
+                }
+                ("POST", "/v1/proxy-transfers/import") => json!({"proxy":proxy_json()}),
                 ("DELETE", "/v1/sessions/machine-a.Session1") => {
                     json!({"deleted_id":"machine-a.Session1"})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/pause") => {
+                    json!({"session_id":"machine-a.Session1", "network_paused":true})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/play") => {
+                    json!({"session_id":"machine-a.Session1", "network_paused":false})
                 }
                 ("POST", "/v1/sessions/close") => {
                     json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
@@ -3197,6 +3348,12 @@ mod tests {
                 }
                 ("DELETE", "/v1/profiles/custom-profile-id") => {
                     json!({"deleted_id":"custom-profile-id"})
+                }
+                ("POST", "/v1/profile-transfers/export") => {
+                    json!({"filename":"Research.relprofile","contents_base64":"U1FMaXRlIGZvcm1hdCAzAA=="})
+                }
+                ("POST", "/v1/profile-transfers/import") => {
+                    json!({"profile":profile_json()})
                 }
                 route => panic!("unexpected route {route:?}"),
             };
@@ -3318,6 +3475,20 @@ mod tests {
             .unwrap();
         client.delete_proxy("office").unwrap();
         client.rotate_proxy_session("office").unwrap();
+        client
+            .export_proxy_transfer(&ProxyTransferExportRequest {
+                alias: "office".to_string(),
+                include_credentials: false,
+                passphrase: None,
+            })
+            .unwrap();
+        client
+            .import_proxy_transfer(&ProxyTransferImportRequest::from_bytes(
+                b"SQLite format 3\0",
+                Some("backup".to_string()),
+                None,
+            ))
+            .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
         assert_eq!(sessions.data.sessions[0].group.as_deref(), Some("pgm"));
@@ -3356,6 +3527,22 @@ mod tests {
             .unwrap();
         client.delete_profile("custom-profile-id").unwrap();
         client
+            .export_profile_transfer(&ProfileTransferExportRequest {
+                name: "Research".to_string(),
+                include_cookies: false,
+                include_passwords: false,
+                include_proxy_credentials: false,
+                passphrase: None,
+            })
+            .unwrap();
+        client
+            .import_profile_transfer(&ProfileTransferImportRequest::from_bytes(
+                b"SQLite format 3\0",
+                Some("Research Copy".to_string()),
+                None,
+            ))
+            .unwrap();
+        client
             .update_session(
                 "machine-a.Session1",
                 &SessionUpdateRequest {
@@ -3364,6 +3551,10 @@ mod tests {
                 },
             )
             .unwrap();
+        let paused = client.pause_session("machine-a.Session1").unwrap();
+        assert!(paused.data.network_paused);
+        let playing = client.play_session("machine-a.Session1").unwrap();
+        assert!(!playing.data.network_paused);
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
         let closed = client.close_session_group("pgm").unwrap();
@@ -3404,6 +3595,8 @@ mod tests {
                 ("PATCH", "/v1/proxies/office"),
                 ("DELETE", "/v1/proxies/office"),
                 ("POST", "/v1/proxies/office/rotate-session"),
+                ("POST", "/v1/proxy-transfers/export"),
+                ("POST", "/v1/proxy-transfers/import"),
                 ("GET", "/v1/sessions"),
                 ("GET", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions"),
@@ -3411,13 +3604,17 @@ mod tests {
                 ("POST", "/v1/profiles"),
                 ("PATCH", "/v1/profiles/custom-profile-id"),
                 ("DELETE", "/v1/profiles/custom-profile-id"),
+                ("POST", "/v1/profile-transfers/export"),
+                ("POST", "/v1/profile-transfers/import"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
+                ("POST", "/v1/sessions/machine-a.Session1/pause"),
+                ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions/close"),
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[36].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
@@ -3465,7 +3662,15 @@ mod tests {
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[25].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[21].body).unwrap(),
+            json!({"alias":"office","include_credentials":false})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
+            json!({"contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==","alias":"backup"})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[27].body).unwrap(),
             json!({
                 "name":"Research",
                 "adblock_enabled":true,
@@ -3476,11 +3681,27 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({"includes_cookies":true,"includes_passwords":true})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
+            json!({
+                "name":"Research",
+                "include_cookies":false,
+                "include_passwords":false,
+                "include_proxy_credentials":false
+            })
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
+            json!({
+                "contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==",
+                "name":"Research Copy"
+            })
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }
