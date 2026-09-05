@@ -19,6 +19,18 @@ existing Sessions and configuration instead of deleting them. Free prevents
 additional creation beyond its limits, and any stored proxy assignment runs as
 a direct connection until Pro access is restored.
 
+You can also enter a `REL-PRO-...` promo code in the same Plan field when one
+has been provided to you. Promo codes grant one, two, or three calendar months
+of REL Pro without a checkout or payment method. Each trial can be redeemed on
+one REL installation, and a campaign code stops working after its configured
+number of redemptions.
+
+REL displays the trial end date in Plan settings. It checks the grant with REL
+at most once per day and supports up to seven days offline, without extending
+access beyond that end date. At expiry, REL automatically returns to Free and
+keeps existing Sessions and configuration under the Free plan limits described
+above.
+
 ## Profiles and Sessions
 
 A **Profile** is a reusable template for a new Session. Profiles select the
@@ -100,9 +112,19 @@ transfers are not supported.
 ## AI models
 
 Configure providers and choose the default AI model in **REL → Settings… →
-Models**. API keys are stored in macOS Keychain. Scheduled prompts use this
-default model when their new Session starts. REL Free supports one configured
-provider; REL Pro supports multiple providers.
+Providers**. API keys are stored in macOS Keychain. Ollama connections can use
+the local server at `http://127.0.0.1:11434` without an API key. Scheduled
+prompts use the default provider and model when their new Session starts. REL
+Free supports one configured provider; REL Pro supports multiple providers.
+
+Each Chat response stops after 12 model calls or a 64,000-token request budget.
+REL uses the preceding model call's reported usage to avoid starting a call
+that would predictably exceed the remaining budget. A retryable browser error
+gets one recovery attempt. If the same error recurs through another tool or
+argument set, REL removes browser tools for the rest of that response so the
+model answers from collected evidence or explains the limitation. When an
+exhaustive request exceeds a page or tool output bound, the response summarizes
+the available evidence and states what was omitted.
 
 ## Agent instructions and current-page context
 
