@@ -785,3 +785,24 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
+
+## BrowserLeaks diagnostics in Debug builds
+
+Enable **Show Debug menu** in Debug settings, then choose
+**Debug → Integration Tests → BrowserLeaks…** (Control-Option-Command-B).
+REL runs the Canvas, WebGL, JavaScript, DNS, and WebRTC pages from
+[BrowserLeaks](https://browserleaks.com/) against the current Debug app instance.
+The report opens when the run finishes and includes a result and saved capture
+for each page. A failed page does not prevent the remaining pages from running.
+Use **Show Integration Report** to reopen the latest summary.
+
+Each page retains a test session for manual inspection, including after a
+failure. The run creates test sessions in the current app and does not restart it. Close the test sessions yourself when finished.
+
+Canvas and WebGL checks require completed fingerprint hashes; JavaScript checks
+require populated identity fields; DNS requires completed resolver results.
+WebRTC checks reject reported leaks, private addresses, and public candidate
+addresses that differ from the page's HTTP address. These are live diagnostics,
+not a guarantee of anonymity or a comparison of custom fingerprint profiles and
+separate direct/proxy routes. Network failures, challenges, and changes to the
+site's result format appear as failures in the report.
