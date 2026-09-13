@@ -514,3 +514,11 @@ seconds of inactivity. `RelClient::ping_session(id)` refreshes the timer without
 browser work and returns `SessionData`. The `Session` response exposes the
 policy and `last_activity_at`. Keep idle clients alive by pinging well before the
 timeout. Session listing and background page traffic do not refresh activity.
+### Query context in semantic reads
+
+Query-directed reads include up to two following blocks from the same structural
+region, stopping at a heading or landmark. This preserves values or generated text
+beneath a matching label even when the value uses different words. The character
+and section limits still apply. Query output states how many candidate blocks were
+selected from the captured page; selected/available counts describe that query,
+not complete page coverage. Omit the query when the desired text is unknown.

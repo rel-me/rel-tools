@@ -874,6 +874,21 @@ open the same setup.
 **Ollama** connects to an Ollama server using its endpoint settings. Install and
 manage models in Ollama, then use **Refresh Models** in REL to discover them.
 REL’s **Download** action manages REL’s native models.
+Chat uses compact semantic text and controls for ordinary browser work. HTML is
+available only for explicit source inspection. Screenshots are used for visual
+or spatial questions, canvas content, or insufficient semantics when the selected
+model supports image tool results. Semantic-only observations omit pixel bounds.
+Changed page text is prioritized after actions; full retained observations remain
+available for focused recall without reloading the page.
+
+Element references belong to the observation that displayed them. A text read
+provides a searchable observation handle, but Chat must find its controls before
+acting. After a stale-reference error, Chat observes the visible page again.
+Current-page metadata cannot repair an element reference. Action batches have a
+15-second default deadline plus explicit waits, capped at 60 seconds. The deadline
+is enforced by the browser operation, so timed-out input is not retried in the
+background. Chat returns a final answer when its model-call limit is reached or
+a browser error code fails twice, including errors marked non-retryable.
 
 Each Chat response stops after 12 model calls or a 64,000-token request budget.
 REL uses the preceding model call's reported usage to avoid starting a call
