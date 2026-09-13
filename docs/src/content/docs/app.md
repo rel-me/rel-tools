@@ -611,7 +611,7 @@ the available evidence and states what was omitted.
 
 ## Starting a new chat
 
-Open **Chat Options** (the ellipsis menu inside the chat input) and choose
+Open **Chat Options** (the circled ellipsis inside the chat input) and choose
 **New Chat** to reset the current chat to an empty conversation. This stops any
 active response and removes the current messages, activity, and unsent draft,
 including their saved state. The selected model, thinking effort, speed, and
