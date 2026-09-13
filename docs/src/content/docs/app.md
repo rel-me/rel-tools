@@ -184,27 +184,26 @@ saved choices are preserved.
 and Debug builds. It provides chat debug-log viewing, replay and export, error
 recovery checks, and Turnstile test pages. The design gallery and integration tests are available only in Debug builds.
 
-### Integration test reports
+### Visible integration tests
 
-In a Debug build, choose **Debug → Integration Tests** to test that running app
-instance. REL stays open. The runner checks the app PID, agent ownership, and
-staged build identity, preserves app settings, and uses temporary test sessions.
-It does not rebuild, quit, or relaunch the app.
+In a Debug build, **Debug → Integration Tests** contains four visible browser
+workflows: **Cloudflare Turnstile**, **Wait and Act**, **Popup Page Stack**, and
+**Scroll Restoration**. Each test creates and selects a dedicated browser tab
+in the running REL instance, so you can watch its navigation and interactions.
+The tab stays open afterward for inspection. Close it when you are finished.
+Local fixture servers stop after the test, so reloading a retained page requires
+starting the test again.
 
-The report opens while tests run and comes forward at completion. It shows
-passed, failed, and skipped checks, durations, the app PID and build, and links
-to individual logs. **Show Integration Report** reopens the latest report. A
-second menu request while a run is active shows the current report rather than
-starting another run.
+REL does not rebuild, quit, or relaunch. The runner verifies the app PID, agent
+ownership, and build identity and preserves app settings. The report comes
+forward at completion with results, durations, instance identity, and log links.
+**Show Integration Report** reopens the latest report. A second request while a
+test is running shows its report instead of starting another test.
 
-The browser suite runs Turnstile, wait-and-act, popup, and scroll-restoration
-checks. Notification, BrowserLeaks, and full fingerprint checks that require
-restarts or offline settings edits are explicitly reported as skipped. The
-fingerprint suites also run live fingerprint consistency checks. Standalone
-Make targets remain available for the restart-dependent checks. BrowserGym
-uses the worktree's pinned evaluation dependencies and requires `mise`.
-
-Debug menu tests require the source worktree used to build that app.
+Background stress tests, offline fingerprint and notification checks, external
+agent evaluations, and aggregate batches are not in the menu. Their standalone
+Make targets remain available to developers. Debug menu tests require the source
+worktree used to build that app.
 
 **Show token usage** displays response usage above the chat input. **Global
 chat** enables workspace-wide conversations and the Global/Session selector.
