@@ -625,6 +625,14 @@ model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
 
+## Starting a new chat
+
+Open **Chat Options** (the ellipsis menu inside the chat input) and choose
+**New Chat** to reset the current chat to an empty conversation. This stops any
+active response and removes the current messages, activity, and unsent draft,
+including their saved state. The selected model, thinking effort, speed, and
+browser scope stay the same. The input receives focus for your next message.
+
 ## Chat restoration
 
 REL saves each Session's open Chat tabs, their order and selection, conversation

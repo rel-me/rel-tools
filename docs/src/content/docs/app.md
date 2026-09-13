@@ -24,6 +24,16 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+## Start on Login
+
+Enable **Settings → General → Startup → Start on Login** to open REL
+automatically when you log in to your Mac. REL uses the native macOS login item
+registration for the app. Turn the setting off to remove that registration.
+
+If macOS requires approval, click **Open Login Items Settings…** and allow REL.
+The setting refreshes from macOS when you return to REL, including changes made
+in System Settings. Registration errors appear below the Startup controls.
+
 ## AI provider presets
 
 In **Providers → Add Provider**, choose **Fireworks**, **Amazon Bedrock**,
@@ -59,9 +69,11 @@ the default Profile. Refresh is available while the local agent is running and
 no session refresh or save is in progress.
 
 **Save Current Workspace** requests a save of the current tabs and layout for
-the next launch; it does not restore a previous layout. After a real workspace
-save failure, REL keeps the error visible and blocks further writes until you
-restart. The button cannot bypass that protection. **Report a Bug** opens the
+the next launch; it does not restore a previous layout. When the agent rejects a
+save as invalid, REL preserves the current draft and allows another save after
+the problem is corrected. If the save outcome is uncertain or the workspace
+revision has changed, REL blocks further writes until you restart. The button
+cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
 In Debug builds, **Debug → Error Recovery** can trigger a session error, a
@@ -194,7 +206,7 @@ in Proxies even if you later cancel the profile.
 **Create Session**, **New Session** (Command-T), and the session tab bar’s plus
 button create a session immediately using the configured default Profile, or
 Custom defaults when none is set. You can change AdBlock, image blocking, Proxy,
-and Browser Identity afterward. Changing Browser Identity reopens the session.
+and Browser Identity afterward. Changing Browser Identity shows a banner so you can reload when ready.
 Browser data is copied or imported rather than switched as a setting.
 
 Use the session toolbar's **Proxy** menu to select a saved proxy, or **None** for
@@ -292,6 +304,13 @@ no proxy, or the lookup fails. This lookup does not write a language to the prox
 
 Privacy controls cover graphics, audio, device surfaces, language and locale,
 time zone, network information, and the CPU thread count reported to pages.
+When Network Information protection is enabled, JavaScript RTT/downlink and
+opted-in HTTP RTT/Downlink hints use the same rounded session values.
+Network measurements are not exposed through those hints. Disabling the control
+retains native estimates. Sites must still opt in to receive the hints, and
+Permissions Policy can suppress them. These reported values do not change actual
+connection speed or route traffic through a proxy.
+
 Chromium generates the User-Agent in every mode with its product version reduced
 to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its native
 brand list and client hints; these are not editable. High-entropy client hints
@@ -609,6 +628,14 @@ model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
 
+## Starting a new chat
+
+Open **Chat Options** (the ellipsis menu inside the chat input) and choose
+**New Chat** to reset the current chat to an empty conversation. This stops any
+active response and removes the current messages, activity, and unsent draft,
+including their saved state. The selected model, thinking effort, speed, and
+browser scope stay the same. The input receives focus for your next message.
+
 ## Chat restoration
 
 REL saves each Session's open Chat tabs, their order and selection, conversation
@@ -619,7 +646,8 @@ is not resumed automatically; its submitted prompt remains visible in the chat.
 Database upgrades use transactional migrations. Existing workspace layout and token
 usage are imported once from the current runtime’s old workspace file. If restoration
 fails, REL reports the error and blocks replacement writes. A save failure preserves
-the current draft in memory and asks you to restart before saving again.
+the current draft in memory. Validation rejections allow another save; uncertain
+save outcomes and revision conflicts require a restart before saving again.
 
 Database recovery preserves healthy conversations and drafts. Damaged messages or
 chats belonging to an unrecoverable Session remain in the original recovery snapshot
@@ -771,8 +799,10 @@ banner.
 
 Changes to upstream routing apply to new connections; existing connections
 continue until they close. Browser identity, proxy assignment, and certificate
-trust changes that require a new context wait for Reload. Sessions that have
-not opened a browser yet start with their latest configuration.
+trust changes that require a new context wait for Reload when there is page
+state to preserve. An empty browser with no active page, popup, or navigation
+history applies these changes automatically without a reload banner. Sessions
+that have not opened a browser yet start with their latest configuration.
 
 ## Proxy certificate trust
 
