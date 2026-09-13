@@ -640,9 +640,9 @@ removes its saved messages. Deleting a Session removes its saved chats.
 ## Reading chat history
 
 Chat follows new messages and activity while you are near the bottom. Scroll up
-to read earlier messages without being pulled back down. Choose **Jump to latest**
-to return to the newest content and resume following, or scroll back near the
-bottom yourself.
+to read earlier messages without being pulled back down. Choose **Jump**
+to align the end of the transcript above the chat input and resume following,
+or scroll back near the bottom yourself.
 
 ## Agent instructions and current-page context
 
