@@ -629,6 +629,7 @@ the available evidence and states what was omitted.
 
 REL saves each Session's open Chat tabs, their order and selection, conversation
 messages, completed-work details, and unsent drafts in its local SQLite database.
+Drafts are saved periodically while you type, including during an active response.
 Quitting and reopening REL restores them. Completed question-and-answer exchanges
 are restored to the AI harness before you send a follow-up. An interrupted response
 is not resumed automatically; its submitted prompt remains visible in the chat.
@@ -652,6 +653,10 @@ Chat follows new messages and activity while you are near the bottom. Scroll up
 to read earlier messages without being pulled back down. Choose **Jump to latest**
 to return to the newest content and resume following, or scroll back near the
 bottom yourself.
+
+REL remembers the first visible message separately for each Session and global
+Chat. Switching Chat tabs or reopening REL returns to that message. Chats left
+near the bottom continue following the latest content.
 
 ## Agent instructions and current-page context
 
