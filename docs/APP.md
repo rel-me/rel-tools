@@ -191,8 +191,29 @@ saved choices are preserved.
 
 **Show Debug menu** immediately shows or hides the Debug menu in both Release
 and Debug builds. It provides chat debug-log viewing, replay and export, error
-recovery checks, and Turnstile test pages. The design gallery and source-based
-integration test launcher are available only in Debug builds.
+recovery checks, and Turnstile test pages. The design gallery and integration tests are available only in Debug builds.
+
+### Integration test reports
+
+In a Debug build, choose **Debug → Integration Tests** to test that running app
+instance. REL stays open. The runner checks the app PID, agent ownership, and
+staged build identity, preserves app settings, and uses temporary test sessions.
+It does not rebuild, quit, or relaunch the app.
+
+The report opens while tests run and comes forward at completion. It shows
+passed, failed, and skipped checks, durations, the app PID and build, and links
+to individual logs. **Show Integration Report** reopens the latest report. A
+second menu request while a run is active shows the current report rather than
+starting another run.
+
+The browser suite runs Turnstile, wait-and-act, popup, and scroll-restoration
+checks. Notification, BrowserLeaks, and full fingerprint checks that require
+restarts or offline settings edits are explicitly reported as skipped. The
+fingerprint suites also run live fingerprint consistency checks. Standalone
+Make targets remain available for the restart-dependent checks. BrowserGym
+uses the worktree's pinned evaluation dependencies and requires `mise`.
+
+Debug menu tests require the source worktree used to build that app.
 
 **Show token usage** displays response usage above the chat input. **Global
 chat** enables workspace-wide conversations and the Global/Session selector.
