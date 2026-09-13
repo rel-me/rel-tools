@@ -1400,6 +1400,7 @@ pub enum ObservationActionKind {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ObservationAction {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "ref")]
@@ -1812,9 +1813,9 @@ fn page_read_matched_content_with_context(
         // heading/landmark. Never turn a query into a whole-section dump.
         for next in (*index + 1)..content.len().min(*index + 3) {
             let neighbor = &content[next];
-            if neighbor.context != content[*index].context
-                || matches!(neighbor.kind.as_str(), "heading" | "landmark")
-            {
+            let crosses_region = matches!((&neighbor.context, &content[*index].context),
+                (Some(next_context), Some(matched_context)) if next_context != matched_context);
+            if crosses_region || matches!(neighbor.kind.as_str(), "heading" | "landmark") {
                 break;
             }
             selected.insert(next);
@@ -2980,11 +2981,24 @@ mod tests {
     }
 
     #[test]
+    fn observation_actions_reject_unknown_fields_and_variants() {
+        assert!(serde_json::from_value::<ObservationAction>(
+            json!({"action":"click","ref":"e1","selector":"#secret"})
+        )
+        .is_err());
+        assert!(serde_json::from_value::<ObservationAction>(json!({"action":"reload"})).is_err());
+        assert!(
+            serde_json::from_value::<ObservationAction>(json!({"action":"click","ref":"e1"}))
+                .is_ok()
+        );
+    }
+
+    #[test]
     fn query_retains_generated_output_beneath_matching_label() {
         let content: Vec<ObservationContent> = serde_json::from_value(json!([
             {"kind":"heading","level":1,"context":"main > section","text":"Hipster Ipsum"},
             {"kind":"text","context":"main > section","text":"Plain Text Output"},
-            {"kind":"text","context":"main > section","text":"Copy"},
+            {"kind":"text","text":"Copy"},
             {"kind":"text","context":"main > section","text":"Etsy echo park blue bottle activated charcoal."},
             {"kind":"heading","level":2,"context":"main > section","text":"Unrelated help"},
             {"kind":"text","context":"footer","text":"Private footer value"}
