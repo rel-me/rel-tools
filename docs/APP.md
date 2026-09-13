@@ -265,6 +265,12 @@ only the controls you need. **Native** uses Chromium's native values.
 
 For identities with overrides, every creation path generates a fresh numeric
 readback seed for the Session, then keeps it stable for that Session. Profile edits apply to future Sessions.
+
+Opening **Custom Privacy** generates a fresh random seed in the editor draft.
+**Use Identity** applies that seed with the selected settings; **Cancel** leaves
+the original identity unchanged. The seed is managed automatically and has no
+editable field in this panel.
+
 Use a Session's tab menu to change its identity; saving recreates only that
 Session's Chromium context and returns it to the same page.
 
