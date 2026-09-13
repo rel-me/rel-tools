@@ -408,6 +408,10 @@ Open **Logs** in a Session's bottom panel to follow its activity. Logging runs
 while the Session is active, even when the panel is closed, and works with both
 direct and proxied connections.
 
+Click a selected log row to show or hide its details while keeping the row
+selected. Escape hides the details and preserves selection. This also applies
+to service logs.
+
 - **Network → Requests** shows Chromium HTTP and HTTPS request results for pages,
   scripts, stylesheets, images, frames, and fetch/XHR traffic. Entries include
   the method, URL, HTTP status or failure, elapsed milliseconds, and received
@@ -664,7 +668,7 @@ removes its saved messages. Deleting a Session removes its saved chats.
 ## Reading chat history
 
 Chat follows new messages and activity while you are near the bottom. Scroll up
-to read earlier messages without being pulled back down. Choose **Jump to latest**
+to read earlier messages without being pulled back down. Choose **Jump**
 to return to the newest content and resume following, or scroll back near the
 bottom yourself.
 
