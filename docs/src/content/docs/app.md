@@ -205,7 +205,7 @@ agent evaluations, and aggregate batches are not in the menu. Their standalone
 Make targets remain available to developers. Debug menu tests require the source
 worktree used to build that app.
 
-**Show token usage** displays response usage above the chat input. **Global
+**Show token usage** displays response usage at the top right of the chat area. **Global
 chat** enables workspace-wide conversations and the Global/Session selector.
 
 ## Profiles and Sessions
