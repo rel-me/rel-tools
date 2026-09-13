@@ -64,6 +64,9 @@ save failure, REL keeps the error visible and blocks further writes until you
 restart. The button cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
+RELDebug enables **Settings → Debug → Show Debug menu** by default. The Release
+app defaults it off. A saved on/off choice takes precedence in either build.
+
 In Debug builds, **Debug → Error Recovery** can trigger a session error, a
 workspace error, or both. These simulated errors appear in the same toolbar
 warning and details sheet without changing sessions, files, or permissions.
