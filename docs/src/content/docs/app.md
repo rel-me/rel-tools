@@ -785,3 +785,20 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
+
+## Integration tests from the Debug menu
+
+Enable **Settings → Debug → Show Debug menu**, then choose **Debug → Integration
+Tests**. These commands are available in both Debug and Release builds. The app
+bundles the test runner, so a REL source checkout is not required. The runner
+uses Python 3 at `/usr/bin/python3` (provided by Apple's developer tools).
+
+Choose BrowserLeaks, Cloudflare Turnstile, Wait and Act, Popup Page Stack, or
+Scroll Restoration. Each workflow runs against the current app instance and
+opens a visible test session that remains available for inspection. BrowserLeaks
+and Turnstile visit external test sites; the other workflows use local fixtures.
+Tests preserve app preferences and do not restart or quit the running app.
+
+**Show Integration Report** displays the latest result and links to test logs.
+A failed test is reported as a failure; it does not silently switch to a different
+app instance or build.
