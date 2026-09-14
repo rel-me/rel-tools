@@ -789,7 +789,8 @@ CLI/RPC proxy and profile archives preserve certificate settings. Settings curl 
 ## Integration tests from the Debug menu
 
 Enable **Settings → Debug → Show Debug menu**, then choose **Debug → Integration
-Tests**. The commands are available in Debug and Release builds. The runner,
+Tests**. The Debug menu requires Pro access and is available in both Debug and
+Release builds. The runner,
 local fixture server, and result checks run in Swift inside REL; no Python
 installation or source checkout is required.
 
