@@ -21,6 +21,19 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+## BrowserLeaks diagnostics
+
+With the Debug menu enabled, choose **Debug → BrowserLeaks Tests** to run Canvas,
+WebGL, JavaScript, DNS, WebRTC, or
+[Chrome Extension Detection](https://browserleaks.com/chrome) individually. Choose
+**Run All BrowserLeaks Tests** to run the full set. Each test uses a fresh session
+and leaves its tab open for inspection. Results are available through
+**Debug → Integration Tests → Show Integration Report**.
+
+Chrome Extension Detection reports the detected extension count and fingerprint.
+A completed scan with zero detected extensions reports `n/a` for its hash;
+missing or unfinished results fail the diagnostic.
+
 ## Start on Login
 
 Enable **Settings → General → Startup → Start on Login** to open REL
