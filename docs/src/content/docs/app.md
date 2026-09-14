@@ -64,6 +64,9 @@ save failure, REL keeps the error visible and blocks further writes until you
 restart. The button cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
+RELDebug enables **Settings → Debug → Show Debug menu** by default. The Release
+app defaults it off. A saved on/off choice takes precedence in either build.
+
 In Debug builds, **Debug → Error Recovery** can trigger a session error, a
 workspace error, or both. These simulated errors appear in the same toolbar
 warning and details sheet without changing sessions, files, or permissions.
@@ -609,6 +612,14 @@ model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
 
+## Starting a new chat
+
+Open **Chat Options** (the circled ellipsis inside the chat input) and choose
+**New Chat** to reset the current chat to an empty conversation. This stops any
+active response and removes the current messages, activity, and unsent draft,
+including their saved state. The selected model, thinking effort, speed, and
+browser scope stay the same. The input receives focus for your next message.
+
 ## Chat restoration
 
 REL saves each Session's open Chat tabs, their order and selection, conversation
@@ -632,9 +643,9 @@ removes its saved messages. Deleting a Session removes its saved chats.
 ## Reading chat history
 
 Chat follows new messages and activity while you are near the bottom. Scroll up
-to read earlier messages without being pulled back down. Choose **Jump to latest**
-to return to the newest content and resume following, or scroll back near the
-bottom yourself.
+to read earlier messages without being pulled back down. Choose **Jump**
+to align the end of the transcript above the chat input and resume following,
+or scroll back near the bottom yourself.
 
 ## Agent instructions and current-page context
 
