@@ -89,4 +89,8 @@ codex plugin add rel@rel
 Version `0.4.2` replaces the old lettermark with REL's blue optical-lens logo
 in the marketplace and composer.
 
+Version `0.4.3` names the plugin MCP server `REL` so Codex preserves the brand's
+capitalization in its MCP servers list. The plugin identifier remains `rel@rel`,
+the adapter remains `rel-mcp`, and tool names remain `rel_*`.
+
 Start another new task after updating so it uses the refreshed plugin cache.
