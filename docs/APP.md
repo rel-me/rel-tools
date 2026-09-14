@@ -9,6 +9,11 @@ sets. The privacy layer removes built-in Google service integrations and
 blocks substituted background-service destinations. Websites you visit can
 still load Google resources, and you can open Google pages explicitly.
 
+REL honors Chromium's standard `Referrer-Policy` behavior. Cross-origin requests
+send only the referring origin by default; explicit `no-referrer` policies still
+suppress it. This allows CDNs that require an embedding origin to serve images
+without disabling Cross-Origin-Resource-Policy enforcement.
+
 REL configures Sessions to retain cookies, site storage, and saved logins when
 it quits. The privacy layer does not enable automatic clearing on exit. This
 preserves website login state; it does not enable Chromium's password manager
