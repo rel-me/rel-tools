@@ -635,6 +635,11 @@ or **Unlimited** to disable the per-response token cap. This preference is saved
 for all chats and takes effect on the next message. Model-call, retry, and
 conversation-wide limits are separate and remain in effect.
 
+The same menu's **Call limit** controls model calls per response, including the
+final answer. Its default is 64 calls; choose 8, 32, 64, 128, 256, or 512. The
+saved choice applies to the next message in all chats and also sets the agent
+runner's call limit. Token budgets and retry limits remain independent.
+
 When Chat has no available model, select **Add Provider** in the empty state
 or chat input to open the Add Provider form directly. Cancel returns to Chat.
 
