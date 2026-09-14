@@ -209,7 +209,8 @@ Browser data is copied or imported rather than switched as a setting.
 Cookies and saved passwords can be imported while Chrome or another supported
 Chromium browser is running. REL reads temporary copies of the database and its
 recovery journals, including committed changes, without modifying the source
-browser's data. The temporary copies are removed after import. If the source
+browser's data. Newly created REL sessions initialize their cookie database before
+the imported records are written. The temporary copies are removed after import. If the source
 files keep changing during capture, REL asks you to retry the import.
 
 Use the session toolbar's **Proxy** menu to select a saved proxy, or **None** for
