@@ -86,4 +86,7 @@ codex plugin marketplace upgrade rel
 codex plugin add rel@rel
 ```
 
+Version `0.4.2` replaces the old lettermark with REL's blue optical-lens logo
+in the marketplace and composer.
+
 Start another new task after updating so it uses the refreshed plugin cache.
