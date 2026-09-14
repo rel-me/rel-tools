@@ -613,6 +613,9 @@ archive or a replacement input for the archive APIs.
 
 ## AI models
 
+The chat input grows upward as you type, showing up to 20 lines before scrolling
+within the field.
+
 Chat browser scrolling uses a page direction (`down`, `up`, `left`, or `right`)
 and a positive pixel distance. REL translates this to native wheel input; the
 CLI/RPC wheel-delta convention is unchanged. For requests covering an entire
