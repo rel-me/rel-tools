@@ -1287,3 +1287,14 @@ automation reports `BROWSER_UNAVAILABLE` with a message asking you to reload, in
 with the previous browser configuration. Choose **Reload** in REL to apply the
 saved changes, then retry. Saving configuration and pausing network activity
 remain available while a reload is pending.
+
+### Chrome privacy fingerprints
+
+An optional `chrome_version` string in `fingerprint_profile` selects a coherent
+Chrome UA/client-hint identity for that fingerprint. Omit it (or use null) to
+retain the default identity behavior. Versions accept one to four unsigned
+32-bit numeric components and normalize to four components. For the Chrome
+copy of Private, use the full Private fingerprint with
+`"chrome_version": "152.0.7977.83"`; leave `overrides` omitted to retain every
+Private control. The setting persists in session/Profile fingerprints and
+exports. It changes reported identity, not the bundled engine version.

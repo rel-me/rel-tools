@@ -807,3 +807,12 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
+
+### Chrome privacy identity
+
+Choose **Chrome** in a session or Profile's **Browser Identity** menu to start
+with a copy of **Private**, including all its privacy controls, and add the
+Chrome client-hint identity. The saved Chrome version is `152.0.7977.83`.
+It travels with the fingerprint through save, restore, and export/import, and
+takes precedence over the app-wide brand setting. Switching back to **Private**
+removes the session's Chrome identity. Reload existing sessions to apply changes.
