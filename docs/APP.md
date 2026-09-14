@@ -626,6 +626,12 @@ answer reserve, and the response limit. Model-call and retry limits have distinc
 reasons. The footer remains in saved chat history and exported chat transcripts;
 a budget stop does not mean a browser action timed out.
 
+In the chat input's **Chat Options** menu, **Response Token Budget** shows the
+current cap. Choose 12,000, 24,000 (the default), 48,000, 96,000, or 192,000 tokens,
+or **Unlimited** to disable the per-response token cap. This preference is saved
+for all chats and takes effect on the next message. Model-call, retry, and
+conversation-wide limits are separate and remain in effect.
+
 When Chat has no available model, select **Add Provider** in the empty state
 or chat input to open the Add Provider form directly. Cancel returns to Chat.
 
