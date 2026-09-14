@@ -297,27 +297,20 @@ to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its nati
 brand list and client hints by default. High-entropy client hints can still
 expose the engine’s full version when requested by a site.
 
-Open **Settings → Browser Identity** to add a custom brand in **Private** and
-**Custom Privacy** sessions. Enter a brand name and a version, then click
-**Save**. The brand is appended to `navigator.userAgentData.brands` with its major
-version and to `fullVersionList` with its full version, along with matching
-HTTP client hints. Versions accept one to four numeric components; `12.3`
-becomes `12.3.0.0`. Chromium's existing brands and other identity values remain.
-The setting applies to existing and future privacy-enabled sessions on this app
-installation. After saving, use the session’s reload banner to apply the change.
-Native sessions keep their identity. Click **Use Default**, then **Save**, to
-remove the custom brand. **Cancel** discards unsaved edits.
+Open **Browser Identities** from the main window toolbar alongside Profiles,
+Proxies, and Providers. The list contains the built-in **Private**, **Chrome**,
+and **Native** identities. Open an entry to view its browser metadata, client
+hints, device settings, and privacy controls. Values that depend on the Mac,
+proxy, or session are described as such. The viewer is read-only: identities
+cannot be edited or created here. **Custom Privacy** remains a session/Profile
+configuration and is not included in this list.
 
-Choose **Chrome** in the Identity selector to use a coherent Google Chrome
-client-hint identity. The preset starts with `152.0.7977.83`, the Chrome version
-in the saved September 14 BrowserLeaks comparison; the version remains editable.
-It sets Chrome's brand ordering, uses the selected version for both Chromium
-and Google Chrome in `fullVersionList`, and matches `uaFullVersion`. The reduced
-User-Agent uses the selected major version. Other client hints use the Mac's
-native platform, OS version, and architecture. This preset covers the
-userAgentData/client-hint fields; screen geometry, hardware, battery, extension
-detection, and speech voices retain their existing session behavior.
-
+Chrome copies all Private controls and adds the Google Chrome client-hint
+identity with version `152.0.7977.83`. It uses Chrome's brand ordering and a
+consistent version in `brands`, `fullVersionList`, `uaFullVersion`, and the
+reduced User-Agent. Other client hints use this Mac's native platform, OS
+version, and architecture. Select an identity in the session or Profile's
+Browser Identity menu, then reload existing sessions to apply changes.
 
 Graphics protection changes Canvas and WebGL readbacks together with the graphics identity and
 makes WebGPU unavailable. Text geometry, native input, and other unlisted
@@ -814,5 +807,5 @@ Choose **Chrome** in a session or Profile's **Browser Identity** menu to start
 with a copy of **Private**, including all its privacy controls, and add the
 Chrome client-hint identity. The saved Chrome version is `152.0.7977.83`.
 It travels with the fingerprint through save, restore, and export/import, and
-takes precedence over the app-wide brand setting. Switching back to **Private**
+is independent of app settings. Switching back to **Private**
 removes the session's Chrome identity. Reload existing sessions to apply changes.
