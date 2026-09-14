@@ -632,7 +632,17 @@ is enforced by the browser operation, so timed-out input is not retried in the
 background. Chat returns a final answer when its model-call limit is reached or
 a browser error code fails twice, including errors marked non-retryable.
 
+If a model requests a tool that is unavailable for the current step, Chat returns
+corrective feedback without executing or substituting an operation. A second
+unavailable-tool failure asks the model to finish using the evidence collected.
+Self-contained writing uses a short writing prompt with no browser tools; page
+references, external actions, follow-ups and custom instructions retain the
+browser path.
+
 Each Chat response stops after 12 model calls or a 64,000-token request budget.
+Usage includes tool-only model responses and turns recovering from unavailable
+tools. Missing provider usage is marked unreported rather than counted as a
+measured zero.
 REL uses the preceding model call's reported usage to avoid starting a call
 that would predictably exceed the remaining budget. A retryable browser error
 gets one recovery attempt. If the same error recurs through another tool or
