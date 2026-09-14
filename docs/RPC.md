@@ -926,6 +926,25 @@ built-ins, and the list is empty until a Profile is saved. A profile resource is
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
+Profiles also accept an optional `default_model` object on creation and update:
+
+```json
+{"default_model":{"model_id":"openai:gpt-5.6-sol","effort":"high","speed":"priority"}}
+```
+
+`model_id` is the app’s model-picker identifier. Built-in identifiers use
+`provider:model`; configured models use `profile:<provider UUID>:<model ID>`.
+`effort` accepts `minimal`, `low`, `medium`, `high`, or `xhigh` (default `medium`).
+`speed` accepts `standard`, `priority`, or `flex` (default `standard`). The app
+shows controls supported by the selected model. Omitting the field during an
+update preserves it; setting it to `null` restores the default provider’s model.
+Session creation copies this setting from the selected profile;
+`POST /v1/sessions` can supply `default_model` explicitly, including `null` to
+use the application default. Session responses include the copied preference,
+which survives profile edits and deletion.
+Profile responses and version 7 profile transfers include this setting. Older
+transfers have no model override. Existing chats retain their configuration.
+
 `POST /v1/profile-transfers/export` accepts `name`, `include_cookies`,
 `include_passwords`, `include_proxy_credentials`, and an optional `passphrase`.
 It returns `data.filename` plus `data.contents_base64`, which decodes to the
