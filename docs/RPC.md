@@ -1262,6 +1262,20 @@ within that session. Each message has a stable UUID `id`, `role` (`user`,
 (`{activities: [...], elapsedTime: seconds}`). Activity records contain `id`,
 `title`, optional `detail`, and `status` (`running`, `completed`, or `failed`).
 
+Conversations may include `chatConfiguration`, containing `model`, `effort`, and
+`speed`. REL preserves this selection for both session and global chats, including
+empty conversations. Omitting it or sending null clears the saved selection;
+workspaces saved before this field was introduced remain valid.
+
+`model` contains `id`, `displayName`, `provider`, `modelID`, `source`,
+`verification`, `capabilities`, and `displayProvider`, with optional `profileName`,
+`profileID`, and `createdAt`. `source` uses Swift Codable encoding:
+`{"builtIn": {}}` or `{"configured": {}}`. `displayProvider` is
+`{"adapter": {"_0": "openai"}}` (using the selected provider kind), or an empty
+object case named `fireworks`, `amazonBedrock`, or `baseten`. `capabilities`
+contains `supportsReasoningEffort`, `supportedSpeeds`, and
+`isRecommendedInChatPicker`. These are model selection metadata, never API keys.
+
 Each token-usage record contains nonnegative integer `modelCalls`,
 `reportedModelCalls`, `knownTokens`, `inputTokens`, `outputTokens`,
 `providerReportedTotalTokens`, `cachedInputTokens`, `cacheCreationInputTokens`,
