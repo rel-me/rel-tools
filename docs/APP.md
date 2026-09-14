@@ -73,7 +73,7 @@ revision has changed, REL blocks further writes until you restart. The button
 cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
-In Debug builds, **Debug → Error Recovery** can trigger a session error, a
+With **Show Debug menu** enabled, **Debug → Error Recovery** can trigger a session error, a
 workspace error, or both. These simulated errors appear in the same toolbar
 warning and details sheet without changing sessions, files, or permissions.
 Use **Refresh Sessions** and **Save Current Workspace** to exercise recovery.
@@ -182,6 +182,40 @@ at most once per day and supports up to seven days offline, without extending
 access beyond that end date. At expiry, REL automatically returns to Free and
 keeps existing Sessions and configuration under the Free plan limits described
 above.
+
+## Debug and beta settings
+
+Open **REL → Settings… → Debug** for **Show Debug menu**, **Show token usage**,
+and the **Global chat** beta feature. All three are off by default; existing
+saved choices are preserved.
+
+**Show Debug menu** immediately shows or hides the Debug menu in both Release
+and Debug builds. It provides chat debug-log viewing, replay and export, error
+recovery checks, and Turnstile test pages. The design gallery and integration tests are available only in Debug builds.
+
+### Visible integration tests
+
+In a Debug build, **Debug → Integration Tests** contains four visible browser
+workflows: **Cloudflare Turnstile**, **Wait and Act**, **Popup Page Stack**, and
+**Scroll Restoration**. Each test creates and selects a dedicated browser tab
+in the running REL instance, so you can watch its navigation and interactions.
+The tab stays open afterward for inspection. Close it when you are finished.
+Local fixture servers stop after the test, so reloading a retained page requires
+starting the test again.
+
+REL does not rebuild, quit, or relaunch. The runner verifies the app PID, agent
+ownership, and build identity and preserves app settings. The report comes
+forward at completion with results, durations, instance identity, and log links.
+**Show Integration Report** reopens the latest report. A second request while a
+test is running shows its report instead of starting another test.
+
+Background stress tests, offline fingerprint and notification checks, external
+agent evaluations, and aggregate batches are not in the menu. Their standalone
+Make targets remain available to developers. Debug menu tests require the source
+worktree used to build that app.
+
+**Show token usage** displays response usage at the top right of the chat area. **Global
+chat** enables workspace-wide conversations and the Global/Session selector.
 
 ## Profiles and Sessions
 
@@ -389,6 +423,10 @@ automatically; new provider domains need to be added to that list.
 Open **Logs** in a Session's bottom panel to follow its activity. Logging runs
 while the Session is active, even when the panel is closed, and works with both
 direct and proxied connections.
+
+Click a selected log row to show or hide its details while keeping the row
+selected. Escape hides the details and preserves selection. This also applies
+to service logs.
 
 - **Network → Requests** shows Chromium HTTP and HTTPS request results for pages,
   scripts, stylesheets, images, frames, and fetch/XHR traffic. Entries include
@@ -649,7 +687,7 @@ removes its saved messages. Deleting a Session removes its saved chats.
 ## Reading chat history
 
 Chat follows new messages and activity while you are near the bottom. Scroll up
-to read earlier messages without being pulled back down. Choose **Jump to latest**
+to read earlier messages without being pulled back down. Choose **Jump**
 to return to the newest content and resume following, or scroll back near the
 bottom yourself.
 
