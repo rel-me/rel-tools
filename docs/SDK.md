@@ -504,3 +504,12 @@ let request = ProxyUpdateRequest {
 the schema version, original backup and report paths, recovery item count, and
 retained session count. Older agents may omit it. See the [health contract](RPC.md#health)
 and [app recovery guide](APP.md#database-migration-and-recovery) for semantics.
+
+### Query context in semantic reads
+
+Query-directed reads include up to two following blocks from the same structural
+region, stopping at a heading or landmark. This preserves values or generated text
+beneath a matching label even when the value uses different words. The character
+and section limits still apply. Query output states how many candidate blocks were
+selected from the captured page; selected/available counts describe that query,
+not complete page coverage. Omit the query when the desired text is unknown.

@@ -1400,6 +1400,7 @@ pub enum ObservationActionKind {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ObservationAction {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "ref")]
@@ -1709,6 +1710,11 @@ fn page_read_data(
         );
     }
 
+    if query_active {
+        push_page_read_block(&mut markdown,
+            &format!("Query scope: {} candidate blocks of {} captured blocks. Counts describe matches and nearby context, not whole-page coverage.", available_content_count, observation.content.len()), max_chars);
+    }
+
     let outline = page_read_outline(&observation.content, max_sections.min(16));
     let mut selected_outline_count = 0;
     if !outline.is_empty() && push_page_read_block(&mut markdown, "## Page outline", max_chars) {
@@ -1801,6 +1807,19 @@ fn page_read_matched_content_with_context(
             selected.insert(heading);
         }
         selected.insert(*index);
+        // Labels/headings often name a value whose own words do not match the
+        // query (generated text, prices, confirmation codes). Keep a small
+        // forward window in the same structural region, stopping at the next
+        // heading/landmark. Never turn a query into a whole-section dump.
+        for next in (*index + 1)..content.len().min(*index + 3) {
+            let neighbor = &content[next];
+            let crosses_region = matches!((&neighbor.context, &content[*index].context),
+                (Some(next_context), Some(matched_context)) if next_context != matched_context);
+            if crosses_region || matches!(neighbor.kind.as_str(), "heading" | "landmark") {
+                break;
+            }
+            selected.insert(next);
+        }
         if page_read_text_is_rating(&content[*index].text) && *index > 0 {
             selected.insert(*index - 1);
         }
@@ -2959,6 +2978,35 @@ mod tests {
         assert_eq!(data.selected_content_count, 6);
         assert!(data.selected_outline_count > 0);
         assert!(data.truncated);
+    }
+
+    #[test]
+    fn observation_actions_reject_unknown_fields_and_variants() {
+        assert!(serde_json::from_value::<ObservationAction>(
+            json!({"action":"click","ref":"e1","selector":"#secret"})
+        )
+        .is_err());
+        assert!(serde_json::from_value::<ObservationAction>(json!({"action":"reload"})).is_err());
+        assert!(
+            serde_json::from_value::<ObservationAction>(json!({"action":"click","ref":"e1"}))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn query_retains_generated_output_beneath_matching_label() {
+        let content: Vec<ObservationContent> = serde_json::from_value(json!([
+            {"kind":"heading","level":1,"context":"main > section","text":"Hipster Ipsum"},
+            {"kind":"text","context":"main > section","text":"Plain Text Output"},
+            {"kind":"text","text":"Copy"},
+            {"kind":"text","context":"main > section","text":"Etsy echo park blue bottle activated charcoal."},
+            {"kind":"heading","level":2,"context":"main > section","text":"Unrelated help"},
+            {"kind":"text","context":"footer","text":"Private footer value"}
+        ])).unwrap();
+        let selected = page_read_matched_content_with_context(&content, &[(1, 4)]);
+        assert!(selected.iter().any(|(index, _)| *index == 3));
+        assert!(!selected.iter().any(|(index, _)| *index >= 4));
+        assert!(selected.len() <= 4);
     }
 
     #[test]

@@ -614,9 +614,55 @@ The Chat model picker uses the provider's display name when available, or the
 exact model ID when no display name is supplied. This also applies to newly
 discovered models. API requests always use the model ID.
 
-Chat displays response text as the model generates it, including local Ollama models such as Qwen. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
+Chat displays directly streamed response text as the model generates it, including local Ollama models such as Qwen. Structured answer-tool results appear once their complete text has been validated. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
 
-Each Chat response stops after 12 model calls or a 64,000-token request budget.
+Chat uses compact semantic text and controls for ordinary browser work. HTML is
+available only for explicit source inspection. Screenshots are used for visual
+or spatial questions, canvas content, or insufficient semantics when the selected
+model supports image tool results. Semantic-only observations omit pixel bounds.
+After actions, changed text appears once with nearby labels and section/table
+context. Selection counts distinguish omitted content from absent content; full
+observations remain available for focused recall without reloading the page.
+
+Element references belong to the observation that displayed them. A text read
+provides a searchable observation handle, but Chat must find its controls before
+acting. After a stale-reference error, Chat observes the visible page again.
+Current-page metadata cannot repair an element reference. Action batches have a
+15-second default deadline plus explicit waits, capped at 60 seconds. The deadline
+is enforced by the browser operation, so timed-out input is not retried in the
+background. Chat returns a final answer when its model-call limit is reached or
+a browser error code fails twice, including errors marked non-retryable.
+
+If a model requests a tool that is unavailable for the current step, Chat returns
+corrective feedback without executing or substituting an operation. A second
+unavailable-tool failure asks the model to finish using the evidence collected.
+Chat starts with compact answer and browser task tools. It returns self-contained
+writing directly or through its answer tool in one inference, preserving prior conversation and custom instructions. When
+browser work is needed, task selection performs the first reading, interaction,
+visual, source, or diagnostic operation without a separate routing model call.
+The selection uses a typed task instead of English keyword matching. Unsupported
+image modes are excluded from action schemas, and explicit visual requests report
+an unsupported model before navigating.
+
+Final actions can declare completion conditions covering all remaining requested
+work. Chat checks these against rendered page evidence and finishes browser work
+when every condition is verified and at least one condition newly becomes true. A button caption alone does not prove
+that a generated result is ready. Clipped evidence, ambiguous targets and partially
+satisfied conditions cannot trigger verified completion. Three repeated semantic operations
+across tools that add no new evidence also end browser work, with any unverified
+part stated in the answer. This stop is distinct from successful completion.
+
+First-party OpenAI uses strict function schemas through the Responses adapter.
+Compatible providers retain local argument validation; accepting a strict request
+flag is insufficient evidence that a provider enforces the schema.
+
+Each Chat response stops after 8 model calls or a 24,000-reported-token request
+budget. Usage arrives after inference, so a single provider response can overshoot
+the threshold; REL then stops before dispatching its requested tools. Browser tool
+timeout and wait arguments use seconds, with a maximum of 60.
+Usage includes tool-only model responses and turns recovering from unavailable
+tools. Missing provider usage is marked unreported rather than counted as a
+measured zero.
 REL uses the preceding model call's reported usage to avoid starting a call
 that would predictably exceed the remaining budget. A retryable browser error
 gets one recovery attempt. If the same error recurs through another tool or

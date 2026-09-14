@@ -24,6 +24,16 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+## Start on Login
+
+Enable **Settings → General → Startup → Start on Login** to open REL
+automatically when you log in to your Mac. REL uses the native macOS login item
+registration for the app. Turn the setting off to remove that registration.
+
+If macOS requires approval, click **Open Login Items Settings…** and allow REL.
+The setting refreshes from macOS when you return to REL, including changes made
+in System Settings. Registration errors appear below the Startup controls.
+
 ## AI provider presets
 
 In **Providers → Add Provider**, choose **Fireworks**, **Amazon Bedrock**,
@@ -59,9 +69,11 @@ the default Profile. Refresh is available while the local agent is running and
 no session refresh or save is in progress.
 
 **Save Current Workspace** requests a save of the current tabs and layout for
-the next launch; it does not restore a previous layout. After a real workspace
-save failure, REL keeps the error visible and blocks further writes until you
-restart. The button cannot bypass that protection. **Report a Bug** opens the
+the next launch; it does not restore a previous layout. When the agent rejects a
+save as invalid, REL preserves the current draft and allows another save after
+the problem is corrected. If the save outcome is uncertain or the workspace
+revision has changed, REL blocks further writes until you restart. The button
+cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
 In Debug builds, **Debug → Error Recovery** can trigger a session error, a
@@ -194,7 +206,7 @@ in Proxies even if you later cancel the profile.
 **Create Session**, **New Session** (Command-T), and the session tab bar’s plus
 button create a session immediately using the configured default Profile, or
 Custom defaults when none is set. You can change AdBlock, image blocking, Proxy,
-and Browser Identity afterward. Changing Browser Identity reopens the session.
+and Browser Identity afterward. Changing Browser Identity shows a banner so you can reload when ready.
 Browser data is copied or imported rather than switched as a setting.
 
 Use the session toolbar's **Proxy** menu to select a saved proxy, or **None** for
@@ -292,6 +304,13 @@ no proxy, or the lookup fails. This lookup does not write a language to the prox
 
 Privacy controls cover graphics, audio, device surfaces, language and locale,
 time zone, network information, and the CPU thread count reported to pages.
+When Network Information protection is enabled, JavaScript RTT/downlink and
+opted-in HTTP RTT/Downlink hints use the same rounded session values.
+Network measurements are not exposed through those hints. Disabling the control
+retains native estimates. Sites must still opt in to receive the hints, and
+Permissions Policy can suppress them. These reported values do not change actual
+connection speed or route traffic through a proxy.
+
 Chromium generates the User-Agent in every mode with its product version reduced
 to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its native
 brand list and client hints; these are not editable. High-entropy client hints
@@ -598,9 +617,55 @@ The Chat model picker uses the provider's display name when available, or the
 exact model ID when no display name is supplied. This also applies to newly
 discovered models. API requests always use the model ID.
 
-Chat displays response text as the model generates it, including local Ollama models such as Qwen. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
+Chat displays directly streamed response text as the model generates it, including local Ollama models such as Qwen. Structured answer-tool results appear once their complete text has been validated. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
 
-Each Chat response stops after 12 model calls or a 64,000-token request budget.
+Chat uses compact semantic text and controls for ordinary browser work. HTML is
+available only for explicit source inspection. Screenshots are used for visual
+or spatial questions, canvas content, or insufficient semantics when the selected
+model supports image tool results. Semantic-only observations omit pixel bounds.
+After actions, changed text appears once with nearby labels and section/table
+context. Selection counts distinguish omitted content from absent content; full
+observations remain available for focused recall without reloading the page.
+
+Element references belong to the observation that displayed them. A text read
+provides a searchable observation handle, but Chat must find its controls before
+acting. After a stale-reference error, Chat observes the visible page again.
+Current-page metadata cannot repair an element reference. Action batches have a
+15-second default deadline plus explicit waits, capped at 60 seconds. The deadline
+is enforced by the browser operation, so timed-out input is not retried in the
+background. Chat returns a final answer when its model-call limit is reached or
+a browser error code fails twice, including errors marked non-retryable.
+
+If a model requests a tool that is unavailable for the current step, Chat returns
+corrective feedback without executing or substituting an operation. A second
+unavailable-tool failure asks the model to finish using the evidence collected.
+Chat starts with compact answer and browser task tools. It returns self-contained
+writing directly or through its answer tool in one inference, preserving prior conversation and custom instructions. When
+browser work is needed, task selection performs the first reading, interaction,
+visual, source, or diagnostic operation without a separate routing model call.
+The selection uses a typed task instead of English keyword matching. Unsupported
+image modes are excluded from action schemas, and explicit visual requests report
+an unsupported model before navigating.
+
+Final actions can declare completion conditions covering all remaining requested
+work. Chat checks these against rendered page evidence and finishes browser work
+when every condition is verified and at least one condition newly becomes true. A button caption alone does not prove
+that a generated result is ready. Clipped evidence, ambiguous targets and partially
+satisfied conditions cannot trigger verified completion. Three repeated semantic operations
+across tools that add no new evidence also end browser work, with any unverified
+part stated in the answer. This stop is distinct from successful completion.
+
+First-party OpenAI uses strict function schemas through the Responses adapter.
+Compatible providers retain local argument validation; accepting a strict request
+flag is insufficient evidence that a provider enforces the schema.
+
+Each Chat response stops after 8 model calls or a 24,000-reported-token request
+budget. Usage arrives after inference, so a single provider response can overshoot
+the threshold; REL then stops before dispatching its requested tools. Browser tool
+timeout and wait arguments use seconds, with a maximum of 60.
+Usage includes tool-only model responses and turns recovering from unavailable
+tools. Missing provider usage is marked unreported rather than counted as a
+measured zero.
 REL uses the preceding model call's reported usage to avoid starting a call
 that would predictably exceed the remaining budget. A retryable browser error
 gets one recovery attempt. If the same error recurs through another tool or
@@ -619,7 +684,8 @@ is not resumed automatically; its submitted prompt remains visible in the chat.
 Database upgrades use transactional migrations. Existing workspace layout and token
 usage are imported once from the current runtime’s old workspace file. If restoration
 fails, REL reports the error and blocks replacement writes. A save failure preserves
-the current draft in memory and asks you to restart before saving again.
+the current draft in memory. Validation rejections allow another save; uncertain
+save outcomes and revision conflicts require a restart before saving again.
 
 Database recovery preserves healthy conversations and drafts. Damaged messages or
 chats belonging to an unrecoverable Session remain in the original recovery snapshot
@@ -771,8 +837,10 @@ banner.
 
 Changes to upstream routing apply to new connections; existing connections
 continue until they close. Browser identity, proxy assignment, and certificate
-trust changes that require a new context wait for Reload. Sessions that have
-not opened a browser yet start with their latest configuration.
+trust changes that require a new context wait for Reload when there is page
+state to preserve. An empty browser with no active page, popup, or navigation
+history applies these changes automatically without a reload banner. Sessions
+that have not opened a browser yet start with their latest configuration.
 
 ## Proxy certificate trust
 
