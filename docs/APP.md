@@ -313,8 +313,7 @@ to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its nati
 brand list and client hints by default. High-entropy client hints can still
 expose the engine’s full version when requested by a site.
 
-Open **Browser Identities** from the main window toolbar alongside Profiles,
-Proxies, and Providers. The list contains the built-in **Private**, **Chrome**,
+Open **Browser Identities** from the far right of the main window toolbar. The list contains the built-in **Private**, **Chrome**,
 and **Native** identities. Open an entry to view its browser metadata, client
 hints, device settings, and privacy controls. Values that depend on the Mac,
 proxy, or session are described as such. The viewer is read-only: identities
