@@ -613,6 +613,12 @@ archive or a replacement input for the archive APIs.
 
 ## AI models
 
+Chat browser scrolling uses a page direction (`down`, `up`, `left`, or `right`)
+and a positive pixel distance. REL translates this to native wheel input; the
+CLI/RPC wheel-delta convention is unchanged. For requests covering an entire
+feed, Chat is instructed to load subsequent content, verify progress, and avoid
+claiming complete coverage from only the posts currently loaded.
+
 When Chat has no available model, select **Add Provider** in the empty state
 or chat input to open the Add Provider form directly. Cancel returns to Chat.
 
