@@ -294,8 +294,19 @@ Privacy controls cover graphics, audio, device surfaces, language and locale,
 time zone, network information, and the CPU thread count reported to pages.
 Chromium generates the User-Agent in every mode with its product version reduced
 to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its native
-brand list and client hints; these are not editable. High-entropy client hints
-can still expose the engine’s full version when requested by a site.
+brand list and client hints by default. High-entropy client hints can still
+expose the engine’s full version when requested by a site.
+
+Open **Settings → Browser Identity** to add a custom brand in **Private** and
+**Custom Privacy** sessions. Enter a brand name and a version, then click
+**Save**. The brand is appended to `navigator.userAgentData.brands` with its major
+version and to `fullVersionList` with its full version, along with matching
+HTTP client hints. Versions accept one to four numeric components; `12.3`
+becomes `12.3.0.0`. Chromium's existing brands and other identity values remain.
+The setting applies to existing and future privacy-enabled sessions on this app
+installation. After saving, use the session’s reload banner to apply the change.
+Native sessions keep their identity. Click **Use Default**, then **Save**, to
+remove the custom brand. **Cancel** discards unsaved edits.
 
 Graphics protection changes Canvas and WebGL readbacks together with the graphics identity and
 makes WebGPU unavailable. Text geometry, native input, and other unlisted
