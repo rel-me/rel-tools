@@ -339,6 +339,13 @@ Back and Forward work with history entries created within the same page.
 Submitting an address that only changes its `#fragment` also keeps the current
 document available without waiting for a full page reload.
 
+Each Session also preserves its root-page HTTP(S) Back/Forward history and
+current position across restarts. Opening the saved page restores that history
+without loading its earlier or later pages. Visiting a new page after going Back
+discards the forward branch. Clearing the Session’s browsing data removes its
+saved history. Popup history, form values, POST bodies, and scroll positions
+are not restored across restarts.
+
 Chromium's automatic retries keep the error visible until the page returns a
 response. A browser startup failure can be retried with **Try Again**, refresh,
 or a newly submitted address; REL recreates that Session's browser and keeps

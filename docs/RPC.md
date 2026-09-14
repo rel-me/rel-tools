@@ -1219,6 +1219,15 @@ acknowledge events intended for the app.
 
 ## Workspace restoration
 
+REL preserves each session’s root-page HTTP(S) Back/Forward history and current
+position across app restarts. Opening the saved page restores the native history
+without fetching earlier or later entries. Visiting a new page after going Back
+discards the forward branch as usual. History is isolated in each Chromium
+profile and removed when that profile’s browsing data is cleared. Popup history
+is not persisted. Saved entries contain URLs without embedded credentials;
+form values, POST bodies, and scroll positions are not restored across restarts.
+History is browser-owned and is not part of the workspace API payload below.
+
 `GET /v1/workspace` returns `data: {"revision": N, "state": ...}`. Revision zero
 with `state: null` means no workspace has been saved. The Rust agent owns this
 state in the current runtime's `Data/rel-data.sqlite3`; Release and each Debug
