@@ -206,6 +206,12 @@ Custom defaults when none is set. You can change AdBlock, image blocking, Proxy,
 and Browser Identity afterward. Changing Browser Identity shows a banner so you can reload when ready.
 Browser data is copied or imported rather than switched as a setting.
 
+Cookies and saved passwords can be imported while Chrome or another supported
+Chromium browser is running. REL reads temporary copies of the database and its
+recovery journals, including committed changes, without modifying the source
+browser's data. The temporary copies are removed after import. If the source
+files keep changing during capture, REL asks you to retry the import.
+
 Use the session toolbar's **Proxy** menu to select a saved proxy, or **None** for
 a direct connection. Saved proxies from earlier REL versions remain selectable
 without recreating them or enabling provider-specific sticky sessions.
