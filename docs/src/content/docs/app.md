@@ -308,6 +308,17 @@ installation. After saving, use the session’s reload banner to apply the chang
 Native sessions keep their identity. Click **Use Default**, then **Save**, to
 remove the custom brand. **Cancel** discards unsaved edits.
 
+Choose **Chrome** in the Identity selector to use a coherent Google Chrome
+client-hint identity. The preset starts with `152.0.7977.83`, the Chrome version
+in the saved September 14 BrowserLeaks comparison; the version remains editable.
+It sets Chrome's brand ordering, uses the selected version for both Chromium
+and Google Chrome in `fullVersionList`, and matches `uaFullVersion`. The reduced
+User-Agent uses the selected major version. Other client hints use the Mac's
+native platform, OS version, and architecture. This preset covers the
+userAgentData/client-hint fields; screen geometry, hardware, battery, extension
+detection, and speech voices retain their existing session behavior.
+
+
 Graphics protection changes Canvas and WebGL readbacks together with the graphics identity and
 makes WebGPU unavailable. Text geometry, native input, and other unlisted
 surfaces remain native.
