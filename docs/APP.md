@@ -655,8 +655,19 @@ or chat input to open the Add Provider form directly. Cancel returns to Chat.
 Configure providers and choose the default AI model in **REL → Settings… →
 Providers**. API keys are stored in macOS Keychain. Ollama connections can use
 the local server at `http://127.0.0.1:11434` without an API key. Scheduled
-prompts use the default provider and model when their new Session starts. REL
-Free supports one configured provider; REL Pro supports multiple providers.
+prompts use the session’s copied profile model settings when specified, or the
+default provider and model otherwise. REL Free supports one configured provider; REL Pro supports multiple providers.
+
+In **Profiles**, edit a profile’s **Model** section to choose a default model,
+reasoning effort, and speed. Effort and speed controls appear when supported by
+the model. Sessions created from that profile copy these settings for new chats,
+including when the profile is selected in New Session. Renaming or deleting the
+source profile does not change existing sessions. **Use Default Model** uses the default provider’s model with medium effort and standard
+speed. Existing conversations keep their current configuration. If a selected
+model is unavailable, choose another model in Chat. Update the profile to change
+the default for future sessions.
+Profile exports include these preferences; configured provider identifiers refer
+to the providers on the exporting Mac and may need to be selected again after import.
 
 The Chat model picker uses the provider's display name when available, or the
 exact model ID when no display name is supplied. This also applies to newly
