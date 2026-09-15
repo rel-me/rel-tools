@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rel-crawlee"
-version = "0.1.0"
+version = "0.2.0"
 description = "Crawlee orchestration with REL-owned Chromium sessions"
 readme = "README.md"
 requires-python = ">=3.11"

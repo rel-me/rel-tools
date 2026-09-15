@@ -8,8 +8,9 @@ import re
 import uuid
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, fields
+from dataclasses import asdict, dataclass, fields
 from datetime import timedelta
+from time import perf_counter
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
@@ -19,6 +20,7 @@ from crawlee.errors import ContextPipelineInterruptedError
 from crawlee.statistics import FinalStatistics
 from rel_playwright.async_api import (
     Page,
+    PlaywrightContextManager,
     RelRpcError,
     Response,
     UnsupportedError,
@@ -33,6 +35,7 @@ from tldextract import TLDExtract
 from crawlee import ConcurrencySettings, Request, RequestState
 
 from ._http import BrowserOnlyHttpClient
+from ._metrics import RelCrawlMetrics
 
 # A supplied session is exclusive across crawlers in this Python process.
 # Other clients/processes must not operate on that session during the crawl.
@@ -66,10 +69,20 @@ class RelCrawlingContext(BasicCrawlingContext):
     extract_links: ExtractLinksFunction
 
 
+@dataclass(eq=False)
+class _SessionSlot:
+    manager: PlaywrightContextManager | None = None
+    page: Page | None = None
+    uses: int = 0
+    retired: bool = True
+    retirement_counted: bool = False
+
+
 class RelCrawler(BasicCrawler[RelCrawlingContext]):
     """Crawl GET URLs using isolated REL sessions and Crawlee 1.10.0.
 
-    Each attempt creates a fresh session from the selected Profile. Supplying
+    By default each attempt creates a fresh session. session_pool_size opts into
+    exclusive reuse of a bounded set of sessions from the selected Profile. Supplying
     session_id reuses that caller-owned session serially, preserving its login
     and storage. Crawlee remains the only request retry and queue owner.
     """
@@ -82,6 +95,8 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         rel_base_url: str | None = None,
         group: str | None = None,
         persist: bool = False,
+        session_pool_size: int | None = None,
+        max_requests_per_session: int = 100,
         navigation_timeout: timedelta = timedelta(seconds=30),
         concurrency_settings: ConcurrencySettings | None = None,
         **kwargs: Any,
@@ -119,6 +134,30 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         )
         if session_id is not None and concurrency_settings.max_concurrency != 1:
             raise ValueError("A supplied session_id requires max_concurrency=1")
+        if session_pool_size is not None:
+            if (
+                isinstance(session_pool_size, bool)
+                or not isinstance(session_pool_size, int)
+                or session_pool_size < 1
+            ):
+                raise ValueError("session_pool_size must be a positive integer or None")
+            if session_id is not None or persist:
+                raise ValueError(
+                    "Session pooling cannot be combined with session_id or persist=True"
+                )
+        if (
+            isinstance(max_requests_per_session, bool)
+            or not isinstance(max_requests_per_session, int)
+            or max_requests_per_session < 1
+        ):
+            raise ValueError("max_requests_per_session must be a positive integer")
+        if session_pool_size is None and max_requests_per_session != 100:
+            raise ValueError("max_requests_per_session requires session_pool_size")
+        self._pool_size = session_pool_size
+        self._max_requests_per_session = max_requests_per_session
+        self._pool: asyncio.Queue[_SessionSlot] | None = None
+        self._pool_stopping = False
+        self._metrics = asdict(RelCrawlMetrics())
         self._rel_options = {
             "profile": profile,
             "session_id": session_id,
@@ -139,6 +178,11 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
             http_client=BrowserOnlyHttpClient(),
             _context_pipeline=ContextPipeline().compose(self._navigate),
         )
+
+    @property
+    def metrics(self) -> RelCrawlMetrics:
+        """Immutable, bounded snapshot of timings and counters for the latest run."""
+        return RelCrawlMetrics(**self._metrics)
 
     async def run(
         self,
@@ -167,6 +211,15 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         if session_id:
             _BORROWED_SESSIONS.add(key)
         try:
+            # Unresolved cleanup from an earlier run must succeed before allocating
+            # a new pool; failed deletion never grants additional capacity.
+            await self._cleanup_all()
+            self._metrics = asdict(RelCrawlMetrics())
+            self._pool_stopping = False
+            if self._pool_size is not None:
+                self._pool = asyncio.Queue(maxsize=self._pool_size)
+                for _ in range(self._pool_size):
+                    self._pool.put_nowait(_SessionSlot())
             yield
         finally:
             try:
@@ -183,6 +236,7 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
                     cleanup_task.result()
                     raise
             finally:
+                self._pool = None
                 self._rel_active = False
                 _BORROWED_SESSIONS.discard(key)
 
@@ -203,6 +257,15 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         ):
             request.no_retry = True
 
+    async def _run_request_handler(self, context: BasicCrawlingContext) -> None:
+        try:
+            await super()._run_request_handler(context)
+        except asyncio.CancelledError:
+            # Crawlee cancels workers sequentially during shutdown. Stop queued
+            # lessees before the first cancelled worker gives its slot back.
+            self._pool_stopping = True
+            raise
+
     async def _navigate(
         self, context: BasicCrawlingContext
     ) -> AsyncGenerator[RelCrawlingContext, None]:
@@ -217,42 +280,110 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
             raise UnsupportedError(
                 "RelCrawler accepts GET requests without headers, payloads, or Crawlee session IDs"
             )
-        manager = async_playwright()
-        playwright = await manager.__aenter__()
-
-        async def cleanup() -> None:
-            await manager.__aexit__(None, None, None)
-            self._pending_cleanup.pop(manager, None)
-
-        # Register before allocating: even a cancelled launch/new_page is cleaned up.
-        self._pending_cleanup[manager] = cleanup
-        context.register_deferred_cleanup(cleanup)
+        self._metrics["requests_started"] += 1
+        wait_start = perf_counter()
         try:
-            browser = await playwright.chromium.launch(**self._rel_options)
-            page = await browser.new_page()
-            response = await page.goto(request.url, timeout=self._navigation_timeout_ms)
-            request.loaded_url = page.url
-            request.state = RequestState.AFTER_NAV
-            self._raise_for_error_status_code(response.status)
+            slot = await self._pool.get() if self._pool is not None else _SessionSlot()
+        finally:
+            self._metrics["session_wait_seconds"] += perf_counter() - wait_start
+        # Reserve through deferred cleanup, including error handlers and cancelled
+        # RPC workers. Slots are never made available by pipeline finalization.
+        context.register_deferred_cleanup(lambda: self._release_slot(slot))
+        try:
+            if self._pool is not None and self._pool_stopping:
+                raise asyncio.CancelledError
+            acquire_start = perf_counter()
+            try:
+                if slot.retired or (slot.page is not None and slot.page.is_closed()):
+                    await self._close_slot(slot)
+                if slot.page is None:
+                    slot.manager = async_playwright()
+                    self._pending_cleanup[slot] = lambda: self._close_slot(slot)
+                    playwright = await slot.manager.__aenter__()
+                    browser = await playwright.chromium.launch(**self._rel_options)
+                    slot.page = await browser.new_page()
+                    slot.uses = 0
+                    slot.retirement_counted = False
+                    if self._rel_options["session_id"] is None:
+                        self._metrics["sessions_created"] += 1
+                else:
+                    self._metrics["session_reuses"] += 1
+                page = slot.page
+                slot.uses += 1
+            finally:
+                self._metrics["session_acquire_seconds"] += (
+                    perf_counter() - acquire_start
+                )
+            # Only a completed, successful pipeline makes a slot reusable.
+            slot.retired = True
+            navigation_start = perf_counter()
+            try:
+                response = await page.goto(
+                    request.url, timeout=self._navigation_timeout_ms
+                )
+                request.loaded_url = page.url
+                request.state = RequestState.AFTER_NAV
+                self._raise_for_error_status_code(response.status)
+            finally:
+                self._metrics["navigation_seconds"] += perf_counter() - navigation_start
             extract_links = self._extract_links(context, page)
-            error = yield RelCrawlingContext(
-                **{
-                    field.name: getattr(context, field.name)
-                    for field in fields(BasicCrawlingContext)
-                },
-                page=page,
-                response=response,
-                extract_links=extract_links,
-                enqueue_links=self._create_enqueue_links_function(
-                    context, extract_links
-                ),
-            )
+            handler_start = perf_counter()
+            try:
+                error = yield RelCrawlingContext(
+                    **{
+                        field.name: getattr(context, field.name)
+                        for field in fields(BasicCrawlingContext)
+                    },
+                    page=page,
+                    response=response,
+                    extract_links=extract_links,
+                    enqueue_links=self._create_enqueue_links_function(
+                        context, extract_links
+                    ),
+                )
+            finally:
+                self._metrics["handler_seconds"] += perf_counter() - handler_start
             self._classify_error(request, error)
+            task = asyncio.current_task()
+            slot.retired = error is not None or bool(task and task.cancelling())
         except RelTimeoutError as error:
             raise asyncio.TimeoutError(str(error)) from error
         except Exception as error:
             self._classify_error(request, error)
             raise
+
+    async def _release_slot(self, slot: _SessionSlot) -> None:
+        if self._pool is None:
+            await self._close_slot(slot)
+            return
+        slot.retired |= (
+            self._pool_stopping
+            or slot.uses >= self._max_requests_per_session
+            or bool(slot.page and slot.page.is_closed())
+        )
+        try:
+            if slot.retired:
+                if slot.page is not None and not slot.retirement_counted:
+                    slot.retirement_counted = True
+                    self._metrics["sessions_retired"] += 1
+                await self._close_slot(slot)
+        finally:
+            # Failed deletion retains this same retired slot. Its next lessee must
+            # successfully close it before creating a replacement.
+            self._pool.put_nowait(slot)
+
+    async def _close_slot(self, slot: _SessionSlot) -> None:
+        if slot.manager is None:
+            return
+        start = perf_counter()
+        try:
+            await slot.manager.__aexit__(None, None, None)
+            slot.manager = None
+            slot.page = None
+            slot.uses = 0
+            self._pending_cleanup.pop(slot, None)
+        finally:
+            self._metrics["cleanup_seconds"] += perf_counter() - start
 
     async def _check_url_after_redirects(
         self, context: RelCrawlingContext
@@ -366,4 +497,11 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
                 )
             )
 
-        return extract_links
+        async def timed_extract_links(**kwargs: Any) -> list[Request]:
+            start = perf_counter()
+            try:
+                return await extract_links(**kwargs)
+            finally:
+                self._metrics["link_extraction_seconds"] += perf_counter() - start
+
+        return timed_extract_links
