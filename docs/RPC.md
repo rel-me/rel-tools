@@ -30,6 +30,29 @@ activated or brought forward. Turn off **REL → Settings… → General → Fol
 browser commands** to preserve the current selection. This presentation setting
 does not change RPC results or session behavior.
 
+## Browser concurrency
+
+REL runs up to eight browser operations concurrently across sessions by default.
+Additional operations wait in FIFO order for capacity; each session still executes
+its own requests in order. Open or idle sessions do not consume execution slots.
+Session lifecycle operations and health/status requests remain independently
+available while browser work is queued.
+
+Set `REL_BROWSER_CONCURRENCY` to an integer from `1` through `32` in the REL app's
+launch environment to change the limit. The app-owned agent reads it at startup;
+setting it only on a CLI or SDK client does not change a running agent. An invalid
+value prevents the agent from starting and reports a configuration error. For
+worktree development, for example, use `REL_BROWSER_CONCURRENCY=4 make dev-open`.
+
+Queued work observes its queue deadline, client disconnect, and session closure.
+This limit does not change the maximum number of persistent sessions or bypass
+per-session ordering. Higher concurrency may increase latency and memory without
+increasing throughput; measure against the intended workload.
+
+For profiling, `REL_BROWSER_PERFORMANCE_TRACE=1` in the app launch environment
+records `browser_timing` agent-log events with queue and execution milliseconds.
+It is off by default. Events contain operation metadata, not page contents.
+
 ## Response envelope
 
 Every successful ordinary response is:
