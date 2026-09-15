@@ -4,6 +4,14 @@ The macOS app owns REL's embedded Chromium runtime, persistent Sessions, browser
 Profiles, and AI chat. Keep REL running whenever local clients or scheduled
 prompts need to use it.
 
+## Quitting REL
+
+Closing the main window leaves REL running. Use **REL → Quit REL** or **⌘Q**
+to exit. REL saves workspace state and flushes cookies before closing its
+browsers. Cookie saves overlap in small batches to reduce the wait when many
+Sessions are open. Quit retains its four-second deadline for asynchronous
+cleanup; it does not wait indefinitely for a stalled browser.
+
 ## Free and Pro
 
 REL Free does not require registration. It includes one Session at a time, one
