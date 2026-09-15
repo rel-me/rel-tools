@@ -12,6 +12,7 @@ and [docs.rel.me](https://docs.rel.me):
 - `RPC.md` → `/rpc/`
 - `SDK.md` → `/sdk/`
 - `CRAWLER.md` → `/crawler/`
+- `CRAWLEE.md` → `/crawlee/`
 - `PLAYWRIGHT.md` → `/playwright/`
 
 Edit those source files, not the generated guide files under

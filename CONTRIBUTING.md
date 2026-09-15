@@ -17,6 +17,12 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s tests -v
 cd ..
 
+# From the repository root:
+python3 -m venv .venv
+.venv/bin/python -m pip install -e playwright -e crawlee
+.venv/bin/python -m unittest discover -s playwright/tests -v
+.venv/bin/python -m unittest discover -s crawlee/tests -v
+
 cd docs
 npm ci
 npm run check

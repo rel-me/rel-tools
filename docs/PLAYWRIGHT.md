@@ -205,6 +205,14 @@ bounded retries, session replacement, metadata sidecars, external skip hooks,
 or a complete click-and-history crawl policy. Use `rel-playwright` when an
 existing scraper mainly needs the familiar Playwright page and locator shape.
 
+Use [rel-crawlee](CRAWLEE.md) to combine this page API with Crawlee queues,
+routers, retries, and datasets. It provides a dedicated `RelCrawler`; the built-in
+Crawlee `PlaywrightCrawler` is not compatible with REL.
+
+Async cancellation drains any already-running RPC worker before propagating,
+so cleanup cannot race that worker. This may extend a cancellation beyond its
+requested deadline, bounded by the RPC transport timeout.
+
 ## Test
 
 The tests use a fake loopback REL agent and never visit an external site:
