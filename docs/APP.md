@@ -546,7 +546,7 @@ proxy first or set `proxy_alias` to null. The new profile receives a new ID.
 ### Proxies: curl command
 
 ```sh
-curl --proxy 'http://proxy.example.com:8080' --proxy-user 'username:[replace with password]' 'https://example.com'
+curl --proxy 'http://proxy.example.com:8080' --proxy-user 'username:example-password' 'https://example.com'
 ```
 
 Import reads `--proxy` (`-x`) and optional `--proxy-user` (`-U`), including
@@ -556,12 +556,14 @@ to 64 KiB. REL parses the command without executing it, expanding shell syntax,
 or requesting the target URL. The populated proxy editor opens for review and
 requires **Save** before creation.
 
-Export includes the endpoint and configured username. Bright Data geographic
+Export includes the endpoint, configured username, and saved password. REL
+retrieves the password through the owning app’s authorized credential action;
+if retrieval fails, export shows an error. The command quotes credentials for
+shell use. Bright Data geographic
 and ASN targeting and Oxylabs location targeting are encoded in the username.
 Session suffixes are parsed as session templates, not reused as persistent
-session IDs. Saved passwords are never retrieved for export. Replace
-`[replace with password]` before running a copied command yourself; REL treats
-that placeholder as an empty password on import. A pasted real password is
+session IDs. REL treats the documentation placeholder `[replace with password]`
+as an empty password on import. A pasted real password is
 placed in the editor's password field and saved through REL's secure proxy
 credential storage only when you save.
 
