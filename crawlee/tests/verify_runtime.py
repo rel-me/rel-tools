@@ -214,6 +214,38 @@ async def verify(args):
                 "PASS: redirect/base links, deduplication, native actions, dataset, isolated sessions, Profile proxy, cleanup"
             )
 
+            pooled = crawler(
+                "pool",
+                session_pool_size=2,
+                concurrency_settings=ConcurrencySettings(
+                    min_concurrency=2, desired_concurrency=2, max_concurrency=2
+                ),
+            )
+            pooled_cookies = {}
+
+            @pooled.router.default_handler
+            async def pooled_handler(ctx):
+                cookie = await ctx.page.locator("#cookie").inner_text()
+                pooled_cookies.setdefault(ctx.page.session_id, []).append(cookie)
+
+            stats = await pooled.run([origin + f"/pooled-{i}" for i in range(6)])
+            assert stats.requests_finished == 6 and stats.requests_failed == 0, stats
+            assert pooled.metrics.sessions_created == 2, pooled.metrics
+            assert pooled.metrics.session_reuses == 4, pooled.metrics
+            for cookies in pooled_cookies.values():
+                assert cookies[0] == "" and all(
+                    value == "fixture=visited" for value in cookies[1:]
+                ), cookies
+            remaining = await cli("session", "list")
+            assert not any(s["id"] in pooled_cookies for s in remaining["sessions"])
+            assert (
+                pooled.metrics.navigation_seconds > 0
+                and pooled.metrics.cleanup_seconds > 0
+            )
+            print(
+                "PASS: bounded pool reuses isolated cookie stores, records timings, and cleans up"
+            )
+
             borrowed = (
                 await cli("session", "create", "--group", group, "--profile", group)
             )["session"]["id"]

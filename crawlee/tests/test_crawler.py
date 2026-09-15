@@ -150,7 +150,7 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
 
-class CrawleeTests(unittest.IsolatedAsyncioTestCase):
+class AgentTestCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.storage_patch = patch.object(
             ServiceLocator, "global_storage_instance_manager", None
@@ -182,6 +182,8 @@ class CrawleeTests(unittest.IsolatedAsyncioTestCase):
             **kwargs,
         )
 
+
+class CrawleeTests(AgentTestCase):
     async def test_real_crawlee_queue_router_dataset_and_cleanup(self):
         root = "https://example.test/start"
         final = "https://example.test/catalog/index"
