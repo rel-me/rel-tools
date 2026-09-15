@@ -47,6 +47,18 @@ If macOS requires approval, click **Open Login Items Settings…** and allow REL
 The setting refreshes from macOS when you return to REL, including changes made
 in System Settings. Registration errors appear below the Startup controls.
 
+## Update channels
+
+Choose **Settings → General → Updates → Update Channel** to select which
+releases REL offers:
+
+- **Regular** receives regular releases and is the default.
+- **Beta** also receives preview releases.
+- **Dev** receives development releases as well as Beta and regular releases.
+
+The selection is saved across app restarts. Changing channels changes which
+future updates are eligible; it does not downgrade an installed version.
+
 ## AI provider presets
 
 In **Providers → Add Provider**, choose **Fireworks**, **Amazon Bedrock**,
