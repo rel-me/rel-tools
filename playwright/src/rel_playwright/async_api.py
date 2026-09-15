@@ -4,10 +4,35 @@ from __future__ import annotations
 
 import asyncio
 from types import TracebackType
-from typing import Any, Literal
+from typing import Any, Callable, Literal, TypeVar
 
 from . import _core
 from ._core import Error, RelRpcError, TimeoutError, UnsupportedError
+
+_T = TypeVar("_T")
+
+
+async def _to_thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
+    """Drain an in-flight RPC before cancellation allows session cleanup/reuse.
+
+    Cancelling asyncio.to_thread does not stop its worker. REL operations have
+    bounded transport timeouts; wait for that worker before propagating cancel.
+    """
+    task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                continue
+            except Exception:
+                break
+        # Retrieve a worker failure while preserving the caller's cancellation.
+        if not task.cancelled():
+            task.exception()
+        raise
 
 
 class Response:
@@ -54,55 +79,55 @@ class Locator:
         return Locator(self._impl.locator(selector))
 
     async def count(self) -> int:
-        return await asyncio.to_thread(self._impl.count)
+        return await _to_thread(self._impl.count)
 
     async def all(self) -> list[Locator]:
-        return [Locator(locator) for locator in await asyncio.to_thread(self._impl.all)]
+        return [Locator(locator) for locator in await _to_thread(self._impl.all)]
 
     async def all_text_contents(self) -> list[str]:
-        return await asyncio.to_thread(self._impl.all_text_contents)
+        return await _to_thread(self._impl.all_text_contents)
 
     async def all_inner_texts(self) -> list[str]:
-        return await asyncio.to_thread(self._impl.all_inner_texts)
+        return await _to_thread(self._impl.all_inner_texts)
 
     async def text_content(self, **kwargs: Any) -> str | None:
-        return await asyncio.to_thread(self._impl.text_content, **kwargs)
+        return await _to_thread(self._impl.text_content, **kwargs)
 
     async def inner_text(self, **kwargs: Any) -> str:
-        return await asyncio.to_thread(self._impl.inner_text, **kwargs)
+        return await _to_thread(self._impl.inner_text, **kwargs)
 
     async def inner_html(self, **kwargs: Any) -> str:
-        return await asyncio.to_thread(self._impl.inner_html, **kwargs)
+        return await _to_thread(self._impl.inner_html, **kwargs)
 
     async def get_attribute(self, name: str, **kwargs: Any) -> str | None:
-        return await asyncio.to_thread(self._impl.get_attribute, name, **kwargs)
+        return await _to_thread(self._impl.get_attribute, name, **kwargs)
 
     async def input_value(self, **kwargs: Any) -> str:
-        return await asyncio.to_thread(self._impl.input_value, **kwargs)
+        return await _to_thread(self._impl.input_value, **kwargs)
 
     async def click(self, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.click, **kwargs)
+        await _to_thread(self._impl.click, **kwargs)
 
     async def fill(self, value: str, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.fill, value, **kwargs)
+        await _to_thread(self._impl.fill, value, **kwargs)
 
     async def type(self, text: str, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.type, text, **kwargs)
+        await _to_thread(self._impl.type, text, **kwargs)
 
     async def press(self, key: str, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.press, key, **kwargs)
+        await _to_thread(self._impl.press, key, **kwargs)
 
     async def select_option(self, value: str | None = None, **kwargs: Any) -> list[str]:
-        return await asyncio.to_thread(self._impl.select_option, value, **kwargs)
+        return await _to_thread(self._impl.select_option, value, **kwargs)
 
     async def wait_for(self, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.wait_for, **kwargs)
+        await _to_thread(self._impl.wait_for, **kwargs)
 
     async def evaluate(self, *args: Any, **kwargs: Any) -> Any:
-        return await asyncio.to_thread(self._impl.evaluate, *args, **kwargs)
+        return await _to_thread(self._impl.evaluate, *args, **kwargs)
 
     async def evaluate_all(self, *args: Any, **kwargs: Any) -> Any:
-        return await asyncio.to_thread(self._impl.evaluate_all, *args, **kwargs)
+        return await _to_thread(self._impl.evaluate_all, *args, **kwargs)
 
 
 class Page:
@@ -128,73 +153,71 @@ class Page:
         return Locator(self._impl.locator(selector, **kwargs))
 
     async def set_default_timeout(self, timeout: float) -> None:
-        await asyncio.to_thread(self._impl.set_default_timeout, timeout)
+        await _to_thread(self._impl.set_default_timeout, timeout)
 
     async def set_default_navigation_timeout(self, timeout: float) -> None:
-        await asyncio.to_thread(self._impl.set_default_navigation_timeout, timeout)
+        await _to_thread(self._impl.set_default_navigation_timeout, timeout)
 
     async def goto(self, url: str, **kwargs: Any) -> Response:
-        return Response(await asyncio.to_thread(self._impl.goto, url, **kwargs))
+        return Response(await _to_thread(self._impl.goto, url, **kwargs))
 
     async def content(self) -> str:
-        return await asyncio.to_thread(self._impl.content)
+        return await _to_thread(self._impl.content)
 
     async def title(self) -> str:
-        return await asyncio.to_thread(self._impl.title)
+        return await _to_thread(self._impl.title)
 
     async def click(self, selector: str, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.click, selector, **kwargs)
+        await _to_thread(self._impl.click, selector, **kwargs)
 
     async def fill(self, selector: str, value: str, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.fill, selector, value, **kwargs)
+        await _to_thread(self._impl.fill, selector, value, **kwargs)
 
     async def type(self, selector: str, text: str, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.type, selector, text, **kwargs)
+        await _to_thread(self._impl.type, selector, text, **kwargs)
 
     async def press(self, selector: str, key: str, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.press, selector, key, **kwargs)
+        await _to_thread(self._impl.press, selector, key, **kwargs)
 
     async def select_option(
         self, selector: str, value: str | None = None, **kwargs: Any
     ) -> list[str]:
-        return await asyncio.to_thread(
-            self._impl.select_option, selector, value, **kwargs
-        )
+        return await _to_thread(self._impl.select_option, selector, value, **kwargs)
 
     async def wait_for_selector(self, selector: str, **kwargs: Any) -> Locator:
         return Locator(
-            await asyncio.to_thread(self._impl.wait_for_selector, selector, **kwargs)
+            await _to_thread(self._impl.wait_for_selector, selector, **kwargs)
         )
 
     async def wait_for_timeout(self, timeout: float) -> None:
-        await asyncio.to_thread(self._impl.wait_for_timeout, timeout)
+        await _to_thread(self._impl.wait_for_timeout, timeout)
 
     async def wait_for_load_state(
         self,
         state: Literal["load", "domcontentloaded", "commit"] = "load",
         **kwargs: Any,
     ) -> None:
-        await asyncio.to_thread(self._impl.wait_for_load_state, state, **kwargs)
+        await _to_thread(self._impl.wait_for_load_state, state, **kwargs)
 
     async def screenshot(self, **kwargs: Any) -> bytes:
-        return await asyncio.to_thread(self._impl.screenshot, **kwargs)
+        return await _to_thread(self._impl.screenshot, **kwargs)
 
     async def go_back(self, **kwargs: Any) -> Response | None:
-        response = await asyncio.to_thread(self._impl.go_back, **kwargs)
+        response = await _to_thread(self._impl.go_back, **kwargs)
         return None if response is None else Response(response)
 
     async def go_forward(self, **kwargs: Any) -> Response | None:
-        response = await asyncio.to_thread(self._impl.go_forward, **kwargs)
+        response = await _to_thread(self._impl.go_forward, **kwargs)
         return None if response is None else Response(response)
 
     async def reload(self, **kwargs: Any) -> Response:
-        return Response(await asyncio.to_thread(self._impl.reload, **kwargs))
+        return Response(await _to_thread(self._impl.reload, **kwargs))
 
     async def close(self, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.close, **kwargs)
+        await _to_thread(self._impl.close, **kwargs)
 
     async def evaluate(self, *args: Any, **kwargs: Any) -> Any:
-        return await asyncio.to_thread(self._impl.evaluate, *args, **kwargs)
+        return await _to_thread(self._impl.evaluate, *args, **kwargs)
 
 
 class BrowserContext:
@@ -210,16 +233,16 @@ class BrowserContext:
         return [Page(page) for page in self._impl.pages]
 
     async def new_page(self) -> Page:
-        return Page(await asyncio.to_thread(self._impl.new_page))
+        return Page(await _to_thread(self._impl.new_page))
 
     async def set_default_timeout(self, timeout: float) -> None:
-        await asyncio.to_thread(self._impl.set_default_timeout, timeout)
+        await _to_thread(self._impl.set_default_timeout, timeout)
 
     async def set_default_navigation_timeout(self, timeout: float) -> None:
-        await asyncio.to_thread(self._impl.set_default_navigation_timeout, timeout)
+        await _to_thread(self._impl.set_default_navigation_timeout, timeout)
 
     async def close(self, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.close, **kwargs)
+        await _to_thread(self._impl.close, **kwargs)
 
 
 class Browser:
@@ -234,13 +257,13 @@ class Browser:
         return self._impl.is_connected()
 
     async def new_context(self, **kwargs: Any) -> BrowserContext:
-        return BrowserContext(await asyncio.to_thread(self._impl.new_context, **kwargs))
+        return BrowserContext(await _to_thread(self._impl.new_context, **kwargs))
 
     async def new_page(self, **kwargs: Any) -> Page:
-        return Page(await asyncio.to_thread(self._impl.new_page, **kwargs))
+        return Page(await _to_thread(self._impl.new_page, **kwargs))
 
     async def close(self, **kwargs: Any) -> None:
-        await asyncio.to_thread(self._impl.close, **kwargs)
+        await _to_thread(self._impl.close, **kwargs)
 
 
 class BrowserType:
@@ -249,15 +272,13 @@ class BrowserType:
         self.name = impl.name
 
     async def launch(self, **kwargs: Any) -> Browser:
-        return Browser(await asyncio.to_thread(self._impl.launch, **kwargs))
+        return Browser(await _to_thread(self._impl.launch, **kwargs))
 
     async def connect(self, *args: Any, **kwargs: Any) -> Browser:
-        return Browser(await asyncio.to_thread(self._impl.connect, *args, **kwargs))
+        return Browser(await _to_thread(self._impl.connect, *args, **kwargs))
 
     async def connect_over_cdp(self, *args: Any, **kwargs: Any) -> Browser:
-        return Browser(
-            await asyncio.to_thread(self._impl.connect_over_cdp, *args, **kwargs)
-        )
+        return Browser(await _to_thread(self._impl.connect_over_cdp, *args, **kwargs))
 
 
 class Playwright:
@@ -268,7 +289,7 @@ class Playwright:
         self.webkit = BrowserType(self._impl.webkit)
 
     async def stop(self) -> None:
-        await asyncio.to_thread(self._impl.stop)
+        await _to_thread(self._impl.stop)
 
 
 class PlaywrightContextManager:

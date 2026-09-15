@@ -112,6 +112,8 @@ available as `MAX_TRANSFER_FILE_BYTES`.
 `pause_session` and `play_session` return `SessionNetworkStateData`, containing
 the canonical `session_id` and resulting `network_paused` value. Both methods
 are idempotent; play reloads when the pause interrupted or deferred navigation.
+If pause cancels navigation before the new document commits, REL restores the
+previous URL and live document; play then resumes without reloading that page.
 
 `Health::build` and `StatusReport::build` expose an optional `BuildIdentity`
 with the installed bundle's ID, configuration, worktree, branch, commit, and
@@ -384,8 +386,9 @@ update.
 ## Session profiles
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
-built-in **Direct** profile. Set `profile` to select **AdBlock**,
-**BandwidthSaver**, or a case-insensitively unique custom name. Explicit proxy
+configured **Default Profile**, or **Custom** when the preference is unset.
+Custom uses direct networking, AdBlock on, all images allowed, and Private.
+Set `profile` to a case-insensitively unique saved configuration name. Explicit proxy
 and filtering fields override the selected profile; use
 `Change::Set("alias".into())` for a proxy or `Change::Clear` for direct
 networking:
@@ -395,7 +398,7 @@ use rel_client::{Change, RelClient, SessionCreateRequest};
 
 let request = SessionCreateRequest {
     group: Some("pgm".into()),
-    profile: Some("BandwidthSaver".into()),
+    adblock_enabled: Some(true),
     proxy_alias: Change::Clear,
     ..SessionCreateRequest::default()
 };
@@ -411,7 +414,7 @@ status, and creation time.
 itself remains app-owned. `ProfileDataUpdateRequest` updates the two inclusion
 flags after REL.app stages an import; no cookie or password values cross RPC.
 Re-importing a selected category replaces that category in the template.
-Built-ins cannot be modified or deleted. `ImageBlockingMode::None` allows every
+There are no built-in profiles. `ImageBlockingMode::None` allows every
 image without disabling AdBlock. Existing sessions retain copied settings and
 data after their source profile is changed or deleted. REL Free can create one
 persistent Session and one custom Profile; REL Pro removes those limits.
@@ -420,7 +423,7 @@ persistent Session and one custom Profile; REL Pro removes those limits.
 the default compatibility template, `Change::Clear` for native Chromium, and
 `Change::Set(profile)` for explicit identity settings. REL.app preserves those
 settings but generates a fresh seed whenever it creates a session from the
-profile. The three built-in profiles use the compatibility template.
+profile. New configurations use Private; explicit native identity stays native.
 
 `Session::profile` exposes the source profile name and
 `Session::profile_data_id` identifies the custom browser-data template copied
@@ -429,6 +432,17 @@ at creation, when any. `CaptureRequest`, `NavigateRequest`, and
 `CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
 created session can join a group. Group matching is case-insensitive; closing
 an empty group succeeds with an empty `deleted_ids` vector.
+
+`ProxyCreateRequest.locale: Option<String>` configures an optional BCP-47 locale
+for the proxy. `ProxyUpdateRequest.locale: Change<String>` supports set, clear,
+and unchanged. `Proxy.locale` and `Session.proxy_locale` return it. This preference is independent of any
+country selection, and travels with proxy/profile exports.
+
+`FingerprintProfile.locale_mode` accepts `FingerprintLocaleMode::Automatic` or
+`Custom`; the SDK also preserves the optional `overrides` list on round-trip.
+Automatic uses the configured proxy locale, then the macOS user's preferred
+locale. Custom uses the explicit fingerprint `locale` ahead of those defaults.
+Only a value different from native Chromium is applied as an override.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy
@@ -483,3 +497,10 @@ let request = ProxyUpdateRequest {
 ```
 
 `ProxyTls::System` clears added roots, and `ProxyTls::BrightData` uses REL's bundled root for `brd.superproxy.io:44445`. `None` preserves trust on update and selects system trust on create. Proxy responses include the selected `tls` configuration. All certificate validation and session scoping is performed by the agent and embedded browser.
+
+### Database recovery status
+
+`Health.database_recovery` is an optional `DatabaseRecoverySummary`. It preserves
+the schema version, original backup and report paths, recovery item count, and
+retained session count. Older agents may omit it. See the [health contract](RPC.md#health)
+and [app recovery guide](APP.md#database-migration-and-recovery) for semantics.

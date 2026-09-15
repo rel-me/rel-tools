@@ -7,6 +7,12 @@ const contentRoot = resolve(docsRoot, "src/content/docs");
 
 const pages = [
   {
+    source: "CRAWLEE.md",
+    output: "crawlee.md",
+    title: "Crawlee integration",
+    description: "Use Crawlee queues, retries, routers, and datasets with REL-owned Chromium sessions.",
+  },
+  {
     source: "APP.md",
     output: "app.md",
     title: "macOS app",
@@ -69,6 +75,7 @@ const pages = [
 ];
 
 const siteLinks = new Map([
+  ["CRAWLEE.md", "/crawlee/"],
   ["APP.md", "/app/"],
   ["CODEX_PLUGIN.md", "/codex-plugin/"],
   ["CLAUDE_CODE_PLUGIN.md", "/claude-code-plugin/"],
@@ -83,7 +90,7 @@ const siteLinks = new Map([
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|MCP|PLAYWRIGHT|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|CRAWLEE|MCP|PLAYWRIGHT|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

@@ -14,3 +14,10 @@ REL.app owns Chromium and browser state. The plugin starts only the bundled
 `rel-mcp` adapter; it does not include another browser runtime or access REL's
 private database, logs, Chromium storage, or proxy credentials. Starting the
 adapter does not launch REL.app; validated operational tools start it lazily.
+
+## Branding
+
+`assets/rel-logo.png` is REL's canonical blue optical-lens icon, copied from
+the app repository's generated `website/zed-theme/public/rel-logo.png` export.
+Use that export when updating the plugin artwork; do not redraw or simplify it.
+Both Codex's marketplace logo and composer icon use this PNG.

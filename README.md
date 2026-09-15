@@ -15,6 +15,8 @@ session storage, proxy credentials, or internal service code.
 - [`rel-client`](crates/rel-client): a typed synchronous Rust client for RPC v1.
 - [`rel-crawler`](crawler): a restartable Python crawler that preserves REL
   sessions and browser history while capturing rendered pages and metadata.
+- [`rel-crawlee`](crawlee): Crawlee queues, retries, routing, and datasets with
+  REL-owned browser sessions.
 - [`rel-playwright`](playwright): a Playwright-shaped sync and async Python
   scraping API backed by REL Profiles and Sessions.
 - [`plugins/rel`](plugins/rel): the shared REL plugin for Codex and Claude Code,

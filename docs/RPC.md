@@ -115,6 +115,18 @@ that error is returned. This also applies to browser capture and page-creation
 navigation. The error details contain the final `url` and exact
 `target_http_status`; the navigated session remains selected.
 
+For a failed proxy connection, the error `message` retains the available
+upstream cause along with Chromium's error. Its `details` also include
+`error_source: "proxy"`, `proxy_alias`, and `source_error`. Rejected HTTPS tunnels
+retain the upstream status line and supported provider diagnostic headers
+(`Proxy-Status`, Bright Data `x-brd-*`, and `x-luminati-error`). These describe the
+proxy response, not a target website response. Credentials and unrelated
+headers are excluded, and source text is bounded to 8,192 characters plus a
+truncation marker. Treat provider messages as untrusted diagnostic text.
+Diagnostics are scoped to the Session, proxy, destination authority, and current
+navigation attempt. These fields are absent when no matching proxy cause is
+available; the original Chromium error still remains in the message.
+
 ### Free and Pro access
 
 The running app selects the agent's access plan; RPC callers cannot override it.
@@ -154,13 +166,13 @@ previously stored resources remain available.
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
-| `POST` | `/v1/proxies/{alias}/rotate-session` | Rotate an Oxylabs session |
+| `POST` | `/v1/proxies/{alias}/rotate-session` | Rotate managed proxy sessions |
 | `POST` | `/v1/proxy-transfers/export` | Export a versioned proxy transfer |
 | `POST` | `/v1/proxy-transfers/import` | Import a versioned proxy transfer |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
 | `POST` | `/v1/sessions/close` | Close every browser session in a group |
-| `GET` | `/v1/profiles` | List built-in and custom session profiles |
+| `GET` | `/v1/profiles` | List saved session configurations |
 | `POST` | `/v1/profiles` | Create a custom session profile |
 | `PATCH` | `/v1/profiles/{id}` | Update custom-profile browser-data availability |
 | `DELETE` | `/v1/profiles/{id}` | Delete a custom session profile |
@@ -213,7 +225,8 @@ HTTP 200 while the worker is ready or operating within its deadline:
       "commit": "deadbeef",
       "dirty": true
     },
-    "worker": { "state": "idle" }
+    "worker": { "state": "idle" },
+    "database_recovery": null
   }
 }
 ```
@@ -224,6 +237,20 @@ were not launched from a metadata-bearing app bundle. Worker state is
 violation or failed worker returns `AGENT_UNHEALTHY`, with the worker
 snapshot in `error.details.worker`. Health deadlines diagnose stalls; they do not
 cancel the active request.
+
+`database_recovery` is `null` when no committed database upgrade/recovery report
+exists. Otherwise it contains `schema_version` (integer), `backup_path` and
+`report_path` (local absolute paths), `issue_count` (number of reported repair or
+quarantine items, not necessarily distinct records), and `retained_sessions`
+(number of sessions retained at recovery time). The most recent report with
+issues remains visible across restarts and later successful upgrades; when
+there are no such reports, the latest upgrade report is returned. Paths point
+to the agent host, not to a remote client. See [database recovery](APP.md#database-migration-and-recovery)
+for backup, quarantine, and failure behavior.
+
+The health endpoint is not ready during startup migration. Successful health
+means schema and data validation completed; it does not mean every original
+record could be recovered.
 
 ### `GET /v1/status`
 
@@ -265,7 +292,7 @@ Check IDs are `rel_app`, `agent`, `browser_proxy`, and `chromium_bridge`.
 ### `GET /v1/notifications`
 
 Returns up to 256 notifications displayed since the supervised agent started.
-REL only adds events while **Settings → General → Send notifications to the
+REL only adds events while **Settings → Notifications → Send notifications to the
 agent** is enabled; the setting is off by default. Reading the queue does not
 remove entries, wake an agent, or start a model turn.
 
@@ -316,7 +343,7 @@ page and session IDs. Navigate it with `POST /v1/navigate`:
 ```
 
 Only `url` is required. The first request without `session_id` reuses the first
-persisted session, creating one from **Default** only when none exists. Later
+persisted session, creating one from the configured default (Custom when unset) only when none exists. Later
 requests without it reuse the current page and session. An explicit `profile`
 instead creates a new session from that named template; it cannot be combined
 with `session_id`. An explicit session selects that session as the new current
@@ -553,7 +580,7 @@ semantic content remains readable. The process-local registry retains at most
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
-| `profile` | Optional built-in or custom profile name for the newly created session. It cannot be combined with `session_id`; omission uses **Default**. |
+| `profile` | Optional saved profile name for the newly created session. It cannot be combined with `session_id`; omission uses the configured default or Custom. |
 | `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
@@ -615,7 +642,7 @@ code 1; it is not an API error.
 ```
 
 Omitting `session_id` creates a session from the named `profile`, or from
-**Default** when it is absent, and navigates it to `url`. `profile` and `group`
+the configured default (Custom when unset) when it is absent, and navigates it to `url`. `profile` and `group`
 cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
@@ -664,7 +691,6 @@ A proxy resource is:
   "password_set": true,
   "oxylabs": {
     "enabled": false,
-    "session_id": null,
     "location_parameter": null,
     "location_value": null
   }
@@ -678,21 +704,114 @@ Passwords are accepted on writes but never returned.
 - `GET /v1/proxies/{alias}` returns `data.proxy`.
 - `POST /v1/proxies` requires `alias`, `upstream_host`, and `upstream_port`. Optional
   write fields are `username`, `password`, `oxylabs_enabled`,
-  `oxylabs_location_parameter`, and `oxylabs_location_value`.
+  `oxylabs_location_parameter`, `oxylabs_location_value`, `bright_data`, `locale`, and `detect_exit_locale`.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
-  `username:null` or `password:null` clears that value.
+  `username:null`, `password:null`, or `locale:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns
   `data.deleted_alias`.
-- `POST /v1/proxies/{alias}/rotate-session` requires an Oxylabs-enabled proxy and
+- `POST /v1/proxies/{alias}/rotate-session` requires an Oxylabs- or Bright Data-enabled proxy and
   returns `data.proxy`.
+
+`detect_exit_locale` is a boolean, off by default and preserved when omitted on
+update. Automatic language controls use the active provider's configured country
+(Bright Data country, Oxylabs country, or US state). When detection is enabled,
+they instead resolve the exit country through the session's agent-owned proxy
+using `https://ipwho.is/`. Country-to-language selection uses macOS locale data.
+No configured country means the user's preferred language when detection is off.
+Custom fingerprint locales take precedence and disabled language controls stay native.
+
+Proxy responses include `detect_exit_locale`; session responses include
+`proxy_country` (configured ISO country or null) and `proxy_detect_exit_locale`.
+`GET /v1/sessions/{id}/proxy-location` returns `data.country` (for example `DE`)
+when detection is enabled. It errors for a missing proxy, disabled detection,
+failed connection, or invalid lookup response. Successful results are cached for
+30 minutes per session and upstream route; provider session rotation changes the
+route. Lookups have a 10-second timeout and never retry through a direct connection.
+
+The legacy `locale` field remains validated and preserved in storage and transfers,
+but Automatic language selection now uses country targeting or exit detection.
+Proxy responses retain `locale`, and session responses retain `proxy_locale`.
+Version 6 proxy/profile transfers preserve detection; older transfers import with
+it disabled.
 
 Aliases are case-insensitively unique, immutable, and must start with a letter;
 they may contain only letters, numbers, hyphens, and underscores (maximum 64
 characters), and cannot be a UUID. An alias is the sole public proxy identifier: numeric database IDs
 and UUIDs are neither accepted nor returned by proxy APIs.
 Oxylabs location requires both parameter and value; parameter is `cc`, `country`,
-or `st`. `oxylabs.session_id` is generated by REL and is read-only; rotate it
-with the dedicated rotate-session operation.
+or `st`. REL generates a distinct persistent sticky ID for each browser session.
+The dedicated rotate-session operation replaces the IDs for all sessions assigned
+to that proxy. IDs are not part of the public proxy resource.
+
+The app's New Proxy form suggests the first available alias for the selected
+provider, such as `bright-data-1` or `oxylabs-residential-1`. Custom proxies use
+`proxy-1`. Existing aliases are checked without regard to case. Changing the
+provider or pasting a curl command updates the suggestion unless you have edited
+the alias yourself. Existing proxy aliases remain immutable.
+
+### Paste proxy settings from curl
+
+In the app's proxy editor, choose **Paste curl command** to fill the proxy fields
+from the clipboard. The importer accepts `--proxy` / `-x` and `--proxy-user` /
+`-U`, including quoted values, `--option=value`, attached short options, and
+credentials embedded in an HTTP proxy URL. The endpoint must include a port.
+
+REL recognizes provider presets and extracts Bright Data or Oxylabs location
+suffixes into their controls. Pasted session suffixes are replaced by REL's
+per-browser-session IDs. Bright Data's `[replace with password]` placeholder is
+left blank; enter the real password before saving. When importing into an existing
+proxy, enter the imported proxy's password rather than reusing its saved password.
+The alias remains unchanged. Review the form and save to apply the settings.
+
+The command is parsed as text and is never executed. The destination URL and
+other curl options are ignored, including `-k`; REL's certificate validation
+settings still apply.
+
+### Bright Data location and sessions
+
+Select Bright Data in the app's proxy editor to configure a country and optional
+state, city, or ASN. REL shows the resulting masked connection string and gives
+each browser session its own persistent `-session-<id>` suffix.
+
+The proxy create and update routes accept a `bright_data` object:
+
+```json
+{
+  "alias": "bright",
+  "upstream_host": "brd.superproxy.io",
+  "upstream_port": 44445,
+  "username": "brd-customer-CUSTOMER-zone-ZONE",
+  "password": "ZONE_PASSWORD",
+  "tls": {"mode": "bright_data"},
+  "bright_data": {
+    "enabled": true,
+    "country": "us",
+    "state": "ny",
+    "city": "newyork",
+    "asn": "56386"
+  }
+}
+```
+
+Use the base username without location or session suffixes. REL appends country,
+state, city, ASN, then its session ID. Country uses a two-letter code. State and
+city require a country; city names have no spaces. State and city accept only
+ASCII letters and digits, and ASN accepts digits. Values are trimmed and
+lowercased. Targeting availability depends on the Bright Data zone and network;
+see [Bright Data's configuration guide](https://docs.brightdata.com/proxy-networks/config-options).
+
+Omitting `bright_data` on update preserves its configuration. Supplying the object
+replaces it; omitted targeting fields clear those selections. Set `enabled:false`
+to disable managed suffixes. Bright Data and Oxylabs cannot both be enabled.
+Responses include `bright_data`; passwords and generated sticky IDs are excluded.
+
+IDs survive reopening a session and editing its proxy location. Assigning a
+different proxy, re-enabling managed sessions, or calling `rotate-session`
+generates new IDs. A sticky ID requests the same peer; Bright Data may replace an
+unavailable peer. Location changes can also change the peer.
+
+Version 4 proxy and profile transfer archives preserve Bright Data configuration.
+Older versions remain importable with managed Bright Data settings disabled.
 
 `POST /v1/proxy-transfers/export` accepts `alias`, `include_credentials`, and
 an optional `passphrase`. It returns `data.filename` and `data.contents_base64`,
@@ -730,11 +849,13 @@ A session resource is:
 - `POST /v1/sessions` accepts optional `name`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
-- `PATCH /v1/sessions/{id}` is partial and returns `data.session`.
+- `PATCH /v1/sessions/{id}` is partial and returns `data.session`. Changes that require a new browser context are saved without reloading an open page; REL shows a banner for the user to choose Reload and apply them. Empty browsers with no active page, popup, or navigation history apply the changes automatically without a banner.
 - `POST /v1/sessions/{id}/pause` and `/play` take no body and idempotently
   return `data.session_id` and `data.network_paused`. Pause cancels active
   requests and blocks new network work. Play resumes network activity and
   reloads the current page when the pause interrupted or deferred navigation.
+  If pause cancels navigation before the new document commits, REL restores the
+  previous URL and live document; play then resumes without reloading that page.
 - `DELETE /v1/sessions/{id}` returns the canonical session ID as
   `data.deleted_id`.
 - `POST /v1/sessions/close` accepts `{"group":"pgm"}` and returns the trimmed
@@ -751,14 +872,12 @@ shared by any number of sessions.
 
 ## Profiles
 
-Profiles are named templates copied into future sessions. The three generated
-built-ins are **Direct** (direct connection, filters off), **AdBlock**
-(AdBlock on), and **BandwidthSaver** (AdBlock on and images larger than 10 kB
-blocked). A profile resource is:
+Profiles are user-created session configurations. There are no generated
+built-ins, and the list is empty until a Profile is saved. A profile resource is:
 
 ```json
 {
-  "id": "builtin-bandwidth-saver",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "BandwidthSaver",
   "proxy_alias": null,
   "adblock_enabled": true,
@@ -790,13 +909,12 @@ blocked). A profile resource is:
     "canvas_noise_mode": "deterministic",
     "audio_noise_mode": "deterministic"
   },
-  "is_builtin": true,
+  "is_builtin": false,
   "created_at": 0
 }
 ```
 
-- `GET /v1/profiles` returns built-ins first, then custom profiles, in
-  `data.profiles`.
+- `GET /v1/profiles` returns saved profiles sorted by name in `data.profiles`.
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
   the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
@@ -829,9 +947,20 @@ the same five tables: `metadata`, `proxies`, `profiles`, `cookies`, and
 and Proxies embedded in Profile archives. Protected credential and browser
 payloads are encrypted BLOBs. Version 1 accepts no legacy JSON representation.
 
+Existing Sessions retain their stored settings and browser data after built-in
+Profiles are removed. The old built-in names are no longer reserved: they can
+be used for new saved configurations. Historical schema migrations retain their
+original data-preserving rename behavior.
+
 Profile names contain 1–128 non-control characters after trimming and are the
 selector used during session creation. On `POST /v1/sessions`, omission selects
-**Direct**. Explicit session settings override the selected profile. A present
+the **Default Profile** configured in **Settings → General**, or direct **Custom** settings
+when no preference is set (AdBlock on, all images allowed, Private). This applies to clients that omit the field. Create Session in the app
+starts with Custom and sends explicit settings. `profile:null` explicitly selects Custom without inheriting any saved profile
+or browser data. An explicit saved profile always takes precedence. The preference
+uses the stable profile ID, so renaming a custom profile preserves its selection.
+If that profile is deleted, creation without an explicit profile reports an error
+until another default is selected. Explicit session settings override the selected profile. A present
 `proxy_alias:null` is a direct override; a non-null value must reference an
 existing proxy. Automatically created sessions for capture, navigation, and
 attached pages follow the same rule. Capture events and page responses include
@@ -840,10 +969,89 @@ cross RPC in plaintext; the inclusion flags describe what the app has attached t
 profile. Importing a selected category again replaces that category in the
 app-owned template without changing sessions already created from it.
 
-The fingerprint object is an identity template. When REL.app creates a session
-from a named profile, it preserves the template settings and generates a fresh
-seed before the session's Chromium context is used. The built-in profiles use
-the compatibility template by default.
+The fingerprint object is an identity template. Every session creation path
+copies the selected profile through the agent. It preserves the template settings and generates a fresh
+seed before the session's Chromium context is used. New profiles and Custom
+sessions use Private when `fingerprint_profile` is omitted; explicit null
+keeps native values. `POST /v1/sessions` also accepts `fingerprint_profile` as a
+direct override of the selected configuration.
+
+
+Fingerprint profiles also accept an optional `overrides` array. Omit the field
+to enable all supported overrides, or provide an explicit list to leave
+all unlisted controls native. An empty array applies no overrides. All existing
+profile value fields remain required and validated; inactive values are stored
+for later editing, but are not sent as browser overrides.
+
+| Override | Applied behavior |
+| --- | --- |
+| `locale` | Language preferences and locale, applied only when resolved values differ from native |
+| `timezone` | IANA timezone |
+| `hardware_concurrency` | Page CPU thread count; workers retain native values in this engine |
+| `network` | Network information profile |
+| `device_surfaces` | Linked memory, touch, screen/pixel ratio, PDF plugin fallback, and storage quota controls |
+| `graphics` | Linked Canvas/WebGL readbacks, WebGL identity/extensions, and unavailable WebGPU adapters |
+| `audio` | Audio readbacks using the profile's audio mode |
+
+With `device_surfaces` enabled, `device_memory_gib` supplies both JavaScript
+device memory and the `Device-Memory` / `Sec-CH-Device-Memory` HTTP hints.
+HTTP hints still require the site's client-hint opt-in and permissions policy.
+CSS device-width and device-height queries use the profile's screen dimensions,
+and resolution queries use its device scale factor;
+color queries report 8 bits per component, sRGB, and standard dynamic range,
+matching the profile's 24-bit screen surface. These settings do not resize the
+page viewport. Native sessions and profiles with `device_surfaces` disabled
+retain the engine's native values.
+
+`locale_mode` accepts `automatic` or `custom`. Private defaults to
+`automatic`. Resolution uses an explicit Custom `locale` first, then the
+assigned proxy's configured `locale`, then the macOS user's preferred/default
+locale. In Automatic mode the required legacy `locale` field is stored but does
+not pin the effective value. A proxy country alone is never a language hint.
+Matching native values skip both language and locale emulation; the stored
+control selection stays enabled. A disabled `locale` control always stays native.
+
+For older fingerprints without `locale_mode`, omitted `overrides` means
+Automatic, while an explicit override list preserves Custom locale semantics.
+Set `locale_mode` explicitly when writing new fingerprints. Resolution is shared
+by app, CLI, SDK, MCP, and restored sessions when their Chromium contexts are
+prepared. Proxy routing, data, and the remaining privacy controls are unchanged.
+
+Browser identity overrides have been removed. Chromium generates the User-Agent
+with a reduced product version and supplies native platform and client hints for every session, including
+legacy full profiles. The retired `identity` selection is accepted only to read
+old profiles and is removed during normalization. Stored browser identity fields
+remain required for the existing schema but do not override browser identity.
+
+For example, add `"overrides": ["timezone"]` to a valid profile with
+`"timezone": "Asia/Tokyo"` to change only timezone. Unknown override names and
+non-array values are rejected. Saving the profile preserves this list through
+export/import. Missing lists in older profiles enable the remaining supported overrides.
+
+New profile drafts and Custom session defaults use **Private**,
+with all seven supported controls enabled. Its read-only details are hidden
+by default in profiles, identity editors, and session information. Choose
+**Show** to the left of the mode value to open a popover without expanding the parent
+layout. The **Browser Identity** row belongs to the main Profile section.
+Choose **Custom Privacy** to edit individual values and toggles in compact rows.
+Profile forms open those settings in a separate editor; **New Browser Identity…**
+starts from the current identity and **Use Identity** applies the custom settings
+to the Profile draft.
+The shared device preset appears once, info buttons explain linked settings,
+and the readback seed is in an expandable section. **Native** turns off all
+controls. Chromium generates the User-Agent with the product version reduced to
+`MAJOR.0.0.0` in every mode. Native branding and client hints remain engine-owned
+and are not editable. High-entropy client hints can still expose the full engine
+version when requested by a site.
+
+Custom Privacy saves an explicit `overrides` list, including when all seven
+controls are enabled or all are disabled. It therefore reopens as Custom.
+Private uses the omitted-list representation; selecting it resets custom
+values to the standard full preset while retaining the session seed. Native
+saves a null fingerprint. Existing explicit choices and saved session-creation
+preferences are preserved. Saving recreates only the session's Chromium context.
+Device surfaces and graphics remain linked groups in the pinned engine.
+Individual fields within those groups cannot independently remain native.
 
 On the Chromium 152 upgrade, REL updates stored Chromium 151 fingerprint
 versions and their matching user agents in sessions and named profiles before
@@ -864,4 +1072,241 @@ Proxy create/update requests accept a `tls` object, also returned on proxy resou
 
 Use `system` to clear additional roots. Omission on create selects system trust; omission on update preserves the existing setting. `bright_data` requires `brd.superproxy.io:44445`. `custom` requires a PEM bundle with 1–16 CA certificates and a maximum size of 64 KiB. Unknown modes/fields, malformed certificates, private keys, leaf certificates and inconsistent provider endpoints are rejected before updating the proxy. Normal hostname, validity and chain verification stays enabled.
 
-Session resources additionally contain `proxy_ca_certificates`, a derived array of base64 DER CA certificates from the assigned proxy. Direct sessions return an empty array. This is read-only session metadata; configure trust on the proxy. Updating proxy certificates synchronizes affected open sessions and recreates their browser views. Proxy/profile transfer format version 3 stores the TLS configuration; versions 1 and 2 remain readable and default to system trust.
+Session resources additionally contain `proxy_ca_certificates`, a derived array of base64 DER CA certificates from the assigned proxy. Direct sessions return an empty array. This is read-only session metadata; configure trust on the proxy. Updating proxy certificates synchronizes affected open sessions. Empty browsers apply the changes automatically; browsers with page state show a configuration banner and recreate their browser views when the user chooses Reload. Proxy/profile transfer format version 3 stores the TLS configuration; versions 1 and 2 remain readable and default to system trust.
+
+## Webhooks
+
+Webhook calls use the same loopback RPC v1 API. Browser session cookies,
+fingerprints, and proxy settings are not used. Configure up to 32 named webhooks;
+REL stores their URLs, credentials, and routing configuration in the current app
+variant's macOS Keychain. List and create responses contain metadata only.
+Webhook request bodies are limited to 32 KiB.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `GET` | `/v1/webhooks` | `{webhooks:[...]}` metadata |
+| `POST` | `/v1/webhooks` | Create configuration; `{webhook:{...}}` |
+| `DELETE` | `/v1/webhooks/{id}` | Remove configuration and its pending events; `{deleted:true}` |
+| `POST` | `/v1/webhooks/{id}/send` | Send once; `{webhook_id,http_status,accepted:true}` |
+| `GET` | `/v1/webhooks/events` | `{events:[...]}` pending inbound events |
+| `DELETE` | `/v1/webhooks/events/{event_id}` | Acknowledge/remove an event; `{acknowledged:true}` |
+| `POST` | `/v1/webhooks/{id}/receive` | Authenticated provider callback |
+| `GET` | `/v1/webhooks/{id}/receive` | WhatsApp callback verification only |
+
+There are no webhook CLI commands, MCP tools, or typed SDK methods yet. Scripts
+can use these HTTP endpoints directly. Settings provides creation, deletion,
+callback copying, and an explicit **Send Test** action.
+
+### Configuration
+
+Create a webhook with a unique `name`, `kind` (`json`, `discord`, or `whatsapp`),
+and at least one direction:
+
+```json
+{
+  "name": "Team updates",
+  "kind": "discord",
+  "url": "https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN"
+}
+```
+
+For outgoing calls, `url` is an absolute HTTPS URL. HTTP is allowed only for
+`localhost`, `127.0.0.1`, and `::1` fixtures. URL userinfo and fragments are
+rejected. Optional `bearer_token` sets the Authorization bearer token. WhatsApp
+sending additionally requires `recipient` and `bearer_token`; set `url` to the
+versioned Graph API `/{phone-number-id}/messages` endpoint. REL does not choose
+or upgrade the Graph API version.
+
+For incoming events, add:
+
+```json
+{
+  "receive": {
+    "schedule_id": "UUID-OF-A-SAVED-ACTION",
+    "secret": "PROVIDER-SIGNING-SECRET-OR-DISCORD-PUBLIC-KEY",
+    "verify_token": "WHATSAPP-VERIFICATION-TOKEN"
+  }
+}
+```
+
+`receive.schedule_id` is the UUID of an Action saved in REL. The historical
+wire and Keychain field name is retained; it targets an Action, not a timer.
+Existing saved prompts become Actions with the same UUID. Settings offers an
+Action picker. `secret` must be 32 to 4096 bytes. For Discord it is the application's
+64-digit hexadecimal Ed25519 public key. For WhatsApp it is the Meta app secret;
+`verify_token` must contain at least 16 characters. JSON webhooks use an HMAC
+signing secret and do not need `verify_token`.
+
+Metadata is `{id,name,kind,can_send,schedule_id,receive_path}`. The last two
+fields are null for destinations without an incoming trigger. Credentials and
+outgoing URLs are never returned. To rotate or change a destination, create a
+replacement, update prompt completion selections, and delete the old webhook.
+Deletion does not silently redirect prompts to another destination.
+
+### Sending
+
+Send either `{"text":"Hello"}` or `{"payload":{...}}`, never both. The JSON
+object `payload` is sent unchanged for service-specific messages such as
+WhatsApp templates or Discord embeds. `text` maps to:
+
+- JSON: `{"text":"Hello"}`.
+- Discord: `{"content":"Hello","allowed_mentions":{"parse":[]}}`.
+- WhatsApp: `{"messaging_product":"whatsapp","to":"RECIPIENT","type":"text","text":{"body":"Hello"}}`.
+
+Text limits are 2,000 characters for Discord and 4,096 for WhatsApp. Longer
+messages fail with `INVALID_REQUEST`; they are never silently truncated or
+split. Shorten the saved prompt's expected output or supply a service-specific
+payload. Discord calls set `wait=true`, preserving other query parameters.
+
+Delivery has a 15-second timeout, disables redirects, and makes no automatic
+retry. HTTP 2xx means the provider accepted the request, not that a person read
+it. HTTP 429 returns `RATE_LIMITED`; other non-2xx statuses, including redirects,
+return `UPSTREAM_UNAVAILABLE`, with `details.http_status`. Transport failures
+also return `UPSTREAM_UNAVAILABLE`. These errors have `retryable:false`: after
+a timeout or ambiguous failure, inspect the destination before sending again.
+Provider response bodies and transport URLs are omitted from errors.
+
+### Receiving and consuming events
+
+The local agent stays bound to loopback. An external provider requires a public
+HTTPS relay or reverse proxy forwarding **only** the selected
+`/v1/webhooks/{id}/receive` path, preserving the raw JSON body, query string, and
+signature headers. Buffer and size-limit the request at the relay. Never expose
+management, send, inbox, browser, or other RPC routes to the public internet.
+Relaying, DNS, TLS certificates, and provider subscriptions are configured
+outside REL. REL must remain open and the Mac reachable.
+
+- **JSON**: `X-REL-Webhook-Signature: sha256=<hex>` contains HMAC-SHA256 of the
+  exact raw body using the configured secret. Include a unique event identifier
+  in the body when otherwise identical events should run separately.
+- **WhatsApp**: `X-Hub-Signature-256: sha256=<hex>` contains HMAC-SHA256 of the
+  raw body with the Meta app secret. Verification accepts
+  `hub.mode=subscribe`, the configured `hub.verify_token`, and a numeric
+  `hub.challenge`; it returns the challenge as plain text. Signed message
+  notifications for `object:whatsapp_business_account` enter the inbox. Status
+  receipts are acknowledged without triggering a prompt, avoiding reply loops.
+- **Discord Webhook Events**: verify `X-Signature-Ed25519` against the timestamp
+  concatenated with the raw body. `X-Signature-Timestamp` must be within five
+  minutes of the Mac's clock. A signed `type:0` PING receives an empty HTTP 204;
+  signed `type:1` events enter the inbox and receive HTTP 204. This endpoint is
+  for Discord Webhook Events, not Gateway events or interaction callbacks.
+
+Missing, invalid, or stale signatures return HTTP 401. Other callback errors
+use RPC error envelopes. JSON and WhatsApp accepted event responses use the
+ordinary success envelope with `{accepted:true}`; exact duplicate bodies return
+`{accepted:false}`. WhatsApp status-only receipts return plain text HTTP 200.
+Discord callback acknowledgements and WhatsApp verification/status responses
+use the provider's wire format without the ordinary RPC envelope/request ID.
+
+Events have `{id,webhook_id,schedule_id,payload,trust}`; `trust` is always
+`untrusted_webhook_content`. The inbox holds at most 64 pending events and
+returns `RATE_LIMITED` (429) instead of dropping events when full. The most
+recent 1,024 accepted body hashes, scoped to their webhook, suppress duplicates
+even after acknowledgment. The inbox and duplicate history are in memory and
+reset when the agent exits. This is not a durable queue or an exactly-once
+processing guarantee.
+
+The app polls every two seconds, waits for the selected Action to be enabled
+and idle, acknowledges the event, and runs that saved Action with the body
+explicitly labeled as untrusted data. The original saved prompt is unchanged.
+Incoming data cannot select another prompt or completion destination. Missing,
+disabled, and busy Actions leave events pending; remove their webhook or use
+the event DELETE endpoint to clear them. A model failure is recorded as a failed
+prompt run, without automatically replaying the event. A crash after
+acknowledgment can interrupt an event's run. Separate consumers should not
+acknowledge events intended for the app.
+
+
+## Workspace restoration
+
+REL preserves each session’s root-page HTTP(S) Back/Forward history and current
+position across app restarts. Opening the saved page restores the native history
+without fetching earlier or later entries. Visiting a new page after going Back
+discards the forward branch as usual. History is isolated in each Chromium
+profile and removed when that profile’s browsing data is cleared. Popup history
+is not persisted. Saved entries contain URLs without embedded credentials;
+form values, POST bodies, and scroll positions are not restored across restarts.
+History is browser-owned and is not part of the workspace API payload below.
+
+`GET /v1/workspace` returns `data: {"revision": N, "state": ...}`. Revision zero
+with `state: null` means no workspace has been saved. The Rust agent owns this
+state in the current runtime's `Data/rel-data.sqlite3`; Release and each Debug
+worktree remain isolated. On first access, the agent imports the released
+layout/token-usage format from that runtime's `Data/workspace-state.json`, if
+present, and retains the source. Import failure leaves the database workspace
+uninitialized and prevents replacement writes through this endpoint.
+
+`PUT /v1/workspace` accepts `{"revision": N, "state": ...}` using the revision
+returned by GET or the previous successful PUT. It atomically saves the full
+workspace snapshot and returns `data: {"revision": N+1}`. A stale revision returns
+`CONFLICT` without changing stored data. An uncertain transport result must be
+resolved by reloading the snapshot before another write. The native app serializes
+writes and requires a restart after a save failure.
+
+The state uses these camelCase fields:
+
+| Field | Type / meaning |
+| --- | --- |
+| `schemaVersion` | Integer `1`, the workspace wire format, independent of the database migration version |
+| `selectedSessionID` | Session ID or null; must be in `tabOrder` |
+| `tabOrder` | Ordered unique session IDs present in `sessions` |
+| `closedSessionIDs` | Pending session-close markers, default `[]` |
+| `sessions` | Object keyed by existing session ID |
+
+Each session value contains:
+
+| Field | Type / meaning |
+| --- | --- |
+| `lastCommittedURL` | HTTP(S) URL without credentials, or null |
+| `isNetworkPaused` | Boolean, default false |
+| `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String}`; tool is `info`, `filters`, `logs`, or `terminal`; defaults are false, true, and `logs` |
+| `chatTokenUsageByModel` | Object of cumulative native Chat usage records keyed by model usage key; default `{}` |
+| `chats` | Conversation state described below; defaults to no conversations, null selection, and next sequence 2 |
+
+`chats` contains ordered `conversations`, nullable `selectedConversationID`, and
+`nextSequence` (integer at least 2). Each conversation has a stable UUID `id`,
+`title`, `draft`, and ordered `messages`. Selection references a conversation
+within that session. Each message has a stable UUID `id`, `role` (`user`,
+`assistant`, `error`, or `status`), `content`, and optional `completedWork`
+(`{activities: [...], elapsedTime: seconds}`). Activity records contain `id`,
+`title`, optional `detail`, and `status` (`running`, `completed`, or `failed`).
+
+Conversations may include `chatConfiguration`, containing `model`, `effort`, and
+`speed`. REL preserves this selection for both session and global chats, including
+empty conversations. Omitting it or sending null clears the saved selection;
+workspaces saved before this field was introduced remain valid.
+
+`model` contains `id`, `displayName`, `provider`, `modelID`, `source`,
+`verification`, `capabilities`, and `displayProvider`, with optional `profileName`,
+`profileID`, and `createdAt`. `source` uses Swift Codable encoding:
+`{"builtIn": {}}` or `{"configured": {}}`. `displayProvider` is
+`{"adapter": {"_0": "openai"}}` (using the selected provider kind), or an empty
+object case named `fireworks`, `amazonBedrock`, or `baseten`. `capabilities`
+contains `supportsReasoningEffort`, `supportedSpeeds`, and
+`isRecommendedInChatPicker`. These are model selection metadata, never API keys.
+
+Each token-usage record contains nonnegative integer `modelCalls`,
+`reportedModelCalls`, `knownTokens`, `inputTokens`, `outputTokens`,
+`providerReportedTotalTokens`, `cachedInputTokens`, `cacheCreationInputTokens`,
+`toolUsePromptTokens`, and `reasoningTokens`, plus optional nonnegative
+`providerReportedCostUSD`. Reported model calls cannot exceed total model calls.
+Unknown fields and malformed nested payloads are rejected without changing state.
+
+Conversation and message IDs must be unique across the workspace and cannot move
+between parents. Omitting a conversation or message removes its saved record.
+Draft-only edits do not rewrite message rows. Session deletion removes its saved
+workspace, conversations, and messages in the same database operation. Pending
+close markers survive layout reconciliation until session deletion completes.
+
+The standard 16 MiB request limit applies. Workspace request logs record the
+method and route, without transcript or draft bodies. Database schema upgrades
+are transactional, and newer unsupported database schemas are left untouched.
+
+
+### Pending browser configuration
+
+While an open session has configuration changes waiting for Reload, browser
+automation reports `BROWSER_UNAVAILABLE` with a message asking you to reload, instead of running
+with the previous browser configuration. Choose **Reload** in REL to apply the
+saved changes, then retry. Saving configuration and pausing network activity
+remain available while a reload is pending.

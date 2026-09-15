@@ -21,7 +21,7 @@ from ._rpc import (
 )
 
 DEFAULT_TIMEOUT_MS = 30_000.0
-DEFAULT_PROFILE = "Direct"
+DEFAULT_PROFILE = None
 SUPPORTED_WAIT_UNTIL = {"load", "domcontentloaded", "commit"}
 SUPPORTED_SCREENSHOT_FORMATS = {"png", "jpeg", "webp"}
 
@@ -667,7 +667,7 @@ class BrowserContext:
         self,
         browser: Browser,
         *,
-        profile: str,
+        profile: str | None,
         session_id: str | None,
         group: str,
         persist: bool,
@@ -761,7 +761,7 @@ class Browser:
         self,
         client: RelRpcClient,
         *,
-        profile: str,
+        profile: str | None,
         session_id: str | None,
         group: str,
         persist: bool,
@@ -814,12 +814,12 @@ class Browser:
         del reason
         if not self._connected:
             return
-        try:
-            for context in list(self._contexts):
-                context.close()
-        finally:
-            self._client.close()
-            self._connected = False
+        # Keep failed contexts and the RPC client available for a subsequent
+        # cleanup attempt. A failed delete must not masquerade as a closed browser.
+        for context in list(self._contexts):
+            context.close()
+        self._client.close()
+        self._connected = False
 
     def _ensure_connected(self) -> None:
         if not self._connected:
@@ -839,7 +839,7 @@ class BrowserType:
         headless: bool | None = None,
         slow_mo: float | None = None,
         timeout: float | None = None,
-        profile: str = DEFAULT_PROFILE,
+        profile: str | None = DEFAULT_PROFILE,
         session_id: str | None = None,
         group: str | None = None,
         persist: bool = False,
@@ -879,8 +879,10 @@ class BrowserType:
             if session_id is not None:
                 client.get_session(session_id)
         except RpcError as error:
+            client.close()
             _raise_public_error(error)
         except (RpcTransportError, RpcProtocolError) as error:
+            client.close()
             raise Error(str(error)) from error
         browser = Browser(
             client,
@@ -928,7 +930,7 @@ def _raise_public_error(error: RpcError) -> NoReturn:
 def _validate_rel_options(
     profile: Any, session_id: Any, group: Any, persist: Any
 ) -> None:
-    if not isinstance(profile, str) or not profile.strip():
+    if profile is not None and (not isinstance(profile, str) or not profile.strip()):
         raise Error("profile must be a non-empty REL Profile name")
     if session_id is not None and (
         not isinstance(session_id, str)

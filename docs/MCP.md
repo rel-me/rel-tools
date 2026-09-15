@@ -10,6 +10,10 @@ Related documents: [Codex plugin](CODEX_PLUGIN.md),
 [Claude Code plugin](CLAUDE_CODE_PLUGIN.md), [CLI](CLI.md), [RPC](RPC.md), and
 [Rust SDK](SDK.md).
 
+When session creation omits a profile, REL uses **Settings → General → Default
+Profile**, or **Custom** if the preference is unset. Explicit profile choices
+always take precedence.
+
 ## Tool quick reference
 
 REL MCP exposes exactly fourteen tools. This is the complete discovery list;
@@ -33,6 +37,14 @@ each tool has a detailed contract later in this guide.
 | `rel_list_proxies` | List configured proxy aliases and non-secret configuration. |
 
 ## Configure an MCP client
+
+In **REL Settings → MCP**, click **Copy configuration** beside the executable
+path to copy a JSON `mcpServers` entry for your MCP client. It includes the
+absolute command path and the agent port for that REL runtime.
+
+Click **Test connection** to verify that the bundled stdio adapter can call
+`rel_status` on the local REL service. The result appears below the Connection
+section; failures and timeouts are shown there so you can retry.
 
 Use the CLI bundled in the installed app or install the public `rel-cli`
 package as described in the [CLI guide](CLI.md). An absolute path to the bundled
@@ -226,7 +238,7 @@ instructions.
 `url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
 `session_id`, `profile`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied
 `session_id` uses the canonical `Session<number>` format. Omitting it creates a
-persistent session from `profile`, or from **Default** when `profile` is absent.
+persistent session from `profile`, or from the configured default (Custom when unset) when `profile` is absent.
 `profile` and `group` apply only to a new session and cannot be combined with
 `session_id`. The action objects use every shape in
 the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
@@ -243,7 +255,7 @@ per-call viewport override.
 `url` is required. Optional fields are `session_id`, `profile`, `group`, `proxy`,
 `output_uri`, `timeout`, and `wait`. The result contains a process-local page ID
 for later `rel_page_action` calls. Omitting `session_id` creates a persistent
-session from the named profile (or **Default**) and navigates it to `url`;
+session from the named profile (or the configured default (Custom when unset)) and navigates it to `url`;
 `profile` and `group` cannot be combined with `session_id`. Providing
 `session_id` attaches its current page, whose
 normalized URL must match `url`. `output_uri`, when present, must be an absolute
