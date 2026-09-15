@@ -350,6 +350,25 @@ visits. Network identity is also separate: use a Session proxy when traffic
 must leave through another route. Proxied Sessions prevent WebRTC from using a
 non-proxied UDP route, but REL does not turn a direct Session into a VPN.
 
+## Shared asset cache
+
+Enable **Reuse cacheable assets across sessions** in **REL → Settings… → Cache**
+to reuse HTTP resources between Sessions. This is off by default, with a 512 MiB
+size limit. You can change the limit or clear the shared cache there.
+
+Any resource type can qualify, including compressed resources and responses
+without `Cache-Control: public`. Responses need an explicit fresh `max-age`,
+`s-maxage`, or `Expires` lifetime. REL respects `private`, `no-store`, and
+`no-cache`; requests carrying cookies or authorization and responses setting
+cookies are excluded. Partial responses, downloads with Content-Disposition,
+and bodies larger than 32 MiB after decoding are also excluded.
+
+Direct Sessions share one cache partition. Proxy Sessions share only within
+the same proxy alias. Cookies, site storage, and Session identity remain
+separate. The shared cache reduces repeated downloads; it does not combine
+Chromium renderer processes. Clearing private Session caches leaves the shared
+cache intact, and clearing the shared cache leaves private Session data intact.
+
 ## Navigation errors and retry
 
 Navigation failures show a readable explanation and retain the original source
