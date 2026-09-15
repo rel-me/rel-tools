@@ -26,6 +26,14 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+## Quitting REL
+
+Closing the main window leaves REL running. Use **REL → Quit REL** or **⌘Q**
+to exit. REL saves workspace state and flushes cookies before closing its
+browsers. Cookie saves overlap in small batches to reduce the wait when many
+Sessions are open. Quit retains its four-second deadline for asynchronous
+cleanup; it does not wait indefinitely for a stalled browser.
+
 ## Start on Login
 
 Enable **Settings → General → Startup → Start on Login** to open REL
