@@ -36,7 +36,8 @@ REL runs up to eight browser operations concurrently across sessions by default.
 Additional operations wait in FIFO order for capacity; each session still executes
 its own requests in order. Open or idle sessions do not consume execution slots.
 Session lifecycle operations and health/status requests remain independently
-available while browser work is queued.
+available while browser work is queued. The health worker’s `active_count` includes
+requests waiting for this shared capacity, so it can exceed the concurrency limit.
 
 Set `REL_BROWSER_CONCURRENCY` to an integer from `1` through `32` in the REL app's
 launch environment to change the limit. The app-owned agent reads it at startup;
