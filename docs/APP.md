@@ -852,3 +852,27 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
+
+## BrowserLeaks comparisons
+
+With the Debug menu enabled in Settings, use **Debug → BrowserLeaks Tests** to
+run an individual diagnostic or all six: Canvas, WebGL, JavaScript, DNS, WebRTC,
+and Chrome extension detection. Select the session you want to test first.
+BrowserLeaks tests navigate that session and use its existing configuration for
+every page. Switching sessions during a run does not retarget the test.
+
+The report compares captured values with saved observations of the existing
+Chrome profile. It lists differences first, showing both Chrome and REL values,
+then matching values. **Show Log** opens the full report and capture paths.
+The session stays open for inspection.
+
+The bundled reference covers Canvas and WebGL hashes, DNS resolver addresses and
+completion, and WebRTC addresses and verdict from September 7, 2026; it also
+includes 101 JavaScript result fields and the extension scan summary from
+September 14. This is a dated reference, not a fresh Chrome run or an exhaustive
+comparison of every BrowserLeaks field.
+
+Differences alone do not fail a diagnostic. Session privacy settings, browser
+version, window size, time, and network conditions can change the values. Missing
+or unfinished results and diagnostic errors are reported as failures, with any
+available comparison values retained.
