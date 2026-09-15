@@ -814,12 +814,12 @@ class Browser:
         del reason
         if not self._connected:
             return
-        try:
-            for context in list(self._contexts):
-                context.close()
-        finally:
-            self._client.close()
-            self._connected = False
+        # Keep failed contexts and the RPC client available for a subsequent
+        # cleanup attempt. A failed delete must not masquerade as a closed browser.
+        for context in list(self._contexts):
+            context.close()
+        self._client.close()
+        self._connected = False
 
     def _ensure_connected(self) -> None:
         if not self._connected:
@@ -879,8 +879,10 @@ class BrowserType:
             if session_id is not None:
                 client.get_session(session_id)
         except RpcError as error:
+            client.close()
             _raise_public_error(error)
         except (RpcTransportError, RpcProtocolError) as error:
+            client.close()
             raise Error(str(error)) from error
         browser = Browser(
             client,
