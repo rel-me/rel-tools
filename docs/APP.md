@@ -539,7 +539,7 @@ Existing records are not overwritten.
 
 Profiles, schedules, and providers use a versioned JSON envelope:
 `{"format":"rel.<kind>","version":1,"configuration":{...}}`. The kind is
-`profile`, `schedule`, or `provider`. Export produces one line; pasted JSON may
+`profile`, `schedule`, `provider`, or `providers` (an array of provider configurations). Export produces one line; pasted JSON may
 include whitespace. Paste the complete object, without Markdown fences. JSON
 input is limited to 1 MiB. Other versions, mismatched kinds, malformed JSON,
 and invalid configurations are rejected.
@@ -621,7 +621,7 @@ of the source schedule's state. Run history, errors, and timestamps are omitted.
 Import never runs a prompt or completion action. Enable the schedule after
 reviewing its destination, prompt, completion action, and local execution time.
 
-### Providers: single-line JSON
+### Providers: single providers and lists
 
 ```json
 {"configuration":{"maxTurns":10,"name":"OpenAI","provider":"openai"},"format":"rel.provider","version":1}
@@ -634,10 +634,29 @@ names start with an ASCII letter, contain only letters, digits, hyphens, or
 underscores, and are at most 64 characters. Turn limits and URLs are validated
 using the same rules as the provider editor.
 
-Import opens a new provider draft for review. Enter the API key where required,
-then save. API keys, record IDs, model discovery results, and the default-provider
-preference are excluded. An existing default remains unchanged unless you choose
-**Make Default**; the first provider becomes the default normally.
+Select one provider, or use Command-click or Shift-click to select multiple
+providers. Choose **Export** in the header or selection context menu, then
+**Export Without Keys** or **Export Including API Keys**. Keys are excluded unless
+you explicitly include them. Included keys are readable in the JSON and copied
+to the clipboard with it. Share that export only with trusted recipients.
+
+One selected provider uses `rel.provider` with an object configuration. Multiple
+providers use `rel.providers` with a configuration array in table order:
+
+```json
+{"configuration":[{"apiKey":"example-key","maxTurns":10,"name":"OpenAI","provider":"openai"},{"maxTurns":10,"name":"Local","provider":"ollama"}],"format":"rel.providers","version":1}
+```
+
+`apiKey` is optional. Record IDs, model discovery results, and the default-provider
+preference are always excluded. Export and import are limited to 1 MiB.
+
+**Import Providers** accepts either format and validates the entire list before
+opening the first draft. Review and save each provider in turn. Included keys
+prefill the secure API key field and are stored in Keychain when saved; enter a
+key where required if it was omitted. Canceling an editor stops the remaining
+import, keeping providers already saved. An existing default remains unchanged
+unless you select **Use as Default Provider**; the first provider becomes the
+default normally. Existing names must be changed before saving a new provider.
 
 ### CLI and RPC archive transfers
 
