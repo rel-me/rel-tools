@@ -736,17 +736,21 @@ Passwords are accepted on writes but never returned.
 - `POST /v1/proxies/{alias}/rotate-session` requires an Oxylabs- or Bright Data-enabled proxy and
   returns `data.proxy`.
 
-`detect_exit_locale` is a boolean, off by default and preserved when omitted on
-update. Automatic language controls use the active provider's configured country
+`detect_exit_locale` is a boolean, on by default for new proxies and preserved
+when omitted on update. Existing saved values and imported settings are unchanged. Automatic language controls use the active provider's configured country
 (Bright Data country, Oxylabs country, or US state). When detection is enabled,
 they instead resolve the exit country through the session's agent-owned proxy
 using `https://ipwho.is/`. Country-to-language selection uses macOS locale data.
 No configured country means the user's preferred language when detection is off.
 Custom fingerprint locales take precedence and disabled language controls stay native.
+Detection also replaces the effective fingerprint timezone when its timezone
+control is enabled, independently of the language control. Disabled timezone
+controls stay native. The saved fingerprint timezone is unchanged.
 
 Proxy responses include `detect_exit_locale`; session responses include
 `proxy_country` (configured ISO country or null) and `proxy_detect_exit_locale`.
 `GET /v1/sessions/{id}/proxy-location` returns `data.country` (for example `DE`)
+and `data.timezone` (for example `Europe/Berlin`, an IANA timezone identifier)
 when detection is enabled. It errors for a missing proxy, disabled detection,
 failed connection, or invalid lookup response. Successful results are cached for
 30 minutes per session and upstream route; provider session rotation changes the
