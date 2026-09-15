@@ -330,8 +330,22 @@ connection speed or route traffic through a proxy.
 
 Chromium generates the User-Agent in every mode with its product version reduced
 to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its native
-brand list and client hints; these are not editable. High-entropy client hints
-can still expose the engine’s full version when requested by a site.
+brand list and client hints by default. High-entropy client hints can still
+expose the engine’s full version when requested by a site.
+
+Open **Settings → Browser Identities** in the Browser section. The list contains the built-in **Private**, **Chrome**,
+and **Native** identities. Open an entry to view its browser metadata, client
+hints, device settings, and privacy controls. Values that depend on the Mac,
+proxy, or session are described as such. The viewer is read-only: identities
+cannot be edited or created here. **Custom Privacy** remains a session/Profile
+configuration and is not included in this list.
+
+Chrome copies all Private controls and adds the Google Chrome client-hint
+identity with version `152.0.7977.83`. It uses Chrome's brand ordering and a
+consistent version in `brands`, `fullVersionList`, `uaFullVersion`, and the
+reduced User-Agent. Other client hints use this Mac's native platform, OS
+version, and architecture. Select an identity in the session or Profile's
+Browser Identity menu, then reload existing sessions to apply changes.
 
 Graphics protection changes Canvas and WebGL readbacks together with the graphics identity and
 makes WebGPU unavailable. Text geometry, native input, and other unlisted
@@ -852,3 +866,12 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
+
+### Chrome privacy identity
+
+Choose **Chrome** in a session or Profile's **Browser Identity** menu to start
+with a copy of **Private**, including all its privacy controls, and add the
+Chrome client-hint identity. The saved Chrome version is `152.0.7977.83`.
+It travels with the fingerprint through save, restore, and export/import, and
+is independent of app settings. Switching back to **Private**
+removes the session's Chrome identity. Reload existing sessions to apply changes.

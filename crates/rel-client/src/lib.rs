@@ -2336,6 +2336,8 @@ pub struct FingerprintProfile {
     pub seed: String,
     pub platform: FingerprintPlatform,
     pub browser_brand: FingerprintBrowserBrand,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chrome_version: Option<String>,
     pub browser_version: String,
     pub user_agent: String,
     pub locale: String,
@@ -3113,6 +3115,7 @@ mod tests {
         value["locale_mode"] = json!("custom");
         value["locale"] = json!("fr-CA");
         value["overrides"] = json!(["locale", "audio"]);
+        value["chrome_version"] = json!("152.0.7977.83");
         let profile: FingerprintProfile = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(profile.locale_mode, Some(FingerprintLocaleMode::Custom));
         assert_eq!(serde_json::to_value(profile).unwrap(), value);
