@@ -96,11 +96,11 @@ class RelRpcClient:
             raise RpcProtocolError("REL session response is missing data.session")
         return session
 
-    def create_session(self, *, profile: str | None, group: str) -> str:
+    def create_session(self, *, profile: str | None, group: str, lifetime: dict[str, Any] | None = None) -> str:
         data = self._request(
             "POST",
             "/sessions",
-            {"group": group, **({"profile": profile} if profile is not None else {})},
+            {"group": group, **({"profile": profile} if profile is not None else {}), **({"lifetime": lifetime} if lifetime is not None else {})},
             timeout=10.0,
         )
         session = data.get("session")
@@ -108,6 +108,10 @@ class RelRpcClient:
         if not isinstance(session_id, str) or not session_id:
             raise RpcProtocolError("REL session response is missing data.session.id")
         return session_id
+
+    def ping_session(self, session_id: str) -> None:
+        """Refresh the inactivity timeout without changing the browser page."""
+        self._request("POST", f"/sessions/{quote(session_id, safe='')}/ping", {}, timeout=5.0)
 
     def delete_session(self, session_id: str) -> None:
         self._request(

@@ -648,3 +648,20 @@ upgrade or recovery report. Its local `report_path` identifies the detailed
 report and `backup_path` identifies the original SQLite snapshot. See
 [database recovery](APP.md#database-migration-and-recovery) before repairing
 quarantined data.
+
+### Session inactivity and ping
+
+Sessions close after 120 seconds of client inactivity by default. Set the
+inactivity timeout when creating a session, or explicitly choose an indefinite
+lifetime:
+
+```sh
+rel session create --lifetime 300 --id-only
+rel session create --lifetime indefinite --id-only
+rel session ping Session1
+```
+
+`--lifetime` accepts positive integer seconds or `indefinite`. Session commands
+and browser work refresh activity; session listing does not. Send `session ping`
+periodically while a client is idle (for example every 30 seconds for the default
+lifetime). Ping performs no browser action and cannot reopen a closed session.

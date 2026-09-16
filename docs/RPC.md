@@ -1338,3 +1338,29 @@ automation reports `BROWSER_UNAVAILABLE` with a message asking you to reload, in
 with the previous browser configuration. Choose **Reload** in REL to apply the
 saved changes, then retry. Saving configuration and pausing network activity
 remain available while a reload is pending.
+
+## Session lifetimes and keepalive
+
+Every newly created session has a lifetime policy, including sessions created
+implicitly by browser operations. Omitting `lifetime` selects
+`{"type":"inactivity","timeout_seconds":120}`. Explicit `POST /v1/sessions`
+requests may set a positive integer timeout (up to 4294967295 seconds), or
+`{"type":"indefinite"}` to keep the session until it is explicitly closed.
+For example:
+
+```json
+{"group":"research","lifetime":{"type":"inactivity","timeout_seconds":300}}
+```
+
+Session responses include `lifetime` and the Unix-seconds `last_activity_at`.
+Session-directed requests and browser operations refresh activity. Active browser
+operations do not expire while running. Background page traffic, health checks,
+and listing sessions do not keep sessions alive.
+
+`POST /v1/sessions/{id}/ping` with `{}` refreshes activity without browser work
+and returns the ordinary session envelope (`data.session`). Ping comfortably
+before the timeout, for example every 30 seconds with the default policy.
+Pinging a closed session returns `SESSION_NOT_FOUND`; it never recreates it.
+Expiry follows normal session close cleanup, invalidating attached pages.
+Lifetime settings survive agent restarts. Existing sessions upgraded from older
+versions retain an indefinite lifetime, as do explicitly created native app tabs.
