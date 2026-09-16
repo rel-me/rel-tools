@@ -617,6 +617,8 @@ configuration.
 {"configuration":{"completionAction":{"type":"none"},"destination":{"existingSession":{"sessionID":"session-1","sessionName":"Work"}},"hour":9,"minute":30,"name":"Morning","prompt":"Check the page and report changes.","usesTimer":true,"weekdays":[2,3,4,5,6]},"format":"rel.schedule","version":1}
 ```
 
+The optional `startingURL` field preserves the Action's starting page.
+
 `name`, `prompt`, `destination`, `completionAction`, `weekdays`, `hour`, `minute`,
 and `usesTimer` are required. Weekdays are 1 (Sunday) through 7 (Saturday), with
 at least one day; hours are 0–23 and minutes 0–59 in the importing device's local
@@ -732,6 +734,13 @@ identifies the requested links in page order, reads their destinations, and
 then answers. Restoring the default prompt returns to this behavior.
 
 ## Actions
+
+When creating or editing an Action, **Starting URL** optionally specifies the
+page to open before the first step. Enter a complete `http://` or `https://` URL,
+or leave it blank to use the Session's current page. REL opens it in the Action's
+Session once per run, before executing its prompt steps. Later steps continue
+from the page reached by the preceding step. Navigation failures use the Action's
+**On Error** setting.
 
 Open **Actions** from the toolbar or **Settings → Actions** to create reusable
 work. Each Action owns its name, prompt, destination Session or Profile,
