@@ -774,22 +774,36 @@ and are not replayed after restarting REL.
 
 ## Scheduled prompts
 
-Open **Schedules** and choose **Add Schedule**. Give it a name, select an Action,
-and choose weekdays and a local time. Create the Action first in **Actions**.
-Multiple schedules can select the same Action to run it at different times.
-REL Free supports one schedule; REL Pro supports multiple schedules.
+In a Session's Action editor, choose **When → Schedule** to run on selected
+weekdays at a local time, or **When → Repeat every** to run at a fixed interval.
+The repeat interval defaults to **30 minutes**. Enter any whole number from
+1 to 10,080 minutes (one week). The Actions table shows the interval, and editing
+an Action restores its saved repeat setting. REL Free supports one scheduled
+Action; REL Pro supports multiple scheduled Actions.
 
-REL must be running when a schedule is due. It executes the selected Action
-using the default AI model. Depending on the Action's destination, it uses an
-existing Session or creates a persistent Session. The table shows the next run
-and the outcome of the most recent scheduled or manual schedule run. Sessions
-remain available for inspection after a failure.
+Choose **Ends** to control how long the Action repeats:
 
-Use **Run Now** to execute a schedule without changing its next repeating run.
-Disable a schedule to pause its timer. A disabled or missing Action causes the
-schedule run to fail clearly. If the Action is already running, the schedule
-records that outcome and waits for its next normal time; it does not queue an
-overlapping run. Times follow the Mac's current time zone.
+- **Never** keeps repeating until you disable the Action.
+- **After runs** stops after the specified number of scheduled attempts, from
+  1 to 10,000. Failed attempts count; missed runs and manual **Run Now** executions
+  do not. The count is saved before each attempt and survives restarts.
+- **On date and time** prevents new scheduled runs at or after the chosen time.
+  An Action already running can finish. For today only, choose tomorrow at
+  midnight in the Mac's local time zone.
+
+REL must be running when an Action is due. A new repeat setting first runs after
+one full interval. Restarting REL, editing the prompt, or using **Run Now** does
+not reset its cadence or run count. Changing the interval or end condition starts
+a fresh cadence and count. Disabling and re-enabling preserves both.
+Missed occurrences are skipped when REL starts again, and runs never overlap.
+A run that lasts longer than its interval resumes at the next future occurrence
+after it finishes. The table shows **Repeat ended** when its end condition is met;
+manual **Run Now** remains available while the Action is enabled.
+
+Use **Run Now** to execute the Action immediately. Disable the Action to pause
+its timer. Weekday schedules follow the Mac's current time zone; repeat intervals
+measure elapsed minutes. Results and failures remain visible in the Action's
+status.
 
 ## Notifications
 
