@@ -481,6 +481,15 @@ impl RelClient {
         )
     }
 
+    /// Refresh a session's inactivity timer without performing browser work.
+    pub fn ping_session(&self, id: &str) -> Result<RpcResponse<SessionData>, ClientError> {
+        self.request(
+            "POST",
+            &format!("/sessions/{}/ping", encode_path_segment(id)),
+            Some(&serde_json::json!({})),
+        )
+    }
+
     pub fn create_session(
         &self,
         request: &SessionCreateRequest,
@@ -2265,8 +2274,18 @@ impl ProxyTransferImportRequest {
     }
 }
 
+/// Omission at creation defaults to 120 seconds of client inactivity.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SessionLifetime {
+    Inactivity { timeout_seconds: u32 },
+    Indefinite,
+}
+
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifetime: Option<SessionLifetime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -2498,6 +2517,10 @@ fn is_false(value: &bool) -> bool {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lifetime: Option<SessionLifetime>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_activity_at: Option<i64>,
     pub id: String,
     pub name: String,
     pub profile: String,
@@ -3305,7 +3328,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(37, |index, request| {
+        let (base_url, server) = start_test_server(38, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -3399,6 +3422,7 @@ mod tests {
                 }
                 ("GET", "/v1/sessions") => json!({"sessions":[session_json()]}),
                 ("GET", "/v1/sessions/machine-a.Session1")
+                | ("POST", "/v1/sessions/machine-a.Session1/ping")
                 | ("POST", "/v1/sessions")
                 | ("PATCH", "/v1/sessions/machine-a.Session1") => json!({"session":session_json()}),
                 ("GET", "/v1/profiles") => json!({"profiles":[profile_json()]}),
@@ -3555,6 +3579,7 @@ mod tests {
         client
             .create_session(&SessionCreateRequest::default())
             .unwrap();
+        client.ping_session("machine-a.Session1").unwrap();
         let profiles = client.list_profiles().unwrap();
         assert_eq!(
             profiles.data.profiles[0]
@@ -3659,6 +3684,7 @@ mod tests {
                 ("GET", "/v1/sessions"),
                 ("GET", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions"),
+                ("POST", "/v1/sessions/machine-a.Session1/ping"),
                 ("GET", "/v1/profiles"),
                 ("POST", "/v1/profiles"),
                 ("PATCH", "/v1/profiles/custom-profile-id"),
@@ -3673,7 +3699,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[36].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[37].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
@@ -3729,7 +3755,7 @@ mod tests {
             json!({"contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==","alias":"backup"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[27].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({
                 "name":"Research",
                 "adblock_enabled":true,
@@ -3740,11 +3766,11 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[29].body).unwrap(),
             json!({"includes_cookies":true,"includes_passwords":true})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
             json!({
                 "name":"Research",
                 "include_cookies":false,
@@ -3753,14 +3779,14 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
             json!({
                 "contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==",
                 "name":"Research Copy"
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[33].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

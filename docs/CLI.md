@@ -590,8 +590,9 @@ default for later CLI commands. Creating or deleting sessions in another shell
 can change this default; use `REL_SESSION_ID` or `--session-id` to pin concurrent
 workflows.
 
-REL does not impose a maximum session count. Sessions remain open until you
-explicitly delete them.
+New sessions close after 120 seconds of client inactivity by default. Use
+`--lifetime` at creation to select another timeout or `indefinite`, and
+`rel session ping SESSION_ID` to keep an idle session alive.
 
 `pause` idempotently cancels active requests and blocks new network work for
 the session. `play` idempotently resumes network activity and reloads the
@@ -648,3 +649,20 @@ upgrade or recovery report. Its local `report_path` identifies the detailed
 report and `backup_path` identifies the original SQLite snapshot. See
 [database recovery](APP.md#database-migration-and-recovery) before repairing
 quarantined data.
+
+### Session inactivity and ping
+
+Sessions close after 120 seconds of client inactivity by default. Set the
+inactivity timeout when creating a session, or explicitly choose an indefinite
+lifetime:
+
+```sh
+rel session create --lifetime 300 --id-only
+rel session create --lifetime indefinite --id-only
+rel session ping Session1
+```
+
+`--lifetime` accepts positive integer seconds or `indefinite`. Session commands
+and browser work refresh activity; session listing does not. Send `session ping`
+periodically while a client is idle (for example every 30 seconds for the default
+lifetime). Ping performs no browser action and cannot reopen a closed session.

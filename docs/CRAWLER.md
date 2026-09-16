@@ -251,3 +251,12 @@ visits an external site:
 cd crawler
 .venv/bin/python -m unittest discover -s tests -v
 ```
+
+### Session lifetime
+
+Sessions default to closing after 120 seconds of client inactivity. The low-level
+`RelClient.create_session` accepts a `lifetime` dictionary, for example
+`{"type": "inactivity", "timeout_seconds": 300}` or `{"type": "indefinite"}`.
+`RelClient.ping_session(session_id)` refreshes the timer without browser work.
+Ping before the timeout during long idle intervals; listing sessions does not
+keep them alive.

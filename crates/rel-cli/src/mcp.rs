@@ -644,6 +644,23 @@ fn tool_definitions() -> Vec<Value> {
             }),
         ),
         tool_definition(
+            "rel_create_session", "Create Browser Session",
+            "Create a REL session. Defaults to closing after 120 seconds of client inactivity. Use rel_ping_session to keep it alive, or explicitly select an indefinite lifetime.",
+            json!({"type":"object","properties":{
+                "name":{"type":"string"},"group":{"type":"string"},"profile":{"type":"string"},
+                "lifetime":{"oneOf":[
+                    {"type":"object","properties":{"type":{"const":"inactivity"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":4294967295_u64}},"required":["type","timeout_seconds"],"additionalProperties":false},
+                    {"type":"object","properties":{"type":{"const":"indefinite"}},"required":["type"],"additionalProperties":false}
+                ]}},"additionalProperties":false}),
+            json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":false}),
+        ),
+        tool_definition(
+            "rel_ping_session", "Ping Browser Session",
+            "Refresh a session's inactivity timer without doing browser work. Ping before its timeout elapses.",
+            json!({"type":"object","properties":{"session_id":{"type":"string"}},"required":["session_id"],"additionalProperties":false}),
+            json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}),
+        ),
+        tool_definition(
             "rel_list_proxies",
             "List Proxies",
             "List configured REL proxy aliases and non-secret connection metadata.",
@@ -1051,6 +1068,34 @@ fn handle_tool_call(
             .and_then(to_json_value),
         "rel_notifications" => decode_empty_arguments(arguments)
             .and_then(|()| client.list_notifications().map_err(client_error_value))
+            .and_then(to_json_value),
+        "rel_create_session" => decode_arguments::<CreateSessionArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                if matches!(
+                    arguments.lifetime,
+                    Some(client::SessionLifetime::Inactivity { timeout_seconds: 0 })
+                ) {
+                    return Err(json!({"message":"timeout_seconds must be positive"}));
+                }
+                client
+                    .create_session(&client::SessionCreateRequest {
+                        name: arguments.name,
+                        group: arguments.group,
+                        profile: arguments.profile,
+                        lifetime: arguments.lifetime,
+                        ..Default::default()
+                    })
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_ping_session" => decode_arguments::<PingSessionArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .ping_session(&arguments.session_id)
+                    .map_err(client_error_value)
+            })
             .and_then(to_json_value),
         "rel_list_sessions" => decode_empty_arguments(arguments)
             .and_then(|()| ensure_runtime(ensure_agent_running))
@@ -2057,7 +2102,7 @@ mod tests {
             CURRENT_PROTOCOL_VERSION
         );
         let tools = output[1]["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 14);
+        assert_eq!(tools.len(), 16);
         assert_eq!(tools[0]["name"], "rel_status");
         assert_eq!(tools[1]["name"], "rel_notifications");
         assert_eq!(tools[4]["name"], "rel_navigate");
@@ -2067,7 +2112,9 @@ mod tests {
         assert_eq!(tools[9]["name"], "rel_find");
         assert_eq!(tools[10]["name"], "rel_action");
         assert_eq!(tools[12]["name"], "rel_close_session_group");
-        assert_eq!(tools[13]["name"], "rel_list_proxies");
+        assert_eq!(tools[13]["name"], "rel_create_session");
+        assert_eq!(tools[14]["name"], "rel_ping_session");
+        assert_eq!(tools[15]["name"], "rel_list_proxies");
         assert_eq!(output[1]["result"]["resultType"], "complete");
 
         let navigate = &tools[4]["inputSchema"];
@@ -2930,4 +2977,18 @@ mod tests {
         input_writer.join().unwrap();
         server.join().unwrap();
     }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateSessionArguments {
+    name: Option<String>,
+    group: Option<String>,
+    profile: Option<String>,
+    lifetime: Option<client::SessionLifetime>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PingSessionArguments {
+    session_id: String,
 }

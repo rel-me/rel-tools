@@ -504,3 +504,13 @@ let request = ProxyUpdateRequest {
 the schema version, original backup and report paths, recovery item count, and
 retained session count. Older agents may omit it. See the [health contract](RPC.md#health)
 and [app recovery guide](APP.md#database-migration-and-recovery) for semantics.
+
+### Session lifetimes
+
+`SessionCreateRequest::lifetime` accepts
+`SessionLifetime::Inactivity { timeout_seconds: 300 }` or
+`SessionLifetime::Indefinite`. Leaving it `None` uses the server default of 120
+seconds of inactivity. `RelClient::ping_session(id)` refreshes the timer without
+browser work and returns `SessionData`. The `Session` response exposes the
+policy and `last_activity_at`. Keep idle clients alive by pinging well before the
+timeout. Session listing and background page traffic do not refresh activity.

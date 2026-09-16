@@ -32,6 +32,8 @@ each tool has a detailed contract later in this guide.
 | `rel_observe` | Read compact rendered semantics and an optional synchronized viewport image. |
 | `rel_find` | Search a stored public observation for matching content or actionable refs. |
 | `rel_action` | Perform 1–32 ordered observation-scoped actions and return one new observation. |
+| `rel_create_session` | Create a browser session with an explicit lifetime policy. |
+| `rel_ping_session` | Refresh session inactivity without browser work. |
 | `rel_list_sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
 | `rel_close_session_group` | Close every persistent browser session in a named group. |
 | `rel_list_proxies` | List configured proxy aliases and non-secret configuration. |
@@ -511,3 +513,16 @@ is unauthenticated loopback traffic. Browser tools can create persistent
 sessions, write capture files, navigate websites, and perform page actions that
 have effects on those sites. MCP hosts should show tool calls for user review.
 `rel_list_proxies` never returns stored proxy passwords.
+
+### Session lifetime tools
+
+`rel_create_session` accepts optional `name`, `group`, `profile`, and `lifetime`.
+The default is `{"type":"inactivity","timeout_seconds":120}`. Set a positive
+integer `timeout_seconds` for a different idle period, or use
+`{"type":"indefinite"}` to retain the session until explicitly closed.
+
+`rel_ping_session` takes `{"session_id":"Session1"}` and refreshes the timer
+without browser work. Ping well before the deadline while idle. Browser work
+refreshes activity; `rel_list_sessions` does not. Implicitly created sessions
+also use the default timeout, so create an explicit session when selecting a
+lifetime.

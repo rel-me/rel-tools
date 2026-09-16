@@ -221,3 +221,12 @@ The tests use a fake loopback REL agent and never visit an external site:
 cd playwright
 .venv/bin/python -m unittest discover -s tests -v
 ```
+
+### Session lifetime
+
+New sessions default to closing after 120 seconds of client inactivity. Browser
+operations refresh activity. For a different policy, create a session through
+the [CLI](https://docs.rel.me/cli/) or [RPC API](https://docs.rel.me/rpc/) and attach
+to its session ID. Idle clients can call `POST /v1/sessions/{id}/ping` (or
+`rel session ping`) before the deadline. The low-level RPC client also accepts
+`lifetime` on `create_session` and provides `ping_session`.

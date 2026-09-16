@@ -7,7 +7,7 @@ use rel_client::{
     PageActionRequest, PageAttachRequest, PageCaptureRequest, PageObservationRequest,
     PageReadRequest, PerformRequest, ProfileTransferExportRequest, ProfileTransferImportRequest,
     ProxyCreateRequest, ProxyTls, ProxyTransferExportRequest, ProxyTransferImportRequest,
-    ProxyUpdateRequest, RelClient, SessionCreateRequest, SessionUpdateRequest,
+    ProxyUpdateRequest, RelClient, SessionCreateRequest, SessionLifetime, SessionUpdateRequest,
 };
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -334,6 +334,10 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.update_session(&id, &request)?)?;
             Ok(0)
         }
+        CliCommand::SessionPing(id) => {
+            print_json(&client.ping_session(&id)?)?;
+            Ok(0)
+        }
         CliCommand::SessionPause(id) => {
             print_json(&client.pause_session(&id)?)?;
             Ok(0)
@@ -534,6 +538,7 @@ enum CliCommand {
         id: String,
         request: SessionUpdateRequest,
     },
+    SessionPing(String),
     SessionPause(String),
     SessionPlay(String),
     SessionDelete(String),
@@ -1291,6 +1296,7 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
         "get" => Ok(CliCommand::SessionGet(parse_session_id(&mut args)?)),
         "create" => parse_session_create(args),
         "update" => parse_session_update(args),
+        "ping" => Ok(CliCommand::SessionPing(parse_session_id(&mut args)?)),
         "pause" => Ok(CliCommand::SessionPause(parse_session_id(&mut args)?)),
         "play" => Ok(CliCommand::SessionPlay(parse_session_id(&mut args)?)),
         "delete" => Ok(CliCommand::SessionDelete(parse_session_id(&mut args)?)),
@@ -1306,6 +1312,29 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
     let mut id_only = false;
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
+            "--lifetime" => {
+                if request.lifetime.is_some() {
+                    return Err(CliError::Message(
+                        "--lifetime may only be specified once".into(),
+                    ));
+                }
+                let value = args.option_value(&option, inline)?;
+                request.lifetime = Some(if value == "indefinite" {
+                    SessionLifetime::Indefinite
+                } else {
+                    let timeout_seconds = value
+                        .parse::<u32>()
+                        .ok()
+                        .filter(|value| *value > 0)
+                        .ok_or_else(|| {
+                            CliError::Message(
+                                "--lifetime requires positive inactivity seconds or indefinite"
+                                    .into(),
+                            )
+                        })?;
+                    SessionLifetime::Inactivity { timeout_seconds }
+                });
+            }
             "--name" => request.name = Some(args.option_value(&option, inline)?),
             "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
@@ -1622,7 +1651,7 @@ rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
 rel observation action OBSERVATION_ID --request JSON\n  \
 rel proxy <list|get|create|update|delete|rotate|export|import> ...\n  \
 rel profile <list|export|import> ...\n  \
-rel session <list|get|create|update|pause|play|delete|close> ...\n  \
+rel session <list|get|create|update|ping|pause|play|delete|close> ...\n  \
 rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
@@ -1784,7 +1813,8 @@ fn session_help() -> String {
     "Usage:\n  \
 rel session list\n  \
 rel session get SESSION_ID\n  \
-rel session create [options]\n  \
+rel session ping <id> (refresh inactivity timer)\n  \
+rel session create [--lifetime <seconds|indefinite>] [options]\n  \
 rel session update SESSION_ID [options]\n  \
 rel session pause SESSION_ID\n  \
 rel session play SESSION_ID\n  \
@@ -1823,6 +1853,33 @@ mod tests {
         let mut args = args.iter().map(|value| value.to_string()).collect();
         apply_session_url_environment_default(&mut args, session_url.map(OsString::from))?;
         parse_command(args)
+    }
+
+    #[test]
+    fn session_lifetime_and_ping_arguments() {
+        for (arg, expected) in [
+            (
+                "30",
+                SessionLifetime::Inactivity {
+                    timeout_seconds: 30,
+                },
+            ),
+            ("indefinite", SessionLifetime::Indefinite),
+        ] {
+            let CliCommand::SessionCreate { request, .. } =
+                parse(&["session", "create", "--lifetime", arg]).unwrap()
+            else {
+                panic!("expected create");
+            };
+            assert_eq!(request.lifetime, Some(expected));
+        }
+        for arg in ["0", "-1", "1.5", "4294967296", "unknown"] {
+            assert!(parse(&["session", "create", "--lifetime", arg]).is_err());
+        }
+        assert!(matches!(
+            parse(&["session", "ping", "Session1"]).unwrap(),
+            CliCommand::SessionPing(_)
+        ));
     }
 
     #[test]
@@ -2645,6 +2702,8 @@ mod tests {
             request_id: "req_session".to_string(),
             data: client::SessionData {
                 session: client::Session {
+                    lifetime: None,
+                    last_activity_at: None,
                     id: "machine-test.Session12".to_string(),
                     name: "Research".to_string(),
                     profile: "BandwidthSaver".to_string(),
