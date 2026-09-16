@@ -204,6 +204,7 @@ previously stored resources remain available.
 | `POST` | `/v1/profile-transfers/import` | Import a versioned profile transfer |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
 | `PATCH` | `/v1/sessions/{id}` | Partially update a browser session |
+| `POST` | `/v1/sessions/{id}/ping` | Refresh session inactivity without browser work |
 | `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
 | `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |

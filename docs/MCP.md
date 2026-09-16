@@ -32,6 +32,8 @@ each tool has a detailed contract later in this guide.
 | `rel_observe` | Read compact rendered semantics and an optional synchronized viewport image. |
 | `rel_find` | Search a stored public observation for matching content or actionable refs. |
 | `rel_action` | Perform 1–32 ordered observation-scoped actions and return one new observation. |
+| `rel_create_session` | Create a browser session with an explicit lifetime policy. |
+| `rel_ping_session` | Refresh session inactivity without browser work. |
 | `rel_list_sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
 | `rel_close_session_group` | Close every persistent browser session in a named group. |
 | `rel_list_proxies` | List configured proxy aliases and non-secret configuration. |

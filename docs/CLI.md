@@ -590,8 +590,9 @@ default for later CLI commands. Creating or deleting sessions in another shell
 can change this default; use `REL_SESSION_ID` or `--session-id` to pin concurrent
 workflows.
 
-REL does not impose a maximum session count. Sessions remain open until you
-explicitly delete them.
+New sessions close after 120 seconds of client inactivity by default. Use
+`--lifetime` at creation to select another timeout or `indefinite`, and
+`rel session ping SESSION_ID` to keep an idle session alive.
 
 `pause` idempotently cancels active requests and blocks new network work for
 the session. `play` idempotently resumes network activity and reloads the
