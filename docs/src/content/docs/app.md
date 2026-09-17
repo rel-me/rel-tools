@@ -783,7 +783,7 @@ from the page reached by the preceding step. Navigation failures use the Action'
 
 Open **Actions** from the toolbar or **Settings → Actions** to create reusable
 work. Each Action owns its name, prompt, destination Session or Profile,
-optional Shortcut or webhook completion behavior, and enabled state. Select
+optional WhatsApp, Shortcut, or webhook completion behavior, and enabled state. Select
 an Action to edit, run, or delete it. The list shows its status for the current
 app launch. Disabling an Action pauses every trigger that uses it.
 
@@ -882,6 +882,20 @@ selected group. The preference survives restarting REL. Turn it on to resume
 without another QR scan. **Remove Connection** deletes the saved account,
 group, and enabled preference from this Mac.
 
+In an Action editor, select **When finished > WhatsApp** to send its final
+response to the saved group. This also applies to scheduled and event-triggered
+runs. Multi-step Actions send once, after the final step. You can select
+WhatsApp alongside Shortcut and Webhook. Saving a group alone does not enable
+sending for any Action.
+
+WhatsApp must be enabled with a saved account and group. REL waits briefly for
+a saved account to reconnect after startup. Disabled, missing, disconnected,
+and failed deliveries are reported as Action errors. Keep the final response
+within 4,096 characters; blank or longer responses fail without being sent.
+REL does not split, truncate, or automatically resend messages. After a sending
+timeout, check the group before retrying because delivery may have occurred.
+Disabling WhatsApp does not recall a message already being sent.
+
 ## Webhooks
 
 Open **REL → Settings… → Webhooks** to add a JSON webhook, Discord integration,
@@ -891,8 +905,8 @@ variant's Keychain, separately from browser sessions. Settings can send an
 explicit test message and delete a destination.
 
 To deliver an Action's final response, edit it in **Actions** and choose
-**Send Result to Webhook**. A completion action can use either a webhook or a
-macOS Shortcut. Keep Discord results within 2,000 characters and WhatsApp text
+**When finished > Webhook**. An Action can select Webhook, Shortcut, and native
+WhatsApp together. Keep Discord results within 2,000 characters and WhatsApp text
 results within 4,096 characters. Delivery errors mark the prompt run as failed;
 REL does not automatically resend messages.
 

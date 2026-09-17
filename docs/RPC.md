@@ -1434,8 +1434,9 @@ They are separate from the WhatsApp Cloud API webhook integration.
 | `DELETE` | `/v1/whatsapp/connection` | Remove the saved connection and preferences |
 | `GET` | `/v1/whatsapp/groups` | Refresh participating groups while connected |
 | `POST` | `/v1/whatsapp/destination` | Save `{"id":"group@g.us"}` from the refreshed group list |
+| `POST` | `/v1/whatsapp/send` | Send `{"text":"Final response"}` to the saved group |
 
-Status and mutation responses contain `connection` with `phase`, `saved`,
+Status and settings mutation responses contain `connection` with `phase`, `saved`,
 `enabled`, `qr`, `expires_at`, `message`, and `destination`. The destination is
 null or an object with `id` and `name`. Group refresh returns `groups`, an array
 of these objects. Pairing QR values are short-lived secrets.
@@ -1446,3 +1447,13 @@ restart. Enabling resumes a saved account; an account without saved credentials
 still needs the connect route. The enabled preference defaults to true for
 existing installations. Group selection persists immediately without sending a
 message or enabling an Action.
+
+The send route accepts only `text`, with 1–4,096 Unicode scalar values and at
+least one non-whitespace character, within a 32 KiB JSON body. Recipient overrides
+and unknown fields are rejected. It requires enabled WhatsApp, a saved linked
+account, and a saved group. It waits up to 20 seconds for connection readiness
+and up to 20 seconds for sending. Success data contains `message_id` and
+`destination_id`; it does not confirm the recipient has read the message.
+Failures use the standard error envelope. REL does not automatically retry;
+a send timeout leaves delivery uncertain. Settings changes serialize with
+sending, so disabling cannot recall an in-flight message.
