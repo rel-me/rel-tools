@@ -773,6 +773,22 @@ to read earlier messages without being pulled back down. Choose **Jump to latest
 to return to the newest content and resume following, or scroll back near the
 bottom yourself.
 
+## Tool catalog
+
+Open **REL → Settings… → Tools** to browse the built-in AI chat and MCP tools.
+The shared list shows each tool's name, description, source, and enabled or
+disabled status. Select a row to read and copy its full description.
+
+The catalog reads definitions from the bundled AI harness and MCP adapter.
+Built-in tools are currently enabled by default; this page does not change tool
+permissions. AI chat exposes tools as the task needs them, and model capabilities
+and browser state determine the available operations. `rel_model_probe` is used
+only for model compatibility checks. The bundled `rel-harness tools` command
+prints the AI tool catalog as JSON without making a model or browser request.
+
+**Report a Bug** is the last button in the window's management toolbar group,
+after **Providers**.
+
 ## Agent instructions and current-page context
 
 Open **REL → Settings… → Agent** to edit the system prompt used by native Chat.
