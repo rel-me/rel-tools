@@ -863,6 +863,13 @@ Turning sharing off stops new entries; existing entries remain until the local
 agent restarts. The queue is not a permanent notification archive. Debug runtimes
 with website notifications disabled show that status on the page.
 
+## WhatsApp linked device
+
+In Settings > WhatsApp, connect by scanning the pairing QR code from WhatsApp's
+Linked Devices screen on your phone. New pairings advertise the device name
+`REL`. If an existing connection shows `Other device`, remove the saved
+connection and pair again after updating REL to register the new name.
+
 ## Webhooks
 
 Open **REL → Settings… → Webhooks** to add a JSON webhook, Discord integration,
