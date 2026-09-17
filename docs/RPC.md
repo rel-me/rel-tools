@@ -1365,3 +1365,54 @@ Pinging a closed session returns `SESSION_NOT_FOUND`; it never recreates it.
 Expiry follows normal session close cleanup, invalidating attached pages.
 Lifetime settings survive agent restarts. Existing sessions upgraded from older
 versions retain an indefinite lifetime, as do explicitly created native app tabs.
+
+## Native WhatsApp connection
+
+These routes are available on macOS in builds containing the native linked-device
+integration. They use ordinary RPC envelopes and require the owning app's
+`X-REL-App-Authorization` token, supplied through REL's private app/agent bridge.
+They are Settings operations, not public CLI/MCP operations; callers must not
+extract or persist the app token. They do not use browser sessions or the
+WhatsApp Cloud API.
+Responses include `Cache-Control: no-store`; clients must not log or persist QR
+payloads.
+
+| Method | Route | Result |
+| --- | --- | --- |
+| GET | `/v1/whatsapp` | Current connection status; resumes a saved account on first access |
+| POST | `/v1/whatsapp/connect` | Starts pairing or reconnects; returns promptly after initializing the client |
+| GET | `/v1/whatsapp/groups` | Connected account's groups as `{groups: [{id, name}]}` |
+| POST | `/v1/whatsapp/destination` | Saves `{id: "GROUP_JID"}` from the most recently refreshed group list |
+| DELETE | `/v1/whatsapp/connection` | Stops the local client and removes saved session keys and group |
+
+Status routes return this data shape:
+
+```json
+{
+  "connection": {
+    "phase": "disconnected",
+    "saved": false,
+    "qr": null,
+    "expires_at": null,
+    "message": null,
+    "destination": null
+  }
+}
+```
+
+`phase` is `disconnected`, `connecting`, `pairing`, `connected`, `expired`, or
+`error`. During pairing, `qr` contains the short-lived QR payload and `expires_at`
+is its Unix expiry time in seconds. Render the QR locally and hide it at expiry.
+Poll status while pairing; completion clears the QR and changes phase to
+`connected`. `saved` indicates a linked account, not a guarantee of current
+connectivity. A saved destination is `{id, name}`; the name is its label at the
+last selection, while the ID controls identity.
+
+Queries and bodies over 4 KiB are rejected. Group selection rejects unknown fields
+and requires an ID from the current group list. Group refresh has a 20-second
+network deadline. Connection removal stops local work before deleting Keychain
+entries; it does not guarantee removal from WhatsApp's server-side Linked Devices
+list. Users can revoke that device on their phone.
+
+No send route is introduced by this Settings integration. Saving a destination
+neither sends a message nor changes an Action's schedule or completion steps.
