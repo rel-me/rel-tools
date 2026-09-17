@@ -870,6 +870,15 @@ Linked Devices screen on your phone. New pairings advertise the device name
 `REL`. If an existing connection shows `Other device`, remove the saved
 connection and pair again after updating REL to register the new name.
 
+Choose a notification group from the dropdown; changes save automatically.
+The refresh icon beside the dropdown reloads the available groups. If saving
+fails, REL restores the previous selection and displays the error.
+
+Turn off **Enabled** to pause WhatsApp without removing the linked account or
+selected group. The preference survives restarting REL. Turn it on to resume
+without another QR scan. **Remove Connection** deletes the saved account,
+group, and enabled preference from this Mac.
+
 ## Webhooks
 
 Open **REL → Settings… → Webhooks** to add a JSON webhook, Discord integration,
