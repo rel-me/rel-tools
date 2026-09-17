@@ -559,7 +559,8 @@ Profiles, schedules, and providers use a versioned JSON envelope:
 `{"format":"rel.<kind>","version":1,"configuration":{...}}`. The kind is
 `profile`, `schedule`, or `provider`. Export produces one line; pasted JSON may
 include whitespace. Paste the complete object, without Markdown fences. JSON
-input is limited to 1 MiB. Other versions, mismatched kinds, malformed JSON,
+input is limited to 1 MiB. Profile setups additionally accept version 2, as
+described below. Other versions, mismatched kinds, malformed JSON,
 and invalid configurations are rejected.
 
 ### Profiles: single-line JSON
@@ -579,6 +580,44 @@ Cookies, passwords, browser storage, and referenced proxy definitions are not
 included. Both `includes_cookies` and `includes_passwords` must be false.
 A non-null proxy alias must already exist on the importing device; import the
 proxy first or set `proxy_alias` to null. The new profile receives a new ID.
+
+### Case studies and Profile setups
+
+Profiles can include a portable setup with Action templates, editable inputs,
+and a login/access checklist. These Profiles use envelope `version: 2` with
+`format: "rel.profile"`; ordinary Profiles retain version 1. Older REL builds
+reject version 2 instead of silently losing the setup. Copy the complete JSON
+from a case study into **Settings → Profiles → Import Profile**.
+
+Choose **New Session from Profile**, customize the setup fields, and create the
+session. REL creates fresh, disabled Actions bound to that session. Open its
+**Actions → Review Setup** to inspect the steps and destinations. Configure a
+working AI model, sign in to the required sites in that session, and verify
+access yourself. Confirm the checklist and choose **Enable Actions** to activate
+the imported Actions. This is authorization for their saved schedules to run.
+Reviewing setup never executes an Action; **Run Now** is a live run and can send
+messages if its prompt instructs it to do so.
+
+This first version supports manual Actions or weekday/time schedules, multiple
+prompt steps, a starting URL, and stop-on-error behavior. Times follow the Mac's
+current time zone. REL must be running and the Mac awake. Setup checkboxes are
+user confirmations, not automatic login or destination verification.
+
+Inputs are text or finite numbers. `{{key}}` placeholders in prompt steps are
+replaced once when a session is created. Action edits, logins, and run history
+belong to that session; changing or deleting its source Profile does not change
+existing Actions. Exporting the Profile preserves its templates and default
+inputs, not later session edits or history. Creating another session makes
+another independent set of disabled Actions and is subject to Action plan limits.
+
+The setup format does not contain credentials, session IDs, runtime Action IDs,
+webhook bindings, or enabled state. Configure webhooks and notification/event
+triggers locally after session creation if a workflow needs them. The Marketplace
+case study uses WhatsApp Web in the browser and needs no webhook. Setup Action
+installation is currently performed by the app's session-creation flows; creating
+a session through CLI, MCP, or SDK does not install these native Actions.
+
+See the [RPC setup schema](/rpc/#profile-setup-definitions) for authoring packages.
 
 ### Proxies: curl command
 
