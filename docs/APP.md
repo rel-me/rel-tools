@@ -729,6 +729,22 @@ model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
 
+## Streaming responses and tool activity
+
+Chat displays answer text as the model generates it. Self-contained requests,
+such as original writing or lorem ipsum, use ordinary text responses.
+
+When a provider streams tool-call arguments, Chat shows **Preparing browser
+work** before execution. The activity updates as the tool runs and finishes.
+Preparation does not execute an incomplete tool call. Stopping a response cancels
+its unfinished preparations.
+
+The chat debug inspector shows preparation progress and redacted argument
+previews. Incomplete JSON is shown as a received-byte count; complete arguments
+use the same redaction as executed calls. Providers that deliver tool calls only
+as complete objects, including the current Ollama adapter, cannot show
+incremental argument progress.
+
 ## Chat restoration
 
 REL saves each Session's open Chat tabs, their order and selection, conversation
