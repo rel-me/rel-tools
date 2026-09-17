@@ -955,6 +955,57 @@ built-ins, and the list is empty until a Profile is saved. A profile resource is
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
+### Profile setup definitions
+
+Saved Profile responses include optional `setup` (null for ordinary Profiles).
+`POST /v1/profiles` accepts it and `PATCH /v1/profiles/{id}` replaces it in full;
+omitting the field preserves it and explicit null removes it. This stores a
+declarative template. It does not create a session or execute Actions.
+
+```json
+{
+  "version": 1,
+  "title": "Marketplace monitor",
+  "description": "Find nearby used items and report new matches.",
+  "sourceUrl": "https://github.com/rel-me/rel-case-studies/pull/3",
+  "inputs": [
+    {"key": "query", "label": "Search", "kind": "text", "defaultValue": "stroller wagon"},
+    {"key": "radius", "label": "Radius in miles", "kind": "number", "defaultValue": "10"}
+  ],
+  "checklist": ["Sign in to the required sites in this session."],
+  "actions": [{
+    "name": "Find matches",
+    "prompts": ["Find used {{query}} within {{radius}} miles."],
+    "startingUrl": "https://www.facebook.com/marketplace",
+    "schedule": {"weekdays": [1, 2, 3, 4, 5, 6, 7], "hour": 9, "minute": 0},
+    "stopOnError": true
+  }]
+}
+```
+
+`setup.version` is 1, independently of the JSON transfer envelope and binary
+archive versions. `sourceUrl`, `startingUrl`, and `schedule` may be omitted or
+null. An absent schedule creates a manual Action; weekday numbers are Sunday=1
+through Saturday=7, without duplicates. Hours are 0–23 and minutes 0–59 in the
+Mac's current time zone. All other fields shown are required. `stopOnError` is a
+Boolean. There is no enabled state, executable script, external integration
+secret, session ID, or runtime Action ID in a setup.
+
+Limits: 512,000 serialized bytes per setup; 1–20 Actions; up to 20 inputs and
+checklist entries; 1–20 prompt steps per Action. Titles and input labels are at
+most 120 characters, descriptions 4,000, checklist entries and default input
+values 2,000, Action names 80, and each prompt 100,000. Required text is nonempty.
+Input keys are unique, 1–64 ASCII letters/digits/underscores. Kinds are `text` or
+`number`; numeric defaults and supplied values must parse as finite numbers.
+Unknown fields, versions, undeclared prompt placeholders, and malformed schedules
+are rejected. URLs must use HTTP(S), have a host, and contain no credentials.
+
+REL app session creation substitutes inputs once and installs all templates in
+one local Action persistence write, with fresh IDs and disabled state. Setup
+instructions are retained with those Actions. The current CLI/MCP/SDK creation
+paths apply browser defaults only; they do not install native Action templates.
+Setup import and export never copy Action run state or browser authentication.
+
 `POST /v1/profile-transfers/export` accepts `name`, `include_cookies`,
 `include_passwords`, `include_proxy_credentials`, and an optional `passphrase`.
 It returns `data.filename` plus `data.contents_base64`, which decodes to the
@@ -969,8 +1020,10 @@ archive in Rust, decrypts embedded Proxy credentials, and returns the newly
 created `data.profile`. The owning app sets `browser_data_ready:true` only
 after it has authenticated and decrypted the browser records for restoration.
 Transfer files are limited to 12 MiB and never overwrite an existing name.
+Version 8 stores optional validated `setup_json` in `profiles`; older archives
+import with no setup. Supported archive versions are 1 through 8.
 
-Both transfer types use SQLite `application_id` `RELT`, schema version 1, and
+Both transfer types use SQLite `application_id` `RELT`, schema version 8, and
 the same five tables: `metadata`, `proxies`, `profiles`, `cookies`, and
 `passwords`. The `proxies` table is identical for standalone Proxy archives
 and Proxies embedded in Profile archives. Protected credential and browser
