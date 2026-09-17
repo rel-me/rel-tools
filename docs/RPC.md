@@ -1418,3 +1418,42 @@ Pinging a closed session returns `SESSION_NOT_FOUND`; it never recreates it.
 Expiry follows normal session close cleanup, invalidating attached pages.
 Lifetime settings survive agent restarts. Existing sessions upgraded from older
 versions retain an indefinite lifetime, as do explicitly created native app tabs.
+
+
+## Native WhatsApp settings
+
+These app-authorized routes manage the native linked-device connection. They
+require the owning REL app's authorization and return `Cache-Control: no-store`.
+They are separate from the WhatsApp Cloud API webhook integration.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/v1/whatsapp` | Read connection status |
+| `POST` | `/v1/whatsapp/connect` | Begin or resume pairing when enabled |
+| `POST` | `/v1/whatsapp/enabled` | Persist `{"enabled":true}` or `{"enabled":false}` |
+| `DELETE` | `/v1/whatsapp/connection` | Remove the saved connection and preferences |
+| `GET` | `/v1/whatsapp/groups` | Refresh participating groups while connected |
+| `POST` | `/v1/whatsapp/destination` | Save `{"id":"group@g.us"}` from the refreshed group list |
+| `POST` | `/v1/whatsapp/send` | Send `{"text":"Final response"}` to the saved group |
+
+Status and settings mutation responses contain `connection` with `phase`, `saved`,
+`enabled`, `qr`, `expires_at`, `message`, and `destination`. The destination is
+null or an object with `id` and `name`. Group refresh returns `groups`, an array
+of these objects. Pairing QR values are short-lived secrets.
+
+Disabling sets `phase` to `disabled`, stops the native client, and retains the
+account credentials and group. A disabled saved account does not reconnect on
+restart. Enabling resumes a saved account; an account without saved credentials
+still needs the connect route. The enabled preference defaults to true for
+existing installations. Group selection persists immediately without sending a
+message or enabling an Action.
+
+The send route accepts only `text`, with 1–4,096 Unicode scalar values and at
+least one non-whitespace character, within a 32 KiB JSON body. Recipient overrides
+and unknown fields are rejected. It requires enabled WhatsApp, a saved linked
+account, and a saved group. It waits up to 20 seconds for connection readiness
+and up to 20 seconds for sending. Success data contains `message_id` and
+`destination_id`; it does not confirm the recipient has read the message.
+Failures use the standard error envelope. REL does not automatically retry;
+a send timeout leaves delivery uncertain. Settings changes serialize with
+sending, so disabling cannot recall an in-flight message.
