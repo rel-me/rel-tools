@@ -863,9 +863,10 @@ with website notifications disabled show that status on the page.
 ## WhatsApp linked device
 
 In Settings > WhatsApp, connect by scanning the pairing QR code from WhatsApp's
-Linked Devices screen on your phone. New pairings advertise the device name
-`REL`. If an existing connection shows `Other device`, remove the saved
-connection and pair again after updating REL to register the new name.
+Linked Devices screen on your phone. New pairings advertise the app name: `REL`
+for the released app, or the full worktree name (for example `RELDebug-rel-abcd`) for a Debug build. Debug
+bundles also use that full name in Dock and Finder. If an existing connection
+shows an older name such as `Other device`, remove the saved connection and pair again after updating REL to register the new name.
 
 Choose a notification group from the dropdown; changes save automatically.
 The refresh icon beside the dropdown reloads the available groups. If saving
