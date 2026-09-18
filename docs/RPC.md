@@ -10,7 +10,15 @@ Related documents: [CLI](CLI.md), [MCP](MCP.md), and [Rust SDK](SDK.md).
 - Base URL: `http://127.0.0.1:17319/v1`
 - `REL_AGENT_PORT` overrides port `17319`.
 - HTTP/1.1, one request per connection, `Connection: close`.
-- JSON request limit: 16 MiB.
+- JSON request limit: 16 MiB; request line and headers together: 64 KiB.
+- Request headers and body must arrive within two seconds of connection acceptance.
+  Sending bytes gradually does not extend this deadline. This read deadline is
+  separate from the browser operation's `timeout`.
+- The agent parses up to 64 incoming connections concurrently. A stalled request
+  does not block acceptance of other clients, including health/status checks.
+  When all connection readers are occupied, new connections receive a retryable
+  `RATE_LIMITED` error when writable, or close without a response. Retry only when
+  the operation is safe to repeat.
 - Ordinary responses use `application/json`.
 - Capture streams use `application/x-ndjson` and terminate at connection close.
 - The agent is loopback-only but currently has no client authentication.
