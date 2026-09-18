@@ -717,6 +717,27 @@ the local server at `http://127.0.0.1:11434` without an API key. Scheduled
 prompts use the default provider and model when their new Session starts. REL
 Free supports one configured provider; REL Pro supports multiple providers.
 
+Select **Local Models…** in Providers to download and run a model on this Mac.
+Install [Ollama](https://ollama.com/download/mac) once using the panel's link,
+then choose **Open Ollama** and **Check Connection**. Model management connects
+only to `127.0.0.1:11434`; it does not download models to remote providers.
+
+The panel suggests quantized Qwen 3 models based on physical memory and whether
+the Mac uses Apple silicon or Intel. Memory thresholds are conservative REL
+estimates that reserve room for macOS and REL. Download sizes are approximate;
+longer conversations, other apps, and Ollama settings can require more memory.
+Intel Macs run Ollama on the CPU and should start with the lightweight model.
+Review model details and licenses using the panel's link.
+
+Choose **Download** to see progress. Cancel stops REL's request; Ollama retains
+partial data so another download can resume. Ollama stores the models on disk,
+and they remain after REL closes. A failed download or load displays its error.
+Choose **Run in REL** for a downloaded model to load it for ten minutes, register
+a local provider if needed, and refresh the chat model picker. Select the model
+in Chat to use it. Registering a provider follows the normal Free/Pro provider
+limit and preserves an existing default. **Unload** releases model memory without
+deleting its files. **Refresh** updates the downloaded and loaded model lists.
+
 The Chat model picker uses the provider's display name when available, or the
 exact model ID when no display name is supplied. This also applies to newly
 discovered models. API requests always use the model ID.
