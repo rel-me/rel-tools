@@ -853,9 +853,9 @@ a fresh cadence and count. Disabling and re-enabling preserves both.
 Missed occurrences are skipped when REL starts again, and runs never overlap.
 A run that lasts longer than its interval resumes at the next future occurrence
 after it finishes. The table shows **Repeat ended** when its end condition is met;
-manual **Run Now** remains available while the Action is enabled.
+manual **Run Now** remains available even when the Action is disabled.
 
-Use **Run Now** to execute the Action immediately. Disable the Action to pause
+Use **Run Now** to execute the Action immediately, including a disabled Action, without enabling its schedule. Disable the Action to pause
 its timer. Weekday schedules follow the Mac's current time zone; repeat intervals
 measure elapsed minutes. Results and failures remain visible in the Action's
 status.
@@ -945,3 +945,16 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
+
+### Quiet WhatsApp Action results
+
+In builds with native WhatsApp completion, select **When finished → WhatsApp**
+to send the final response to the group saved in Settings. For monitors, instruct
+the model to start its final response with `NO_ALERT` when there is nothing new
+to report. After trimming whitespace, a leading `NO_ALERT` suppresses WhatsApp
+delivery, including an explanatory no-match response. Other selected completion
+destinations still receive the result. This is an explicit response convention,
+not a classifier: ordinary responses containing the words later are delivered.
+
+This suppression does not deduplicate listings or guarantee model accuracy.
+Keep automatic alerts disabled until matching and duplicate handling are verified.
