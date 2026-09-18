@@ -527,6 +527,11 @@ excluded along with `hidden` and `aria-hidden` subtrees. Element refs such as
 `e17` are valid only for that page, document sequence, and observation. Private
 locators never cross RPC.
 
+Actionable elements include ARIA controls such as `role="button"` and
+`role="menuitem"`, including controls built with `div` or `span` elements.
+Their observation refs use the same native browser input as HTML buttons.
+Disabled states remain reported, and noninteractive roles do not become controls.
+
 Semantic observations visit at most 50,000 DOM nodes, retain at most 5,000
 candidates and returned entries, limit individual text fields to 2,048 bytes,
 and limit total returned semantics to 512 KiB. REL reports rather than silently
