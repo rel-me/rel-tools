@@ -948,3 +948,32 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
+
+## WhatsApp
+
+In builds with native WhatsApp support, open **Settings → Tools → WhatsApp** and
+choose **Connect WhatsApp**. On your phone, open WhatsApp's **Settings → Linked
+Devices → Link a Device**, then scan the QR shown in REL. Keep the panel open;
+expired codes refresh automatically until the pairing attempt expires. Choose
+**New QR Code** to start another attempt.
+
+After connecting, refresh the groups, choose a group, and select **Save Group**.
+REL saves the group's stable identifier, so a name change cannot redirect the
+selection to a different group. Groups with identical names display their IDs.
+Saving a group does not send a message or enable a scheduled Action. This panel
+configures the connection and destination; it does not yet add an Action delivery
+step.
+
+Connection keys stay in the Rust agent and macOS Keychain. REL resumes a saved
+account when this integration is first accessed after restart. The Debug app uses
+its own account storage, separate from installed REL. Connecting and choosing a
+group use no browser or AI calls.
+
+**Remove Connection** stops the local client and deletes its saved connection and
+group from this Mac. To revoke the linked device on WhatsApp as well, remove it
+from your phone's **Linked Devices** screen. A connection revoked on the phone
+must be removed and paired again in REL.
+
+This integration uses an unofficial WhatsApp client. Protocol changes can
+interrupt service and WhatsApp may restrict the account. Existing WhatsApp Cloud
+API webhooks remain available separately in [Webhooks](#webhooks).
