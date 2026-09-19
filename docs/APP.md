@@ -96,6 +96,12 @@ See the provider setup references for [Fireworks](https://docs.fireworks.ai/tool
 [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html),
 and [Baseten](https://docs.baseten.co/reference/inference-api/overview).
 
+### Jev browser decisions
+
+Choose **Typesafe AI** as the provider and **Jev** in the Chat model picker.
+Enter your TypeSafe API key when adding the provider. The model uses the
+`jev-latest` alias; saved provider configurations keep the `jev` provider value.
+
 ## Session and workspace errors
 
 Click the warning icon in the main toolbar to open **Session and Workspace
