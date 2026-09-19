@@ -965,3 +965,49 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
+
+## Remote access
+
+**Settings → Remote Access** serves a small HTTPS dashboard for another computer.
+It supports viewing and creating Sessions, deleting Sessions, navigation,
+screenshots, creating Profiles, renaming custom Profiles, and adding prompt
+Actions to custom Profiles. Profile Actions are saved as setup templates; adding
+one does not run a prompt immediately. There is no live browser video or remote
+macOS desktop.
+
+1. Keep REL running on the Mac and arrange connectivity through your private
+   network or VPN.
+2. Obtain a PEM certificate chain and matching private key for a hostname your
+   other computer can reach. The other computer must trust the certificate.
+   Store the private key in a file readable only by your macOS account.
+3. In **Settings → Remote Access**, enter the listener IP and port, such as
+   `192.168.1.20:17443`, and the matching HTTPS origin, such as
+   `https://rel.example:17443`. Use the certificate's hostname. Do not include a
+   trailing slash or path. Enter the certificate and key file paths.
+4. Click **Enable Remote Access**, then **Generate Pairing Code**.
+5. Open that HTTPS address on the other computer. Enter a device name and the
+   pairing code. Codes are single-use and expire after five minutes.
+
+The default listener address is loopback-only. Select your private-network or
+VPN address to allow another computer to connect. REL does not open firewall
+ports, configure DNS, or obtain certificates. The existing local HTTP API stays
+on loopback and must not be exposed directly.
+
+Each paired browser has owner-level access to the dashboard's supported
+operations for seven days. Use **Revoke** beside a browser in native Settings to
+block new requests, or **Disable Remote Access** to revoke all browsers and stop
+listening. Work already submitted may finish. Signing out revokes that browser.
+Remote access is off again after REL restarts.
+
+The **Activity** tab retains submitted jobs and results while remote access is
+running, including when the browser disconnects. Select **View result** to load a
+job's output or screenshot. An interrupted submission can be retried with its
+original action key without running it twice. History is scoped to the paired
+browser and limited to 64 jobs, with four jobs running at once. At capacity, wait
+for work to finish, disable and re-enable remote access, and pair again.
+Restarting remote access clears job history and pairings; do not resubmit
+uncertain work without checking its effects on the Mac first.
+
+Screenshots are limited to 4 MiB. Session deletion removes that Session's data
+and asks for confirmation. Credentials and app-only password reveal operations
+are not available through this dashboard.
