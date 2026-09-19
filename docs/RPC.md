@@ -1341,7 +1341,7 @@ Each session value contains:
 | --- | --- |
 | `lastCommittedURL` | HTTP(S) URL without credentials, or null |
 | `isNetworkPaused` | Boolean, default false |
-| `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String}`; tool is `info`, `filters`, `logs`, or `terminal`; defaults are false, true, and `logs` |
+| `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String, viewportPreset?: String}`; tool is `info`, `filters`, `schedules` (Actions), `logs`, or `terminal`; defaults are false, true, and `logs`. `viewportPreset` is `fitWindow`, `laptop` (1024w), `tablet` (768w), or `mobile` (320w); omit it or use `null` to inherit the app default. |
 | `chatTokenUsageByModel` | Object of cumulative native Chat usage records keyed by model usage key; default `{}` |
 | `chats` | Conversation state described below; defaults to no conversations, null selection, and next sequence 2 |
 
