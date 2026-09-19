@@ -1011,3 +1011,24 @@ uncertain work without checking its effects on the Mac first.
 Screenshots are limited to 4 MiB. Session deletion removes that Session's data
 and asks for confirmation. Credentials and app-only password reveal operations
 are not available through this dashboard.
+
+## Jev browser decisions and page questions
+
+Select the Jev provider for bounded decisions over the active Session's page.
+Jev can click observed controls, scroll, wait for updates, clear text fields,
+and type exact text supplied in double quotes. For example: `Enter "Ada" in
+Name, then click Save.` REL executes native browser input and checks a fresh
+observation before choosing the next action.
+
+You can also ask for source information, such as `what are all the post titles`
+or `list the product names`. REL supplies observed text passages grouped with their section and control context, Jev selects
+which passages answer the request, and REL returns those passages verbatim in
+chat. A reading answer can require zero browser actions. It covers a bounded
+current page observation, not every item in an infinite feed or unloaded page.
+Scroll to more content and ask again when needed.
+
+Jev returns typed decisions and probabilities rather than writing free-form
+answers. This integration does not generate summaries, invent text to enter,
+or execute arbitrary scripts. Put text to enter in double quotes. An uncertain
+browser decision stops without acting; its confidence percentage describes the
+model's decision, not how much of the task is complete.
