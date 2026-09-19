@@ -1020,7 +1020,7 @@ Name, then click Save.` REL executes native browser input and checks a fresh
 observation before choosing the next action.
 
 You can also ask for source information, such as `what are all the post titles`
-or `list the product names`. REL supplies observed text passages, Jev selects
+or `list the product names`. REL supplies observed text passages grouped with their section and control context, Jev selects
 which passages answer the request, and REL returns those passages verbatim in
 chat. A reading answer can require zero browser actions. It covers a bounded
 current page observation, not every item in an infinite feed or unloaded page.
