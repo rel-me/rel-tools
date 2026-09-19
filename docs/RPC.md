@@ -1353,6 +1353,13 @@ within that session. Each message has a stable UUID `id`, `role` (`user`,
 (`{activities: [...], elapsedTime: seconds}`). Activity records contain `id`,
 `title`, optional `detail`, and `status` (`running`, `completed`, or `failed`).
 
+Messages may also include Jev's `decision`: `{"status": "done", "actions": 3,
+"confidence": 0.9}`. Status is `done`, `uncertain`, `blocked`, `stalled`, or
+`limit`; `actions` is a nonnegative integer and optional `confidence` is a number
+from 0 through 1. Decision results are preserved for both session and global
+chats. Omitting `decision` or sending null clears it; messages saved before this
+field was introduced remain valid. The workspace wire version remains 1.
+
 Conversations may include `chatConfiguration`, containing `model`, `effort`, and
 `speed`. REL preserves this selection for both session and global chats, including
 empty conversations. Omitting it or sending null clears the saved selection;
