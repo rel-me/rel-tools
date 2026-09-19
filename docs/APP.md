@@ -26,6 +26,23 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+## Session viewport presets
+
+Use **Session Viewport** beside the address field to choose **Laptop 1024w**,
+**Tablet 768w**, or **Mobile 320w**. Each preset sets the actual page width in
+CSS pixels and follows the available window height. The page is centered in a
+scrollable canvas; narrower windows keep the selected width and allow horizontal
+scrolling. These presets resize the viewport without changing the Session's
+browser identity or emulating a device.
+
+The selection is saved separately for each Session and survives restarting REL.
+Choose **Fit Window** to use the available space, or **App Default** to inherit
+the viewport configured in Settings. Background Sessions retain their selected
+width and last visible height.
+
+The bottom panel floats over the page. Opening, resizing, and expanding it leave
+the page viewport unchanged.
+
 ## Quitting REL
 
 Closing the main window leaves REL running. Use **REL → Quit REL** or **⌘Q**
