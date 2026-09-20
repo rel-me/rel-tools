@@ -1110,6 +1110,6 @@ an explicit notice. Delivery failures appear in WhatsApp Settings.
 Disabling the integration or Remote control, changing the selected group, or
 removing the account invalidates queued commands and replies. The desktop
 checks for cancellation every two seconds; already completed browser or external
-actions cannot be undone. Commands are consumed before execution and are never
+actions cannot be undone, and an in-flight reply cannot be recalled. Commands are consumed before execution and are never
 automatically retried after a crash or uncertain reply delivery. Check the
 result before submitting a command again.
