@@ -428,7 +428,14 @@ button refer to that request. After submitting a different address, refresh
 retries the new URL even if it also fails. Typing without submitting does not
 change the retry target.
 
-Back and Forward work with history entries created within the same page.
+Back and Forward include pages opened by website links in a new window or tab.
+Back first walks through the new page's own history, then returns to its opener;
+Forward revisits the retained page without reloading its document. Nested pages
+use the same controls, with no separate Return button. Navigating to a new
+address or opening another page after going Back discards the forward pages.
+A website can still close its own popup and return to the opener.
+
+Back and Forward also work with history entries created within the same page.
 Submitting an address that only changes its `#fragment` also keeps the current
 document available without waiting for a full page reload.
 
