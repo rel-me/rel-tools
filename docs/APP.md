@@ -1173,10 +1173,12 @@ response and conversation budgets.
 
 Settings writes only nonsecret Keychain service/account references into
 `ai-providers.toml`. The Rust harness reads the helper credential directly from
-Keychain. Save an existing Jev key again once in Settings so its Keychain item
-authorizes the bundled harness. New saves authorize both the app and harness.
-Locked Keychain or missing access produces an explicit handoff without waiting
-for a background authentication dialog. For a manually managed registry, pass `--config` or set `REL_AI_CONFIG` to its path when launching
+Keychain. The app and harness are separate Keychain clients. In Keychain Access,
+authorize the app’s bundled `Contents/Resources/rel-harness` to read the Jev
+profile’s API-key item; the registry reference alone does not grant access.
+REL does not change credential permissions automatically. Locked Keychain or
+missing access produces an explicit error without waiting for a background
+authentication dialog. For a manually managed registry, pass `--config` or set `REL_AI_CONFIG` to its path when launching
 the harness and put `credential_service` and
 `credential_account` on the Jev profile, pointing to its macOS generic-password
 item that authorizes the bundled harness. Model keys must never be placed in the registry. The existing standalone
