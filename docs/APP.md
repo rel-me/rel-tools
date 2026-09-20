@@ -1059,3 +1059,57 @@ answers. This integration does not generate summaries, invent text to enter,
 or execute arbitrary scripts. Put text to enter in double quotes. An uncertain
 browser decision stops without acting; its confidence percentage describes the
 model's decision, not how much of the task is complete.
+
+## Control REL through WhatsApp
+
+In **Settings → WhatsApp**, enable the integration, connect your account by
+scanning the QR code from WhatsApp's **Linked Devices**, and choose a group.
+Turn on **Remote control** to accept commands. This uses REL's native linked-device
+connection; no public webhook or inbound network port is required. The client is
+unofficial and WhatsApp protocol changes can interrupt it.
+
+Send commands from the **same WhatsApp account you linked**, using your phone or
+another linked device, into the selected group. Every command starts with `/rel`.
+Other group members cannot control REL, but everyone in that group can read its
+replies. Choose a private group for sensitive tasks.
+
+| Message | Result |
+| --- | --- |
+| `/rel help` | Show available commands |
+| `/rel ask Find the delivery date for my order` | Chat with REL's AI and use its browser tools |
+| `/rel status` | Report session and running Action counts |
+| `/rel sessions` | List browser session names and IDs |
+| `/rel new-session` | Create a session using REL's defaults |
+| `/rel open SESSION_ID https://example.com` | Navigate an existing session |
+| `/rel close-session SESSION_ID` | Close that session |
+| `/rel actions` | List saved session Actions and their UUIDs |
+| `/rel run ACTION_UUID` | Run an Action once and reply with its final result |
+| `/rel new` | Reset the remote AI conversation |
+| `/rel cancel` | Cancel current remote work and clear queued commands |
+
+You can put a natural-language request directly after `/rel`; `ask` lets you
+start a request with a reserved command word. AI requests use your configured
+default model and its normal credentials and tools. The remote conversation is
+separate from desktop chats and is kept in memory until reset, cancelled,
+disabled, or REL restarts. Explicit session commands require the IDs from
+`/rel sessions`; REL does not assume the selected desktop tab is your target.
+
+Action runs use existing budget checks, multi-step behavior, and run history.
+An explicit run can execute a disabled Action without enabling its schedule.
+Configured Shortcut and webhook completion handlers still run. The remote
+reply replaces the Action's optional WhatsApp notification for that run.
+
+Keep REL running and your Mac awake and connected. Normal commands execute one
+at a time; `cancel` interrupts the queue. Commands older than five minutes, from
+before remote startup or its last access change, duplicate messages, non-text
+messages, and commands from other senders or groups are ignored. Up to 16 commands
+can wait; excess commands are discarded with a Settings status message. Messages
+must fit within 4,096 Unicode scalar values. Long responses are shortened with
+an explicit notice. Delivery failures appear in WhatsApp Settings.
+
+Disabling the integration or Remote control, changing the selected group, or
+removing the account invalidates queued commands and replies. The desktop
+checks for cancellation every two seconds; already completed browser or external
+actions cannot be undone. Commands are consumed before execution and are never
+automatically retried after a crash or uncertain reply delivery. Check the
+result before submitting a command again.

@@ -1431,3 +1431,32 @@ Pinging a closed session returns `SESSION_NOT_FOUND`; it never recreates it.
 Expiry follows normal session close cleanup, invalidating attached pages.
 Lifetime settings survive agent restarts. Existing sessions upgraded from older
 versions retain an indefinite lifetime, as do explicitly created native app tabs.
+
+## Native WhatsApp remote control
+
+These routes belong to the owning REL app and require its existing app authorization.
+They are not exposed to ordinary remote bearer-token, CLI, MCP, or SDK clients.
+See [WhatsApp setup and commands](APP.md#control-rel-through-whatsapp) for the
+user interface. Responses use the normal endpoint envelope and `Cache-Control: no-store`.
+
+`GET /v1/whatsapp` includes `connection.remote_enabled` (default false) and
+`connection.remote_epoch` (an opaque authorization generation) alongside linked
+account and destination metadata.
+
+| Method | Route | Body and behavior |
+| --- | --- | --- |
+| `POST` | `/v1/whatsapp/remote/enabled` | `{ "enabled": true }`; requires an enabled linked account and selected group. Persists the opt-in in the app's Keychain namespace and returns connection metadata. |
+| `POST` | `/v1/whatsapp/remote/claim` | `{}`; consumes one fresh command, returning `{ "command": { "id": "…", "text": "status", "timestamp": 123 }, "epoch": "…" }`, or `command: null`. Text excludes `/rel`. Only the app's serial remote controller should claim. |
+| `POST` | `/v1/whatsapp/remote/reply` | `{ "id": "…", "epoch": "…", "text": "…" }`; requires the currently claimed command and current opt-in, destination and epoch. Uses the saved group, adds `REL: `, and consumes reply permission before sending. |
+
+Reply text including its prefix must contain at most 4,096 Unicode scalar values.
+Replies have a 32 KiB request-body cap; other remote requests have a 4 KiB cap.
+Changes to access or destination, and owner `/rel cancel` commands, replace the
+epoch and clear pending work. A consumed command or uncertain send is not retried.
+The app cancels execution if it loses the status/authorization channel.
+
+Native `POST /v1/whatsapp/send` rejects output beginning with the reserved `/rel`
+command prefix (followed by whitespace or end of text), preventing an Action
+notification from executing as a command on another linked-device delivery.
+Add a descriptive heading to such notification output. Remote replies already
+receive the `REL: ` heading.
