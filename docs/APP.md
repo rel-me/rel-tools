@@ -1104,7 +1104,23 @@ credential_account = "YOUR_KEYCHAIN_ACCOUNT"
 ```
 
 The model must support OpenAI-compatible chat completions with JSON-object
-output and report token usage. Store its key as a macOS generic-password item,
+output and report token usage. `openai-compatible` profiles may omit both
+Keychain references when their endpoint does not require authentication. Supplying
+only one reference is an error. For a local Ollama model, for example:
+
+```toml
+[providers.local_text]
+kind = "openai-compatible"
+model = "qwen3.5:9b"
+base_url = "http://127.0.0.1:11434/v1"
+```
+
+Select it with `REL_JEV_TEXT_PROFILE=local_text`. If the chosen text endpoint
+supports reasoning controls, `REL_JEV_TEXT_REASONING=none` disables reasoning
+for short field values. Other accepted settings are `minimal`, `low`, `medium`,
+`high`, and `max`; unsupported provider settings fail explicitly.
+
+For authenticated providers, store the key as a macOS generic-password item,
 and authorize this runtime's bundled `Contents/Resources/rel-harness` to read
 that item. Credentials are read in Rust and never enter model context or TOML.
 These environment variables must be present in the harness process; for app chat,
@@ -1114,8 +1130,12 @@ selector in Settings.
 For example, navigate a Session to
 [Google Flights](https://www.google.com/travel/flights?hl=en), select Jev, and ask:
 
-> Find one-way flights from Zurich to London on September 20, 2026, for one adult
+> Find one-way flights from Zurich to London on September 27, 2026, for one adult
 > in economy. Stop when matching flight options are visible.
+
+For a multi-step search like this, select the 96k response token budget in
+**Chat Options**. The default 24k budget can stop before the form is complete;
+Jev and text-helper calls share that budget.
 
 To use a running Debug runtime from a shell, navigate with its bundled `rel`
 CLI, then invoke the same bundle's `rel-harness run --provider jev --model
@@ -1124,12 +1144,18 @@ on private stdin, and set `REL_JEV_TEXT_PROFILE=field_text` and
 `REL_JEV_TEXT_CONFIG=/absolute/path/to/helper.toml` in that process's environment.
 Use the worktree's runtime wrapper to select its endpoint.
 
-A helper call counts against the same response call and token budgets as Jev.
-It has a 30-second timeout and cannot execute browser tools. Invalid output,
-unavailable credentials, or exhausted budgets stop before typing. Native input
+Interaction decisions use visible controls and bounded page text. Passage-selection
+questions are sent only after Jev selects a reading operation, which uses a
+separate model call. A helper call counts against the same response call and
+token budgets as Jev. It has a 30-second timeout and cannot execute browser tools.
+If the page changes between observation and input, REL displays the rejected
+action, observes the same Session, and asks Jev for a new decision. This happens
+at most twice per response and never replays the old input automatically.
+Invalid helper output, unavailable credentials, or exhausted budgets stop before typing. Native input
 still checks the observation after text generation. Existing double-quoted
-literal values remain available without a text helper. This feature does not
-book flights or independently certify that a model's completion claim is correct.
+literal values remain available without a text helper. The Flights example stops
+before choosing or booking a flight. A model's completion claim still requires
+independent verification.
 
 ## Control REL through WhatsApp
 
