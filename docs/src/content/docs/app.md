@@ -31,8 +31,7 @@ just telemetry removal.
 
 ## Session viewport presets
 
-Use **Session Viewport** beside the address field to choose **Desktop QHD 2560w**,
-**Desktop Full HD 1920w**, **Desktop 1440w**, **Wide Laptop 1280w**,
+Use **Session Viewport** beside the address field to choose **Desktop 1440w**, **Wide Laptop 1280w**,
 **Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Each preset sets the actual page width in
 CSS pixels and follows the available window height. The page is centered in a
 scrollable canvas; narrower windows keep the selected width and allow horizontal
