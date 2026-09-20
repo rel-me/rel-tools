@@ -1075,9 +1075,11 @@ current page observation, not every item in an infinite feed or unloaded page.
 Scroll to more content and ask again when needed.
 
 Jev chooses an operation and compatible target together. It returns typed
-decisions rather than free-form answers. An uncertain browser decision stops
-without acting; its confidence percentage describes the model's decision, not
-how much of the task is complete. A completion result is a model assessment;
+decisions rather than free-form answers. Its confidence percentage describes
+how concentrated the model's choices are, not how clear your instruction is or
+how much of the task is complete. Several useful next steps may share probability;
+a valid choice below 50% can still proceed. Invalid choices, unsupported work,
+unchanged-page repetition, and exhausted budgets still stop execution. A completion result is a model assessment;
 independently check the requested route, date, passengers, cabin, and visible
 results before treating a flight search as successful.
 
