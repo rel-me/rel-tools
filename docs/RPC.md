@@ -1299,6 +1299,12 @@ acknowledgment can interrupt an event's run. Separate consumers should not
 acknowledge events intended for the app.
 
 
+History navigation also crosses user-opened popup pages within a Session.
+`back` traverses the active page's native history before returning to its opener;
+`forward` can select the retained child again. New navigation after going Back
+discards the retained forward pages. The toolbar and navigation API use the
+same history.
+
 ## Workspace restoration
 
 REL preserves each session’s root-page HTTP(S) Back/Forward history and current
