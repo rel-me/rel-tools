@@ -732,7 +732,7 @@ reviewing its destination, prompt, completion action, and local execution time.
 
 Required fields are `name`, `provider`, and `maxTurns`; `baseURL` is optional
 except for services that require a custom URL. Provider values are `openai`,
-`openai-compatible`, `openrouter`, `anthropic`, `gemini`, and `ollama`. Provider
+`openai-compatible`, `openrouter`, `jev`, `anthropic`, `gemini`, and `ollama`. Provider
 names start with an ASCII letter, contain only letters, digits, hyphens, or
 underscores, and are at most 64 characters. Turn limits and URLs are validated
 using the same rules as the provider editor.
@@ -789,6 +789,42 @@ argument set, REL removes browser tools for the rest of that response so the
 model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
+
+### Jev browser decisions
+
+Add **Jev** in **Settings → Providers**, enter your TypeSafe API key, and choose
+**Jev · Browser decisions** (`jev-latest`) in the Chat model picker. Jev uses
+TypeSafe's structured decision API. The optional gateway URL is its API base
+URL (default `https://api.typesafe.ai/v1`), not an OpenAI-compatible endpoint.
+The model alias is listed locally; listing it does not verify API access.
+
+Open the page you want to work with, then describe the action. For example:
+
+- `Click the Account button.`
+- `Enter "Ada" in First name, then click Save.`
+- `Scroll down and open the Shipping section.`
+
+Jev chooses among actions REL constructs from the current page. REL performs
+native clicks, scrolling, waits, clearing, and keyboard actions, then observes
+the result before asking for the next decision. Put exact text to enter in
+double quotes; Jev cannot compose text. The current instruction supports up to
+eight quoted values, each at most 2,048 bytes. Controls must be present in the
+semantic observation. Visual-only controls, arbitrary text generation, and
+navigation to a URL that is not available as a page control need another model
+or manual interaction.
+
+The response is a compact outcome, action count, and final decision confidence.
+Expand completed work to inspect the actions. **Goal reached** means Jev judged
+the fresh page to satisfy your instruction. Low confidence, unavailable actions,
+repeated actions on an unchanged page, or exhausted limits stop the run with a
+short status. Confidence is a model estimate, not a guarantee. The Stop button
+cancels the run; reopening Chat does not replay past actions.
+
+Jev uses the configured turn limit and response call/token budgets. It does not
+support reasoning effort, service tiers, image input, or the chat tool-call
+compatibility probe. The model is shown as unverified until a separate browser
+workflow qualification is available. See [TypeSafe's API reference](https://docs.typesafe.ai/api)
+for the underlying Choice request and response contract.
 
 ## Streaming responses and tool activity
 
