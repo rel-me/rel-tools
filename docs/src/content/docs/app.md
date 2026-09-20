@@ -747,6 +747,20 @@ discovered models. API requests always use the model ID.
 
 Chat displays response text as the model generates it, including local Ollama models such as Qwen. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
 
+Choose **New Provider**, then select a **Type**:
+
+- **Remote** lists the remote services and their endpoint and API key settings.
+- **Local → REL** lets you select a model to download and run on this Mac. REL
+  recommends a model for your Mac and shows its download size and suggested
+  memory. Choose **Download & Add**, or **Add Provider** if it is already
+  downloaded, then select the model in Chat.
+- **Local → Ollama** connects to an Ollama server using its endpoint settings.
+
+REL model downloads use Ollama on this Mac. If it is unavailable, use the
+install/open controls and check the connection before downloading. Downloads
+remain in Ollama after REL closes; cancelling a download keeps partial data
+so you can retry it.
+
 Each Chat response stops after 12 model calls or a 64,000-token request budget.
 REL uses the preceding model call's reported usage to avoid starting a call
 that would predictably exceed the remaining budget. A retryable browser error
