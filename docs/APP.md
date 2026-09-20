@@ -1146,3 +1146,48 @@ The runner uses the calling app's bundled CLI and verifies its agent build
 identity before each trial. Choose **Show Test Report** to view progress and
 results, or **Cancel Current Test** to stop. The test tab remains open for
 inspection, and the report links to the full trace in a temporary directory.
+
+
+### Delegating browser work to Jev
+
+Use a normal chat model for the conversation and add a Jev provider in REL
+Settings with its TypeSafe API key. Restart the conversation's harness after
+changing providers. The assistant can then call `rel_delegate_browser` after
+observing a page. With several Jev providers, it must name the intended profile.
+
+The assistant supplies a bounded goal and exact text values with field meanings,
+so instructions do not need quoted strings. Jev selects operations and observed
+controls; REL performs native input in the observed session. Planning, text
+composition, page reading, visual reasoning, and final verification remain with
+the main assistant. Missing values, unsupported controls, uncertain outcomes, and
+completion proposals hand control back with completed-action history and evidence.
+The assistant can resume the remaining goal without restarting the workflow.
+
+Optional `finish_when` predicates check observable results independently. A
+`verified` result means those predicates passed, not that arbitrary requirements
+were proved. A Jev `done` proposal always requires host verification. Each call
+permits at most 12 decisions, has a 20,000-token local budget, and checks elapsed
+time against 60 seconds before further model decisions or actions; in-flight
+native operations use their normal deadlines. Jev usage counts toward the main
+response and conversation budgets.
+
+Settings writes only nonsecret Keychain service/account references into
+`ai-providers.toml`. The Rust harness reads the helper credential directly from
+Keychain. The app and harness are separate Keychain clients. In Keychain Access,
+authorize the app’s bundled `Contents/Resources/rel-harness` to read the Jev
+profile’s API-key item; the registry reference alone does not grant access.
+REL does not change credential permissions automatically. Locked Keychain or
+missing access produces an explicit error without waiting for a background
+authentication dialog. For a manually managed registry, pass `--config` or set `REL_AI_CONFIG` to its path when launching
+the harness and put `credential_service` and
+`credential_account` on the Jev profile, pointing to its macOS generic-password
+item that authorizes the bundled harness. Model keys must never be placed in the registry. The existing standalone
+Jev provider still supports its direct decision and page-passage mode.
+
+
+Semantic browser observations report current native form values, including empty
+fields and checked/unchecked state after input. If current form state cannot be
+read, observation fails explicitly rather than substituting initial HTML attributes.
+
+Semantic scroll offsets and document dimensions use CSS pixels, including on
+Retina displays. Native input continues to use observation-scoped references.
