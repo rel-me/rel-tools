@@ -28,8 +28,8 @@ just telemetry removal.
 
 ## Session viewport presets
 
-Use **Session Viewport** beside the address field to choose **Laptop 1024w**,
-**Tablet 768w**, or **Mobile 320w**. Each preset sets the actual page width in
+Use **Session Viewport** beside the address field to choose **Desktop 1440w**, **Wide Laptop 1280w**,
+**Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Each preset sets the actual page width in
 CSS pixels and follows the available window height. The page is centered in a
 scrollable canvas; narrower windows keep the selected width and allow horizontal
 scrolling. These presets resize the viewport without changing the Session's
@@ -1113,3 +1113,16 @@ checks for cancellation every two seconds; already completed browser or external
 actions cannot be undone, and an in-flight reply cannot be recalled. Commands are consumed before execution and are never
 automatically retried after a crash or uncertain reply delivery. Check the
 result before submitting a command again.
+
+## Browser Use tests
+
+With the Debug menu enabled, choose **Debug → Browser Use Tests → Run Scripted
+Smoke Tests…** in either Release or Debug builds. REL opens a new test tab and
+runs scripted browser checks using bundled fixtures. Python 3 must be available
+on the app's PATH; no source checkout is required. These checks do not call AI
+models or measure model accuracy.
+
+The runner uses the calling app's bundled CLI and verifies its agent build
+identity before each trial. Choose **Show Test Report** to view progress and
+results, or **Cancel Current Test** to stop. The test tab remains open for
+inspection, and the report links to the full trace in a temporary directory.
