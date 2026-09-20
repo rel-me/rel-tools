@@ -1173,7 +1173,7 @@ response and conversation budgets.
 
 Settings writes only nonsecret Keychain service/account references into
 `ai-providers.toml`. The Rust harness reads the helper credential directly from
-Keychain. For a manually managed registry, set `REL_AI_CONFIG` to its path when launching
+Keychain. For a manually managed registry, pass `--config` or set `REL_AI_CONFIG` to its path when launching
 the harness and put `credential_service` and
 `credential_account` on the Jev profile, pointing to its macOS generic-password
 item. Model keys must never be placed in the registry. The existing standalone
@@ -1183,3 +1183,6 @@ Jev provider still supports its direct decision and page-passage mode.
 Semantic browser observations report current native form values, including empty
 fields and checked/unchecked state after input. If current form state cannot be
 read, observation fails explicitly rather than substituting initial HTML attributes.
+
+Semantic scroll offsets and document dimensions use CSS pixels, including on
+Retina displays. Native input continues to use observation-scoped references.
