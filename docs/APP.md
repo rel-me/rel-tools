@@ -1059,3 +1059,16 @@ answers. This integration does not generate summaries, invent text to enter,
 or execute arbitrary scripts. Put text to enter in double quotes. An uncertain
 browser decision stops without acting; its confidence percentage describes the
 model's decision, not how much of the task is complete.
+
+## Browser Use tests
+
+With the Debug menu enabled, choose **Debug → Browser Use Tests → Run Scripted
+Smoke Tests…** in either Release or Debug builds. REL opens a new test tab and
+runs scripted browser checks using bundled fixtures. Python 3 must be available
+on the app's PATH; no source checkout is required. These checks do not call AI
+models or measure model accuracy.
+
+The runner uses the calling app's bundled CLI and verifies its agent build
+identity before each trial. Choose **Show Test Report** to view progress and
+results, or **Cancel Current Test** to stop. The test tab remains open for
+inspection, and the report links to the full trace in a temporary directory.
