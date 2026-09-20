@@ -100,12 +100,6 @@ See the provider setup references for [Fireworks](https://docs.fireworks.ai/tool
 [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html),
 and [Baseten](https://docs.baseten.co/reference/inference-api/overview).
 
-### Jev browser decisions
-
-Choose **Typesafe AI** as the provider and **Jev** in the Chat model picker.
-Enter your TypeSafe API key when adding the provider. The model uses the
-`jev-latest` alias; saved provider configurations keep the `jev` provider value.
-
 ## Session and workspace errors
 
 Click the warning icon in the main toolbar to open **Session and Workspace
@@ -438,6 +432,23 @@ excluded from proxy diagnostics; retained text is bounded to 8,192 characters
 with a truncation marker. Website-generated HTTP error documents remain visible
 rather than being replaced by REL's failure page.
 
+
+Navigation failures show a readable explanation and retain the original source
+error. Proxy tunnel failures include the proxy name, upstream HTTP status line,
+and available provider diagnostics such as `Proxy-Status` and Bright Data error
+codes. For example, Bright Data's `403` / `policy_20000` restriction appears with
+the provider's access-denied explanation instead of only Chromium's generic
+connection error. Check the provider's policy or configuration before retrying
+a persistent rejection.
+
+Expand **Technical Details** for long diagnostics, or use **Copy Details** to
+copy the explanation, full retained diagnostics, Chromium error, and requested
+URL. Short errors are shown directly. Details remain selectable and the page
+scrolls when needed. Credentials, authentication challenges, and cookies are
+excluded from proxy diagnostics; retained text is bounded to 8,192 characters
+with a truncation marker. Website-generated HTTP error documents remain visible
+rather than being replaced by REL's failure page.
+
 Submitting an address immediately makes it the Session's active URL. If the
 page or proxy fails, the address field, Application panel, and **Try Again**
 button refer to that request. After submitting a different address, refresh
@@ -624,50 +635,43 @@ included. Both `includes_cookies` and `includes_passwords` must be false.
 A non-null proxy alias must already exist on the importing device; import the
 proxy first or set `proxy_alias` to null. The new profile receives a new ID.
 
-### Case studies and reusable Actions
+### Case studies and Profile setups
 
-**Settings → Actions** is the reusable library. An Action contains named prompt
-steps, optional inputs, a starting URL, and setup instructions. It can have an
-optional default profile and be attached to multiple existing profiles. Profiles
-continue to describe browser configuration.
+Profiles can include a portable setup with Action templates, editable inputs,
+and a login/access checklist. These Profiles use envelope `version: 2` with
+`format: "rel.profile"`; ordinary Profiles retain version 1. Older REL builds
+reject version 2 instead of silently losing the setup. Copy the complete JSON
+from a case study into **Settings → Profiles → Import Profile**.
 
-Copy a case study's `ACTION.json` into **Import Action**. The portable envelope
-is `{"format":"rel.action","version":1,"configuration":{"setup":{...},"profile":{...}}}`.
-`setup` follows the [setup schema](/rpc/#profile-setup-definitions). `profile` is
-optional and follows the ordinary profile configuration schema, without `setup`,
-cookies, or passwords. Imports validate definitions and never execute steps.
+Choose **New Session from Profile**, customize the setup fields, and create the
+session. REL creates fresh, disabled Actions bound to that session. Open its
+**Actions → Review Setup** to inspect the steps and destinations. Configure a
+working AI model, sign in to the required sites in that session, and verify
+access yourself. Confirm the checklist and choose **Enable Actions** to activate
+the imported Actions. This is authorization for their saved schedules to run.
+Reviewing setup never executes an Action; **Run Now** is a live run and can send
+messages if its prompt instructs it to do so.
 
-Choose **Use Action**, edit inputs, and select a destination:
+This first version supports manual Actions or weekday/time schedules, multiple
+prompt steps, a starting URL, and stop-on-error behavior. Times follow the Mac's
+current time zone. REL must be running and the Mac awake. Setup checkboxes are
+user confirmations, not automatic login or destination verification.
 
-- A new session uses the Action's chosen default profile, its included portable
-  profile configuration, or REL's default profile, in that order. You can select
-  another profile for this use. A missing selected profile is an error.
-- An existing session keeps its current browser configuration. Its Actions panel
-  also offers **Add Action from Library**.
-- Profiles selected under **Edit Action → Attached Profiles** receive the same
-  definition in future app-created sessions, using that profile's configuration.
-  Attachments reference one library definition; they do not duplicate it.
+Inputs are text or finite numbers. `{{key}}` placeholders in prompt steps are
+replaced once when a session is created. Action edits, logins, and run history
+belong to that session; changing or deleting its source Profile does not change
+existing Actions. Exporting the Profile preserves its templates and default
+inputs, not later session edits or history. Creating another session makes
+another independent set of disabled Actions and is subject to Action plan limits.
 
-**Add Action** installs fresh, disabled session steps. Review their inputs,
-destinations, model, and access checklist before enabling. **Enable Actions**
-enables only the batch being reviewed, including any saved schedules. Reviewing
-never executes steps. Use the session's **Run Now** for a live run, which can send
-messages if configured. Sessions own their execution state, edits, and history;
-library edits or deletion do not change previously installed steps.
+The setup format does not contain credentials, session IDs, runtime Action IDs,
+webhook bindings, or enabled state. Configure webhooks and notification/event
+triggers locally after session creation if a workflow needs them. The Marketplace
+case study uses WhatsApp Web in the browser and needs no webhook. Setup Action
+installation is currently performed by the app's session-creation flows; creating
+a session through CLI, MCP, or SDK does not install these native Actions.
 
-Inputs are text or finite numbers. `{{key}}` placeholders are substituted once.
-Portable definitions support manual work or weekday/time schedules, multiple
-prompt steps, and stop-on-error behavior. Configure repeat intervals, completion
-behavior, and event triggers in the session editor. Scheduled times use the Mac's
-time zone; REL must be running and the Mac awake. Checklist confirmations are
-manual, not automatic login or destination verification.
-
-**Export Action** includes steps and optional browser configuration, excluding
-credentials, browser data, local attachments, session IDs, enabled state, and run
-history. Proxy aliases must be configured on the receiving Mac. Existing version
-2 `rel.profile` setup imports remain supported for historical packages. The
-library is app-owned; CLI, MCP, and SDK session creation does not install its
-attached Actions.
+See the [RPC setup schema](/rpc/#profile-setup-definitions) for authoring packages.
 
 ### Proxies: curl command
 
@@ -861,16 +865,21 @@ Session once per run, before executing its prompt steps. Later steps continue
 from the page reached by the preceding step. Navigation failures use the Action's
 **On Error** setting.
 
-Open the session's **Actions** panel to edit, run, or delete installed work.
-Each session Action owns its prompt steps, trigger, completion behavior, and run
-history. **Settings → Actions** manages reusable definitions and their profile
-attachments. See [reusable Actions](#case-studies-and-reusable-actions) for imports
-and destination selection.
+Open **Actions** from the toolbar or **Settings → Actions** to create reusable
+work. Each Action owns its name, prompt, destination Session or Profile,
+optional Shortcut or webhook completion behavior, and enabled state. Select
+an Action to edit, run, or delete it. The list shows its status for the current
+app launch. Disabling an Action pauses every trigger that uses it.
 
 Schedules, incoming webhooks, and built-in browser events execute the same saved
-session Action. Editing it updates the work performed by its triggers. REL runs
-at most one execution per session Action at a time, including manual runs.
-Existing session Actions retain their IDs and webhook routing.
+Action. Editing an Action updates the work performed by all its triggers. REL
+runs at most one execution per Action at a time, including manual runs.
+
+Existing saved prompts become Actions with their original IDs, destinations,
+and completion settings. Existing timers still reference those Actions;
+webhook-only prompts appear in Actions without a schedule row. Existing webhook
+routing IDs remain valid. Remove schedules and incoming webhooks referencing an
+Action before deleting it.
 
 ### Built-in events
 
