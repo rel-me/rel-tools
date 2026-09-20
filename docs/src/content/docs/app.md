@@ -401,7 +401,27 @@ separate. The shared cache reduces repeated downloads; it does not combine
 Chromium renderer processes. Clearing private Session caches leaves the shared
 cache intact, and clearing the shared cache leaves private Session data intact.
 
-## Navigation errors and retry
+## Navigation feedback, errors, and retry
+
+Back, Forward, submitted addresses, and link navigations show loading feedback
+as soon as navigation starts. The address-bar indicator appears immediately,
+and **Reload Page** becomes **Stop Loading**. The current page remains visible
+until Chromium replaces it with the next document.
+
+In **Settings → General → Browsing → Page Transition**, choose **Nothing** (the
+default) to keep this behavior, or **Fade out** to fade the page away while the
+next page loads. The new page appears when loading finishes; stopping restores
+the visible page. The preference applies to open Sessions immediately and is
+saved across launches. With macOS Reduce Motion enabled, Fade out hides the
+page without animation. Loading feedback and Stop remain available in either
+mode.
+
+Choose **Stop Loading** to cancel the current load without pausing the Session's
+network activity. If the new document has not committed, REL restores the
+previous page's address and state. Once the new document has committed, Stop
+leaves that document in place. A user-requested stop does not show a navigation
+error. Stopping a load also cancels any active browser automation request in
+that Session.
 
 Navigation failures show a readable explanation and retain the original source
 error. Proxy tunnel failures include the proxy name, upstream HTTP status line,
@@ -485,7 +505,7 @@ direct and proxied connections.
   finishes, fails, or is canceled; an open stream appears when it ends.
 - **Network → Filtered Requests** explains requests blocked by Session filters.
 - **Chromium → Runtime** includes browser open/close, navigation starts, finishes
-  and failures, Back, Forward, Reload, and network pause/resume activity.
+  and failures, Back, Forward, Reload, Stop, and network pause/resume activity.
 - **Clients → Requests** includes browser operations and individual automation
   actions, with their completion or failure and elapsed time.
 
