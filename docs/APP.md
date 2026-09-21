@@ -780,16 +780,16 @@ Chat displays response text as the model generates it, including local Ollama mo
 Choose **New Provider**, then select a **Type**:
 
 - **Remote** lists the remote services and their endpoint and API key settings.
-- **Local → REL** lets you select a model to download and run on this Mac. REL
-  recommends a model for your Mac and shows its download size and suggested
-  memory. Choose **Download & Add**, or **Add Provider** if it is already
-  downloaded, then select the model in Chat.
+- **Local → REL** configures **Qwen2.5 1.5B** as Jev’s native text companion.
+  Choose **Use with Jev** to remember it as the paired LLM for new Jev chats.
+  It runs directly in REL. The 1.12 GB download is offered when first needed,
+  and the downloaded model is reused across chats. This choice configures
+  Jev’s companion rather than adding a standalone chat provider.
 - **Local → Ollama** connects to an Ollama server using its endpoint settings.
-
-REL model downloads use Ollama on this Mac. If it is unavailable, use the
-install/open controls and check the connection before downloading. Downloads
-remain in Ollama after REL closes; cancelling a download keeps partial data
-so you can retry it.
+  For the default local endpoint, **Download Models…** opens Ollama’s model
+  manager. It includes installation and connection controls if Ollama is
+  unavailable. Downloads remain in Ollama after REL closes; cancelling a
+  download keeps partial data so you can retry it.
 
 Each Chat response stops after 12 model calls or a 64,000-token request budget.
 REL uses the preceding model call's reported usage to avoid starting a call
