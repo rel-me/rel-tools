@@ -791,7 +791,11 @@ connection. Cancel returns without changing the selected model.
 
 Configure providers and choose the default AI model in **REL → Settings… →
 Model Providers**. Use the primary **Add** button to add a connection, or
-double-click a provider to edit it. Use **Import** and **Export** for provider
+double-click a provider to edit it. **Download**, next to Add, opens REL’s model
+installer, or Ollama’s model manager when a local Ollama connection is selected.
+Provider names have **Ready** or **Error** status chips. Click an Error chip to
+open configuration; hover over it for details. **Local** identifies REL models
+and Ollama connections on this Mac. Use **Import** and **Export** for provider
 configuration transfers. The Chat model picker’s **Open Models** button opens
 model configuration. The **Models** column lists available models;
 hover over a truncated list to see all its names. API keys are stored in macOS Keychain. Ollama connections can use
@@ -818,7 +822,7 @@ The setup shows progress and supports cancellation and retry. The selection is
 applied only after successful installation. Already installed weights can be
 added without downloading again. Model weights are not bundled with the app.
 This model works for ordinary text chat and simple tasks; using it with Jev is
-optional. Double-click REL or click **Download Models** in Model Providers to
+optional. Double-click REL or click **Download** in Model Providers to
 open the same setup.
 
 **Ollama** connects to an Ollama server using its endpoint settings. For the
