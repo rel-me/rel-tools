@@ -99,6 +99,13 @@ See the provider setup references for [Fireworks](https://docs.fireworks.ai/tool
 [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html),
 and [Baseten](https://docs.baseten.co/reference/inference-api/overview).
 
+### Jev browser decisions
+
+Choose **TypeSafe AI** as the provider, select a paired LLM in provider setup,
+then choose **Jev** in the Chat model picker.
+Enter your TypeSafe API key when adding the provider. The model uses the
+`jev-latest` alias; its exported service name is `TypeSafe AI`.
+
 ## Session and workspace errors
 
 Click the warning icon in the main toolbar to open **Session and Workspace
@@ -625,43 +632,50 @@ included. Both `includes_cookies` and `includes_passwords` must be false.
 A non-null proxy alias must already exist on the importing device; import the
 proxy first or set `proxy_alias` to null. The new profile receives a new ID.
 
-### Case studies and Profile setups
+### Case studies and reusable Actions
 
-Profiles can include a portable setup with Action templates, editable inputs,
-and a login/access checklist. These Profiles use envelope `version: 2` with
-`format: "rel.profile"`; ordinary Profiles retain version 1. Older REL builds
-reject version 2 instead of silently losing the setup. Copy the complete JSON
-from a case study into **Settings → Profiles → Import Profile**.
+**Settings → Actions** is the reusable library. An Action contains named prompt
+steps, optional inputs, a starting URL, and setup instructions. It can have an
+optional default profile and be attached to multiple existing profiles. Profiles
+continue to describe browser configuration.
 
-Choose **New Session from Profile**, customize the setup fields, and create the
-session. REL creates fresh, disabled Actions bound to that session. Open its
-**Actions → Review Setup** to inspect the steps and destinations. Configure a
-working AI model, sign in to the required sites in that session, and verify
-access yourself. Confirm the checklist and choose **Enable Actions** to activate
-the imported Actions. This is authorization for their saved schedules to run.
-Reviewing setup never executes an Action; **Run Now** is a live run and can send
-messages if its prompt instructs it to do so.
+Copy a case study's `ACTION.json` into **Import Action**. The portable envelope
+is `{"format":"rel.action","version":1,"configuration":{"setup":{...},"profile":{...}}}`.
+`setup` follows the [setup schema](/rpc/#profile-setup-definitions). `profile` is
+optional and follows the ordinary profile configuration schema, without `setup`,
+cookies, or passwords. Imports validate definitions and never execute steps.
 
-This first version supports manual Actions or weekday/time schedules, multiple
-prompt steps, a starting URL, and stop-on-error behavior. Times follow the Mac's
-current time zone. REL must be running and the Mac awake. Setup checkboxes are
-user confirmations, not automatic login or destination verification.
+Choose **Use Action**, edit inputs, and select a destination:
 
-Inputs are text or finite numbers. `{{key}}` placeholders in prompt steps are
-replaced once when a session is created. Action edits, logins, and run history
-belong to that session; changing or deleting its source Profile does not change
-existing Actions. Exporting the Profile preserves its templates and default
-inputs, not later session edits or history. Creating another session makes
-another independent set of disabled Actions and is subject to Action plan limits.
+- A new session uses the Action's chosen default profile, its included portable
+  profile configuration, or REL's default profile, in that order. You can select
+  another profile for this use. A missing selected profile is an error.
+- An existing session keeps its current browser configuration. Its Actions panel
+  also offers **Add Action from Library**.
+- Profiles selected under **Edit Action → Attached Profiles** receive the same
+  definition in future app-created sessions, using that profile's configuration.
+  Attachments reference one library definition; they do not duplicate it.
 
-The setup format does not contain credentials, session IDs, runtime Action IDs,
-webhook bindings, or enabled state. Configure webhooks and notification/event
-triggers locally after session creation if a workflow needs them. The Marketplace
-case study uses WhatsApp Web in the browser and needs no webhook. Setup Action
-installation is currently performed by the app's session-creation flows; creating
-a session through CLI, MCP, or SDK does not install these native Actions.
+**Add Action** installs fresh, disabled session steps. Review their inputs,
+destinations, model, and access checklist before enabling. **Enable Actions**
+enables only the batch being reviewed, including any saved schedules. Reviewing
+never executes steps. Use the session's **Run Now** for a live run, which can send
+messages if configured. Sessions own their execution state, edits, and history;
+library edits or deletion do not change previously installed steps.
 
-See the [RPC setup schema](/rpc/#profile-setup-definitions) for authoring packages.
+Inputs are text or finite numbers. `{{key}}` placeholders are substituted once.
+Portable definitions support manual work or weekday/time schedules, multiple
+prompt steps, and stop-on-error behavior. Configure repeat intervals, completion
+behavior, and event triggers in the session editor. Scheduled times use the Mac's
+time zone; REL must be running and the Mac awake. Checklist confirmations are
+manual, not automatic login or destination verification.
+
+**Export Action** includes steps and optional browser configuration, excluding
+credentials, browser data, local attachments, session IDs, enabled state, and run
+history. Proxy aliases must be configured on the receiving Mac. Existing version
+2 `rel.profile` setup imports remain supported for historical packages. The
+library is app-owned; CLI, MCP, and SDK session creation does not install its
+attached Actions.
 
 ### Proxies: curl command
 
@@ -727,20 +741,38 @@ reviewing its destination, prompt, completion action, and local execution time.
 ### Providers: single-line JSON
 
 ```json
-{"configuration":{"maxTurns":10,"name":"OpenAI","provider":"openai"},"format":"rel.provider","version":1}
+{"configuration":{"maxTurns":10,"name":"OpenAI"},"format":"rel.provider","version":1}
 ```
 
-Required fields are `name`, `provider`, and `maxTurns`; `baseURL` is optional
-except for services that require a custom URL. Provider values are `openai`,
-`openai-compatible`, `openrouter`, `anthropic`, `gemini`, and `ollama`. Provider
-names start with an ASCII letter, contain only letters, digits, hyphens, or
-underscores, and are at most 64 characters. Turn limits and URLs are validated
-using the same rules as the provider editor.
+Required fields are `name` and `maxTurns`; `baseURL` and `apiKey` are optional,
+except that services using the OpenAI-compatible adapter require a base URL.
+There is no separate `provider` field. `name` identifies the service and must be
+one of `OpenAI`, `OpenAI-compatible`, `OpenRouter`, `TypeSafe AI`, `Anthropic`,
+`Google Gemini`, `Ollama`, `REL`, `Fireworks`, `Amazon Bedrock`, or `Baseten`, with
+that capitalization. Custom connection names are not used for this field.
+Named presets must use a matching endpoint; custom gateways use
+`OpenAI-compatible`. Turn limits and URLs are validated using the provider
+editor's rules.
 
-Import opens a new provider draft for review. Enter the API key where required,
-then save. API keys, record IDs, model discovery results, and the default-provider
-preference are excluded. An existing default remains unchanged unless you choose
-**Make Default**; the first provider becomes the default normally.
+Exports preserve an explicit `modelID` and optional `jevPairedModel`. A pairing
+refers to configured provider identities on that Mac; after importing on another
+installation, edit Jev to choose an available companion. Importing a REL provider
+never downloads weights; use Local → REL setup to install a missing model.
+
+Exporting multiple providers uses `"format":"rel.providers"` with an array in
+`configuration`. The import validates every entry before saving. Import saves
+directly and defaults to **Skip** for existing services; **Overwrite** preserves
+the existing connection's ID, internal name, and default selection. If multiple
+saved connections use the same service, overwrite reports an ambiguity instead
+of choosing one. Repeated services in an imported list follow the selected skip
+or overwrite policy.
+
+Export excludes API keys unless **Export Including API Keys** is selected.
+Included keys are readable in the JSON and saved in Keychain on import. An
+omitted key preserves an existing connection's key. Import without credentials
+is allowed; the connection remains unready until configured. The exported
+provider's own record ID, model discovery results, and default-provider preference
+are excluded. A new first provider becomes the default normally.
 
 ### CLI and RPC archive transfers
 
@@ -770,16 +802,18 @@ Chat displays response text as the model generates it, including local Ollama mo
 Choose **New Provider**, then select a **Type**:
 
 - **Remote** lists the remote services and their endpoint and API key settings.
-- **Local → REL** lets you select a model to download and run on this Mac. REL
-  recommends a model for your Mac and shows its download size and suggested
-  memory. Choose **Download & Add**, or **Add Provider** if it is already
-  downloaded, then select the model in Chat.
+- **Local → REL** installs **Qwen2.5 1.5B** directly into REL. Choose
+  **Download & Add** to download and verify the 1.12 GB model from Hugging Face.
+  The setup shows progress and supports cancellation and retry. After successful
+  installation, REL adds the provider and the model appears in the chat picker.
+  Already installed models use **Add Model** without downloading again. Model
+  weights are not bundled with the app. This model works for ordinary text chat
+  and simple tasks; using it with Jev is optional.
 - **Local → Ollama** connects to an Ollama server using its endpoint settings.
-
-REL model downloads use Ollama on this Mac. If it is unavailable, use the
-install/open controls and check the connection before downloading. Downloads
-remain in Ollama after REL closes; cancelling a download keeps partial data
-so you can retry it.
+  For the default local endpoint, **Download Models…** opens Ollama’s model
+  manager. It includes installation and connection controls if Ollama is
+  unavailable. Downloads remain in Ollama after REL closes; cancelling a
+  download keeps partial data so you can retry it.
 
 Each Chat response stops after 12 model calls or a 64,000-token request budget.
 REL uses the preceding model call's reported usage to avoid starting a call
@@ -855,21 +889,16 @@ Session once per run, before executing its prompt steps. Later steps continue
 from the page reached by the preceding step. Navigation failures use the Action's
 **On Error** setting.
 
-Open **Actions** from the toolbar or **Settings → Actions** to create reusable
-work. Each Action owns its name, prompt, destination Session or Profile,
-optional Shortcut or webhook completion behavior, and enabled state. Select
-an Action to edit, run, or delete it. The list shows its status for the current
-app launch. Disabling an Action pauses every trigger that uses it.
+Open the session's **Actions** panel to edit, run, or delete installed work.
+Each session Action owns its prompt steps, trigger, completion behavior, and run
+history. **Settings → Actions** manages reusable definitions and their profile
+attachments. See [reusable Actions](#case-studies-and-reusable-actions) for imports
+and destination selection.
 
 Schedules, incoming webhooks, and built-in browser events execute the same saved
-Action. Editing an Action updates the work performed by all its triggers. REL
-runs at most one execution per Action at a time, including manual runs.
-
-Existing saved prompts become Actions with their original IDs, destinations,
-and completion settings. Existing timers still reference those Actions;
-webhook-only prompts appear in Actions without a schedule row. Existing webhook
-routing IDs remain valid. Remove schedules and incoming webhooks referencing an
-Action before deleting it.
+session Action. Editing it updates the work performed by its triggers. REL runs
+at most one execution per session Action at a time, including manual runs.
+Existing session Actions retain their IDs and webhook routing.
 
 ### Built-in events
 
@@ -1069,8 +1098,257 @@ chat. A reading answer can require zero browser actions. It covers a bounded
 current page observation, not every item in an infinite feed or unloaded page.
 Scroll to more content and ask again when needed.
 
-Jev returns typed decisions and probabilities rather than writing free-form
-answers. This integration does not generate summaries, invent text to enter,
-or execute arbitrary scripts. Put text to enter in double quotes. An uncertain
-browser decision stops without acting; its confidence percentage describes the
-model's decision, not how much of the task is complete.
+Jev chooses an operation and compatible target together. It returns typed
+decisions rather than free-form answers. Its confidence percentage describes
+how concentrated the model's choices are, not how clear your instruction is or
+how much of the task is complete. Several useful next steps may share probability;
+a valid choice below 50% can still proceed. Invalid choices, unsupported work,
+unchanged-page repetition, and exhausted budgets still stop execution. A completion result is a model assessment;
+independently check the requested route, date, passengers, cabin, and visible
+results before treating a flight search as successful.
+
+When adding **TypeSafe AI / Jev** in **New Provider**, choose its required
+**Paired LLM** before saving. Edit that provider to change the choice later. The
+chat model picker selects Jev itself; pairing belongs to the provider. Each Jev
+provider remembers its own companion across relaunches. If the companion is
+removed or unavailable, edit Jev and select another; REL does not substitute one.
+Use **Add LLM Provider…** from the Jev setup form if none is configured yet.
+
+A small model can reduce field-entry latency; actual speed depends on hardware,
+model and provider latency. Configured OpenAI, OpenRouter, OpenAI-compatible,
+Ollama, and installed REL text models can be paired. Remote companions must
+support chat completions with JSON-object output and token usage. Anthropic and
+Gemini native adapters are not offered as companions. No local model is assumed
+or selected automatically.
+
+To install a local model, open **New Provider → Local → REL**, select
+**Qwen2.5 1.5B**, and choose **Download & Add**. This explicit setup downloads
+**Qwen2.5-1.5B-Instruct Q4_K_M** (1.12 GB), then adds an ordinary REL provider.
+It can be used for chat independently or selected later as Jev’s paired LLM.
+The installer offers progress, **Cancel**, and **Retry Download & Add**. A cancelled
+or failed installation does not add a provider. Downloads have a 30-minute overall
+timeout and a 60-second read timeout; retry starts a fresh transfer.
+
+REL verifies the exact size and SHA-256 before installing weights in
+`~/Library/Application Support/REL/Data/Models/jev-text/`. This historical cache
+path is reused across app updates; Debug runtimes keep their own model directory.
+Incomplete or corrupt weights are never loaded. Missing weights produce an error
+pointing to provider setup. Chats and scheduled actions never start downloads.
+
+The app includes llama.cpp with Metal in `rel-harness`, without model weights.
+No Ollama installation, helper server, or additional API key is required for REL
+models. Ordinary local chat accepts text and bounded browser tools, with a
+32,768-token context, up to 2,048 output tokens, and a 120-second generation
+limit. Replies arrive after generation completes. Small models may struggle with
+complex tasks; no model is guaranteed to handle every site or control.
+
+Jev still uses the configured TypeSafe API for browser decisions. The integration
+follows the [Jev Ultrafast](https://github.com/browser-use/jev-ultrafast) approach:
+Jev chooses actions, and a text model supplies field values when needed. REL uses
+its existing native browser input, without the upstream Chrome backend or page
+JavaScript.
+
+The local helper loads lazily at the first generated field and retains its weights
+for that chat process. It uses a fresh 4096-token context per field and the model's
+non-thinking chat template. Output is constrained to JSON containing `text`, with
+at most 128 generated tokens. If the selected field label or context specifies
+`YYYY-MM-DD`, `MM/DD/YYYY`, or `DD/MM/YYYY`, REL validates and formats the generated
+date in code. Invalid dates stop before typing. Correct values are not guaranteed
+for every website; empty or malformed output stops before typing.
+
+Local installation is separate from the chat protocol. `rel-harness local-models
+list` reports the catalog and verified installation status. `rel-harness
+local-models install qwen2.5-1.5b-instruct-q4_k_m` explicitly installs the model.
+Both commands write newline-delimited JSON: `inventory` contains `models` with
+`id`, `name`, `size`, and `installed`; `progress` contains `downloaded`, `total`, and
+`status` (`checking`, `downloading`, `ready`); `error` contains `message` and exits
+nonzero. Wait for successful process exit before treating an installation as ready.
+Closing the installer process cancels its download. Use `--provider rel --model
+qwen2.5-1.5b-instruct-q4_k_m` for ordinary local chat after installation.
+
+For a shell client, explicitly select the local model with
+`REL_JEV_TEXT_LOCAL=qwen2.5-1.5b-instruct-q4_k_m`, or set `REL_JEV_TEXT_PROFILE` to a named `openai`,
+`openrouter`, `openai-compatible`, or `ollama` profile. Select exactly one.
+`REL_JEV_TEXT_MODEL` chooses a discovered model within the named provider, overriding
+its stored model ID. The helper reads `REL_JEV_TEXT_CONFIG` when set,
+otherwise `REL_AI_CONFIG`, otherwise this runtime's default provider registry.
+A separate helper registry avoids editing the file generated by REL Settings:
+
+```toml
+[providers.field_text]
+kind = "openai-compatible"
+model = "YOUR_TEXT_MODEL_ID"
+base_url = "https://YOUR_PROVIDER/v1"
+credential_service = "YOUR_KEYCHAIN_SERVICE"
+credential_account = "YOUR_KEYCHAIN_ACCOUNT"
+```
+
+The model must support OpenAI-compatible chat completions with JSON-object
+output and report token usage. `openai-compatible` profiles may omit both
+Keychain references when their endpoint does not require authentication. Supplying
+only one reference is an error. For a local Ollama model, for example:
+
+```toml
+[providers.local_text]
+kind = "openai-compatible"
+model = "qwen3.5:9b"
+base_url = "http://127.0.0.1:11434/v1"
+```
+
+Select it with `REL_JEV_TEXT_PROFILE=local_text`. If the chosen text endpoint
+supports reasoning controls, `REL_JEV_TEXT_REASONING=none` disables reasoning
+for short field values. Other accepted settings are `minimal`, `low`, `medium`,
+`high`, and `max`; unsupported provider settings fail explicitly.
+
+For authenticated providers, store the key as a macOS generic-password item,
+and authorize this runtime's bundled `Contents/Resources/rel-harness` to read
+that item. Credentials are read in Rust and never enter model context or TOML.
+For shell clients, these variables must be present in the harness process. App
+chat uses the selected Jev provider’s saved pairing and its generated provider registry; shell
+helper overrides do not replace that choice. REL writes only nonsecret Keychain
+references for companion providers, and the Rust harness reads the credential.
+A missing optional key is allowed for keyless endpoints; denied Keychain access
+is an error. Scheduled Jev actions use their selected provider’s pair; install any required
+local model in provider setup before running the schedule.
+
+For example, navigate a Session to
+[Google Flights](https://www.google.com/travel/flights?hl=en), select Jev, and ask:
+
+> Find one-way flights from Zurich to London on September 27, 2026, for one adult
+> in economy. Stop when matching flight options are visible.
+
+For a multi-step search like this, select the 96k response token budget in
+**Chat Options**. The default 24k budget can stop before the form is complete;
+Jev and text-helper calls share that budget.
+
+To use a running Debug runtime from a shell, navigate with its bundled `rel`
+CLI, then invoke the same bundle's `rel-harness run --provider jev --model
+jev-latest --session-id SESSION_ID --api-key-stdin -- GOAL`. Supply the Jev key
+on private stdin. Set one of the companion environment selections above. There is no implicit
+local helper or automatic fallback.
+Use the worktree's runtime wrapper to select its endpoint.
+
+Interaction decisions use visible controls and bounded page text. Passage-selection
+questions are sent only after Jev selects a reading operation, which uses a
+separate model call. A helper call counts against the same response call and
+token budgets as Jev. It has a 30-second timeout and cannot execute browser tools.
+If the page changes between observation and input, REL displays the rejected
+action, observes the same Session, and asks Jev for a new decision. This happens
+at most twice per response and never replays the old input automatically.
+Invalid helper output, unavailable credentials, or exhausted budgets stop before typing. Native input
+still checks the observation after text generation. Existing double-quoted
+literal values remain available without a text helper. The Flights example stops
+before choosing or booking a flight. A model's completion claim still requires
+independent verification.
+
+## Control REL through WhatsApp
+
+In **Settings → WhatsApp**, enable the integration, connect your account by
+scanning the QR code from WhatsApp's **Linked Devices**, and choose a group.
+Turn on **Remote control** to accept commands. This uses REL's native linked-device
+connection; no public webhook or inbound network port is required. The client is
+unofficial and WhatsApp protocol changes can interrupt it.
+
+Send commands from the **same WhatsApp account you linked**, using your phone or
+another linked device, into the selected group. Every command starts with `/rel`.
+Other group members cannot control REL, but everyone in that group can read its
+replies. Choose a private group for sensitive tasks.
+
+| Message | Result |
+| --- | --- |
+| `/rel help` | Show available commands |
+| `/rel ask Find the delivery date for my order` | Chat with REL's AI and use its browser tools |
+| `/rel status` | Report session and running Action counts |
+| `/rel sessions` | List browser session names and IDs |
+| `/rel new-session` | Create a session using REL's defaults |
+| `/rel open SESSION_ID https://example.com` | Navigate an existing session |
+| `/rel close-session SESSION_ID` | Close that session |
+| `/rel actions` | List saved session Actions and their UUIDs |
+| `/rel run ACTION_UUID` | Run an Action once and reply with its final result |
+| `/rel new` | Reset the remote AI conversation |
+| `/rel cancel` | Cancel current remote work and clear queued commands |
+
+You can put a natural-language request directly after `/rel`; `ask` lets you
+start a request with a reserved command word. AI requests use your configured
+default model and its normal credentials and tools. The remote conversation is
+separate from desktop chats and is kept in memory until reset, cancelled,
+disabled, or REL restarts. Explicit session commands require the IDs from
+`/rel sessions`; REL does not assume the selected desktop tab is your target.
+
+Action runs use existing budget checks, multi-step behavior, and run history.
+An explicit run can execute a disabled Action without enabling its schedule.
+Configured Shortcut and webhook completion handlers still run. The remote
+reply replaces the Action's optional WhatsApp notification for that run.
+
+Keep REL running and your Mac awake and connected. Normal commands execute one
+at a time; `cancel` interrupts the queue. Commands older than five minutes, from
+before remote startup or its last access change, duplicate messages, non-text
+messages, and commands from other senders or groups are ignored. Up to 16 commands
+can wait; excess commands are discarded with a Settings status message. Messages
+must fit within 4,096 Unicode scalar values. Long responses are shortened with
+an explicit notice. Delivery failures appear in WhatsApp Settings.
+
+Disabling the integration or Remote control, changing the selected group, or
+removing the account invalidates queued commands and replies. The desktop
+checks for cancellation every two seconds; already completed browser or external
+actions cannot be undone, and an in-flight reply cannot be recalled. Commands are consumed before execution and are never
+automatically retried after a crash or uncertain reply delivery. Check the
+result before submitting a command again.
+
+## Browser Use tests
+
+With the Debug menu enabled, choose **Debug → Browser Use Tests → Run Scripted
+Smoke Tests…** in either Release or Debug builds. REL opens a new test tab and
+runs scripted browser checks using bundled fixtures. Python 3 must be available
+on the app's PATH; no source checkout is required. These checks do not call AI
+models or measure model accuracy.
+
+The runner uses the calling app's bundled CLI and verifies its agent build
+identity before each trial. Choose **Show Test Report** to view progress and
+results, or **Cancel Current Test** to stop. The test tab remains open for
+inspection, and the report links to the full trace in a temporary directory.
+
+
+### Delegating browser work to Jev
+
+Use a normal chat model for the conversation and add a Jev provider in REL
+Settings with its TypeSafe API key. Restart the conversation's harness after
+changing providers. The assistant can then call `rel_delegate_browser` after
+observing a page. With several Jev providers, it must name the intended profile.
+
+The assistant supplies a bounded goal and exact text values with field meanings,
+so instructions do not need quoted strings. Jev selects operations and observed
+controls; REL performs native input in the observed session. Planning, text
+composition, page reading, visual reasoning, and final verification remain with
+the main assistant. Missing values, unsupported controls, uncertain outcomes, and
+completion proposals hand control back with completed-action history and evidence.
+The assistant can resume the remaining goal without restarting the workflow.
+
+Optional `finish_when` predicates check observable results independently. A
+`verified` result means those predicates passed, not that arbitrary requirements
+were proved. A Jev `done` proposal always requires host verification. Each call
+permits at most 12 decisions, has a 20,000-token local budget, and checks elapsed
+time against 60 seconds before further model decisions or actions; in-flight
+native operations use their normal deadlines. Jev usage counts toward the main
+response and conversation budgets.
+
+Settings writes only nonsecret Keychain service/account references into
+`ai-providers.toml`. The Rust harness reads the helper credential directly from
+Keychain. The app and harness are separate Keychain clients. In Keychain Access,
+authorize the app’s bundled `Contents/Resources/rel-harness` to read the Jev
+profile’s API-key item; the registry reference alone does not grant access.
+REL does not change credential permissions automatically. Locked Keychain or
+missing access produces an explicit error without waiting for a background
+authentication dialog. For a manually managed registry, pass `--config` or set `REL_AI_CONFIG` to its path when launching
+the harness and put `credential_service` and
+`credential_account` on the Jev profile, pointing to its macOS generic-password
+item that authorizes the bundled harness. Model keys must never be placed in the registry. The existing standalone
+Jev provider still supports its direct decision and page-passage mode.
+
+
+Semantic browser observations report current native form values, including empty
+fields and checked/unchecked state after input. If current form state cannot be
+read, observation fails explicitly rather than substituting initial HTML attributes.
+
+Semantic scroll offsets and document dimensions use CSS pixels, including on
+Retina displays. Native input continues to use observation-scoped references.
