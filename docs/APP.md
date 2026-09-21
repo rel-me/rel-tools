@@ -737,20 +737,32 @@ reviewing its destination, prompt, completion action, and local execution time.
 ### Providers: single-line JSON
 
 ```json
-{"configuration":{"maxTurns":10,"name":"OpenAI","provider":"openai"},"format":"rel.provider","version":1}
+{"configuration":{"maxTurns":10,"name":"OpenAI"},"format":"rel.provider","version":1}
 ```
 
-Required fields are `name`, `provider`, and `maxTurns`; `baseURL` is optional
-except for services that require a custom URL. Provider values are `openai`,
-`openai-compatible`, `openrouter`, `anthropic`, `gemini`, and `ollama`. Provider
-names start with an ASCII letter, contain only letters, digits, hyphens, or
-underscores, and are at most 64 characters. Turn limits and URLs are validated
-using the same rules as the provider editor.
+Required fields are `name` and `maxTurns`; `baseURL` and `apiKey` are optional,
+except that services using the OpenAI-compatible adapter require a base URL.
+There is no separate `provider` field. `name` identifies the service and must be
+one of `OpenAI`, `OpenAI-compatible`, `OpenRouter`, `TypeSafe AI`, `Anthropic`,
+`Google Gemini`, `Ollama`, `Fireworks`, `Amazon Bedrock`, or `Baseten`, with that
+capitalization. Custom connection identifiers are not exported. Named presets
+must use a matching endpoint; custom gateways use `OpenAI-compatible`. Turn
+limits and URLs are validated using the provider editor's rules.
 
-Import opens a new provider draft for review. Enter the API key where required,
-then save. API keys, record IDs, model discovery results, and the default-provider
-preference are excluded. An existing default remains unchanged unless you choose
-**Make Default**; the first provider becomes the default normally.
+Exporting multiple providers uses `"format":"rel.providers"` with an array in
+`configuration`. The import validates every entry before saving. Import saves
+directly and defaults to **Skip** for existing services; **Overwrite** preserves
+the existing connection's ID, internal name, and default selection. If multiple
+saved connections use the same service, overwrite reports an ambiguity instead
+of choosing one. Repeated services in an imported list follow the selected skip
+or overwrite policy.
+
+Export excludes API keys unless **Export Including API Keys** is selected.
+Included keys are readable in the JSON and saved in Keychain on import. An
+omitted key preserves an existing connection's key. Import without credentials
+is allowed; the connection remains unready until configured. Record IDs, model
+discovery results, and the default-provider preference are not exported. A new
+first provider becomes the default normally.
 
 ### CLI and RPC archive transfers
 
