@@ -78,7 +78,7 @@ future updates are eligible; it does not downgrade an installed version.
 
 ## AI provider presets
 
-In **Providers → Add Provider**, choose **Fireworks**, **Amazon Bedrock**,
+In **Model Providers → Add**, choose **Fireworks**, **Amazon Bedrock**,
 or **Baseten** to fill in an OpenAI-compatible endpoint. Enter that service's API
 key, then add the provider. Keys are stored in macOS Keychain. REL discovers the
 available models for the Chat picker.
@@ -758,7 +758,7 @@ Exports preserve an explicit `modelID`, optional `jevPairedModel`, and optional
 `jevAdditionalPairedModels` list. A pairing
 refers to configured provider identities on that Mac; after importing on another
 installation, edit Jev to choose an available companion. Importing a REL provider
-never downloads weights; use Local → REL setup to install a missing model.
+never downloads weights; select the model in Model Providers to open its download setup.
 
 Exporting multiple providers uses `"format":"rel.providers"` with an array in
 `configuration`. The import validates every entry before saving. Import saves
@@ -785,8 +785,9 @@ archive or a replacement input for the archive APIs.
 
 ## AI models
 
-When Chat has no available model, select **Add Provider** in the empty state
-or chat input to open the Add Provider form directly. Cancel returns to Chat.
+Use **Choose Model** in the chat input to browse models, including REL’s local
+catalog. **Open Models** opens Model Providers, where **Add** creates a provider
+connection. Cancel returns without changing the selected model.
 
 Configure providers and choose the default AI model in **REL → Settings… →
 Model Providers**. Use the primary **Add** button to add a connection, or
@@ -796,7 +797,8 @@ model configuration. The **Models** column lists available models;
 hover over a truncated list to see all its names. API keys are stored in macOS Keychain. Ollama connections can use
 the local server at `http://127.0.0.1:11434` without an API key. Scheduled
 prompts use the default provider and model when their new Session starts. REL
-Free supports one configured provider; REL Pro supports multiple providers.
+Free supports one configured external provider alongside REL’s built-in local
+models; REL Pro supports multiple external providers.
 
 The Chat model picker uses the provider's display name when available, or the
 exact model ID when no display name is supplied. This also applies to newly
@@ -804,21 +806,26 @@ discovered models. API requests always use the model ID.
 
 Chat displays response text as the model generates it, including local Ollama models such as Qwen. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
 
-Choose **New Provider**, then select a **Type**:
+Choose **New Provider**, then open the searchable **Provider** menu. Remote
+services, **Ollama**, and **REL** appear together; local providers have a **local**
+chip. There is no separate Remote/Local picker.
 
-- **Remote** lists the remote services and their endpoint and API key settings.
-- **Local → REL** installs **Qwen2.5 1.5B** directly into REL. Choose
-  **Download & Add** to download and verify the 1.12 GB model from Hugging Face.
-  The setup shows progress and supports cancellation and retry. After successful
-  installation, REL adds the provider and the model appears in the chat picker.
-  Already installed models use **Add Model** without downloading again. Model
-  weights are not bundled with the app. This model works for ordinary text chat
-  and simple tasks; using it with Jev is optional.
-- **Local → Ollama** connects to an Ollama server using its endpoint settings.
-  For the default local endpoint, **Download Models…** opens Ollama’s model
-  manager. It includes installation and connection controls if Ollama is
-  unavailable. Downloads remain in Ollama after REL closes; cancelling a
-  download keeps partial data so you can retry it.
+**REL** appears in Model Providers by default with its supported model catalog,
+currently **Qwen2.5 1.5B**. Selecting an undownloaded REL model in Chat, a Profile's
+default model picker, or an Action opens its download setup. Choose
+**Download & Add** to download and verify the 1.12 GB model from Hugging Face.
+The setup shows progress and supports cancellation and retry. The selection is
+applied only after successful installation. Already installed weights can be
+added without downloading again. Model weights are not bundled with the app.
+This model works for ordinary text chat and simple tasks; using it with Jev is
+optional. Double-click REL or click **Download Models** in Model Providers to
+open the same setup.
+
+**Ollama** connects to an Ollama server using its endpoint settings. For the
+default local endpoint, **Download Models…** opens Ollama’s model manager. It
+includes installation and connection controls if Ollama is unavailable.
+Downloads remain in Ollama after REL closes; cancelling a download keeps partial
+data so you can retry it.
 
 Each Chat response stops after 12 model calls or a 64,000-token request budget.
 REL uses the preceding model call's reported usage to avoid starting a call
@@ -1131,7 +1138,7 @@ support chat completions with JSON-object output and token usage. Anthropic and
 Gemini native adapters are not offered as companions. No local model is assumed
 or selected automatically.
 
-To install a local model, open **New Provider → Local → REL**, select
+To install a local model, open **Model Providers → REL**, select
 **Qwen2.5 1.5B**, and choose **Download & Add**. This explicit setup downloads
 **Qwen2.5-1.5B-Instruct Q4_K_M** (1.12 GB), then adds an ordinary REL provider.
 It can be used for chat independently or selected later as Jev’s paired LLM.
