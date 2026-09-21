@@ -1083,23 +1083,47 @@ unchanged-page repetition, and exhausted budgets still stop execution. A complet
 independently check the requested route, date, passengers, cabin, and visible
 results before treating a flight search as successful.
 
-For natural-language goals without prepared field strings, REL includes an offline
-text helper: **Qwen2.5-1.5B-Instruct Q4_K_M** (about 1.12 GB of weights),
-running through llama.cpp with Metal inside the bundled `rel-harness`. No Ollama installation,
-helper server, model download at runtime, or additional API key is required. Jev
-still uses the configured TypeSafe API for browser decisions. This follows the
-[Jev Ultrafast](https://github.com/browser-use/jev-ultrafast) approach: Jev chooses the next action, and a text model supplies only field values
-when needed. REL executes its existing native browser input. It does not run the
-upstream Chrome backend or page JavaScript.
+For natural-language goals without prepared field strings, REL offers a local
+text helper: **Qwen2.5-1.5B-Instruct Q4_K_M** (1.12 GB). Model weights are **not
+included in the app**. When a Jev chat first needs generated field text, REL pauses
+and presents **Download Jev’s Text Model**. Choose **Download** to fetch the pinned
+model from Hugging Face. The sheet shows progress, offers **Cancel**, and offers
+**Retry** if the transfer or verification fails. **Not Now** stops the goal without
+downloading. Downloads have a 30-minute overall timeout and a 60-second read timeout;
+retry starts a fresh transfer.
 
-The bundled helper loads lazily at the first generated field and retains its
-weights for that chat process. It uses a fresh 4096-token context per field
-and the model's non-thinking chat template. Output is constrained to JSON containing `text`,
-with at most 128 generated tokens. If the selected field label or context
-specifies `YYYY-MM-DD`, `MM/DD/YYYY`, or `DD/MM/YYYY`, REL validates and formats
-the generated date in code. Invalid dates stop before typing. Correct values
-are not guaranteed for every website; empty or malformed output stops before typing. Missing bundled
-weights are an explicit installation error.
+REL verifies the exact size and SHA-256 before installing the weights in
+`~/Library/Application Support/REL/Data/Models/jev-text/`. Debug runtimes keep their
+own model directory. The model is reused across chats and app updates. After a
+successful download, the same goal continues with its action history and remaining
+budgets, using a fresh page observation. Incomplete or corrupt weights are never
+loaded; they trigger the download sheet again. Scheduled work cannot approve a
+download: complete setup in an interactive Jev chat first.
+
+The inference runtime is included in `rel-harness` and uses llama.cpp with Metal.
+No Ollama installation, helper server, or additional API key is required. The text
+model runs locally after download; Jev still uses the configured TypeSafe API for
+browser decisions. This follows the
+[Jev Ultrafast](https://github.com/browser-use/jev-ultrafast) approach: Jev chooses
+the next action, and a text model supplies only field values when needed. REL
+executes its existing native browser input. It does not run the upstream Chrome
+backend or page JavaScript.
+
+The local helper loads lazily at the first generated field and retains its weights
+for that chat process. It uses a fresh 4096-token context per field and the model's
+non-thinking chat template. Output is constrained to JSON containing `text`, with
+at most 128 generated tokens. If the selected field label or context specifies
+`YYYY-MM-DD`, `MM/DD/YYYY`, or `DD/MM/YYYY`, REL validates and formats the generated
+date in code. Invalid dates stop before typing. Correct values are not guaranteed
+for every website; empty or malformed output stops before typing.
+
+For a `rel-harness chat` client, `jev_text_model_required` pauses the active goal.
+After showing the download choice to the user, send `{"type":"download_jev_text"}`
+to download and continue it. `jev_text_model_download` events carry `downloaded`,
+`total`, and `status` (`checking`, `downloading`, `ready`, or `failed`), with a
+`message` on failure. A failed download retains the pending goal for retry. Closing
+the harness cancels the download and goal. The one-shot `run` command reports that
+setup is required if weights are absent.
 
 To use a different text model, set `REL_JEV_TEXT_PROFILE` to a named `openai`,
 `openrouter`, or
@@ -1153,7 +1177,7 @@ Jev and text-helper calls share that budget.
 To use a running Debug runtime from a shell, navigate with its bundled `rel`
 CLI, then invoke the same bundle's `rel-harness run --provider jev --model
 jev-latest --session-id SESSION_ID --api-key-stdin -- GOAL`. Supply the Jev key
-on private stdin. The bundled helper is the default; the environment overrides
+on private stdin. The local helper is the default; the environment overrides
 above select a different helper explicitly, with no automatic fallback.
 Use the worktree's runtime wrapper to select its endpoint.
 
