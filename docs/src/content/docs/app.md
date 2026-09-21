@@ -102,7 +102,7 @@ and [Baseten](https://docs.baseten.co/reference/inference-api/overview).
 ### Jev browser decisions
 
 Choose **TypeSafe AI** as the provider, select a paired LLM in provider setup,
-then choose **Jev** in the Chat model picker.
+then choose the **Jev + paired LLM** selection in the Chat model picker.
 Enter your TypeSafe API key when adding the provider. The model uses the
 `jev-latest` alias; its exported service name is `TypeSafe AI`.
 
@@ -754,7 +754,8 @@ Named presets must use a matching endpoint; custom gateways use
 `OpenAI-compatible`. Turn limits and URLs are validated using the provider
 editor's rules.
 
-Exports preserve an explicit `modelID` and optional `jevPairedModel`. A pairing
+Exports preserve an explicit `modelID`, optional `jevPairedModel`, and optional
+`jevAdditionalPairedModels` list. A pairing
 refers to configured provider identities on that Mac; after importing on another
 installation, edit Jev to choose an available companion. Importing a REL provider
 never downloads weights; use Local → REL setup to install a missing model.
@@ -788,7 +789,9 @@ When Chat has no available model, select **Add Provider** in the empty state
 or chat input to open the Add Provider form directly. Cancel returns to Chat.
 
 Configure providers and choose the default AI model in **REL → Settings… →
-Providers**. API keys are stored in macOS Keychain. Ollama connections can use
+Model Providers**. Use the primary **+ Add** button to add a connection, or
+double-click a provider to edit it. The **Models** column lists available models;
+hover over a truncated list to see all its names. API keys are stored in macOS Keychain. Ollama connections can use
 the local server at `http://127.0.0.1:11434` without an API key. Scheduled
 prompts use the default provider and model when their new Session starts. REL
 Free supports one configured provider; REL Pro supports multiple providers.
@@ -1108,11 +1111,16 @@ independently check the requested route, date, passengers, cabin, and visible
 results before treating a flight search as successful.
 
 When adding **TypeSafe AI / Jev** in **New Provider**, choose its required
-**Paired LLM** before saving. Edit that provider to change the choice later. The
-chat model picker selects Jev itself; pairing belongs to the provider. Each Jev
-provider remembers its own companion across relaunches. If the companion is
-removed or unavailable, edit Jev and select another; REL does not substitute one.
-Use **Add LLM Provider…** from the Jev setup form if none is configured yet.
+**Paired LLM** before saving. Use **Add Pairing** to add other configured LLMs
+to the same Jev provider. Each saved pairing appears separately in the model
+picker, with a name such as **Jev + qwen3:1.7b** or **Jev + gpt-5.6-luna**.
+Pairings are remembered across relaunches, and each selection uses its own
+companion. Edit the provider to change or remove additional pairings.
+
+If a companion is removed or unavailable, click the **Choose a paired LLM…**
+warning to open its provider configuration and choose another. REL does not
+substitute a companion. Use **Add LLM Provider…** from Jev setup if none is
+configured yet.
 
 A small model can reduce field-entry latency; actual speed depends on hardware,
 model and provider latency. Configured OpenAI, OpenRouter, OpenAI-compatible,
