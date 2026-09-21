@@ -812,7 +812,13 @@ Chat displays response text as the model generates it, including local Ollama mo
 
 Choose **New Provider**, then open the searchable **Provider** menu. Remote
 services, **Ollama**, and **REL** appear together; local providers have a **local**
-chip. There is no separate Remote/Local picker.
+chip. Both the provider menu and Model Providers table are alphabetical by
+displayed name. The menu’s horizontal **All**, **Local**, **Remote**, **Frontier**,
+**Hosted**, and **Custom** chips filter the list; search narrows the selected
+category. Click the selected chip again to return to All. Frontier includes
+OpenAI, Anthropic, and Google Gemini. Hosted includes OpenRouter, Fireworks,
+Amazon Bedrock, and Baseten; Custom shows the OpenAI-compatible preset.
+There is no separate Remote/Local picker.
 
 **REL** appears in Model Providers by default with its supported model catalog,
 currently **Qwen2.5 1.5B**. Selecting an undownloaded REL model in Chat, a Profile's
