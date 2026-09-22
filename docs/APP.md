@@ -818,13 +818,18 @@ Amazon Bedrock, and Baseten; Custom shows the OpenAI-compatible preset.
 There is no separate Remote/Local picker.
 
 **REL** appears in Model Providers by default with its supported model catalog,
-currently **Qwen2.5 1.5B**. Selecting an undownloaded REL model in Chat, a Profile's
+with 15 downloadable choices: Qwen3 (0.6B, 1.7B, 4B, 8B, 14B), Qwen3.5
+(0.8B, 2B, 4B, 9B), Qwen3.6 27B, Qwen3.8 27B, Qwen3.8 9B Distill,
+Qwopus3.8 27B Flash, Apodex 1.1 Mini 35B, and the original Qwen2.5 1.5B.
+Selecting an undownloaded REL model in Chat, a Profile's
 default model picker, or an Action opens its download setup. Choose
-**Download & Add** to download and verify the 1.12 GB model from Hugging Face.
+**Download & Add** to download and verify the selected model from Hugging Face.
+The picker shows its download size, recommended RAM, and model license link.
+A warning appears if this Mac has less than the recommended memory.
 The setup shows progress and supports cancellation and retry. The selection is
 applied only after successful installation. Already installed weights can be
 added without downloading again. Model weights are not bundled with the app.
-This model works for ordinary text chat and simple tasks; using it with Jev is
+These models work for ordinary text chat and simple tasks; using them with Jev is
 optional. Double-click REL or click **Download** in Model Providers to
 open the same setup.
 
@@ -1144,16 +1149,19 @@ Gemini native adapters are not offered as companions. No local model is assumed
 or selected automatically.
 
 To install a local model, open **Model Providers → REL**, select
-**Qwen2.5 1.5B**, and choose **Download & Add**. This explicit setup downloads
-**Qwen2.5-1.5B-Instruct Q4_K_M** (1.12 GB), then adds an ordinary REL provider.
+a model, and choose **Download & Add**. For example, **Qwen3.5 0.8B** downloads
+0.53 GB of Q4_K_M weights and recommends 8 GB RAM. The selection stays fixed
+during installation; successful verification adds that model to the REL provider.
+Other catalog entries still require their own installation.
 It can be used for chat independently or selected later as Jev’s paired LLM.
 The installer offers progress, **Cancel**, and **Retry Download & Add**. A cancelled
 or failed installation does not add a provider. Downloads have a 30-minute overall
 timeout and a 60-second read timeout; retry starts a fresh transfer.
 
 REL verifies the exact size and SHA-256 before installing weights in
-`~/Library/Application Support/REL/Data/Models/jev-text/`. This historical cache
-path is reused across app updates; Debug runtimes keep their own model directory.
+`~/Library/Application Support/REL/Data/Models/<model-id>/`. The original
+Qwen2.5 model keeps its historical `Models/jev-text/` cache across app updates.
+Each model has its own download lock; Debug runtimes keep their own model directory.
 Incomplete or corrupt weights are never loaded. Missing weights produce an error
 pointing to provider setup. Chats and scheduled actions never start downloads.
 
@@ -1179,17 +1187,19 @@ date in code. Invalid dates stop before typing. Correct values are not guarantee
 for every website; empty or malformed output stops before typing.
 
 Local installation is separate from the chat protocol. `rel-harness local-models
-list` reports the catalog and verified installation status. `rel-harness
-local-models install qwen2.5-1.5b-instruct-q4_k_m` explicitly installs the model.
-Both commands write newline-delimited JSON: `inventory` contains `models` with
+list` reports the catalog and verified installation status. Pass a model ID to
+`local-models list MODEL_ID` to verify only that model. `rel-harness
+local-models install qwen3.5-0.8b-q4_k_m` explicitly installs that model. Model IDs
+come from the inventory; unsupported IDs fail without downloading.
+These commands write newline-delimited JSON: `inventory` contains `models` with
 `id`, `name`, `size`, and `installed`; `progress` contains `downloaded`, `total`, and
 `status` (`checking`, `downloading`, `ready`); `error` contains `message` and exits
 nonzero. Wait for successful process exit before treating an installation as ready.
 Closing the installer process cancels its download. Use `--provider rel --model
-qwen2.5-1.5b-instruct-q4_k_m` for ordinary local chat after installation.
+qwen3.5-0.8b-q4_k_m` for ordinary local chat after installation.
 
 For a shell client, explicitly select the local model with
-`REL_JEV_TEXT_LOCAL=qwen2.5-1.5b-instruct-q4_k_m`, or set `REL_JEV_TEXT_PROFILE` to a named `openai`,
+`REL_JEV_TEXT_LOCAL=qwen3.5-0.8b-q4_k_m` (or another installed catalog ID), or set `REL_JEV_TEXT_PROFILE` to a named `openai`,
 `openrouter`, `openai-compatible`, or `ollama` profile. Select exactly one.
 `REL_JEV_TEXT_MODEL` chooses a discovered model within the named provider, overriding
 its stored model ID. The helper reads `REL_JEV_TEXT_CONFIG` when set,
