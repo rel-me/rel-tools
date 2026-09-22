@@ -790,7 +790,7 @@ Configure providers and choose the default AI model in **REL → Settings… →
 Model Providers**. Use the primary **Add** button to add a connection, or
 double-click a provider to edit it. **Download**, next to Add, opens REL’s model
 installer, or Ollama’s model manager when a local Ollama connection is selected.
-Provider names have **Ready** or **Error** status chips. Click an Error chip to
+Provider names have **Ready** or **Needs Setup** status chips. Click a Needs Setup chip to
 open configuration; hover over it for details. **Local** identifies REL models
 and Ollama connections on this Mac. Use **Import** and **Export** for provider
 configuration transfers. The Chat model picker’s **Open Models** button opens
