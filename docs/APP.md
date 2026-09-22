@@ -789,7 +789,7 @@ connection. Cancel returns without changing the selected model.
 Configure providers and choose the default AI model in **REL → Settings… →
 Model Providers**. Use the primary **Add** button to add a connection, or
 double-click a provider to edit it. **Download**, next to Add, opens REL’s model
-installer, or Ollama’s model manager when a local Ollama connection is selected.
+installer.
 Provider names have **Ready** or **Needs Setup** status chips. Click a Needs Setup chip to
 open configuration; hover over it for details. **Local** identifies REL models
 and Ollama connections on this Mac. Use **Import** and **Export** for provider
@@ -828,11 +828,9 @@ This model works for ordinary text chat and simple tasks; using it with Jev is
 optional. Double-click REL or click **Download** in Model Providers to
 open the same setup.
 
-**Ollama** connects to an Ollama server using its endpoint settings. For the
-default local endpoint, **Download Models…** opens Ollama’s model manager. It
-includes installation and connection controls if Ollama is unavailable.
-Downloads remain in Ollama after REL closes; cancelling a download keeps partial
-data so you can retry it.
+**Ollama** connects to an Ollama server using its endpoint settings. Install and
+manage models in Ollama, then use **Refresh Models** in REL to discover them.
+REL’s **Download** action manages REL’s native models.
 
 Each Chat response stops after 12 model calls or a 64,000-token request budget.
 REL uses the preceding model call's reported usage to avoid starting a call
