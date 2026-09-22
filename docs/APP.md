@@ -1129,12 +1129,11 @@ unchanged-page repetition, and exhausted budgets still stop execution. A complet
 independently check the requested route, date, passengers, cabin, and visible
 results before treating a flight search as successful.
 
-When adding **TypeSafe AI / Jev** in **New Provider**, choose its required
-**Paired LLM** before saving. Use **Add Pairing** to add other configured LLMs
-to the same Jev provider. Each saved pairing appears separately in the model
-picker, with a name such as **Jev + qwen3:1.7b** or **Jev + gpt-5.6-luna**.
-Pairings are remembered across relaunches, and each selection uses its own
-companion. Edit the provider to change or remove additional pairings.
+When adding or editing **TypeSafe AI / Jev**, choose one required **Paired LLM**
+before saving. The saved pairing appears in the model picker with a name such as
+**Jev + qwen3:1.7b** or **Jev + gpt-5.6-luna** and is remembered across relaunches.
+Edit the provider to change its companion. Saving keeps only the selected LLM,
+replacing any additional pairings previously saved for that provider.
 
 If a companion is removed or unavailable, click the **Choose a paired LLM…**
 warning to open its provider configuration and choose another. REL does not
