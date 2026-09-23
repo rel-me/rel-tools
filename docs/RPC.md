@@ -1,7 +1,8 @@
 # REL RPC v1
 
-REL exposes one local, versioned JSON API. This document is the supported wire
-contract; unversioned routes and legacy response shapes are not supported.
+REL exposes a local, versioned JSON API for browser and app operations. This
+document is its supported wire contract. REL also serves Ollama-compatible local
+model inference on `/api` as described below.
 
 Related documents: [CLI](CLI.md), [MCP](MCP.md), and [Rust SDK](SDK.md).
 
@@ -10,12 +11,47 @@ Related documents: [CLI](CLI.md), [MCP](MCP.md), and [Rust SDK](SDK.md).
 - Base URL: `http://127.0.0.1:17319/v1`
 - `REL_AGENT_PORT` overrides port `17319`.
 - HTTP/1.1, one request per connection, `Connection: close`.
-- JSON request limit: 16 MiB.
+- RPC JSON request limit: 16 MiB.
 - Ordinary responses use `application/json`.
 - Capture streams use `application/x-ndjson` and terminate at connection close.
 - The agent is loopback-only but currently has no client authentication.
 
-Every parsed request receives an opaque ID. Ordinary responses include it in the
+## Ollama-compatible local inference
+
+The same loopback agent serves locally installed REL models through Ollama's
+text inference and discovery paths. Use `http://127.0.0.1:17319` as the Ollama
+base URL, or substitute the running app's `REL_AGENT_PORT`. Release and each
+Debug worktree serve only their own installed models; model weights and browser
+data are never shared between app variants.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/tags` | List installed REL models in Ollama's model-list shape |
+| `POST` | `/api/chat` | Generate a response from text `system`, `user`, and `assistant` messages |
+| `POST` | `/api/generate` | Generate a response from a text prompt |
+
+`/api/chat` and `/api/generate` accept `model`, `stream`, and `format: "json"`.
+`/api/generate` also accepts `system` and `raw`. `options.num_ctx` accepts
+256–32768; `options.num_predict` accepts 1–2048. `options.temperature: 0`
+selects the existing greedy sampler. Streaming is on by default.
+Each token is sent as an `application/x-ndjson` response with `done: false`,
+followed by a `done: true` record with token counts and duration. Set
+`stream: false` for one JSON response. Errors use Ollama's `{"error":"..."}`
+shape. The model must already be installed in the app serving the request.
+
+```sh
+curl -N http://127.0.0.1:17319/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen2.5-1.5b-instruct-q4_k_m","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+This text endpoint does not implement Ollama's model management, embeddings,
+vision, tool calls, schema-constrained output, or other sampling options.
+Unsupported options return an error. Inference requests are limited to 128 KiB.
+REL's browser and app RPC routes continue to use `/v1` and the response
+envelope below.
+
+Every parsed `/v1` request receives an opaque ID. Ordinary RPC responses include it in the
 `X-Request-Id` header and body. Every capture-stream line includes the same ID.
 
 Closing a browser operation's HTTP connection before its response finishes
