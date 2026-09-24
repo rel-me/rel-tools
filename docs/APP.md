@@ -122,6 +122,12 @@ revision has changed, REL blocks further writes until you restart. The button
 cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
+Workspace saves support **Actions** as the selected bottom panel, including
+restoring that selection on the next launch. If an older build reports
+**Unknown workspace bottom tool** after selecting Actions, select **Logs** in
+each affected session and use **Save Current Workspace** before quitting. The
+rejected save leaves the previously saved workspace unchanged.
+
 In Debug builds, **Debug → Error Recovery** can trigger a session error, a
 workspace error, or both. These simulated errors appear in the same toolbar
 warning and details sheet without changing sessions, files, or permissions.
