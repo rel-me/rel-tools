@@ -950,6 +950,7 @@ built-ins, and the list is empty until a Profile is saved. A profile resource is
   "image_size_limit_kb": 10,
   "includes_cookies": false,
   "includes_passwords": false,
+  "starting_url": "https://example.com/start",
   "fingerprint_profile": {
     "schema_version": 1,
     "seed": "12345",
@@ -981,13 +982,17 @@ built-ins, and the list is empty until a Profile is saved. A profile resource is
 
 - `GET /v1/profiles` returns saved profiles sorted by name in `data.profiles`.
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
-  the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
+  the proxy, filtering, browser-data inclusion, optional `starting_url`, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
   the compatibility template. Set it to `null` for native Chromium identity.
+  `starting_url` must be an HTTP or HTTPS URL of at most 2,048 bytes; omit it
+  or set it to `null` when no starting page is wanted.
 - `PATCH /v1/profiles/{id}` accepts any editable profile setting and returns
   the updated custom profile in `data.profile`. REL.app uses the browser-data
   flags only after it has safely staged imported browser data; cookie and
-  password values never cross RPC.
+  password values never cross RPC. The REL app opens a Profile's `starting_url`
+  when it creates a Session from that Profile. Setting `starting_url` to `null`
+  clears it for future Sessions.
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
 
@@ -1056,10 +1061,11 @@ archive in Rust, decrypts embedded Proxy credentials, and returns the newly
 created `data.profile`. The owning app sets `browser_data_ready:true` only
 after it has authenticated and decrypted the browser records for restoration.
 Transfer files are limited to 12 MiB and never overwrite an existing name.
-Version 8 stores optional validated `setup_json` in `profiles`; older archives
-import with no setup. Supported archive versions are 1 through 8.
+Version 8 stores optional validated `setup_json` in `profiles`; version 9 adds
+the optional `starting_url`. Older archives import without those settings.
+Supported archive versions are 1 through 9.
 
-Both transfer types use SQLite `application_id` `RELT`, schema version 8, and
+Both transfer types use SQLite `application_id` `RELT`, schema version 9, and
 the same five tables: `metadata`, `proxies`, `profiles`, `cookies`, and
 `passwords`. The `proxies` table is identical for standalone Proxy archives
 and Proxies embedded in Profile archives. Protected credential and browser

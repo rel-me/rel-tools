@@ -246,6 +246,10 @@ Manage saved configurations in **Profiles**. There are no built-in Profiles.
 Profiles can use a configured proxy and imported cookies or passwords. The Profiles
 list includes a **Browser Identity** column showing Private, Custom Privacy,
 or Native.
+The add/edit Profile form places **Default model** and an optional **Starting URL**
+below **Browser Identity**. Enter a full HTTP or HTTPS address to open it when
+REL creates a Session from that Profile. Leaving it empty opens a new Session
+without navigating. Changes to the Profile affect future Sessions.
 
 In **New Profile**, choose **Proxy → New Proxy…** to add a proxy without leaving
 the profile draft. Saving selects the new proxy automatically. Cancelling returns
