@@ -9,6 +9,9 @@
 /docs/src/content/docs/mcp.md
 /docs/src/content/docs/rpc.md
 /docs/src/content/docs/sdk.md
+/docs/src/content/docs/ruby.md
 .DS_Store
 
 /docs/src/content/docs/crawlee.md
+/ruby/*.gem
+/ruby/Gemfile.lock

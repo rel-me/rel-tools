@@ -50,6 +50,7 @@ export default defineConfig({
             { label: "MCP server", slug: "mcp" },
             { label: "RPC v1", slug: "rpc" },
             { label: "Rust SDK", slug: "sdk" },
+            { label: "Ruby SDK", slug: "ruby" },
             { label: "Python crawler", slug: "crawler" },
             { label: "Crawlee integration", slug: "crawlee" },
             { label: "Playwright-compatible Python", slug: "playwright" },

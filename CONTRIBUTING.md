@@ -11,6 +11,12 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
+cd ruby
+bundle install
+bundle exec rake test
+gem build rel-client.gemspec
+cd ..
+
 cd crawler
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .

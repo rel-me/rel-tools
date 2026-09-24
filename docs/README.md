@@ -11,6 +11,7 @@ and [docs.rel.me](https://docs.rel.me):
 - `MCP.md` → `/mcp/`
 - `RPC.md` → `/rpc/`
 - `SDK.md` → `/sdk/`
+- `RUBY.md` → `/ruby/`
 - `CRAWLER.md` → `/crawler/`
 - `CRAWLEE.md` → `/crawlee/`
 - `PLAYWRIGHT.md` → `/playwright/`

@@ -1,6 +1,6 @@
 ---
 title: REL documentation
-description: Install REL agent plugins, use the CLI or MCP, connect through RPC v1, and work with the typed Rust client.
+description: Install REL agent plugins, use the CLI or MCP, connect through RPC v1, and work with the Rust or Ruby SDK.
 editUrl: false
 lastUpdated: false
 prev: false
@@ -10,7 +10,7 @@ next: false
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
 Keep persistent Chromium sessions on your Mac and access them from Codex,
-Claude Code, MCP, the CLI, a local API, or the typed Rust client.
+Claude Code, MCP, the CLI, a local API, or the Rust and Ruby clients.
 
 ## Start with one command
 
@@ -58,6 +58,11 @@ be piped or redirected independently.
     Build directly on the same `rel-client` crate used by the bundled CLI, with typed requests, responses, errors, and capture events.
 
     [Open the SDK guide →](/sdk/)
+  </Card>
+  <Card title="Use Ruby">
+    Add the dependency-free `rel-client` gem for structured responses, errors, persistent-session operations, and streaming captures.
+
+    [Open the Ruby SDK guide →](/ruby/)
   </Card>
 </CardGrid>
 

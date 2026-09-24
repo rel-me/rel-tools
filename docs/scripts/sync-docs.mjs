@@ -40,7 +40,7 @@ const pages = [
     source: "ACTIONS.md",
     output: "actions.md",
     title: "Browser actions",
-    description: "Use the same click, wait, typing, key, and selection actions through REL's CLI, MCP server, RPC, and Rust SDK.",
+    description: "Use the same click, wait, typing, key, and selection actions through REL's CLI, MCP server, RPC, Rust SDK, and Ruby SDK.",
   },
   {
     source: "MCP.md",
@@ -59,6 +59,12 @@ const pages = [
     output: "sdk.md",
     title: "Rust SDK",
     description: "Use the typed rel-client Rust crate for every public REL RPC v1 operation.",
+  },
+  {
+    source: "RUBY.md",
+    output: "ruby.md",
+    title: "Ruby SDK",
+    description: "Use the rel-client Ruby gem for REL RPC v1 operations and incremental capture streaming.",
   },
   {
     source: "CRAWLER.md",
@@ -84,13 +90,14 @@ const siteLinks = new Map([
   ["MCP.md", "/mcp/"],
   ["RPC.md", "/rpc/"],
   ["SDK.md", "/sdk/"],
+  ["RUBY.md", "/ruby/"],
   ["CRAWLER.md", "/crawler/"],
   ["PLAYWRIGHT.md", "/playwright/"],
 ]);
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|CRAWLEE|MCP|PLAYWRIGHT|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|CRAWLEE|MCP|PLAYWRIGHT|RPC|RUBY|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

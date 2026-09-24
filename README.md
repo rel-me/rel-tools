@@ -1,6 +1,6 @@
 # REL tools
 
-Open-source command-line, MCP, and Rust clients for
+Open-source command-line, MCP, Rust, and Ruby clients for
 [REL](https://rel.me), plus the public contract for its local versioned API.
 
 REL is not an open-source product. This repository intentionally contains only
@@ -13,6 +13,8 @@ session storage, proxy credentials, or internal service code.
 - [`rel-cli`](crates/rel-cli): the `rel` command and standalone `rel-mcp` stdio
   adapter.
 - [`rel-client`](crates/rel-client): a typed synchronous Rust client for RPC v1.
+- [`rel-client` Ruby gem](ruby): a dependency-free Ruby client for RPC v1 and
+  incremental capture streaming.
 - [`rel-crawler`](crawler): a restartable Python crawler that preserves REL
   sessions and browser history while capturing rendered pages and metadata.
 - [`rel-crawlee`](crawlee): Crawlee queues, retries, routing, and datasets with
@@ -97,6 +99,28 @@ println!("{}", status.data.overall_status);
 
 See the [Rust SDK guide](docs/SDK.md) and [RPC v1 contract](docs/RPC.md).
 
+## Use the Ruby client
+
+Until a RubyGems release is announced, use the gemspec from this repository:
+
+```ruby
+# Gemfile
+gem "rel-client",
+    git: "https://github.com/rel-me/rel-tools.git",
+    glob: "ruby/*.gemspec"
+```
+
+```ruby
+require "rel"
+
+client = REL::Client.local
+status = client.status
+puts status.data.fetch("overall_status")
+```
+
+See the [Ruby SDK guide](docs/RUBY.md) for persistent-session workflows,
+streaming captures, structured errors, and the complete method list.
+
 ## Use the Python crawler
 
 The crawler is intended for interaction-heavy sites where each selected link
@@ -138,6 +162,12 @@ explicit limits.
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+
+cd ruby
+bundle install
+bundle exec rake test
+gem build rel-client.gemspec
+cd ..
 
 cd crawler
 python3 -m venv .venv
