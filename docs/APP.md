@@ -805,7 +805,7 @@ The Chat model picker uses the provider's display name when available, or the
 exact model ID when no display name is supplied. This also applies to newly
 discovered models. API requests always use the model ID.
 
-Chat displays response text as the model generates it, including local Ollama models such as Qwen. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
+Chat displays response text as the model generates it, including local Ollama models such as Qwen. A model may think before its first text appears. The Stop button remains available during generation. Pressing **Stop** keeps the response text already shown, followed by **Stopped by you**. The partial response is saved with the conversation and included as context for follow-up prompts. Ordinary questions and writing requests can be answered directly without browser tools.
 
 Choose **New Provider**, then open the searchable **Provider** menu. Remote
 services, **Ollama**, and **REL** appear together; local providers have a **local**
