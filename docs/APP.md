@@ -386,6 +386,14 @@ visits. Network identity is also separate: use a Session proxy when traffic
 must leave through another route. Proxied Sessions prevent WebRTC from using a
 non-proxied UDP route, but REL does not turn a direct Session into a VPN.
 
+### Chrome extension identity
+
+The **Chrome** browser identity exposes one web-accessible extension entry:
+**Google Docs Offline**. BrowserLeaks extension detection should report one
+extension. REL supplies an inert compatibility resource, not Google's extension
+code or offline document functionality. Private and Native identities do not
+expose this entry. Reload the session after changing identity.
+
 ## Shared asset cache
 
 Enable **Reuse cacheable assets across sessions** in **REL → Settings… → Cache**
