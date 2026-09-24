@@ -386,6 +386,28 @@ visits. Network identity is also separate: use a Session proxy when traffic
 must leave through another route. Proxied Sessions prevent WebRTC from using a
 non-proxied UDP route, but REL does not turn a direct Session into a VPN.
 
+## Integration reports
+
+Enable **Show Debug menu** in Settings to access the Pro **Debug** menu.
+**BrowserLeaks Tests** can run all diagnostics or an individual page: Canvas,
+WebGL, JavaScript, DNS, WebRTC, Chrome extensions, HTTP/2, Client Hints, CSS,
+ClientRects, Do Not Track and GPC, fonts, geolocation permissions, TLS, and
+content filters/proxy detection. Tests use the selected session's existing
+identity and proxy. Geolocation checks inspect permission state without
+requesting your coordinates.
+
+The report floats above the browser and opens when testing begins. It shows
+loading progress while the page finishes and while the report is created.
+Cancel stops the run and leaves its session open for inspection.
+
+Each comparison shows selectable Chrome and REL values, a Pass or Fail result,
+and the expectation used. Device tracking hashes should differ from Chrome;
+stable capabilities and normalized protocol fingerprints should match.
+Explicitly identified live measurements, permission settings, and other session
+preferences may vary. Missing or invalid results fail. Failures appear first;
+passed matches can be expanded. These comparisons use dated saved Chrome
+captures and are diagnostics, not an anonymity guarantee.
+
 ## Shared asset cache
 
 Enable **Reuse cacheable assets across sessions** in **REL → Settings… → Cache**
