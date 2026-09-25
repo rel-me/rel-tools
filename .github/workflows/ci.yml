@@ -26,6 +26,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.71.1
       - run: cargo check --workspace --all-targets
 
+  ruby:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ruby
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.1"
+      - run: bundle install
+      - run: bundle exec rake test
+      - run: gem build rel-client.gemspec
+
   python:
     runs-on: macos-latest
     defaults:

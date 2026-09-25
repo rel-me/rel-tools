@@ -1,8 +1,8 @@
 # Browser actions
 
-REL uses one browser-action contract across the CLI, MCP server, RPC v1, and
-Rust SDK. Actions are JSON objects with an `action` discriminator. Arrays run
-in order and stop at the first failure.
+REL uses one browser-action contract across the CLI, MCP server, RPC v1, Rust
+SDK, and Ruby SDK. Actions are JSON objects with an `action` discriminator.
+Arrays run in order and stop at the first failure.
 
 ## Where actions are accepted
 
@@ -12,6 +12,7 @@ in order and stop at the first failure.
 | MCP | `rel_capture.actions` | `rel_page_action.action` |
 | RPC v1 | `POST /v1/perform`, `POST /v1/captures` | `POST /v1/pages/{page_id}/actions` |
 | Rust SDK | `PerformRequest.actions`, `CaptureRequest.actions` | `PageActionRequest.action` |
+| Ruby SDK | `perform(actions: [...])`, `capture(actions: [...])` | `perform_page_action(page_id, action: {...})` |
 
 The same object shapes and validation rules apply on every surface. The CLI and
 MCP server forward actions through RPC v1; neither has a separate browser
@@ -205,6 +206,24 @@ let actions = vec![
 
 `None` uses the default `true` behavior for `mouse_move` and `scroll`; use
 `Some(false)` to disable either behavior.
+
+## Ruby SDK
+
+The Ruby client accepts the canonical action objects as hashes:
+
+```ruby
+client.perform(
+  session_id: "Session1",
+  actions: [
+    { action: "wait-for", selector: "#disco_search", timeout: 10 },
+    { action: "clear", selector: "#disco_search" },
+    { action: "type", selector: "#disco_search", text: "Magickraft" },
+    { action: "press", selector: "#disco_search", key: "Enter" }
+  ]
+)
+```
+
+See the [Ruby SDK guide](RUBY.md) for installation and response handling.
 
 ## Viewport and failures
 

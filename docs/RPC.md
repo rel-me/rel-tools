@@ -4,7 +4,8 @@ REL exposes a local, versioned JSON API for browser and app operations. This
 document is its supported wire contract. REL also serves Ollama-compatible local
 model inference on `/api` as described below.
 
-Related documents: [CLI](CLI.md), [MCP](MCP.md), and [Rust SDK](SDK.md).
+Related documents: [CLI](CLI.md), [MCP](MCP.md), [Rust SDK](SDK.md), and
+[Ruby SDK](RUBY.md).
 
 ## Transport
 
@@ -259,6 +260,9 @@ capture, page attachment and actions, observations, session-group closing, and
 session and proxy listing.
 MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
 [MCP](MCP.md) for its stdio lifecycle and result wrapping.
+The [`rel-client` Ruby gem](RUBY.md) exposes the same route table with Ruby hash
+payloads, structured response and error objects, and incremental capture
+streaming.
 `rel_read` is a `rel-client` composition over `POST /v1/navigate/observe` and
 `POST /v1/observe`. The SDK's `read_observation` helper applies the same bounded
 selection to `GET /v1/observations/{observation_id}`; neither helper adds an
