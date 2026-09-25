@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rel-crawlee"
+version = "0.2.0"
+description = "Crawlee orchestration with REL-owned Chromium sessions"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "REL" }]
+dependencies = [
+  "crawlee==1.10.0",
+  "rel-playwright>=0.1.1,<0.2",
+  "selectolax>=0.3.33,<1",
+  "tldextract>=5.3,<6",
+]
+
+[project.urls]
+Documentation = "https://docs.rel.me/crawlee/"
+Repository = "https://github.com/rel-me/rel-tools/tree/main/crawlee"
+Issues = "https://github.com/rel-me/rel-tools/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+rel_crawlee = ["py.typed"]

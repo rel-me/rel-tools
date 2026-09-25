@@ -2,8 +2,8 @@
 
 The REL plugin connects Codex to REL's persistent embedded Chromium sessions.
 It configures the MCP server bundled with the installed app and adds the
-`rel-browser` skill with workflow, action, screenshot, session, proxy, and safety
-guidance.
+`rel-browser` skill for interactive browser work plus the
+`crawl-websites-with-rel` skill for restartable, history-preserving crawls.
 
 Related documents: [MCP server](MCP.md) and [CLI](CLI.md).
 
@@ -53,7 +53,9 @@ The plugin contains:
 - the bundled REL MCP server configuration, using the absolute installed-app
   path;
 - the `rel-browser` skill for safe session selection and browser workflows;
-- all eleven MCP tools, including opt-in untrusted website notifications,
+- the `crawl-websites-with-rel` skill for rendered-link discovery, readiness,
+  checkpoints, capture metadata, bounded retries, and session recovery;
+- all fourteen MCP tools, including bounded semantic reading, opt-in untrusted website notifications,
   observations, session-group closing, and inline or file-backed screenshots;
 - all eight canonical page actions: `click`, `wait-for`, `type`, `clear`,
   `press`, `select`, `wait`, and `click-link`.
@@ -70,7 +72,7 @@ Begin with a read-only check in a new task:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover eleven `rel_*` tools without opening REL. If REL is already
+Codex should discover fourteen `rel_*` tools without opening REL. If REL is already
 running, `rel_status` reports the app, local agent, Browser Proxy, and embedded
 Chromium bridge. Otherwise it returns the local connection error without
 launching the app; `rel_list_sessions` then starts REL lazily.
@@ -83,5 +85,12 @@ Refresh the marketplace snapshot and reinstall the current plugin version:
 codex plugin marketplace upgrade rel
 codex plugin add rel@rel
 ```
+
+Version `0.4.2` replaces the old lettermark with REL's blue optical-lens logo
+in the marketplace and composer.
+
+Version `0.4.3` names the plugin MCP server `REL` so Codex preserves the brand's
+capitalization in its MCP servers list. The plugin identifier remains `rel@rel`,
+the adapter remains `rel-mcp`, and tool names remain `rel_*`.
 
 Start another new task after updating so it uses the refreshed plugin cache.

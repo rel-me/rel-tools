@@ -3,13 +3,14 @@ name = "rel-client"
 version = "0.1.5"
 edition.workspace = true
 rust-version.workspace = true
-description = "Typed Rust client for the Rel local browser RPC API."
+description = "Typed Rust client for the REL local browser RPC API."
 homepage.workspace = true
 license.workspace = true
 readme = "README.md"
 repository.workspace = true
 
 [dependencies]
+base64 = "0.21"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ureq = { version = "=2.9.1", default-features = false }

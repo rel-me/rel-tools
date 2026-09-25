@@ -11,11 +11,23 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
+cd crawler
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m unittest discover -s tests -v
+cd ..
+
+# From the repository root:
+python3 -m venv .venv
+.venv/bin/python -m pip install -e playwright -e crawlee
+.venv/bin/python -m unittest discover -s playwright/tests -v
+.venv/bin/python -m unittest discover -s crawlee/tests -v
+
 cd docs
 npm ci
 npm run check
 ```
 
-API behavior is implemented by the proprietary Rel.app runtime. Proposals for
+API behavior is implemented by the proprietary REL.app runtime. Proposals for
 new routes or runtime behavior may be discussed here, but the implementation is
 not part of this repository.

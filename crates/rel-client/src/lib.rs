@@ -1,21 +1,29 @@
-//! Typed Rust client for Rel RPC v1.
+//! Typed Rust client for REL RPC v1.
 //!
 //! This module contains no desktop-app lifecycle or local-file behavior. It can
 //! therefore be used by other Rust programs without adopting the bundled CLI's
 //! macOS-specific conveniences.
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::{self, BufRead, BufReader, Lines, Read};
 use std::time::Duration;
 
+pub mod transfer;
+
 const DEFAULT_AGENT_PORT: u16 = 17_319;
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const DEFAULT_PAGE_READ_MAX_CHARS: usize = 12_000;
+const MIN_PAGE_READ_MAX_CHARS: usize = 512;
+const MAX_PAGE_READ_MAX_CHARS: usize = 32_768;
+const DEFAULT_PAGE_READ_MAX_SECTIONS: usize = 24;
+const MAX_PAGE_READ_MAX_SECTIONS: usize = 100;
 
-/// Stable application error codes for Rel RPC v1.
+/// Stable application error codes for REL RPC v1.
 ///
 /// Codes begin at 10,000 so they cannot be mistaken for HTTP transport
 /// statuses. String error IDs remain available for readable diagnostics.
@@ -45,6 +53,7 @@ pub mod rpc_error_codes {
     pub const RATE_LIMITED: u32 = 10_205;
     pub const ACTION_TIMEOUT: u32 = 10_206;
     pub const OBSERVATION_STALE: u32 = 10_207;
+    pub const PRO_REQUIRED: u32 = 10_208;
 
     pub const UPSTREAM_UNAVAILABLE: u32 = 10_300;
     pub const BROWSER_UNAVAILABLE: u32 = 10_301;
@@ -79,6 +88,7 @@ pub mod rpc_error_codes {
             "RATE_LIMITED" => RATE_LIMITED,
             "ACTION_TIMEOUT" => ACTION_TIMEOUT,
             "OBSERVATION_STALE" => OBSERVATION_STALE,
+            "PRO_REQUIRED" => PRO_REQUIRED,
             "UPSTREAM_UNAVAILABLE" => UPSTREAM_UNAVAILABLE,
             "BROWSER_UNAVAILABLE" => BROWSER_UNAVAILABLE,
             "AGENT_UNHEALTHY" => AGENT_UNHEALTHY,
@@ -106,7 +116,7 @@ pub struct RelClient {
 }
 
 impl RelClient {
-    /// Connect to the standard loopback Rel RPC v1 endpoint.
+    /// Connect to the standard loopback REL RPC v1 endpoint.
     pub fn local() -> Self {
         let port = std::env::var("REL_AGENT_PORT")
             .ok()
@@ -221,6 +231,99 @@ impl RelClient {
         )
     }
 
+    /// Navigate in embedded Chromium and return the first synchronized page
+    /// observation without requiring a separate observe request.
+    pub fn navigate_and_observe(
+        &self,
+        request: &NavigateObservationRequest,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        self.request_with_timeout(
+            "POST",
+            "/navigate/observe",
+            Some(request),
+            page_request_timeout(request.timeout, request.wait),
+        )
+    }
+
+    /// Read either a URL or the current shorthand page as bounded,
+    /// query-directed Markdown. This is a semantic-only convenience over the
+    /// canonical `/navigate/observe` and `/observe` RPC v1 operations.
+    pub fn read_page(
+        &self,
+        request: &PageReadRequest,
+    ) -> Result<RpcResponse<PageReadData>, ClientError> {
+        let (max_chars, max_sections) = page_read_limits(request.max_chars, request.max_sections)?;
+
+        let response = if let Some(url) = request.url.as_deref() {
+            self.navigate_and_observe(&NavigateObservationRequest {
+                url: Some(url.to_string()),
+                session_id: request.session_id.clone(),
+                profile: request.profile.clone(),
+                proxy: request.proxy.clone(),
+                mode: Some(ObservationMode::Semantic),
+                timeout: request.timeout,
+                wait: request.wait,
+                ..NavigateObservationRequest::default()
+            })?
+        } else {
+            if request.profile.is_some() || request.proxy.is_some() {
+                return Err(ClientError::Protocol(
+                    "profile and proxy require a URL when reading a page".to_string(),
+                ));
+            }
+            self.observe_current_page(&ObservationRequest {
+                session_id: request.session_id.clone(),
+                mode: Some(ObservationMode::Semantic),
+                timeout: request.timeout,
+                wait: request.wait,
+            })?
+        };
+
+        let RpcResponse {
+            status,
+            request_id,
+            data,
+        } = response;
+        Ok(RpcResponse {
+            status,
+            request_id,
+            data: page_read_data(data, request.query.as_deref(), max_chars, max_sections),
+        })
+    }
+
+    /// Return one retained public semantic observation. Interaction references
+    /// may be stale after navigation; use this operation only for reading.
+    pub fn get_observation(
+        &self,
+        observation_id: &str,
+    ) -> Result<RpcResponse<ObservationOperationData>, ClientError> {
+        self.request::<ObservationOperationData, Value>(
+            "GET",
+            &format!("/observations/{}", encode_path_segment(observation_id)),
+            None,
+        )
+    }
+
+    /// Re-read one retained public observation as bounded, query-directed
+    /// Markdown without navigating the browser again.
+    pub fn read_observation(
+        &self,
+        observation_id: &str,
+        request: &ObservationReadRequest,
+    ) -> Result<RpcResponse<PageReadData>, ClientError> {
+        let (max_chars, max_sections) = page_read_limits(request.max_chars, request.max_sections)?;
+        let RpcResponse {
+            status,
+            request_id,
+            data,
+        } = self.get_observation(observation_id)?;
+        Ok(RpcResponse {
+            status,
+            request_id,
+            data: page_read_data(data, request.query.as_deref(), max_chars, max_sections),
+        })
+    }
+
     pub fn attach_page(
         &self,
         request: &PageAttachRequest,
@@ -295,6 +398,16 @@ impl RelClient {
         )
     }
 
+    /// Search one stored observation's public semantic snapshot.
+    pub fn find_in_observation(
+        &self,
+        observation_id: &str,
+        request: &ObservationFindRequest,
+    ) -> Result<RpcResponse<ObservationFindData>, ClientError> {
+        let path = format!("/observations/{}/find", encode_path_segment(observation_id));
+        self.request("POST", &path, Some(request))
+    }
+
     pub fn list_proxies(&self) -> Result<RpcResponse<ProxyListData>, ClientError> {
         self.request::<ProxyListData, Value>("GET", "/proxies", None)
     }
@@ -342,6 +455,20 @@ impl RelClient {
         )
     }
 
+    pub fn export_proxy_transfer(
+        &self,
+        request: &ProxyTransferExportRequest,
+    ) -> Result<RpcResponse<TransferExportData>, ClientError> {
+        self.request("POST", "/proxy-transfers/export", Some(request))
+    }
+
+    pub fn import_proxy_transfer(
+        &self,
+        request: &ProxyTransferImportRequest,
+    ) -> Result<RpcResponse<ProxyData>, ClientError> {
+        self.request("POST", "/proxy-transfers/import", Some(request))
+    }
+
     pub fn list_sessions(&self) -> Result<RpcResponse<SessionListData>, ClientError> {
         self.request::<SessionListData, Value>("GET", "/sessions", None)
     }
@@ -351,6 +478,15 @@ impl RelClient {
             "GET",
             &format!("/sessions/{}", encode_path_segment(id)),
             None,
+        )
+    }
+
+    /// Refresh a session's inactivity timer without performing browser work.
+    pub fn ping_session(&self, id: &str) -> Result<RpcResponse<SessionData>, ClientError> {
+        self.request(
+            "POST",
+            &format!("/sessions/{}/ping", encode_path_segment(id)),
+            Some(&serde_json::json!({})),
         )
     }
 
@@ -392,6 +528,20 @@ impl RelClient {
         )
     }
 
+    pub fn export_profile_transfer(
+        &self,
+        request: &ProfileTransferExportRequest,
+    ) -> Result<RpcResponse<TransferExportData>, ClientError> {
+        self.request("POST", "/profile-transfers/export", Some(request))
+    }
+
+    pub fn import_profile_transfer(
+        &self,
+        request: &ProfileTransferImportRequest,
+    ) -> Result<RpcResponse<ProfileData>, ClientError> {
+        self.request("POST", "/profile-transfers/import", Some(request))
+    }
+
     pub fn update_session(
         &self,
         id: &str,
@@ -401,6 +551,30 @@ impl RelClient {
             "PATCH",
             &format!("/sessions/{}", encode_path_segment(id)),
             Some(request),
+        )
+    }
+
+    /// Pause all network activity in a persistent browser session.
+    pub fn pause_session(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionNetworkStateData>, ClientError> {
+        self.request::<SessionNetworkStateData, Value>(
+            "POST",
+            &format!("/sessions/{}/pause", encode_path_segment(id)),
+            None,
+        )
+    }
+
+    /// Resume network activity and reload the current page when needed.
+    pub fn play_session(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionNetworkStateData>, ClientError> {
+        self.request::<SessionNetworkStateData, Value>(
+            "POST",
+            &format!("/sessions/{}/play", encode_path_segment(id)),
+            None,
         )
     }
 
@@ -465,7 +639,7 @@ impl RelClient {
     {
         if self.base_url.is_empty() {
             return Err(ClientError::Protocol(
-                "Rel RPC base URL cannot be empty".to_string(),
+                "REL RPC base URL cannot be empty".to_string(),
             ));
         }
         let url = format!("{}{}", self.base_url, path);
@@ -587,7 +761,7 @@ fn parse_rpc_success<T: DeserializeOwned>(
     let envelope = serde_json::from_str::<RpcResponse<T>>(&body).map_err(ClientError::Json)?;
     if envelope.status != "ok" {
         return Err(ClientError::Protocol(format!(
-            "Rel RPC success response has status {:?}",
+            "REL RPC success response has status {:?}",
             envelope.status
         )));
     }
@@ -608,13 +782,13 @@ fn parse_rpc_failure(status: u16, response: ureq::Response) -> ClientError {
         Ok(failure) => failure,
         Err(error) => {
             return ClientError::Protocol(format!(
-                "Rel RPC returned HTTP {status} with an invalid error envelope: {error}"
+                "REL RPC returned HTTP {status} with an invalid error envelope: {error}"
             ))
         }
     };
     if failure.status != "error" {
         return ClientError::Protocol(format!(
-            "Rel RPC error response has status {:?}",
+            "REL RPC error response has status {:?}",
             failure.status
         ));
     }
@@ -626,7 +800,7 @@ fn parse_rpc_failure(status: u16, response: ureq::Response) -> ClientError {
         || failure.error.message.trim().is_empty()
     {
         return ClientError::Protocol(
-            "Rel RPC error response has an incomplete error object".to_string(),
+            "REL RPC error response has an incomplete error object".to_string(),
         );
     }
     if failure
@@ -635,7 +809,7 @@ fn parse_rpc_failure(status: u16, response: ureq::Response) -> ClientError {
         .as_ref()
         .is_some_and(|details| !details.is_object())
     {
-        return ClientError::Protocol("Rel RPC error details must be a JSON object".to_string());
+        return ClientError::Protocol("REL RPC error details must be a JSON object".to_string());
     }
     ClientError::Rpc(Box::new(failure))
 }
@@ -649,7 +823,7 @@ fn validate_json_content_type(response: &ureq::Response) -> Result<(), ClientErr
         Ok(())
     } else {
         Err(ClientError::Protocol(format!(
-            "Rel RPC returned unsupported Content-Type {content_type:?}"
+            "REL RPC returned unsupported Content-Type {content_type:?}"
         )))
     }
 }
@@ -657,16 +831,16 @@ fn validate_json_content_type(response: &ureq::Response) -> Result<(), ClientErr
 fn validate_request_id(header: Option<&str>, body: &str) -> Result<(), ClientError> {
     if body.trim().is_empty() {
         return Err(ClientError::Protocol(
-            "Rel RPC response is missing request_id".to_string(),
+            "REL RPC response is missing request_id".to_string(),
         ));
     }
     match header {
         Some(header) if header == body => Ok(()),
         Some(header) => Err(ClientError::Protocol(format!(
-            "Rel RPC request ID mismatch: header {header:?}, body {body:?}"
+            "REL RPC request ID mismatch: header {header:?}, body {body:?}"
         ))),
         None => Err(ClientError::Protocol(
-            "Rel RPC response is missing X-Request-Id".to_string(),
+            "REL RPC response is missing X-Request-Id".to_string(),
         )),
     }
 }
@@ -688,14 +862,14 @@ impl CaptureStream {
             .starts_with("application/x-ndjson")
         {
             return Err(ClientError::Protocol(format!(
-                "Rel capture returned unsupported Content-Type {content_type:?}"
+                "REL capture returned unsupported Content-Type {content_type:?}"
             )));
         }
         let request_id = response
             .header("X-Request-Id")
             .filter(|value| !value.trim().is_empty())
             .ok_or_else(|| {
-                ClientError::Protocol("Rel capture response is missing X-Request-Id".to_string())
+                ClientError::Protocol("REL capture response is missing X-Request-Id".to_string())
             })?
             .to_string();
         Ok(Self {
@@ -737,13 +911,13 @@ impl Iterator for CaptureStream {
         };
         if event.request_id != self.request_id {
             return Some(Err(ClientError::Protocol(format!(
-                "Rel capture request ID mismatch: header {:?}, event {:?}",
+                "REL capture request ID mismatch: header {:?}, event {:?}",
                 self.request_id, event.request_id
             ))));
         }
         if event.event.trim().is_empty() {
             return Some(Err(ClientError::Protocol(
-                "Rel capture event is missing its event name".to_string(),
+                "REL capture event is missing its event name".to_string(),
             )));
         }
         match event.status.as_str() {
@@ -756,7 +930,7 @@ impl Iterator for CaptureStream {
                 }) => {}
             _ => {
                 return Some(Err(ClientError::Protocol(format!(
-                    "Rel capture event {:?} has an invalid envelope",
+                    "REL capture event {:?} has an invalid envelope",
                     event.event
                 ))))
             }
@@ -770,7 +944,7 @@ impl Iterator for CaptureStream {
                 .and_then(|code| i32::try_from(code).ok());
             let Some(exit_code) = exit_code else {
                 return Some(Err(ClientError::Protocol(
-                    "Rel capture.finished event is missing a valid exit_code".to_string(),
+                    "REL capture.finished event is missing a valid exit_code".to_string(),
                 )));
             };
             self.exit_code = Some(exit_code);
@@ -1111,6 +1285,107 @@ pub struct ObservationRequest {
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct NavigateObservationRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub navigation: Option<ObservationNavigation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ObservationMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+impl NavigateObservationRequest {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: Some(url.into()),
+            ..Self::default()
+        }
+    }
+}
+
+/// Parameters for a bounded semantic read of either a URL or the current
+/// shorthand page.
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct PageReadRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_chars: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_sections: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<f64>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ObservationReadRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_chars: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_sections: Option<usize>,
+}
+
+impl PageReadRequest {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: Some(url.into()),
+            ..Self::default()
+        }
+    }
+}
+
+/// A compact page representation intended for research and reading rather
+/// than interaction. Use an observation when action references are needed.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct PageReadData {
+    pub page: Page,
+    pub observation_id: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    pub markdown: String,
+    pub selected_outline_count: usize,
+    pub selected_content_count: usize,
+    pub selected_link_count: usize,
+    pub available_content_count: usize,
+    pub available_link_count: usize,
+    pub source_truncated: bool,
+    pub truncated: bool,
+    pub matched_query: bool,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ObservationNavigation {
+    Url,
+    Back,
+    Forward,
+    Reload,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct PageObservationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ObservationMode>,
@@ -1128,12 +1403,16 @@ pub enum ObservationActionKind {
     Clear,
     Press,
     Select,
+    Hover,
+    Scroll,
+    Wait,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ObservationActionRequest {
+pub struct ObservationAction {
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "ref")]
-    pub element_ref: String,
+    pub element_ref: Option<String>,
     pub action: ObservationActionKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -1146,6 +1425,66 @@ pub struct ObservationActionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Native horizontal wheel delta. Negative scrolls right; positive scrolls left.
+    pub delta_x: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Native vertical wheel delta. Negative scrolls down; positive scrolls up.
+    pub delta_y: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seconds: Option<f64>,
+}
+
+impl ObservationAction {
+    pub fn new(element_ref: impl Into<String>, action: ObservationActionKind) -> Self {
+        Self {
+            element_ref: Some(element_ref.into()),
+            action,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: None,
+            delta_y: None,
+            seconds: None,
+        }
+    }
+
+    pub fn scroll(delta_x: i32, delta_y: i32) -> Self {
+        Self {
+            element_ref: None,
+            action: ObservationActionKind::Scroll,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: Some(delta_x),
+            delta_y: Some(delta_y),
+            seconds: None,
+        }
+    }
+
+    pub fn wait(seconds: f64) -> Self {
+        Self {
+            element_ref: None,
+            action: ObservationActionKind::Wait,
+            text: None,
+            key: None,
+            value: None,
+            mouse_move: None,
+            scroll: None,
+            delta_x: None,
+            delta_y: None,
+            seconds: Some(seconds),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationActionRequest {
+    pub actions: Vec<ObservationAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ObservationMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<f64>,
@@ -1156,18 +1495,46 @@ pub struct ObservationActionRequest {
 impl ObservationActionRequest {
     pub fn new(element_ref: impl Into<String>, action: ObservationActionKind) -> Self {
         Self {
-            element_ref: element_ref.into(),
-            action,
-            text: None,
-            key: None,
-            value: None,
-            mouse_move: None,
-            scroll: None,
+            actions: vec![ObservationAction::new(element_ref, action)],
             mode: None,
             timeout: None,
             wait: None,
         }
     }
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ObservationFindRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ObservationFindData {
+    pub observation_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    pub matches: Vec<ObservationFindMatch>,
+    pub total_matches: usize,
+    pub truncated: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ObservationFindMatch {
+    Content {
+        index: usize,
+        content: ObservationContent,
+    },
+    Element {
+        element: ObservationElement,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1185,6 +1552,7 @@ pub struct PageObservation {
     pub title: String,
     pub truncated: bool,
     pub omitted_node_count: usize,
+    pub clipped_text_count: usize,
     pub visited_node_count: usize,
     pub semantic_bytes: usize,
     pub viewport: ObservationViewport,
@@ -1209,6 +1577,8 @@ pub struct ObservationContent {
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub level: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub text: String,
 }
 
@@ -1223,6 +1593,8 @@ pub struct ObservationElement {
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub destination: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub in_viewport: bool,
     pub bounds: ObservationBounds,
 }
@@ -1247,9 +1619,505 @@ pub struct ObservationScreenshot {
     pub css_to_image_scale_y: f64,
 }
 
+fn page_read_data(
+    data: ObservationOperationData,
+    query: Option<&str>,
+    max_chars: usize,
+    max_sections: usize,
+) -> PageReadData {
+    let ObservationOperationData { page, observation } = data;
+    let normalized_query = query.map(str::trim).filter(|value| !value.is_empty());
+    let terms = page_read_query_terms(normalized_query.unwrap_or_default());
+    let query_active = normalized_query.is_some();
+
+    let scored_content = observation
+        .content
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let mut score =
+                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading");
+            if page_read_query_requests_ratings(&terms) && page_read_text_is_rating(&item.text) {
+                score = score.max(2);
+            }
+            (index, score)
+        })
+        .collect::<Vec<_>>();
+    let content_matched = query_active && scored_content.iter().any(|(_, score)| *score > 0);
+    let mut content = if content_matched {
+        let mut ranked = scored_content
+            .iter()
+            .copied()
+            .filter(|(_, score)| *score > 0)
+            .collect::<Vec<_>>();
+        ranked.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+        page_read_matched_content_with_context(&observation.content, &ranked)
+    } else if !query_active {
+        page_read_coverage_content(&observation.content, max_sections)
+    } else {
+        Vec::new()
+    };
+    let available_content_count = if query_active {
+        content.len()
+    } else {
+        observation.content.len()
+    };
+    content.truncate(max_sections);
+
+    let mut seen_links = BTreeSet::new();
+    let mut links = observation
+        .elements
+        .iter()
+        .enumerate()
+        .filter_map(|(index, element)| {
+            let destination = element.destination.as_deref()?.trim();
+            if destination.is_empty() {
+                return None;
+            }
+            let key = format!("{}\n{}", element.name, destination);
+            if !seen_links.insert(key) {
+                return None;
+            }
+            let score = page_read_match_score(&element.name, normalized_query, &terms, false)
+                .max(page_read_link_intent_score(destination, &terms));
+            Some((index, score))
+        })
+        .collect::<Vec<_>>();
+    let links_matched = query_active && links.iter().any(|(_, score)| *score > 0);
+    if links_matched {
+        links.retain(|(_, score)| *score > 0);
+        links.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+    } else if content_matched {
+        links.clear();
+    }
+    let available_link_count = links.len();
+    links.truncate(max_sections);
+
+    let mut markdown = String::new();
+    let title = observation.title.trim().to_string();
+    let heading = if title.is_empty() {
+        page.url.as_str()
+    } else {
+        title.as_str()
+    };
+    push_page_read_block(
+        &mut markdown,
+        &format!("# {}", escape_markdown_text(heading)),
+        max_chars,
+    );
+    push_page_read_block(
+        &mut markdown,
+        &format!("Source: <{}>", escape_markdown_url(&page.url)),
+        max_chars,
+    );
+    if let Some(query) = normalized_query {
+        push_page_read_block(
+            &mut markdown,
+            &format!("Query: {}", escape_markdown_text(query)),
+            max_chars,
+        );
+    }
+
+    let outline = page_read_outline(&observation.content, max_sections.min(16));
+    let mut selected_outline_count = 0;
+    if !outline.is_empty() && push_page_read_block(&mut markdown, "## Page outline", max_chars) {
+        for index in outline {
+            let heading = &observation.content[index];
+            let indent = "  ".repeat(heading.level.unwrap_or(2).saturating_sub(2) as usize);
+            let block = format!("{indent}- {}", escape_markdown_text(heading.text.trim()));
+            if push_page_read_block(&mut markdown, &block, max_chars) {
+                selected_outline_count += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    let mut selected_content_count = 0;
+    let mut output_truncated = false;
+    for (index, _) in &content {
+        let (block, block_clipped) = page_read_bounded_content_block(
+            page_read_content_markdown(&observation.content[*index]),
+            max_chars,
+        );
+        output_truncated |= block_clipped;
+        let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
+        if added {
+            selected_content_count += 1;
+        }
+        if clipped {
+            output_truncated = true;
+            continue;
+        }
+    }
+
+    let mut selected_link_count = 0;
+    if !links.is_empty() && push_page_read_block(&mut markdown, "## Links", max_chars) {
+        for (index, _) in &links {
+            let element = &observation.elements[*index];
+            let destination = element.destination.as_deref().unwrap_or_default();
+            let label = if element.name.trim().is_empty() {
+                destination
+            } else {
+                element.name.trim()
+            };
+            let block = format!(
+                "- [{}](<{}>)",
+                escape_markdown_text(label),
+                escape_markdown_url(destination)
+            );
+            if push_page_read_block(&mut markdown, &block, max_chars) {
+                selected_link_count += 1;
+            } else {
+                output_truncated = true;
+                break;
+            }
+        }
+    } else if !links.is_empty() {
+        output_truncated = true;
+    }
+
+    let content_was_limited = available_content_count > selected_content_count;
+    let links_were_limited = available_link_count > selected_link_count;
+
+    PageReadData {
+        page,
+        observation_id: observation.id,
+        title,
+        query: normalized_query.map(str::to_string),
+        markdown,
+        selected_outline_count,
+        selected_content_count,
+        selected_link_count,
+        available_content_count,
+        available_link_count,
+        source_truncated: observation.truncated,
+        truncated: content_was_limited || links_were_limited || output_truncated,
+        matched_query: content_matched || links_matched,
+    }
+}
+
+fn page_read_matched_content_with_context(
+    content: &[ObservationContent],
+    ranked: &[(usize, usize)],
+) -> Vec<(usize, usize)> {
+    let mut selected = BTreeSet::new();
+    for (index, _) in ranked {
+        if let Some(heading) = (0..=*index)
+            .rev()
+            .find(|candidate| content[*candidate].kind == "heading")
+        {
+            selected.insert(heading);
+        }
+        selected.insert(*index);
+        if page_read_text_is_rating(&content[*index].text) && *index > 0 {
+            selected.insert(*index - 1);
+        }
+        if *index > 0 && page_read_text_is_rating(&content[*index - 1].text) {
+            selected.insert(*index - 1);
+        }
+        if *index + 1 < content.len() && page_read_text_is_rating(&content[*index + 1].text) {
+            selected.insert(*index + 1);
+        }
+    }
+    selected
+        .into_iter()
+        .map(|index| {
+            let score = ranked
+                .iter()
+                .find_map(|(candidate, score)| (*candidate == index).then_some(*score))
+                .unwrap_or_default();
+            (index, score)
+        })
+        .collect()
+}
+
+fn page_read_coverage_content(content: &[ObservationContent], limit: usize) -> Vec<(usize, usize)> {
+    if content.len() <= limit {
+        return (0..content.len()).map(|index| (index, 1)).collect();
+    }
+    if limit == 1 {
+        return vec![(0, 1)];
+    }
+    let mut selected = BTreeSet::new();
+    selected.insert(0);
+    selected.insert(content.len() - 1);
+    let heading_budget = (limit / 3).clamp(1, 8);
+    let headings = content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| (item.kind == "heading").then_some(index))
+        .collect::<Vec<_>>();
+    for index in evenly_spaced_indices(headings.len(), heading_budget.min(headings.len())) {
+        selected.insert(headings[index]);
+    }
+    for index in evenly_spaced_indices(content.len(), limit) {
+        if selected.len() >= limit {
+            break;
+        }
+        selected.insert(index);
+    }
+    if selected.len() < limit {
+        for index in 0..content.len() {
+            if selected.len() >= limit {
+                break;
+            }
+            selected.insert(index);
+        }
+    }
+    selected.into_iter().map(|index| (index, 1)).collect()
+}
+
+fn evenly_spaced_indices(length: usize, count: usize) -> Vec<usize> {
+    match (length, count) {
+        (_, 0) | (0, _) => Vec::new(),
+        (_, 1) => vec![0],
+        _ if count >= length => (0..length).collect(),
+        _ => (0..count)
+            .map(|slot| slot * (length - 1) / (count - 1))
+            .collect(),
+    }
+}
+
+fn page_read_outline(content: &[ObservationContent], limit: usize) -> Vec<usize> {
+    let headings = content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| (item.kind == "heading").then_some(index))
+        .collect::<Vec<_>>();
+    evenly_spaced_indices(headings.len(), limit.min(headings.len()))
+        .into_iter()
+        .map(|index| headings[index])
+        .collect()
+}
+
+fn page_read_limits(
+    max_chars: Option<usize>,
+    max_sections: Option<usize>,
+) -> Result<(usize, usize), ClientError> {
+    let max_chars = max_chars.unwrap_or(DEFAULT_PAGE_READ_MAX_CHARS);
+    if !(MIN_PAGE_READ_MAX_CHARS..=MAX_PAGE_READ_MAX_CHARS).contains(&max_chars) {
+        return Err(ClientError::Protocol(format!(
+            "max_chars must be between {MIN_PAGE_READ_MAX_CHARS} and {MAX_PAGE_READ_MAX_CHARS}"
+        )));
+    }
+    let max_sections = max_sections.unwrap_or(DEFAULT_PAGE_READ_MAX_SECTIONS);
+    if !(1..=MAX_PAGE_READ_MAX_SECTIONS).contains(&max_sections) {
+        return Err(ClientError::Protocol(format!(
+            "max_sections must be between 1 and {MAX_PAGE_READ_MAX_SECTIONS}"
+        )));
+    }
+    Ok((max_chars, max_sections))
+}
+
+fn page_read_query_terms(query: &str) -> Vec<String> {
+    const STOP_WORDS: &[&str] = &[
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it",
+        "of", "on", "or", "that", "the", "this", "to", "was", "what", "when", "where", "which",
+        "who", "why", "with",
+    ];
+    let mut terms = query
+        .split(|character: char| !character.is_alphanumeric())
+        .map(str::to_lowercase)
+        .filter(|term| term.len() >= 2 && !STOP_WORDS.contains(&term.as_str()))
+        .collect::<BTreeSet<_>>();
+    let originals = terms.iter().cloned().collect::<Vec<_>>();
+    for term in originals {
+        match term.as_str() {
+            "critic" | "critics" | "rating" | "ratings" | "score" | "scores" => {
+                terms.extend(["review", "reviews", "rating", "score"].map(str::to_string));
+            }
+            "genre" | "genres" => {
+                terms.extend(["genre", "genres", "style"].map(str::to_string));
+            }
+            _ => {}
+        }
+    }
+    terms.into_iter().collect()
+}
+
+fn page_read_query_requests_ratings(terms: &[String]) -> bool {
+    terms.iter().any(|term| {
+        matches!(
+            term.as_str(),
+            "critic"
+                | "critics"
+                | "rating"
+                | "ratings"
+                | "review"
+                | "reviews"
+                | "score"
+                | "scores"
+                | "signal"
+        )
+    })
+}
+
+fn page_read_text_is_rating(text: &str) -> bool {
+    let text = text.trim();
+    if text.parse::<u8>().is_ok_and(|value| value <= 100) {
+        return true;
+    }
+    text.split_whitespace().any(|token| {
+        let token = token.trim_matches(|character: char| {
+            !character.is_ascii_digit() && !matches!(character, '.' | '/' | '%')
+        });
+        if let Some(percent) = token.strip_suffix('%') {
+            return percent
+                .parse::<f64>()
+                .is_ok_and(|value| (0.0..=100.0).contains(&value));
+        }
+        if let Some((value, scale)) = token.split_once('/') {
+            return value
+                .parse::<f64>()
+                .ok()
+                .zip(scale.parse::<f64>().ok())
+                .is_some_and(|(value, scale)| scale > 0.0 && value >= 0.0 && value <= scale);
+        }
+        token.contains('.')
+            && token
+                .parse::<f64>()
+                .is_ok_and(|value| (0.0..=100.0).contains(&value))
+    })
+}
+
+fn page_read_link_intent_score(destination: &str, terms: &[String]) -> usize {
+    let destination = destination.to_ascii_lowercase();
+    let has_term =
+        |candidates: &[&str]| terms.iter().any(|term| candidates.contains(&term.as_str()));
+    if destination.contains("/genres/") && has_term(&["genre", "genres", "style"]) {
+        return 6;
+    }
+    if destination.contains("/label/") && has_term(&["label", "labels"]) {
+        return 6;
+    }
+    0
+}
+
+fn page_read_match_score(
+    text: &str,
+    query: Option<&str>,
+    terms: &[String],
+    is_heading: bool,
+) -> usize {
+    let Some(query) = query else {
+        return 1;
+    };
+    let text = text.to_lowercase();
+    let query = query.to_lowercase();
+    let mut score = if !query.is_empty() && text.contains(&query) {
+        12
+    } else {
+        0
+    };
+    for term in terms {
+        score += text.matches(term).count().min(4) * 3;
+    }
+    if is_heading && score > 0 {
+        score *= 2;
+    }
+    score
+}
+
+fn page_read_content_markdown(content: &ObservationContent) -> String {
+    let text = escape_markdown_text(content.text.trim());
+    let block = match content.kind.as_str() {
+        "heading" => format!(
+            "{} {text}",
+            "#".repeat(content.level.unwrap_or(2).clamp(2, 6) as usize)
+        ),
+        "listitem" | "list_item" | "item" => format!("- {text}"),
+        _ => text,
+    };
+    match content
+        .context
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(context) => format!("Context: {}\n\n{block}", escape_markdown_text(context)),
+        None => block,
+    }
+}
+
+fn page_read_bounded_content_block(block: String, max_chars: usize) -> (String, bool) {
+    let maximum = (max_chars / 3).clamp(128, 2_048);
+    if block.chars().count() <= maximum {
+        return (block, false);
+    }
+    let mut bounded = block
+        .chars()
+        .take(maximum.saturating_sub(1))
+        .collect::<String>();
+    bounded.push('…');
+    (bounded, true)
+}
+
+fn push_page_read_block(output: &mut String, block: &str, max_chars: usize) -> bool {
+    let separator = if output.is_empty() { "" } else { "\n\n" };
+    let required = separator.chars().count() + block.chars().count();
+    if output.chars().count() + required > max_chars {
+        return false;
+    }
+    output.push_str(separator);
+    output.push_str(block);
+    true
+}
+
+fn push_page_read_excerpt(output: &mut String, block: &str, max_chars: usize) -> (bool, bool) {
+    if push_page_read_block(output, block, max_chars) {
+        return (true, false);
+    }
+    let separator = if output.is_empty() { "" } else { "\n\n" };
+    let used = output.chars().count() + separator.chars().count();
+    let available = max_chars.saturating_sub(used);
+    if available < 2 {
+        return (false, true);
+    }
+    output.push_str(separator);
+    output.extend(block.chars().take(available - 1));
+    output.push('…');
+    (true, true)
+}
+
+fn escape_markdown_text(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\\' | '*' | '_' | '[' | ']' | '`' => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
+            '\r' | '\n' => escaped.push(' '),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
+}
+
+fn escape_markdown_url(value: &str) -> String {
+    value.trim().replace('<', "%3C").replace('>', "%3E")
+}
+
+/// Additional CA trust is scoped to sessions using this proxy.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ProxyTls {
+    #[default]
+    System,
+    BrightData,
+    Custom {
+        certificate_pem: String,
+    },
+}
+
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct ProxyCreateRequest {
     pub alias: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<ProxyTls>,
     pub upstream_host: String,
     pub upstream_port: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1278,6 +2146,10 @@ impl ProxyCreateRequest {
 pub struct ProxyUpdateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upstream_host: Option<String>,
+    #[serde(skip_serializing_if = "Change::is_unchanged")]
+    pub locale: Change<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<ProxyTls>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upstream_port: Option<u16>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
@@ -1362,7 +2234,11 @@ pub struct OxylabsProxy {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Proxy {
+    #[serde(default)]
+    pub tls: ProxyTls,
     pub alias: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
     pub upstream_host: String,
     pub upstream_port: u16,
     pub username: Option<String>,
@@ -1371,8 +2247,45 @@ pub struct Proxy {
     pub oxylabs: Option<OxylabsProxy>,
 }
 
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProxyTransferExportRequest {
+    pub alias: String,
+    pub include_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProxyTransferImportRequest {
+    pub contents_base64: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+impl ProxyTransferImportRequest {
+    pub fn from_bytes(data: &[u8], alias: Option<String>, passphrase: Option<String>) -> Self {
+        Self {
+            contents_base64: BASE64_STANDARD.encode(data),
+            alias,
+            passphrase,
+        }
+    }
+}
+
+/// Omission at creation defaults to 120 seconds of client inactivity.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SessionLifetime {
+    Inactivity { timeout_seconds: u32 },
+    Indefinite,
+}
+
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifetime: Option<SessionLifetime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1418,6 +2331,8 @@ pub struct ProfileCreateRequest {
     pub includes_cookies: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub includes_passwords: Option<bool>,
+    #[serde(skip_serializing_if = "Change::is_unchanged")]
+    pub fingerprint_profile: Change<FingerprintProfile>,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -1435,6 +2350,78 @@ pub enum ImageBlockingMode {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct FingerprintProfile {
+    pub schema_version: u64,
+    pub seed: String,
+    pub platform: FingerprintPlatform,
+    pub browser_brand: FingerprintBrowserBrand,
+    pub browser_version: String,
+    pub user_agent: String,
+    pub locale: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale_mode: Option<FingerprintLocaleMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overrides: Option<Vec<String>>,
+    pub timezone: String,
+    pub network_profile: FingerprintNetworkProfile,
+    pub hardware_concurrency: u64,
+    pub device_memory_gib: u64,
+    pub max_touch_points: u64,
+    pub screen: FingerprintScreen,
+    pub graphics_profile: String,
+    pub storage_quota_bytes: u64,
+    pub canvas_noise_mode: FingerprintNoiseMode,
+    pub audio_noise_mode: FingerprintNoiseMode,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintLocaleMode {
+    Automatic,
+    Custom,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintPlatform {
+    Macos,
+    Linux,
+    Windows,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintBrowserBrand {
+    Chromium,
+    Chrome,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintNetworkProfile {
+    Desktop,
+    Residential,
+    Datacenter,
+    Mobile,
+    Slow,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum FingerprintNoiseMode {
+    Native,
+    Deterministic,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct FingerprintScreen {
+    pub width: u64,
+    pub height: u64,
+    pub available_height: u64,
+    pub device_scale_factor: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionListData {
     pub sessions: Vec<Session>,
 }
@@ -1444,6 +2431,12 @@ pub struct SessionData {
     pub session: Session,
     #[serde(default)]
     pub closed_session_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SessionNetworkStateData {
+    pub session_id: String,
+    pub network_paused: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1466,18 +2459,76 @@ pub struct Profile {
     pub image_size_limit_kb: i64,
     pub includes_cookies: bool,
     pub includes_passwords: bool,
+    #[serde(default)]
+    pub fingerprint_profile: Option<FingerprintProfile>,
     pub is_builtin: bool,
     pub created_at: i64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct TransferExportData {
+    pub filename: String,
+    pub contents_base64: String,
+}
+
+impl TransferExportData {
+    pub fn contents(&self) -> Result<Vec<u8>, String> {
+        BASE64_STANDARD
+            .decode(&self.contents_base64)
+            .map_err(|error| format!("REL returned invalid transfer data: {error}"))
+    }
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileTransferExportRequest {
+    pub name: String,
+    pub include_cookies: bool,
+    pub include_passwords: bool,
+    pub include_proxy_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct ProfileTransferImportRequest {
+    pub contents_base64: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passphrase: Option<String>,
+    #[serde(skip_serializing_if = "is_false")]
+    pub browser_data_ready: bool,
+}
+
+impl ProfileTransferImportRequest {
+    pub fn from_bytes(data: &[u8], name: Option<String>, passphrase: Option<String>) -> Self {
+        Self {
+            contents_base64: BASE64_STANDARD.encode(data),
+            name,
+            passphrase,
+            browser_data_ready: false,
+        }
+    }
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lifetime: Option<SessionLifetime>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_activity_at: Option<i64>,
     pub id: String,
     pub name: String,
     pub profile: String,
     pub profile_data_id: Option<String>,
     pub group: Option<String>,
     pub proxy_alias: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy_locale: Option<String>,
     pub adblock_enabled: bool,
     pub image_blocking_mode: ImageBlockingMode,
     pub image_size_limit_kb: i64,
@@ -1512,6 +2563,17 @@ pub struct Health {
     pub browser_proxy_port: u16,
     pub build: Option<BuildIdentity>,
     pub worker: Worker,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database_recovery: Option<DatabaseRecoverySummary>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct DatabaseRecoverySummary {
+    pub schema_version: u32,
+    pub backup_path: String,
+    pub report_path: String,
+    pub issue_count: u64,
+    pub retained_sessions: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1621,6 +2683,7 @@ mod tests {
             rpc_error_codes::RATE_LIMITED,
             rpc_error_codes::ACTION_TIMEOUT,
             rpc_error_codes::OBSERVATION_STALE,
+            rpc_error_codes::PRO_REQUIRED,
             rpc_error_codes::UPSTREAM_UNAVAILABLE,
             rpc_error_codes::BROWSER_UNAVAILABLE,
             rpc_error_codes::AGENT_UNHEALTHY,
@@ -1765,16 +2828,317 @@ mod tests {
     fn profile_json() -> Value {
         json!({
             "id": "builtin-default",
-            "name": "Default",
+            "name": "Private",
             "proxy_alias": null,
             "adblock_enabled": false,
             "image_blocking_mode": "none",
             "image_size_limit_kb": 100,
             "includes_cookies": false,
             "includes_passwords": false,
+            "fingerprint_profile": {
+                "schema_version": 1,
+                "seed": "12345",
+                "platform": "macos",
+                "browser_brand": "chromium",
+                "browser_version": "151.0.7922.76",
+                "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.76 Safari/537.36",
+                "locale": "en-US",
+                "timezone": "America/Los_Angeles",
+                "network_profile": "desktop",
+                "hardware_concurrency": 8,
+                "device_memory_gib": 8,
+                "max_touch_points": 0,
+                "screen": {
+                    "width": 1920,
+                    "height": 1080,
+                    "available_height": 985,
+                    "device_scale_factor": 2
+                },
+                "graphics_profile": "apple-m2",
+                "storage_quota_bytes": 107374182400_u64,
+                "canvas_noise_mode": "deterministic",
+                "audio_noise_mode": "deterministic"
+            },
             "is_builtin": true,
             "created_at": 0
         })
+    }
+
+    fn observation_operation() -> ObservationOperationData {
+        ObservationOperationData {
+            page: Page {
+                id: "page-1".to_string(),
+                session_id: "session-1".to_string(),
+                url: "https://example.com/guide".to_string(),
+            },
+            observation: PageObservation {
+                id: "observation-1".to_string(),
+                mode: ObservationMode::Semantic,
+                document_sequence: 1,
+                captured_at: "2026-08-19T00:00:00Z".to_string(),
+                title: "Example Guide".to_string(),
+                truncated: false,
+                omitted_node_count: 0,
+                clipped_text_count: 0,
+                visited_node_count: 12,
+                semantic_bytes: 200,
+                viewport: ObservationViewport {
+                    css_width: 1280,
+                    css_height: 720,
+                    scroll_x: 0,
+                    scroll_y: 0,
+                    document_width: 1280,
+                    document_height: 1800,
+                },
+                content: vec![
+                    ObservationContent {
+                        kind: "heading".to_string(),
+                        level: Some(2),
+                        context: Some("main".to_string()),
+                        text: "Installation".to_string(),
+                    },
+                    ObservationContent {
+                        kind: "paragraph".to_string(),
+                        level: None,
+                        context: Some("main > section: Installation".to_string()),
+                        text: "Install the package with Cargo.".to_string(),
+                    },
+                    ObservationContent {
+                        kind: "paragraph".to_string(),
+                        level: None,
+                        context: Some("main > section: History".to_string()),
+                        text: "Unrelated company history.".to_string(),
+                    },
+                ],
+                elements: vec![ObservationElement {
+                    element_ref: "e1".to_string(),
+                    role: "link".to_string(),
+                    name: "Installation reference".to_string(),
+                    states: Vec::new(),
+                    value: None,
+                    destination: Some("https://example.com/install".to_string()),
+                    context: Some("main > navigation: Documentation".to_string()),
+                    in_viewport: true,
+                    bounds: ObservationBounds {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 100.0,
+                        height: 20.0,
+                    },
+                }],
+                screenshot: None,
+            },
+        }
+    }
+
+    #[test]
+    fn page_read_is_query_directed_and_markdown_bounded() {
+        let data = page_read_data(observation_operation(), Some("install package"), 512, 10);
+        assert!(data.markdown.contains("## Installation"));
+        assert!(data.markdown.contains("Install the package with Cargo."));
+        assert!(data.markdown.contains("Installation reference"));
+        assert!(data.markdown.contains("Context: main"));
+        assert!(!data.markdown.contains("company history"));
+        assert!(data.matched_query);
+        assert!(data.markdown.chars().count() <= 512);
+
+        let mut operation = observation_operation();
+        operation.observation.content[1].text = "x".repeat(1_000);
+        let bounded = page_read_data(operation, None, 512, 10);
+        assert!(bounded.markdown.chars().count() <= 512);
+        assert!(bounded.markdown.contains('…'));
+        assert!(bounded.selected_content_count >= 2);
+        assert!(bounded.truncated);
+
+        let mut source_limited = observation_operation();
+        source_limited.observation.truncated = true;
+        let source_limited = page_read_data(source_limited, None, 32_768, 10);
+        assert!(source_limited.source_truncated);
+        assert!(!source_limited.truncated);
+    }
+
+    #[test]
+    fn unqueried_page_read_samples_the_whole_document_and_reports_availability() {
+        let mut operation = observation_operation();
+        operation.observation.content = (0..30)
+            .map(|index| ObservationContent {
+                kind: if index % 10 == 0 {
+                    "heading".to_string()
+                } else {
+                    "paragraph".to_string()
+                },
+                level: (index % 10 == 0).then_some(2),
+                context: Some(format!("main > section {}", index / 10 + 1)),
+                text: format!("Document section {index}"),
+            })
+            .collect();
+
+        let data = page_read_data(operation, None, 8_000, 6);
+
+        assert!(data.markdown.contains("## Page outline"));
+        assert!(data.markdown.contains("Document section 0"));
+        assert!(data.markdown.contains("Document section 29"));
+        assert_eq!(data.available_content_count, 30);
+        assert_eq!(data.selected_content_count, 6);
+        assert!(data.selected_outline_count > 0);
+        assert!(data.truncated);
+    }
+
+    #[test]
+    fn page_read_keeps_rating_pairs_and_ignores_generic_url_path_matches() {
+        let mut operation = observation_operation();
+        operation.observation.title = "Materia by Julia Holter".to_string();
+        operation.observation.content = [
+            ("heading", Some(1), "Materia"),
+            ("paragraph", None, "2026 / Aug 21 / 7 tracks / 35m"),
+            ("text", None, "Metacritic"),
+            ("text", None, "87%"),
+            ("text", None, "Paste"),
+            ("text", None, "8.3/10"),
+            ("text", None, "Pitchfork 9.2 Adventurous and precise."),
+            ("text", None, "Guardian 5/5 A singular achievement."),
+            ("paragraph", None, "Unrelated album history"),
+        ]
+        .into_iter()
+        .map(|(kind, level, text)| ObservationContent {
+            kind: kind.to_string(),
+            level,
+            context: None,
+            text: text.to_string(),
+        })
+        .collect();
+        operation.observation.elements = vec![
+            ObservationElement {
+                element_ref: "e1".to_string(),
+                role: "link".to_string(),
+                name: "Read Metacritic review".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://reviews.example/materia".to_string()),
+                context: None,
+                in_viewport: true,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+            ObservationElement {
+                element_ref: "e2".to_string(),
+                role: "link".to_string(),
+                name: "Other record".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://example.com/album/other".to_string()),
+                context: None,
+                in_viewport: false,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+            ObservationElement {
+                element_ref: "e3".to_string(),
+                role: "link".to_string(),
+                name: "Art Pop".to_string(),
+                states: Vec::new(),
+                value: None,
+                destination: Some("https://example.com/genres/pop/art-pop".to_string()),
+                context: None,
+                in_viewport: true,
+                bounds: ObservationBounds {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                },
+            },
+        ];
+
+        let data = page_read_data(
+            operation,
+            Some("album details, genres, critic ratings and scores"),
+            4_000,
+            20,
+        );
+        let metacritic = data.markdown.find("Metacritic").unwrap();
+        let metacritic_score = data.markdown.find("87%").unwrap();
+        let paste = data.markdown.find("Paste").unwrap();
+        let paste_score = data.markdown.find("8.3/10").unwrap();
+        let pitchfork_score = data.markdown.find("Pitchfork 9.2").unwrap();
+        let guardian_score = data.markdown.find("Guardian 5/5").unwrap();
+        assert!(metacritic < metacritic_score);
+        assert!(metacritic_score < paste);
+        assert!(paste < paste_score);
+        assert!(paste_score < pitchfork_score);
+        assert!(pitchfork_score < guardian_score);
+        assert!(data.markdown.contains("Art Pop"));
+        assert!(data.markdown.contains("Read Metacritic review"));
+        assert!(!data.markdown.contains("https://example.com/album/other"));
+    }
+
+    #[test]
+    fn page_read_url_uses_semantic_navigate_observe() {
+        let response_body = json!({
+            "status": "ok",
+            "request_id": "request-1",
+            "data": observation_operation()
+        });
+        let (base_url, handle) = start_test_server(1, move |_, _| {
+            http_json(200, "request-1", response_body.clone())
+        });
+        let response = RelClient::new(base_url)
+            .read_page(&PageReadRequest {
+                url: Some("https://example.com/guide".to_string()),
+                query: Some("install".to_string()),
+                ..PageReadRequest::default()
+            })
+            .unwrap();
+        assert_eq!(response.data.observation_id, "observation-1");
+        let requests = handle.join().unwrap();
+        assert_eq!(requests[0].method, "POST");
+        assert_eq!(requests[0].path, "/v1/navigate/observe");
+        let body: Value = serde_json::from_str(&requests[0].body).unwrap();
+        assert_eq!(body["mode"], "semantic");
+    }
+
+    #[test]
+    fn retained_observation_can_be_read_without_navigation() {
+        let response_body = json!({
+            "status": "ok",
+            "request_id": "request-1",
+            "data": observation_operation()
+        });
+        let (base_url, handle) = start_test_server(1, move |_, _| {
+            http_json(200, "request-1", response_body.clone())
+        });
+        let response = RelClient::new(base_url)
+            .read_observation(
+                "observation-1",
+                &ObservationReadRequest {
+                    query: Some("install".to_string()),
+                    ..ObservationReadRequest::default()
+                },
+            )
+            .unwrap();
+        assert!(response.data.markdown.contains("Install the package"));
+        let requests = handle.join().unwrap();
+        assert_eq!(requests[0].method, "GET");
+        assert_eq!(requests[0].path, "/v1/observations/observation-1");
+    }
+
+    #[test]
+    fn fingerprint_round_trip_preserves_locale_mode_and_selected_controls() {
+        let mut value = profile_json()["fingerprint_profile"].clone();
+        value["locale_mode"] = json!("custom");
+        value["locale"] = json!("fr-CA");
+        value["overrides"] = json!(["locale", "audio"]);
+        let profile: FingerprintProfile = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(profile.locale_mode, Some(FingerprintLocaleMode::Custom));
+        assert_eq!(serde_json::to_value(profile).unwrap(), value);
     }
 
     #[test]
@@ -1920,13 +3284,51 @@ mod tests {
     }
 
     #[test]
+    fn observation_actions_serialize_as_one_sequence() {
+        assert_eq!(
+            serde_json::to_value(NavigateObservationRequest {
+                navigation: Some(ObservationNavigation::Back),
+                session_id: Some("Session1".to_string()),
+                ..NavigateObservationRequest::default()
+            })
+            .unwrap(),
+            json!({"navigation":"back","session_id":"Session1"})
+        );
+        let mut hover = ObservationAction::new("e2", ObservationActionKind::Hover);
+        hover.scroll = Some(false);
+        let request = ObservationActionRequest {
+            actions: vec![
+                ObservationAction::new("e1", ObservationActionKind::Click),
+                hover,
+                ObservationAction::scroll(0, -600),
+                ObservationAction::wait(0.25),
+            ],
+            mode: Some(ObservationMode::Semantic),
+            timeout: None,
+            wait: None,
+        };
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            json!({
+                "actions": [
+                    {"ref":"e1","action":"click"},
+                    {"ref":"e2","action":"hover","scroll":false},
+                    {"action":"scroll","delta_x":0,"delta_y":-600},
+                    {"action":"wait","seconds":0.25}
+                ],
+                "mode":"semantic"
+            })
+        );
+    }
+
+    #[test]
     fn path_segments_are_percent_encoded() {
         assert_eq!(encode_path_segment("page 1/a"), "page%201%2Fa");
     }
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(29, |index, request| {
+        let (base_url, server) = start_test_server(38, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -1970,7 +3372,8 @@ mod tests {
                     "page":{"id":"page_1","session_id":"machine-a.Session1","url":"https://example.com/"},
                     "screenshot":{"output_path":"/tmp/page.webp","bytesize":11,"format":"webp","mime_type":"image/webp","width":1200,"height":800}
                 }),
-                ("POST", "/v1/observe")
+                ("POST", "/v1/navigate/observe")
+                | ("POST", "/v1/observe")
                 | ("POST", "/v1/pages/page_1/observe")
                 | ("POST", "/v1/observations/11111111-1111-4111-8111-111111111111/actions") => {
                     json!({
@@ -1979,6 +3382,7 @@ mod tests {
                             "id":"22222222-2222-4222-8222-222222222222",
                             "mode":"semantic","document_sequence":4,"captured_at":"2026-08-17T00:00:00Z",
                             "title":"Example","truncated":false,"omitted_node_count":0,
+                            "clipped_text_count":0,
                             "visited_node_count":3,"semantic_bytes":20,
                             "viewport":{"css_width":1200,"css_height":800,"scroll_x":0,"scroll_y":0,"document_width":1200,"document_height":800},
                             "content":[{"kind":"heading","level":1,"text":"Example"}],
@@ -1986,6 +3390,12 @@ mod tests {
                         }
                     })
                 }
+                ("POST", "/v1/observations/11111111-1111-4111-8111-111111111111/find") => json!({
+                    "observation_id":"11111111-1111-4111-8111-111111111111",
+                    "query":"continue","role":"button",
+                    "matches":[{"type":"element","element":{"ref":"e1","role":"button","name":"Continue","states":["enabled"],"in_viewport":true,"bounds":{"x":10.0,"y":20.0,"width":100.0,"height":40.0}}}],
+                    "total_matches":1,"truncated":false
+                }),
                 ("GET", "/v1/proxies") => json!({"proxies":[proxy_json()]}),
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
@@ -1994,14 +3404,25 @@ mod tests {
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }
+                ("POST", "/v1/proxy-transfers/export") => {
+                    json!({"filename":"office.relproxy","contents_base64":"U1FMaXRlIGZvcm1hdCAzAA=="})
+                }
+                ("POST", "/v1/proxy-transfers/import") => json!({"proxy":proxy_json()}),
                 ("DELETE", "/v1/sessions/machine-a.Session1") => {
                     json!({"deleted_id":"machine-a.Session1"})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/pause") => {
+                    json!({"session_id":"machine-a.Session1", "network_paused":true})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/play") => {
+                    json!({"session_id":"machine-a.Session1", "network_paused":false})
                 }
                 ("POST", "/v1/sessions/close") => {
                     json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
                 }
                 ("GET", "/v1/sessions") => json!({"sessions":[session_json()]}),
                 ("GET", "/v1/sessions/machine-a.Session1")
+                | ("POST", "/v1/sessions/machine-a.Session1/ping")
                 | ("POST", "/v1/sessions")
                 | ("PATCH", "/v1/sessions/machine-a.Session1") => json!({"session":session_json()}),
                 ("GET", "/v1/profiles") => json!({"profiles":[profile_json()]}),
@@ -2010,6 +3431,12 @@ mod tests {
                 }
                 ("DELETE", "/v1/profiles/custom-profile-id") => {
                     json!({"deleted_id":"custom-profile-id"})
+                }
+                ("POST", "/v1/profile-transfers/export") => {
+                    json!({"filename":"Research.relprofile","contents_base64":"U1FMaXRlIGZvcm1hdCAzAA=="})
+                }
+                ("POST", "/v1/profile-transfers/import") => {
+                    json!({"profile":profile_json()})
                 }
                 route => panic!("unexpected route {route:?}"),
             };
@@ -2089,12 +3516,25 @@ mod tests {
             })
             .unwrap();
         client
+            .navigate_and_observe(&NavigateObservationRequest::new("example.com"))
+            .unwrap();
+        client
             .observe_page("page_1", &PageObservationRequest::default())
             .unwrap();
         client
             .perform_observation_action(
                 "11111111-1111-4111-8111-111111111111",
                 &ObservationActionRequest::new("e1", ObservationActionKind::Click),
+            )
+            .unwrap();
+        client
+            .find_in_observation(
+                "11111111-1111-4111-8111-111111111111",
+                &ObservationFindRequest {
+                    query: Some("continue".to_string()),
+                    role: Some("button".to_string()),
+                    limit: Some(5),
+                },
             )
             .unwrap();
         client.list_proxies().unwrap();
@@ -2118,6 +3558,20 @@ mod tests {
             .unwrap();
         client.delete_proxy("office").unwrap();
         client.rotate_proxy_session("office").unwrap();
+        client
+            .export_proxy_transfer(&ProxyTransferExportRequest {
+                alias: "office".to_string(),
+                include_credentials: false,
+                passphrase: None,
+            })
+            .unwrap();
+        client
+            .import_proxy_transfer(&ProxyTransferImportRequest::from_bytes(
+                b"SQLite format 3\0",
+                Some("backup".to_string()),
+                None,
+            ))
+            .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
         assert_eq!(sessions.data.sessions[0].group.as_deref(), Some("pgm"));
@@ -2125,7 +3579,15 @@ mod tests {
         client
             .create_session(&SessionCreateRequest::default())
             .unwrap();
-        client.list_profiles().unwrap();
+        client.ping_session("machine-a.Session1").unwrap();
+        let profiles = client.list_profiles().unwrap();
+        assert_eq!(
+            profiles.data.profiles[0]
+                .fingerprint_profile
+                .as_ref()
+                .map(|profile| profile.seed.as_str()),
+            Some("12345")
+        );
         client
             .create_profile(&ProfileCreateRequest {
                 name: "Research".to_string(),
@@ -2135,6 +3597,7 @@ mod tests {
                 image_size_limit_kb: Some(10),
                 includes_cookies: Some(false),
                 includes_passwords: Some(false),
+                fingerprint_profile: Change::Unchanged,
             })
             .unwrap();
         client
@@ -2148,6 +3611,22 @@ mod tests {
             .unwrap();
         client.delete_profile("custom-profile-id").unwrap();
         client
+            .export_profile_transfer(&ProfileTransferExportRequest {
+                name: "Research".to_string(),
+                include_cookies: false,
+                include_passwords: false,
+                include_proxy_credentials: false,
+                passphrase: None,
+            })
+            .unwrap();
+        client
+            .import_profile_transfer(&ProfileTransferImportRequest::from_bytes(
+                b"SQLite format 3\0",
+                Some("Research Copy".to_string()),
+                None,
+            ))
+            .unwrap();
+        client
             .update_session(
                 "machine-a.Session1",
                 &SessionUpdateRequest {
@@ -2156,6 +3635,10 @@ mod tests {
                 },
             )
             .unwrap();
+        let paused = client.pause_session("machine-a.Session1").unwrap();
+        assert!(paused.data.network_paused);
+        let playing = client.play_session("machine-a.Session1").unwrap();
+        assert!(!playing.data.network_paused);
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
         let closed = client.close_session_group("pgm").unwrap();
@@ -2180,10 +3663,15 @@ mod tests {
                 ("POST", "/v1/pages/page_1/actions"),
                 ("POST", "/v1/pages/page_1/screenshot"),
                 ("POST", "/v1/observe"),
+                ("POST", "/v1/navigate/observe"),
                 ("POST", "/v1/pages/page_1/observe"),
                 (
                     "POST",
                     "/v1/observations/11111111-1111-4111-8111-111111111111/actions"
+                ),
+                (
+                    "POST",
+                    "/v1/observations/11111111-1111-4111-8111-111111111111/find"
                 ),
                 ("GET", "/v1/proxies"),
                 ("GET", "/v1/proxies/office"),
@@ -2191,20 +3679,27 @@ mod tests {
                 ("PATCH", "/v1/proxies/office"),
                 ("DELETE", "/v1/proxies/office"),
                 ("POST", "/v1/proxies/office/rotate-session"),
+                ("POST", "/v1/proxy-transfers/export"),
+                ("POST", "/v1/proxy-transfers/import"),
                 ("GET", "/v1/sessions"),
                 ("GET", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions"),
+                ("POST", "/v1/sessions/machine-a.Session1/ping"),
                 ("GET", "/v1/profiles"),
                 ("POST", "/v1/profiles"),
                 ("PATCH", "/v1/profiles/custom-profile-id"),
                 ("DELETE", "/v1/profiles/custom-profile-id"),
+                ("POST", "/v1/profile-transfers/export"),
+                ("POST", "/v1/profile-transfers/import"),
                 ("PATCH", "/v1/sessions/machine-a.Session1"),
+                ("POST", "/v1/sessions/machine-a.Session1/pause"),
+                ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions/close"),
             ]
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[37].body).unwrap(),
             json!({"group":"pgm"})
         );
         assert_eq!(
@@ -2232,15 +3727,35 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[15].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[11].body).unwrap(),
+            json!({"url":"example.com"})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[13].body).unwrap(),
+            json!({"actions":[{"ref":"e1","action":"click"}]})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[14].body).unwrap(),
+            json!({"query":"continue","role":"button","limit":5})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[17].body).unwrap(),
             json!({"alias":"office","upstream_host":"proxy.example.com","upstream_port":8000})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[16].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[18].body).unwrap(),
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[23].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[21].body).unwrap(),
+            json!({"alias":"office","include_credentials":false})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
+            json!({"contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==","alias":"backup"})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({
                 "name":"Research",
                 "adblock_enabled":true,
@@ -2251,11 +3766,27 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[24].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[29].body).unwrap(),
             json!({"includes_cookies":true,"includes_passwords":true})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[26].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
+            json!({
+                "name":"Research",
+                "include_cookies":false,
+                "include_passwords":false,
+                "include_proxy_credentials":false
+            })
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
+            json!({
+                "contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==",
+                "name":"Research Copy"
+            })
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[33].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }
@@ -2415,5 +3946,26 @@ mod tests {
             serde_json::from_str::<Value>(&requests[0].body).unwrap(),
             json!({"url":"example.com"})
         );
+    }
+}
+
+#[cfg(test)]
+mod database_recovery_tests {
+    use super::*;
+
+    #[test]
+    fn health_preserves_recovery_summary_and_accepts_older_agents() {
+        let mut json = serde_json::json!({
+            "version": "0.1.39", "pid": 42, "browser_proxy_port": 17400,
+            "build": null, "worker": {"state": "idle"}
+        });
+        let legacy: Health = serde_json::from_value(json.clone()).unwrap();
+        assert!(legacy.database_recovery.is_none());
+        json["database_recovery"] = serde_json::json!({
+            "schema_version": 14, "backup_path": "/tmp/original.sqlite3",
+            "report_path": "/tmp/report.json", "issue_count": 1, "retained_sessions": 2
+        });
+        let health: Health = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(serde_json::to_value(health).unwrap(), json);
     }
 }

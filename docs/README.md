@@ -4,12 +4,16 @@ The public guides in this directory are the canonical source for the repository
 and [docs.rel.me](https://docs.rel.me):
 
 - `CLI.md` → `/cli/`
+- `APP.md` → `/app/`
 - `ACTIONS.md` → `/actions/`
 - `CODEX_PLUGIN.md` → `/codex-plugin/`
 - `CLAUDE_CODE_PLUGIN.md` → `/claude-code-plugin/`
 - `MCP.md` → `/mcp/`
 - `RPC.md` → `/rpc/`
 - `SDK.md` → `/sdk/`
+- `CRAWLER.md` → `/crawler/`
+- `CRAWLEE.md` → `/crawlee/`
+- `PLAYWRIGHT.md` → `/playwright/`
 
 Edit those source files, not the generated guide files under
 `src/content/docs/`. `scripts/sync-docs.mjs` prepares the Markdown for

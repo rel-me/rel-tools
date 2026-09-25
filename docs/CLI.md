@@ -13,25 +13,31 @@ cargo install --git https://github.com/rel-me/rel-tools \
 ```
 
 The CLI is a thin client built on the typed [`rel-client`](SDK.md)
-Rust crate. Ordinary user-facing commands map directly to an [RPC v1](RPC.md)
-operation. The standalone `rel-mcp` binary adapts a focused subset of those
-same operations to stdio MCP; neither client implements another browser or
-reads application data directly.
+Rust crate. Ordinary user-facing commands map to [RPC v1](RPC.md) operations;
+`rel read` and the profile/proxy transfer commands are bounded client-side
+compositions of those operations. The standalone `rel-mcp` binary adapts a
+focused subset of the same operations to stdio MCP; neither client implements
+another browser or reads application data directly.
 
 Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
 [RPC](RPC.md).
+
+When session creation omits a profile, REL uses **Settings → General → Default
+Profile**, or **Custom** if the preference is unset. Explicit profile choices
+always take precedence.
 
 ## Commands
 
 ```text
 rel health
 rel status
-rel navigate URL [options]
+rel navigate [URL] [options]
+rel read [URL] [--query TEXT] [options]
 rel perform ACTIONS [options]
 rel capture [options]
 rel URL [options]
 rel capture URL [options]
-rel page attach URL [options]
+rel page attach [URL] [options]
 rel page action PAGE_ID --action JSON [options]
 rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]
 rel observation action OBSERVATION_ID --request JSON
@@ -41,10 +47,17 @@ rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [option
 rel proxy update ALIAS [options]
 rel proxy delete ALIAS
 rel proxy rotate ALIAS
+rel proxy export ALIAS [--output PATH]
+rel proxy import FILE [--alias ALIAS]
+rel profile list
+rel profile export NAME [--output PATH]
+rel profile import FILE [--name NAME]
 rel session list
 rel session get SESSION_ID
 rel session create [options]
 rel session update SESSION_ID [options]
+rel session pause SESSION_ID
+rel session play SESSION_ID
 rel session delete SESSION_ID
 rel session close --group GROUP
 rel-mcp
@@ -62,6 +75,11 @@ starts its stdio protocol server without launching the app; its operational
 tools start REL lazily after their arguments have been validated.
 `REL_AGENT_PORT` overrides the default local port, `17319`.
 
+`rel navigate` and `rel page attach` use `REL_SESSION_URL` when their otherwise
+required positional URL is omitted. An explicit URL always wins. Argument-free
+`rel read` and `rel capture` retain their current-page behavior and do not
+reload from `REL_SESSION_URL`.
+
 When a browser command targets a session while REL is in the background, REL
 selects that session by default without activating the app. Turn off **REL →
 Settings… → General → Follow browser commands** to keep the current session
@@ -69,12 +87,26 @@ selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
+REL Free supports one persistent Session and one custom Profile, and does not
+allow proxy creation, configuration, assignment, or use. Mutations that require
+REL Pro fail with the non-retryable `PRO_REQUIRED` RPC error. Register Pro in
+**REL → Settings… → Plan** to remove these limits. Read and delete operations
+remain available so stored resources can be inspected or reduced after a
+downgrade.
+
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free
 `rel capture` instead captures the current shorthand page selected by
 `rel navigate`. The removed `ping`, `logs`, and
 `--rotate-proxy-session` interfaces have no compatibility aliases; use
 `status`, the app's Logs view, and `proxy rotate`, respectively.
+
+The app's Logs view displays each event on one compact line. Browser request
+summaries show the method, URL, HTTP status, failure or block reason, and duration
+when available. Select a row to inspect the formatted JSON record, including its
+structured `data` fields. **Copy JSON** (or Command-C) copies selected records as
+newline-delimited JSON, one object per line, preserving multiline messages and
+metadata for diagnostic tools. Session log files already use this NDJSON format.
 
 `rel observe` returns bounded rendered semantics and observation-scoped element
 refs. `--mode=hybrid` adds a synchronized viewport PNG resource; `visual`
@@ -90,6 +122,25 @@ rel observation action OBSERVATION_ID \
 
 The action response contains a new observation. Old observation refs fail with
 `OBSERVATION_STALE` after navigation, document replacement, or bounded eviction.
+
+`rel read` is the smaller retrieval path for reading and research. It observes
+the current shorthand page, or navigates first when `URL` is supplied, then
+returns query-ranked content and links as bounded Markdown. A compact heading
+outline covers the page, and an unqueried read samples across long documents
+instead of stopping at their first sections. It is always
+semantic-only and does not return action refs or an image. `--max-chars`
+defaults to 12000 (range 512–32768), and `--max-sections` defaults to 24 (range
+1–100). Use `rel observe` instead when interaction refs or visual verification
+are needed:
+
+```sh
+rel read https://example.com/docs --query="installation" --max-chars=6000
+rel read --session-id=Session1 --query="current plan"
+```
+
+The JSON envelope reports the source URL, title, observation ID, outline and
+selection counts, available content and link counts, whether the query matched,
+and independent source/output truncation.
 
 ## Quick examples
 
@@ -112,32 +163,39 @@ rel https://rel.me > rel.html 2> capture.ndjson
 
 ### Navigate, perform, and capture in one session
 
-Create a session with `--id-only` so command substitution receives only its
-canonical ID, then use that ID for the complete stateful workflow:
+Create a session, then let later CLI calls select that newest session for the
+complete stateful workflow:
 
 ```sh
-session_id="$(rel session create --name Research --id-only)"
+rel session create --name Research --id-only
+# Session12
 
-rel navigate https://rel.me --session-id="$session_id"
-rel perform '[{"action":"wait","seconds":0.5}]' --session-id="$session_id"
-rel capture --session-id="$session_id" > rel.html
+rel navigate https://rel.me
+rel perform '[{"action":"wait","seconds":0.5}]'
+rel capture > rel.html
 ```
 
 The final argument-free `rel capture` reads the page selected by `rel navigate`
-after `rel perform` finishes.
+after `rel perform` finishes. Each CLI process asks REL for the newest existing
+session, so this sequence needs no shell variable or CLI state file.
 
-For a sequence of commands, export the ID under REL's standard environment
-variable and omit the repeated options:
+To pin a sequence while another shell or process may create sessions, export an
+ID and optional default URL under REL's standard environment variables:
 
 ```sh
+session_id="$(rel session create --name Research --id-only)"
 export REL_SESSION_ID="$session_id"
+export REL_SESSION_URL="https://example.com"
 
-rel navigate https://example.com
+rel navigate
 rel perform '[{"action":"wait","seconds":0.5}]'
 rel capture > example.html
 ```
 
-An explicit `--session-id` always takes precedence over `REL_SESSION_ID`.
+An explicit `--session-id` takes precedence over `REL_SESSION_ID`, which takes
+precedence over the newest existing session. An explicit URL takes precedence
+over `REL_SESSION_URL`. REL's embedded terminal exports both variables for its
+browser session when the shell starts or restarts.
 
 ## Output and errors
 
@@ -199,16 +257,17 @@ The adapter accepts no MCP options; `--help` and `--version` are available for
 direct inspection. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly eleven tools: `rel_status`,
+`2025-11-25`, and exposes exactly fourteen tools: `rel_status`,
 `rel_notifications`, `rel_capture`,
-`rel_page_attach`, `rel_page_action`, `rel_take_screenshot`,
-`rel_observe`, `rel_action`, `rel_list_sessions`, `rel_close_session_group`, and
-`rel_list_proxies`.
+`rel_page_attach`, `rel_navigate`, `rel_read`, `rel_page_action`, `rel_take_screenshot`,
+`rel_observe`, `rel_find`, `rel_action`, `rel_list_sessions`,
+`rel_close_session_group`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
-validated NDJSON stream into `{request_id, exit_code, events}`. Every tool
-execution result includes its complete JSON in both a text content block and
-`structuredContent`. Captured files use absolute `file:///` URIs at the MCP
+validated NDJSON stream into `{request_id, exit_code, events}`. Tool results
+normally include their complete JSON in both a text content block and
+`structuredContent`; `rel_read` puts bounded Markdown only in text and keeps
+metadata in `structuredContent` to avoid duplicating page content. Captured files use absolute `file:///` URIs at the MCP
 boundary and are also returned as standard MCP `resource_link` content blocks.
 Screenshot calls without an explicit output URI and hybrid or visual
 observations additionally return standard MCP `image` content for multimodal
@@ -238,12 +297,14 @@ rel capture > final.html
 ```
 
 `navigate` calls `POST /v1/navigate`, navigates the current shorthand page, and
-prints the ordinary JSON response envelope. Its first call reuses the first
-persisted session unless `--session-id` or `REL_SESSION_ID` supplies one,
-creating a session only when none exists. Later calls without a session ID reuse
-the current page and session. Supplying `--profile NAME` intentionally creates
-a new session from that profile and conflicts with `--session-id`. It also
-accepts `--proxy`, `--output`, `--timeout`, and `--wait`.
+prints the ordinary JSON response envelope. Its first call reuses the newest
+existing session unless `--session-id` or `REL_SESSION_ID` supplies one,
+creating a session only when none exists. Later calls without a session ID
+resolve the newest session again and reuse its current page. Supplying
+`--profile NAME` intentionally creates a new session from that profile and
+conflicts with `--session-id`. It also accepts `--proxy`, `--output`,
+`--timeout`, and `--wait`. The positional URL may be omitted when
+`REL_SESSION_URL` is set; an explicit URL always wins.
 
 Navigation becomes ready after REL observes the requested HTTP(S) main-frame
 load, that main frame finishes, and its rendered source is available. Subframe
@@ -252,6 +313,14 @@ applies a bounded settling delay after main-frame readiness; if another
 main-frame navigation starts during that delay, REL waits for it and restarts
 the delay. Use a timed `wait` action when the workflow needs additional
 settling time before its next step.
+
+A submitted navigation replaces the session's active target immediately, even
+if the proxy or browser fails before the page loads. Refresh and retry use that
+target, so a second failed navigation does not send the session back to the
+first URL. Unsubmitted address-field edits do not change the retry target.
+
+Fragment-only navigation and same-document Back/Forward complete using the
+existing document. They preserve its HTTP status without requiring a full load.
 
 If the main frame returns HTTP 4xx or 5xx, `navigate` normally exits
 unsuccessfully as soon as Chromium commits that response instead of waiting for
@@ -276,12 +345,13 @@ options such as `--action`, `--proxy`, or `--retry`. It also accepts
 `--session-id`.
 
 For `navigate`, `perform`, and argument-free `capture`, `--session-id` defaults
-to `REL_SESSION_ID` when set. The agent keeps a distinct current shorthand page
-for each session, so embedded terminals can use these commands concurrently.
-An explicit option always wins. The shorthand registry is process-local and a
-session's entry disappears when the agent restarts or that session closes.
-Concurrent work within the same session should use `page attach` and
-`page action` with explicit page IDs.
+to `REL_SESSION_ID` when set, then the newest existing session. The agent keeps
+a distinct current shorthand page for each session, so embedded terminals can
+use these commands concurrently. An explicit option always wins. The shorthand
+registry is process-local and a session's entry disappears when the agent
+restarts or that session closes. Concurrent workflows that may create sessions
+should set `REL_SESSION_ID` or pass `--session-id`; concurrent work within the
+same session should use `page attach` and `page action` with explicit page IDs.
 
 ## Capture
 
@@ -300,9 +370,9 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--wait SECONDS` | `wait` | Nonnegative finite settling delay after the final main-frame readiness; default `1`. Background loading does not restart it. |
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
-| `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set; otherwise create a persistent session. |
-| `--profile NAME` | `profile` | Create the session from this built-in or custom profile. Conflicts with `--session-id` and suppresses the `REL_SESSION_ID` default. |
-| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses the `REL_SESSION_ID` default. |
+| `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set, then the newest existing session. Create a persistent session only when none exists. |
+| `--profile NAME` | `profile` | Create the session from this saved profile. Conflicts with `--session-id` and suppresses both implicit defaults. |
+| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses both implicit defaults. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
@@ -312,10 +382,11 @@ addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
 When `--session-id`, `--profile`, and `--group` are omitted, the CLI uses
-`REL_SESSION_ID` if it is set. This
-is exported automatically by each embedded session terminal. An explicit option
-always wins. If neither is present, capture creates a persistent browser session.
-Its default label is `Session<ID>` and its immutable identifier is:
+`REL_SESSION_ID` if it is set, then the newest existing session. The environment
+variable is exported automatically by each embedded session terminal. An
+explicit option always wins. If neither the environment variable nor an
+existing session is present, capture creates a persistent browser session. Its
+default label is `Session<ID>` and its immutable identifier is:
 
 ```text
 Session<ID>
@@ -324,8 +395,9 @@ Session<ID>
 For a new session, `--proxy oxylabs` is shorthand for creating a persistent
 session assigned to `oxylabs`, then capturing with it. Its canonical ID is
 returned as `data.session_id` in the NDJSON capture events. Omitting `--proxy`
-uses the selected profile, or the built-in **Default** profile when
-`--profile` is omitted.
+uses the selected profile, or the configured default when `--profile` is
+omitted. Without a saved default, Custom uses direct networking, AdBlock on,
+all images allowed, and Private.
 For an existing session, omission preserves its current assignment; an explicit
 proxy updates the assignment.
 
@@ -374,7 +446,9 @@ rel page attach https://example.com \
 `page attach` accepts `--session-id`, `--profile`, `--proxy`, `--output`,
 `--timeout`, and `--wait`. It also accepts `--group` when creating a session.
 `--profile` conflicts with `--session-id`; either creation option suppresses
-the `REL_SESSION_ID` default. Its result contains a process-local `page.id`.
+both implicit defaults. Otherwise the CLI uses `REL_SESSION_ID` when set, then
+the newest existing session. Its positional URL defaults to `REL_SESSION_URL`
+when omitted. Its result contains a process-local `page.id`.
 
 Perform one canonical [browser action](ACTIONS.md) on that attachment:
 
@@ -393,6 +467,9 @@ proxy selected by `page attach`. Page IDs disappear when the agent restarts.
 Every proxy has a required, case-insensitively unique alias. The alias is its
 only public identifier: use it for every CLI and RPC reference. Numeric database
 IDs and UUIDs are not accepted or returned by the public API.
+
+Creating, updating, rotating, assigning, or using a proxy requires REL Pro.
+REL Free can list, inspect, and delete proxies that were saved previously.
 
 ```sh
 rel proxy list
@@ -433,13 +510,54 @@ Rotate the generated sticky session for an Oxylabs-enabled proxy:
 rel proxy rotate office
 ```
 
+Export or import a proxy transfer file:
+
+```sh
+rel proxy export office
+rel proxy import office.relproxy
+rel proxy import office.relproxy --alias office-backup
+```
+
+Export writes `ALIAS.relproxy` in the current directory unless `--output`
+supplies an exact path. It refuses to overwrite an existing file and creates
+the file with owner-only permissions. Stored proxy passwords are protected by
+the app and are not available to CLI export, so `credentials_included` is
+`false`. Import accepts an unprotected, versioned `.relproxy` SQLite archive;
+`--alias` overrides the immutable alias stored in the file. Use the app to
+export or import credentials with a transfer passphrase.
+
+## Profiles
+
+List profiles or transfer their reusable settings:
+
+```sh
+rel profile list
+rel profile export Research
+rel profile import Research.relprofile
+rel profile import Research.relprofile --name "Research Copy"
+```
+
+Export writes `NAME.relprofile` in the current directory unless `--output`
+supplies an exact path. It refuses to overwrite an existing file and creates
+the file with owner-only permissions. A profile transfer contains its name,
+referenced Proxy configuration, AdBlock setting, and image policy. CLI export
+does not include cookies, saved passwords, or Proxy credentials. CLI import
+accepts an unprotected archive and creates a custom Profile; `--name` overrides
+the stored name when that name already exists. Use the app for
+passphrase-protected browser data or Proxy credentials.
+
+Both transfer formats are SQLite containers with the same version 1 schema.
+They are limited to 12 MiB. Legacy JSON transfer files are not accepted.
+
 ## Sessions
 
-Read and delete persistent browser sessions by their canonical session IDs:
+Read, control, and delete persistent browser sessions by their canonical IDs:
 
 ```sh
 rel session list
 rel session get Session12
+rel session pause Session12
+rel session play Session12
 rel session delete Session12
 ```
 
@@ -457,7 +575,7 @@ rel session create \
 ```
 
 Every create option is optional. `--profile` accepts the unique name shown in
-**REL → Settings… → Profiles**; omission uses **Default**. Omitted proxy and
+**REL → Settings… → Profiles**; omission uses the configured default (Custom when unset). Omitted proxy and
 filtering options use the selected profile. Use `--direct` to override it with
 a direct connection. `--image-blocking-mode` is `none`, `all`, or
 `over_limit`; `none` allows every image without changing AdBlock.
@@ -467,8 +585,25 @@ ID. Group matching is case-insensitive.
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
 
-REL does not impose a maximum session count. Sessions remain open until you
-explicitly delete them.
+After a successful create, that session is the newest session and therefore the
+default for later CLI commands. Creating or deleting sessions in another shell
+can change this default; use `REL_SESSION_ID` or `--session-id` to pin concurrent
+workflows.
+
+New sessions close after 120 seconds of client inactivity by default. Use
+`--lifetime` at creation to select another timeout or `indefinite`, and
+`rel session ping SESSION_ID` to keep an idle session alive.
+
+`pause` idempotently cancels active requests and blocks new network work for
+the session. `play` idempotently resumes network activity and reloads the
+current page when the pause interrupted or deferred navigation. Both commands
+return the RPC envelope with `data.session_id` and `data.network_paused`.
+
+When a new URL is submitted, REL covers the existing page until the new document
+finishes loading. Cancelling before the new document commits restores the previous
+URL and its live page state without reloading. Pausing during this interval also
+restores that page, and playing resumes networking without reloading it. Once the
+new document commits, the previous document can no longer be restored this way.
 
 Close every session in a group. Repeating the command after the group is empty
 succeeds and returns an empty `data.deleted_ids` array:
@@ -488,3 +623,46 @@ rel session update Session12 --direct
 or clearing a proxy assignment during update. An update requires at least one
 mutable option. Session name and filtering policy are mutable; the canonical
 session ID is immutable.
+
+### Proxy TLS certificates
+
+```sh
+rel proxy update bright-data --upstream-host brd.superproxy.io --upstream-port 44445 --tls bright-data
+rel proxy update office --ca-cert ./company-root-ca.pem
+rel proxy update office --tls system
+```
+
+`proxy create` and `proxy update` accept `--locale BCP47`, for example
+`--locale fr-CA`, to configure the language/locale used by Automatic privacy
+settings for that proxy. `proxy update ALIAS --clear-locale` removes it; omission
+preserves it. Country settings alone never select a language. Private uses
+Automatic: an explicit Custom identity locale wins, then the proxy locale, then
+the macOS user's preferred/default locale. A value matching native Chromium
+requires no override.
+
+Both `proxy create` and `proxy update` accept either `--tls system|bright-data` or `--ca-cert PATH`. These options are mutually exclusive. The CLI reads a PEM CA bundle locally and sends its contents, not its path. The agent validates CA certificates and limits bundles to 1–16 certificates and 64 KiB. Omission on create uses system trust; omission on update preserves the current setting. Additional roots apply only to sessions assigned to that proxy. A TLS setting change applies automatically in empty browsers; affected browsers with page state show a banner. The user chooses Reload to apply it; storage and logins remain intact.
+
+### Database recovery reports
+
+`rel health` includes `data.database_recovery` when the agent has a committed
+upgrade or recovery report. Its local `report_path` identifies the detailed
+report and `backup_path` identifies the original SQLite snapshot. See
+[database recovery](APP.md#database-migration-and-recovery) before repairing
+quarantined data.
+
+### Session inactivity and ping
+
+Sessions close after 120 seconds of client inactivity by default. Set the
+inactivity timeout when creating a session, or explicitly choose an indefinite
+lifetime:
+
+```sh
+rel session create --lifetime 300 --id-only
+rel session create --lifetime indefinite --id-only
+rel session ping Session1
+```
+
+`--lifetime` accepts positive integer seconds or `indefinite`. Session commands
+and browser work refresh activity; session listing does not. Send `session ping`
+periodically while a client is idle (for example every 30 seconds for the default
+lifetime). Ping performs no browser action and cannot reopen a closed session.

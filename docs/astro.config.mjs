@@ -5,12 +5,15 @@ export default defineConfig({
   site: "https://docs.rel.me",
   integrations: [
     starlight({
-      title: "REL.me",
+      title: "docs.rel.me",
       description: "Documentation for REL, a persistent Chromium browser built for agents.",
-      favicon: "/rel-mark.svg",
+      favicon: "/favicon.png",
       logo: {
-        src: "./public/rel-mark.svg",
+        src: "./public/rel-app-icon.png",
         alt: "",
+      },
+      components: {
+        Banner: "./src/components/AppBanner.astro",
       },
       customCss: ["./src/styles/custom.css"],
       head: [
@@ -36,6 +39,7 @@ export default defineConfig({
           label: "Start here",
           items: [
             { label: "Overview", slug: "index" },
+            { label: "macOS app", slug: "app" },
             { label: "Actions", slug: "actions" },
           ],
         },
@@ -46,6 +50,9 @@ export default defineConfig({
             { label: "MCP server", slug: "mcp" },
             { label: "RPC v1", slug: "rpc" },
             { label: "Rust SDK", slug: "sdk" },
+            { label: "Python crawler", slug: "crawler" },
+            { label: "Crawlee integration", slug: "crawlee" },
+            { label: "Playwright-compatible Python", slug: "playwright" },
           ],
         },
         {

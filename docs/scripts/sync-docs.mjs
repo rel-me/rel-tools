@@ -7,6 +7,18 @@ const contentRoot = resolve(docsRoot, "src/content/docs");
 
 const pages = [
   {
+    source: "CRAWLEE.md",
+    output: "crawlee.md",
+    title: "Crawlee integration",
+    description: "Use Crawlee queues, retries, routers, and datasets with REL-owned Chromium sessions.",
+  },
+  {
+    source: "APP.md",
+    output: "app.md",
+    title: "macOS app",
+    description: "Configure REL Profiles, AI models, Sessions, and repeating scheduled prompts in the macOS app.",
+  },
+  {
     source: "CODEX_PLUGIN.md",
     output: "codex-plugin.md",
     title: "Codex plugin",
@@ -48,9 +60,23 @@ const pages = [
     title: "Rust SDK",
     description: "Use the typed rel-client Rust crate for every public REL RPC v1 operation.",
   },
+  {
+    source: "CRAWLER.md",
+    output: "crawler.md",
+    title: "Python crawler",
+    description: "Build restartable, history-preserving website crawls through REL's embedded Chromium sessions.",
+  },
+  {
+    source: "PLAYWRIGHT.md",
+    output: "playwright.md",
+    title: "Playwright-compatible Python",
+    description: "Port Playwright-shaped Python scrapers to REL Profiles and persistent Chromium sessions.",
+  },
 ];
 
 const siteLinks = new Map([
+  ["CRAWLEE.md", "/crawlee/"],
+  ["APP.md", "/app/"],
   ["CODEX_PLUGIN.md", "/codex-plugin/"],
   ["CLAUDE_CODE_PLUGIN.md", "/claude-code-plugin/"],
   ["CLI.md", "/cli/"],
@@ -58,11 +84,13 @@ const siteLinks = new Map([
   ["MCP.md", "/mcp/"],
   ["RPC.md", "/rpc/"],
   ["SDK.md", "/sdk/"],
+  ["CRAWLER.md", "/crawler/"],
+  ["PLAYWRIGHT.md", "/playwright/"],
 ]);
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|MCP|RPC|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|CRAWLEE|MCP|PLAYWRIGHT|RPC|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

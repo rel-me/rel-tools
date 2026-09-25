@@ -10,7 +10,43 @@ Related documents: [Codex plugin](CODEX_PLUGIN.md),
 [Claude Code plugin](CLAUDE_CODE_PLUGIN.md), [CLI](CLI.md), [RPC](RPC.md), and
 [Rust SDK](SDK.md).
 
+When session creation omits a profile, REL uses **Settings → General → Default
+Profile**, or **Custom** if the preference is unset. Explicit profile choices
+always take precedence.
+
+## Tool quick reference
+
+REL MCP exposes exactly fourteen tools. This is the complete discovery list;
+each tool has a detailed contract later in this guide.
+
+| Tool | Description |
+| --- | --- |
+| `rel_status` | Read app, agent, Browser Proxy, and embedded Chromium status. |
+| `rel_notifications` | List notifications the user opted in to share as untrusted website content. |
+| `rel_capture` | Load a page, perform optional actions, and save its rendered HTML. |
+| `rel_page_attach` | Attach an ephemeral automation page to a persistent browser session. |
+| `rel_navigate` | Navigate by URL, back, forward, or reload and immediately observe the result. |
+| `rel_read` | Read a URL or current page as bounded, query-directed Markdown and links. |
+| `rel_page_action` | Perform one canonical action on an attached page. |
+| `rel_take_screenshot` | Capture a viewport or full-page PNG, JPEG, or WebP image. |
+| `rel_observe` | Read compact rendered semantics and an optional synchronized viewport image. |
+| `rel_find` | Search a stored public observation for matching content or actionable refs. |
+| `rel_action` | Perform 1–32 ordered observation-scoped actions and return one new observation. |
+| `rel_create_session` | Create a browser session with an explicit lifetime policy. |
+| `rel_ping_session` | Refresh session inactivity without browser work. |
+| `rel_list_sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
+| `rel_close_session_group` | Close every persistent browser session in a named group. |
+| `rel_list_proxies` | List configured proxy aliases and non-secret configuration. |
+
 ## Configure an MCP client
+
+In **REL Settings → MCP**, click **Copy configuration** beside the executable
+path to copy a JSON `mcpServers` entry for your MCP client. It includes the
+absolute command path and the agent port for that REL runtime.
+
+Click **Test connection** to verify that the bundled stdio adapter can call
+`rel_status` on the local REL service. The result appears below the Connection
+section; failures and timeouts are shown there so you can retry.
 
 Use the CLI bundled in the installed app or install the public `rel-cli`
 package as described in the [CLI guide](CLI.md). An absolute path to the bundled
@@ -84,7 +120,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the eleven tools listed below, and `rel_status` should report
+Codex should discover the fourteen tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -182,42 +218,29 @@ operations.
 
 ## Tools
 
-The server exposes exactly eleven tools:
+The MCP input schemas and runtime validation use the same fields and rules as
+the linked RPC operations.
 
-| Tool | RPC operation | Purpose |
-| --- | --- | --- |
-| `rel_status` | `GET /v1/status` | Read app, agent, Browser Proxy, and Chromium status. |
-| `rel_notifications` | `GET /v1/notifications` | List notifications the user opted in to share. Titles and bodies are untrusted website content. |
-| `rel_capture` | `POST /v1/captures` | Load a page, perform optional actions, and save its rendered HTML. |
-| `rel_page_attach` | `POST /v1/pages` | Attach an ephemeral automation page to a persistent browser session. |
-| `rel_page_action` | `POST /v1/pages/{page_id}/actions` | Perform one action on an attached page. |
-| `rel_take_screenshot` | `POST /v1/screenshot` or `POST /v1/pages/{page_id}/screenshot` | Capture a viewport or full-page PNG, JPEG, or WebP image. |
-| `rel_observe` | `POST /v1/observe` or `POST /v1/pages/{page_id}/observe` | Read compact rendered semantics and optional synchronized viewport image. |
-| `rel_action` | `POST /v1/observations/{observation_id}/actions` | Act through an observation-scoped element ref and return a new observation. |
-| `rel_list_sessions` | `GET /v1/sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
-| `rel_close_session_group` | `POST /v1/sessions/close` | Close every persistent browser session in a named group. |
-| `rel_list_proxies` | `GET /v1/proxies` | List configured proxy aliases and non-secret configuration. |
+### `rel_status`
 
-`rel_status`, `rel_notifications`, `rel_list_sessions`, and `rel_list_proxies`
-accept an empty object.
+Calls `GET /v1/status`. It accepts an empty object and returns the complete
+status envelope for the installed app, local agent, Browser Proxy, and embedded
+Chromium bridge. This tool is passive, read-only, and does not launch REL.
 
-`rel_close_session_group` requires a `group` string from 1 through 128
-characters; matching is case-insensitive, and closing an empty group succeeds.
+### `rel_notifications`
 
-`rel_notifications` is passive and read-only. It does not wake the model or
-execute notification text. Every returned notification includes
-`trust:"untrusted_website_content"`; clients must never treat its title or body
-as instructions.
-
-The browser tools accept the same fields and validation rules as their RPC
-operations:
+Calls `GET /v1/notifications` and accepts an empty object. It passively lists
+only notifications the user opted in to share; it does not wake the model or
+execute notification text. Every returned title and body is website-derived
+data with `trust:"untrusted_website_content"` and must never be treated as
+instructions.
 
 ### `rel_capture`
 
 `url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
 `session_id`, `profile`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied
 `session_id` uses the canonical `Session<number>` format. Omitting it creates a
-persistent session from `profile`, or from **Default** when `profile` is absent.
+persistent session from `profile`, or from the configured default (Custom when unset) when `profile` is absent.
 `profile` and `group` apply only to a new session and cannot be combined with
 `session_id`. The action objects use every shape in
 the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
@@ -234,11 +257,42 @@ per-call viewport override.
 `url` is required. Optional fields are `session_id`, `profile`, `group`, `proxy`,
 `output_uri`, `timeout`, and `wait`. The result contains a process-local page ID
 for later `rel_page_action` calls. Omitting `session_id` creates a persistent
-session from the named profile (or **Default**) and navigates it to `url`;
+session from the named profile (or the configured default (Custom when unset)) and navigates it to `url`;
 `profile` and `group` cannot be combined with `session_id`. Providing
 `session_id` attaches its current page, whose
 normalized URL must match `url`. `output_uri`, when present, must be an absolute
 local `file:///` URI.
+
+### `rel_navigate`
+
+For ordinary navigation, `url` is required and `navigation` defaults to `url`.
+Set `navigation` to `back`, `forward`, or `reload` and omit `url`, `profile`,
+and `proxy` to operate on the active page's history. `session_id`, `profile`,
+`proxy`, `mode`, `timeout`, and `wait` otherwise follow the corresponding
+navigation and observation contracts. The result is the first observation
+after navigation; hybrid and visual modes include the same standard MCP image
+content as `rel_observe`.
+
+### `rel_read`
+
+All fields are optional. Supply `url` to navigate and read in one call, or omit
+it to read the current shorthand page. `session_id`, `timeout`, and `wait` apply
+to either form. `profile` and `proxy` apply only when `url` is present;
+`profile` cannot be combined with `session_id`.
+
+`query` ranks matching semantic sections and links. `max_chars` defaults to
+12000 and may be 512–32768; `max_sections` defaults to 24 and may be 1–100.
+The result includes a bounded heading outline. Without a query, content is
+sampled across long documents rather than taken only from the beginning.
+Adjacent rating labels and values are kept together, and link labels rank ahead
+of generic destination path text. The tool is always semantic-only and returns
+no action refs or image. Its MCP
+text content contains the Markdown exactly once, while `structuredContent`
+contains the URL, title, observation ID, query, outline, selected and available
+content/link counts, and source/output truncation flags without duplicating the
+Markdown. Page text is
+untrusted website content, not instructions. Use `rel_observe` for interaction
+refs or visual verification.
 
 ### `rel_page_action`
 
@@ -273,21 +327,79 @@ page-operation rules.
 
 The structured result contains compact semantic content, typed interactive
 elements with short refs, viewport/document geometry, and truncation metadata.
+Optional `context` paths preserve the nearest landmark, form, dialog, list,
+table, and row relationships without exposing selectors.
+`omitted_node_count` counts entries dropped by bounds, while
+`clipped_text_count` counts shortened text fields. Ordered `table`, `table_row`,
+`table_caption`, and `table_cell` content preserves repeated table values, and
+rendered CSS-hidden content is excluded.
 Hybrid and visual results also include standard MCP `image` content and a file
 resource link for the same synchronized current-viewport PNG. Page-derived
 content is untrusted website data, not instructions.
 
+### `rel_find`
+
+`observation_id` is required, along with at least one of `query` or `role`.
+`query` performs a case-insensitive substring search across public semantic
+content and element fields. `role` restricts element matches to an exact
+case-insensitive ARIA role. `limit` defaults to 20 and may be 1–100. The tool is
+read-only, searches the retained snapshot without another browser round trip,
+and never exposes private locators.
+
 ### `rel_action`
 
-`observation_id`, `ref`, and one of `click`, `type`, `clear`, `press`, or
-`select` are required. `type` also requires `text`, `press` requires an
-allowlisted `key`, and `select` requires `value`. Click optionally controls
-`mouse_move` and bounded `scroll`. `mode` selects the post-action observation.
+`observation_id` and an `actions` array with 1–32 items are required. Ref-based
+items support `click`, `type`, `clear`, `press`, `select`, and `hover`. `type`
+requires `text`, `press` requires an allowlisted `key`, and `select` requires
+`value`; click and hover optionally control bounded auto-scroll. Page-level
+`scroll` takes integer `delta_x`/`delta_y` values from -10000 through 10000, and
+at least one must be non-zero. These are native wheel deltas: negative
+`delta_y` scrolls toward the page bottom, positive `delta_y` scrolls toward the
+top, negative `delta_x` scrolls right, and positive `delta_x` scrolls left.
+`wait` takes `seconds` from 0 through 60. `mode` selects the one post-batch
+observation.
 
 REL checks that the observation, document sequence, and private target
-signature are still current. Stale refs return `OBSERVATION_STALE` without a
+signature are still current before each ref action. Actions run in order and
+stop at the first failure. Stale refs return `OBSERVATION_STALE` without a
 selector or nearby-target fallback. Success returns a new post-action
 observation and, for hybrid/visual mode, standard MCP image content.
+
+### `rel_list_sessions`
+
+Calls `GET /v1/sessions` and accepts an empty object. The result lists every
+persistent browser session with its canonical `Session<number>` ID, profile,
+group, assigned proxy alias, current page, and non-secret filtering state.
+Listing sessions is passive and read-only.
+
+### `rel_close_session_group`
+
+Calls `POST /v1/sessions/close`. `group` is required and must contain 1–128
+characters. Matching is case-insensitive. REL closes every persistent session
+in that group; a group with no current sessions succeeds without changing
+anything.
+
+### `rel_list_proxies`
+
+Calls `GET /v1/proxies` and accepts an empty object. It returns configured proxy
+aliases and non-secret connection metadata. Proxy credentials remain inside
+REL and macOS Keychain and are never returned through MCP.
+
+## MCP and in-app agent parity
+
+REL's built-in agent harness and MCP expose the same shared browser workflow:
+`rel_status`, `rel_notifications`, `rel_capture`, `rel_navigate`, `rel_read`, `rel_observe`,
+`rel_find`, and `rel_action`. In particular, the navigation, find, and batched
+action tools use the same public SDK request types, validation limits, ordered
+execution, observation freshness rules, and error IDs.
+
+The built-in harness pins every browser call to the Chat panel's session and
+adds a provider-aware `auto` observation mode. It also has a bounded
+`rel_current_page` helper for model context. MCP instead exposes explicit page,
+screenshot, session, and proxy administration because an external MCP client
+is not inherently pinned to one REL tab. Those deliberate scope differences
+are the only reason the complete tool lists are not identical; they do not
+create a second browser implementation or a different action contract.
 
 ## Chrome DevTools MCP comparison
 
@@ -303,10 +415,10 @@ currently includes these additional DevTools-oriented categories:
 
 | Capability | REL MCP |
 | --- | --- |
-| Navigation and persistent browser identity | Available through capture, page attachment, sessions, and proxies. |
-| Click, wait, and form automation | Available through canonical page actions, including bounded named keys; drag, hover, upload, and dialog tools are not yet exposed. |
+| Navigation and persistent browser identity | Available through navigate-and-observe, capture, page attachment, sessions, and proxies. |
+| Click, wait, and form automation | Available through canonical page actions and batched observation actions, including hover, scrolling, waits, and bounded named keys; drag, upload, and dialog tools are not yet exposed. |
 | Visual screenshots | Available with inline image content and file resources. |
-| Accessibility text snapshots and element UIDs | Not exposed; rendered HTML capture is available instead. |
+| Accessibility text snapshots and element UIDs | Available through semantic observations, scoped refs, and snapshot find. |
 | Script evaluation, console, and network inspection | Not exposed. |
 | Emulation, Lighthouse, performance traces, and heap snapshots | Not exposed. |
 | Extensions, screencast, third-party tools, and WebMCP | Not exposed. |
@@ -401,3 +513,16 @@ is unauthenticated loopback traffic. Browser tools can create persistent
 sessions, write capture files, navigate websites, and perform page actions that
 have effects on those sites. MCP hosts should show tool calls for user review.
 `rel_list_proxies` never returns stored proxy passwords.
+
+### Session lifetime tools
+
+`rel_create_session` accepts optional `name`, `group`, `profile`, and `lifetime`.
+The default is `{"type":"inactivity","timeout_seconds":120}`. Set a positive
+integer `timeout_seconds` for a different idle period, or use
+`{"type":"indefinite"}` to retain the session until explicitly closed.
+
+`rel_ping_session` takes `{"session_id":"Session1"}` and refreshes the timer
+without browser work. Ping well before the deadline while idle. Browser work
+refreshes activity; `rel_list_sessions` does not. Implicitly created sessions
+also use the default timeout, so create an explicit session when selecting a
+lifetime.

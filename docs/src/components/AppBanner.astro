@@ -1,0 +1,78 @@
+<aside class="app-banner" aria-label="About these docs" data-pagefind-ignore>
+  <div class="app-banner__copy">
+    <strong>API documentation for the REL macOS app.</strong>
+    <span>Looking for the app, product overview, or downloads?</span>
+  </div>
+  <a href="https://rel.me">
+    Visit rel.me
+    <span aria-hidden="true">&#8599;</span>
+  </a>
+</aside>
+
+<style>
+  @layer starlight.core {
+    .app-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem 1.5rem;
+      padding: 0.85rem var(--sl-nav-pad-x);
+      background:
+        linear-gradient(110deg, rgba(255, 255, 255, 0.12), transparent 45%),
+        var(--sl-color-accent);
+      color: #fff;
+      box-shadow: var(--sl-shadow-sm);
+    }
+
+    .app-banner__copy {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.3rem 0.45rem;
+      line-height: 1.4;
+      text-align: center;
+      text-wrap: balance;
+    }
+
+    .app-banner strong {
+      font-weight: 700;
+    }
+
+    .app-banner a {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 0.4rem;
+      min-height: 2.5rem;
+      padding: 0.45rem 0.8rem;
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      border-radius: 0.45rem;
+      background: rgba(9, 9, 11, 0.18);
+      color: #fff;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .app-banner a:hover {
+      background: rgba(9, 9, 11, 0.3);
+    }
+
+    .app-banner a:focus-visible {
+      outline: 3px solid #fff;
+      outline-offset: -4px;
+    }
+
+    @media (max-width: 39.99rem) {
+      .app-banner {
+        align-items: stretch;
+        flex-direction: column;
+        padding-block: 1rem;
+      }
+
+      .app-banner a {
+        justify-content: center;
+      }
+    }
+  }
+</style>

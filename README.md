@@ -13,6 +13,12 @@ session storage, proxy credentials, or internal service code.
 - [`rel-cli`](crates/rel-cli): the `rel` command and standalone `rel-mcp` stdio
   adapter.
 - [`rel-client`](crates/rel-client): a typed synchronous Rust client for RPC v1.
+- [`rel-crawler`](crawler): a restartable Python crawler that preserves REL
+  sessions and browser history while capturing rendered pages and metadata.
+- [`rel-crawlee`](crawlee): Crawlee queues, retries, routing, and datasets with
+  REL-owned browser sessions.
+- [`rel-playwright`](playwright): a Playwright-shaped sync and async Python
+  scraping API backed by REL Profiles and Sessions.
 - [`plugins/rel`](plugins/rel): the shared REL plugin for Codex and Claude Code,
   distributed through this repository's marketplaces.
 - [`docs`](docs): the canonical Actions, CLI, MCP, RPC, and Rust SDK
@@ -91,12 +97,59 @@ println!("{}", status.data.overall_status);
 
 See the [Rust SDK guide](docs/SDK.md) and [RPC v1 contract](docs/RPC.md).
 
+## Use the Python crawler
+
+The crawler is intended for interaction-heavy sites where each selected link
+must be clicked in REL, captured, and followed by browser-history Back. Install
+it from this repository and run the public Hacker News example:
+
+```sh
+cd crawler
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+HN_MAX_LINKS=3 .venv/bin/rel-crawler run examples/hackernews.py:app
+```
+
+See the [crawler guide](docs/CRAWLER.md) for named Profiles, readiness selectors,
+rendered-link discovery, checkpoints, output metadata, retrying failed entries,
+load-more sources, and recovery behavior.
+
+## Port a Playwright scraper
+
+The Python compatibility package keeps the common Playwright browser, page,
+and CSS-locator shape while REL owns Chromium and its saved configuration:
+
+```sh
+cd playwright
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python examples/hackernews.py
+```
+
+Change imports from `playwright.sync_api` or `playwright.async_api` to the
+corresponding `rel_playwright` module, then select a Profile at
+`chromium.launch(profile="Research")`. See the
+[Playwright compatibility guide](docs/PLAYWRIGHT.md) for supported methods and
+explicit limits.
+
 ## Development
 
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+
+cd crawler
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m unittest discover -s tests -v
+cd ..
+
+cd playwright
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m unittest discover -s tests -v
+cd ..
 
 cd docs
 npm ci
