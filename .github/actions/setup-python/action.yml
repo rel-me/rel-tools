@@ -1,0 +1,19 @@
+name: Set up isolated Python
+description: Use mise Python with a fresh virtual environment on the Mac mini.
+inputs:
+  python-version:
+    description: Python minor version
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+      run: |
+        /opt/homebrew/bin/mise install "python@$PYTHON_VERSION"
+        python_root="$(/opt/homebrew/bin/mise where "python@$PYTHON_VERSION")"
+        venv="$(mktemp -d "$RUNNER_TEMP/rel-tools-python.XXXXXX")"
+        "$python_root/bin/python3" -m venv "$venv"
+        echo "$venv/bin" >> "$GITHUB_PATH"
+        echo "VIRTUAL_ENV=$venv" >> "$GITHUB_ENV"
