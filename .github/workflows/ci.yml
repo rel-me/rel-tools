@@ -2,16 +2,40 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Submit checks serially to the single persistent runner. This also avoids
+# pre-queuing the next job during the runner's Busy-to-Online handoff.
 jobs:
   rust:
-    runs-on: macos-latest
+    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Isolate Rust toolchains from other runner services
+        run: |
+          export CARGO_HOME="$RUNNER_TOOL_CACHE/rel-tools-cargo"
+          export RUSTUP_HOME="$RUNNER_TOOL_CACHE/rel-tools-rustup"
+          if [[ ! -x "$CARGO_HOME/bin/rustup" ]]; then
+            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- --default-toolchain none --no-modify-path -y
+          fi
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          echo "CARGO_HOME=$CARGO_HOME" >> "$GITHUB_ENV"
+          echo "RUSTUP_HOME=$RUNNER_TOOL_CACHE/rel-tools-rustup" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
@@ -20,34 +44,70 @@ jobs:
       - run: cargo test --workspace
 
   msrv:
-    runs-on: ubuntu-latest
+    needs: rust
+    if: ${{ !cancelled() }}
+    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Isolate Rust toolchains from other runner services
+        run: |
+          export CARGO_HOME="$RUNNER_TOOL_CACHE/rel-tools-cargo"
+          export RUSTUP_HOME="$RUNNER_TOOL_CACHE/rel-tools-rustup"
+          if [[ ! -x "$CARGO_HOME/bin/rustup" ]]; then
+            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- --default-toolchain none --no-modify-path -y
+          fi
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+          echo "CARGO_HOME=$CARGO_HOME" >> "$GITHUB_ENV"
+          echo "RUSTUP_HOME=$RUNNER_TOOL_CACHE/rel-tools-rustup" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@1.71.1
       - run: cargo check --workspace --all-targets
 
   ruby:
-    runs-on: ubuntu-latest
+    needs: msrv
+    if: ${{ !cancelled() }}
+    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    timeout-minutes: 20
     defaults:
       run:
+        shell: bash
         working-directory: ruby
     steps:
       - uses: actions/checkout@v5
-      - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.1"
+          persist-credentials: false
+      - name: Set up Ruby 3.1
+        env:
+          # Upstream fix for locating socket headers in modern Xcode SDKs.
+          MISE_RUBY_APPLY_PATCHES: https://github.com/ruby/ruby/commit/cb18deee7285dde67102c9702796d7eba0046af5.patch
+        run: |
+          /opt/homebrew/bin/mise install ruby@3.1
+          ruby_root="$(/opt/homebrew/bin/mise where ruby@3.1)"
+          "$ruby_root/bin/ruby" -rsocket -ropenssl -e 'puts RUBY_VERSION'
+          # RubyGems' mise plugin invokes mise by name after gem installation.
+          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+          echo "$ruby_root/bin" >> "$GITHUB_PATH"
+          echo "BUNDLE_PATH=$RUNNER_TEMP/rel-tools-bundle" >> "$GITHUB_ENV"
       - run: bundle install
       - run: bundle exec rake test
       - run: gem build rel-client.gemspec
 
   python:
-    runs-on: macos-latest
+    needs: ruby
+    if: ${{ !cancelled() }}
+    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    timeout-minutes: 20
     defaults:
       run:
+        shell: bash
         working-directory: crawler
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python
         with:
           python-version: "3.11"
       - run: python -m pip install --upgrade build
@@ -58,13 +118,20 @@ jobs:
       - run: python -m build
 
   crawlee:
-    runs-on: macos-latest
+    needs: python
+    if: ${{ !cancelled() }}
+    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    timeout-minutes: 20
     strategy:
+      max-parallel: 1
+      fail-fast: false
       matrix:
         python: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade build
@@ -75,16 +142,20 @@ jobs:
       - run: python -m build crawlee
 
   docs:
-    runs-on: ubuntu-latest
+    needs: crawlee
+    if: ${{ !cancelled() }}
+    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    timeout-minutes: 20
     defaults:
       run:
+        shell: bash
         working-directory: docs
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: docs/package-lock.json
       - run: npm ci
       - run: npm run check
