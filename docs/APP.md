@@ -98,10 +98,11 @@ and [Baseten](https://docs.baseten.co/reference/inference-api/overview).
 
 ### Jev browser decisions
 
-Choose **TypeSafe AI** as the provider, select a paired LLM in provider setup,
-then choose the **Jev + paired LLM** selection in the Chat model picker.
-Enter your TypeSafe API key when adding the provider. The model uses the
-`jev-latest` alias; its exported service name is `TypeSafe AI`.
+Add **TypeSafe AI** in Model Providers with your TypeSafe API key. Jev is a
+separate decision capability, available to the assistant through
+[`rel_delegate_browser`](#delegating-browser-work-to-jev). Select an LLM for chat.
+There is no paired-LLM setting, and Jev cannot be a chat default. Existing Jev
+transcripts remain readable; select an LLM to start a new conversation.
 
 ## Session and workspace errors
 
@@ -751,11 +752,10 @@ Named presets must use a matching endpoint; custom gateways use
 `OpenAI-compatible`. Turn limits and URLs are validated using the provider
 editor's rules.
 
-Exports preserve an explicit `modelID`, optional `jevPairedModel`, and optional
-`jevAdditionalPairedModels` list. A pairing
-refers to configured provider identities on that Mac; after importing on another
-installation, edit Jev to choose an available companion. Importing a REL provider
-never downloads weights; select the model in Model Providers to open its download setup.
+Exports preserve an explicit `modelID`. Retired `jevPairedModel` and
+`jevAdditionalPairedModels` fields in older imports are ignored and are not
+exported. Importing a REL provider never downloads weights; select the model
+in Model Providers to open its download setup.
 
 Exporting multiple providers uses `"format":"rel.providers"` with an array in
 `configuration`. The import validates every entry before saving. Import saves
@@ -829,8 +829,7 @@ A warning appears if this Mac has less than the recommended memory.
 The setup shows progress and supports cancellation and retry. The selection is
 applied only after successful installation. Already installed weights can be
 added without downloading again. Model weights are not bundled with the app.
-These models work for ordinary text chat and simple tasks; using them with Jev is
-optional. Double-click REL or click **Download** in Model Providers to
+These models work for ordinary text chat and simple tasks. Double-click REL or click **Download** in Model Providers to
 open the same setup.
 
 **Ollama** connects to an Ollama server using its endpoint settings. Install and
@@ -1106,53 +1105,24 @@ are not available through this dashboard.
 
 ## Jev browser decisions and page questions
 
-Select the Jev provider for bounded decisions over the active Session's page.
-Jev can click observed controls, scroll, wait for updates, clear text fields,
-and type exact text supplied in double quotes. For example: `Enter "Ada" in
-Name, then click Save.` REL executes native browser input and checks a fresh
-observation before choosing the next action.
+Chat uses the Fritz harness with REL’s configured LLM, instructions, response
+limits, and browser tools. The assistant composes field text, reads pages, and
+checks results. An optional configured Jev decision model can execute bounded
+browser work through [delegation](#delegating-browser-work-to-jev).
 
-You can also ask for source information, such as `what are all the post titles`
-or `list the product names`. REL supplies observed text passages grouped with
-their section and control context. Jev selects which passages answer the request,
-and REL returns those passages verbatim in
-chat. A reading answer can require zero browser actions. It covers a bounded
-current page observation, not every item in an infinite feed or unloaded page.
-Scroll to more content and ask again when needed.
+Direct `rel-harness chat/run --provider jev` is no longer supported. Select an
+LLM provider for chat and scheduled actions. Jev pairing and `REL_JEV_TEXT_*`
+helper configuration have been removed. Saved Jev conversations require an LLM
+selection before another message can be sent; no companion is selected implicitly.
 
-Jev chooses an operation and compatible target together. It returns typed
-decisions rather than free-form answers. Its confidence percentage describes
-how concentrated the model's choices are, not how clear your instruction is or
-how much of the task is complete. Several useful next steps may share probability;
-a valid choice below 50% can still proceed. Invalid choices, unsupported work,
-unchanged-page repetition, and exhausted budgets still stop execution. A completion result is a model assessment;
-independently check the requested route, date, passengers, cabin, and visible
-results before treating a flight search as successful.
-
-When adding or editing **TypeSafe AI / Jev**, choose one required **Paired LLM**
-before saving. The saved pairing appears in the model picker with a name such as
-**Jev + qwen3:1.7b** or **Jev + gpt-5.6-luna** and is remembered across relaunches.
-Edit the provider to change its companion. Saving keeps only the selected LLM,
-replacing any additional pairings previously saved for that provider.
-
-If a companion is removed or unavailable, click the **Choose a paired LLM…**
-warning to open its provider configuration and choose another. REL does not
-substitute a companion. Use **Add LLM Provider…** from Jev setup if none is
-configured yet.
-
-A small model can reduce field-entry latency; actual speed depends on hardware,
-model and provider latency. Configured OpenAI, OpenRouter, OpenAI-compatible,
-Ollama, and installed REL text models can be paired. Remote companions must
-support chat completions with JSON-object output and token usage. Anthropic and
-Gemini native adapters are not offered as companions. No local model is assumed
-or selected automatically.
+### Installed local chat models
 
 To install a local model, open **Model Providers → REL**, select
 a model, and choose **Download & Add**. For example, **Qwen3.5 0.8B** downloads
 0.53 GB of Q4_K_M weights and recommends 8 GB RAM. The selection stays fixed
 during installation; successful verification adds that model to the REL provider.
 Other catalog entries still require their own installation.
-It can be used for chat independently or selected later as Jev’s paired LLM.
+Select the installed model in the Chat model picker.
 The installer offers progress, **Cancel**, and **Retry Download & Add**. A cancelled
 or failed installation does not add a provider. Downloads have a 30-minute overall
 timeout and a 60-second read timeout; retry starts a fresh transfer.
@@ -1171,20 +1141,6 @@ models. Ordinary local chat accepts text and bounded browser tools, with a
 limit. Replies arrive after generation completes. Small models may struggle with
 complex tasks; no model is guaranteed to handle every site or control.
 
-Jev still uses the configured TypeSafe API for browser decisions. The integration
-follows the [Jev Ultrafast](https://github.com/browser-use/jev-ultrafast) approach:
-Jev chooses actions, and a text model supplies field values when needed. REL uses
-its existing native browser input, without the upstream Chrome backend or page
-JavaScript.
-
-The local helper loads lazily at the first generated field and retains its weights
-for that chat process. It uses a fresh 4096-token context per field and the model's
-non-thinking chat template. Output is constrained to JSON containing `text`, with
-at most 128 generated tokens. If the selected field label or context specifies
-`YYYY-MM-DD`, `MM/DD/YYYY`, or `DD/MM/YYYY`, REL validates and formats the generated
-date in code. Invalid dates stop before typing. Correct values are not guaranteed
-for every website; empty or malformed output stops before typing.
-
 Local installation is separate from the chat protocol. `rel-harness local-models
 list` reports the catalog and verified installation status. Pass a model ID to
 `local-models list MODEL_ID` to verify only that model. `rel-harness
@@ -1196,81 +1152,6 @@ These commands write newline-delimited JSON: `inventory` contains `models` with
 nonzero. Wait for successful process exit before treating an installation as ready.
 Closing the installer process cancels its download. Use `--provider rel --model
 qwen3.5-0.8b-q4_k_m` for ordinary local chat after installation.
-
-For a shell client, explicitly select the local model with
-`REL_JEV_TEXT_LOCAL=qwen3.5-0.8b-q4_k_m` (or another installed catalog ID), or set `REL_JEV_TEXT_PROFILE` to a named `openai`,
-`openrouter`, `openai-compatible`, or `ollama` profile. Select exactly one.
-`REL_JEV_TEXT_MODEL` chooses a discovered model within the named provider, overriding
-its stored model ID. The helper reads `REL_JEV_TEXT_CONFIG` when set,
-otherwise `REL_AI_CONFIG`, otherwise this runtime's default provider registry.
-A separate helper registry avoids editing the file generated by REL Settings:
-
-```toml
-[providers.field_text]
-kind = "openai-compatible"
-model = "YOUR_TEXT_MODEL_ID"
-base_url = "https://YOUR_PROVIDER/v1"
-credential_service = "YOUR_KEYCHAIN_SERVICE"
-credential_account = "YOUR_KEYCHAIN_ACCOUNT"
-```
-
-The model must support OpenAI-compatible chat completions with JSON-object
-output and report token usage. `openai-compatible` profiles may omit both
-Keychain references when their endpoint does not require authentication. Supplying
-only one reference is an error. For a local Ollama model, for example:
-
-```toml
-[providers.local_text]
-kind = "openai-compatible"
-model = "qwen3.5:9b"
-base_url = "http://127.0.0.1:11434/v1"
-```
-
-Select it with `REL_JEV_TEXT_PROFILE=local_text`. If the chosen text endpoint
-supports reasoning controls, `REL_JEV_TEXT_REASONING=none` disables reasoning
-for short field values. Other accepted settings are `minimal`, `low`, `medium`,
-`high`, and `max`; unsupported provider settings fail explicitly.
-
-For authenticated providers, store the key as a macOS generic-password item,
-and authorize this runtime's bundled `Contents/Resources/rel-harness` to read
-that item. Credentials are read in Rust and never enter model context or TOML.
-For shell clients, these variables must be present in the harness process. App
-chat uses the selected Jev provider’s saved pairing and its generated provider registry; shell
-helper overrides do not replace that choice. REL writes only nonsecret Keychain
-references for companion providers, and the Rust harness reads the credential.
-A missing optional key is allowed for keyless endpoints; denied Keychain access
-is an error. Scheduled Jev actions use their selected provider’s pair; install any required
-local model in provider setup before running the schedule.
-
-For example, navigate a Session to
-[Google Flights](https://www.google.com/travel/flights?hl=en), select Jev, and ask:
-
-> Find one-way flights from Zurich to London on September 27, 2026, for one adult
-> in economy. Stop when matching flight options are visible.
-
-For a multi-step search like this, select the 96k response token budget in
-**Chat Options**. The default 24k budget can stop before the form is complete;
-Jev and text-helper calls share that budget.
-
-To use a running Debug runtime from a shell, navigate with its bundled `rel`
-CLI, then invoke the same bundle's `rel-harness run --provider jev --model
-jev-latest --session-id SESSION_ID --api-key-stdin -- GOAL`. Supply the Jev key
-on private stdin. Set one of the companion environment selections above. There is no implicit
-local helper or automatic fallback.
-Use the worktree's runtime wrapper to select its endpoint.
-
-Interaction decisions use visible controls and bounded page text. Passage-selection
-questions are sent only after Jev selects a reading operation, which uses a
-separate model call. A helper call counts against the same response call and
-token budgets as Jev. It has a 30-second timeout and cannot execute browser tools.
-If the page changes between observation and input, REL displays the rejected
-action, observes the same Session, and asks Jev for a new decision. This happens
-at most twice per response and never replays the old input automatically.
-Invalid helper output, unavailable credentials, or exhausted budgets stop before typing. Native input
-still checks the observation after text generation. Existing double-quoted
-literal values remain available without a text helper. The Flights example stops
-before choosing or booking a flight. A model's completion claim still requires
-independent verification.
 
 ## Control REL through WhatsApp
 
@@ -1364,7 +1245,7 @@ native operations use their normal deadlines. Jev usage counts toward the main
 response and conversation budgets.
 
 Settings writes only nonsecret Keychain service/account references into
-`ai-providers.toml`. The Rust harness reads the helper credential directly from
+`ai-providers.toml`. The Rust harness reads the Jev credential directly from
 Keychain. The app and harness are separate Keychain clients. In Keychain Access,
 authorize the app’s bundled `Contents/Resources/rel-harness` to read the Jev
 profile’s API-key item; the registry reference alone does not grant access.
@@ -1373,8 +1254,8 @@ missing access produces an explicit error without waiting for a background
 authentication dialog. For a manually managed registry, pass `--config` or set `REL_AI_CONFIG` to its path when launching
 the harness and put `credential_service` and
 `credential_account` on the Jev profile, pointing to its macOS generic-password
-item that authorizes the bundled harness. Model keys must never be placed in the registry. The existing standalone
-Jev provider still supports its direct decision and page-passage mode.
+item that authorizes the bundled harness. Model keys must never be placed in the registry.
+Jev does not appear in the Chat model picker and requires no paired LLM.
 
 
 Semantic browser observations report current native form values, including empty
