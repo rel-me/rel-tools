@@ -1245,7 +1245,7 @@ native operations use their normal deadlines. Jev usage counts toward the main
 response and conversation budgets.
 
 Settings writes only nonsecret Keychain service/account references into
-`ai-providers.toml`. The Rust harness reads the helper credential directly from
+`ai-providers.toml`. The Rust harness reads the Jev credential directly from
 Keychain. The app and harness are separate Keychain clients. In Keychain Access,
 authorize the app’s bundled `Contents/Resources/rel-harness` to read the Jev
 profile’s API-key item; the registry reference alone does not grant access.
