@@ -7,7 +7,12 @@ checks are retained; the former Linux jobs now validate on macOS ARM64.
 
 CI runs for pull requests and pushes to `main`. Branch pushes do not duplicate
 PR validation. New commits cancel superseded runs for the same PR or branch,
-and each job has a 20-minute timeout. One runner executes these jobs serially.
+and each job has a 20-minute timeout. Job dependencies and the Python matrix's
+`max-parallel: 1` submit checks serially to the single runner. Downstream checks
+still run after a failure, but stop on cancellation. This reduces exposure to
+[the persistent runner job-handoff race](https://github.com/actions/runner/issues/4728)
+by keeping this workflow's next check out of the queue until its predecessor
+finishes. It does not fix the upstream runner bug across simultaneous workflows.
 
 ## Host setup
 
@@ -25,7 +30,10 @@ The host requires Xcode command-line tools and mise at `/opt/homebrew/bin/mise`.
 Mise supplies Ruby 3.1 and Python 3.11/3.13. Ruby 3.1 builds apply the pinned
 [upstream socket SDK header fix](https://github.com/ruby/ruby/commit/cb18deee7285dde67102c9702796d7eba0046af5),
 which is needed on modern Xcode. Setup verifies socket and OpenSSL extensions
-before testing. The Node setup action installs Node
+before testing. Ruby setup also adds `/opt/homebrew/bin` to `GITHUB_PATH` because
+the mise RubyGems plugin invokes `mise` by name after installing gems. The service
+starts with only system directories on PATH, unlike an interactive SSH shell.
+The Node setup action installs Node
 24 into the runner's tool cache. Rust setup uses runner-local Cargo and rustup
 homes under `$RUNNER_TOOL_CACHE`; it does not change the host's Rust default or
 shell profiles. Each Python job creates a fresh virtual environment under
@@ -56,5 +64,7 @@ actionlint .github/workflows/ci.yml
 ```
 
 Run the affected job commands on the mini in a separate verification checkout
-before publishing workflow changes. CI does not require opening the REL app;
+before publishing workflow changes, starting with the service's PATH from
+`/Users/local/actions-runner-rel-tools/.path` rather than the SSH login PATH.
+CI does not require opening the REL app;
 the Python and Ruby suites use local test fixtures.

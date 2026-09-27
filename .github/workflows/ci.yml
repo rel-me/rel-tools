@@ -16,6 +16,8 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Submit checks serially to the single persistent runner. This also avoids
+# pre-queuing the next job during the runner's Busy-to-Online handoff.
 jobs:
   rust:
     runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
@@ -42,6 +44,8 @@ jobs:
       - run: cargo test --workspace
 
   msrv:
+    needs: rust
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
     timeout-minutes: 20
     steps:
@@ -62,10 +66,13 @@ jobs:
       - run: cargo check --workspace --all-targets
 
   ruby:
+    needs: msrv
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
     timeout-minutes: 20
     defaults:
       run:
+        shell: bash
         working-directory: ruby
     steps:
       - uses: actions/checkout@v5
@@ -79,6 +86,8 @@ jobs:
           /opt/homebrew/bin/mise install ruby@3.1
           ruby_root="$(/opt/homebrew/bin/mise where ruby@3.1)"
           "$ruby_root/bin/ruby" -rsocket -ropenssl -e 'puts RUBY_VERSION'
+          # RubyGems' mise plugin invokes mise by name after gem installation.
+          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
           echo "$ruby_root/bin" >> "$GITHUB_PATH"
           echo "BUNDLE_PATH=$RUNNER_TEMP/rel-tools-bundle" >> "$GITHUB_ENV"
       - run: bundle install
@@ -86,10 +95,13 @@ jobs:
       - run: gem build rel-client.gemspec
 
   python:
+    needs: ruby
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
     timeout-minutes: 20
     defaults:
       run:
+        shell: bash
         working-directory: crawler
     steps:
       - uses: actions/checkout@v5
@@ -106,9 +118,13 @@ jobs:
       - run: python -m build
 
   crawlee:
+    needs: python
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
     timeout-minutes: 20
     strategy:
+      max-parallel: 1
+      fail-fast: false
       matrix:
         python: ["3.11", "3.13"]
     steps:
@@ -126,10 +142,13 @@ jobs:
       - run: python -m build crawlee
 
   docs:
+    needs: crawlee
+    if: ${{ !cancelled() }}
     runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
     timeout-minutes: 20
     defaults:
       run:
+        shell: bash
         working-directory: docs
     steps:
       - uses: actions/checkout@v5
