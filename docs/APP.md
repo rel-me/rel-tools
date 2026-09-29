@@ -782,9 +782,11 @@ archive or a replacement input for the archive APIs.
 
 ## AI models
 
-Use **Choose Model** in the chat input to browse models, including REL’s local
-catalog. **Open Models** opens Model Providers, where **Add** creates a provider
-connection. Cancel returns without changing the selected model.
+Chat uses the default model configured in **REL → Settings… → Model Providers**.
+A session Profile can specify its own default model. The chat input has no model
+picker; to use a different default for an existing chat, change the provider's
+model in Settings, then choose **Chat → Reset Chat** to start a new conversation.
+The **Chat** menu also contains the response token budget and model-call limit.
 
 Configure providers and choose the default AI model in **REL → Settings… →
 Model Providers**. Use the primary **Add** button to add a connection, or
@@ -793,17 +795,15 @@ installer.
 Provider names have **Ready** or **Needs Setup** status chips. Click a Needs Setup chip to
 open configuration; hover over it for details. **Local** identifies REL models
 and Ollama connections on this Mac. Use **Import** and **Export** for provider
-configuration transfers. The Chat model picker’s **Open Models** button opens
-model configuration. The **Models** column lists available models;
+configuration transfers. The **Models** column lists available models;
 hover over a truncated list to see all its names. API keys are stored in macOS Keychain. Ollama connections can use
 the local server at `http://127.0.0.1:11434` without an API key. Scheduled
 prompts use the default provider and model when their new Session starts. REL
 Free supports one configured external provider alongside REL’s built-in local
 models; REL Pro supports multiple external providers.
 
-The Chat model picker uses the provider's display name when available, or the
-exact model ID when no display name is supplied. This also applies to newly
-discovered models. API requests always use the model ID.
+Model Providers uses the provider's display name when available, or the exact
+model ID when no display name is supplied. API requests always use the model ID.
 
 Chat displays response text as the model generates it, including local Ollama models such as Qwen. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
 
@@ -821,8 +821,8 @@ There is no separate Remote/Local picker.
 with 15 downloadable choices: Qwen3 (0.6B, 1.7B, 4B, 8B, 14B), Qwen3.5
 (0.8B, 2B, 4B, 9B), Qwen3.6 27B, Qwen3.8 27B, Qwen3.8 9B Distill,
 Qwopus3.8 27B Flash, Apodex 1.1 Mini 35B, and the original Qwen2.5 1.5B.
-Selecting an undownloaded REL model in Chat, a Profile's
-default model picker, or an Action opens its download setup. Choose
+Selecting an undownloaded REL model in a Profile's default model picker or an
+Action opens its download setup. Choose
 **Download & Add** to download and verify the selected model from Hugging Face.
 The picker shows its download size, recommended RAM, and model license link.
 A warning appears if this Mac has less than the recommended memory.
@@ -1122,7 +1122,8 @@ a model, and choose **Download & Add**. For example, **Qwen3.5 0.8B** downloads
 0.53 GB of Q4_K_M weights and recommends 8 GB RAM. The selection stays fixed
 during installation; successful verification adds that model to the REL provider.
 Other catalog entries still require their own installation.
-Select the installed model in the Chat model picker.
+Select the installed model as the REL provider's default model in Model Providers,
+or as a session Profile's default model.
 The installer offers progress, **Cancel**, and **Retry Download & Add**. A cancelled
 or failed installation does not add a provider. Downloads have a 30-minute overall
 timeout and a 60-second read timeout; retry starts a fresh transfer.
@@ -1255,7 +1256,7 @@ authentication dialog. For a manually managed registry, pass `--config` or set `
 the harness and put `credential_service` and
 `credential_account` on the Jev profile, pointing to its macOS generic-password
 item that authorizes the bundled harness. Model keys must never be placed in the registry.
-Jev does not appear in the Chat model picker and requires no paired LLM.
+Jev cannot be used as a Chat provider and requires no paired LLM.
 
 
 Semantic browser observations report current native form values, including empty
