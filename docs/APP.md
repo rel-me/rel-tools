@@ -68,7 +68,11 @@ releases REL offers:
 
 - **Regular** receives regular releases and is the default.
 - **Beta** also receives preview releases.
-- **Dev** receives development releases as well as Beta and regular releases.
+- **Staging** receives staging releases as well as Beta and regular releases.
+
+Existing Dev selections carry forward as Staging. Settings encode this channel as
+`staging`. The Sparkle feed keeps its historical `dev` identifier so installed
+clients continue receiving updates.
 
 The selection is saved across app restarts. Changing channels changes which
 future updates are eligible; it does not downgrade an installed version.
