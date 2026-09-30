@@ -907,6 +907,28 @@ then answers. Restoring the default prompt returns to this behavior.
 
 ## Actions
 
+The session's Actions table places **Review Setup** in its last column. Use
+that button to review the imported setup and enable its Actions.
+
+In the Action editor, choose **Model** to override the session's model, or keep
+**Use Session Model** to inherit it. An unavailable saved model must be configured
+again or replaced before the Action can run.
+
+For models with usage costs, **Budget per run (USD)** limits spending across all
+steps in one run. **Total budget (USD)** limits accumulated spending across all
+runs, including manual runs and failed attempts. Leave either field blank for
+unlimited spending. Local Ollama models do not show monetary budget controls.
+Spending survives edits and app restarts; copying an Action to a new session
+starts independent spending history.
+
+REL checks reported provider costs, or its available token-cost estimate, as
+usage arrives. Reaching either limit stops the current run and skips remaining
+steps, even with **On Error → Ignore**. An in-flight model request can exceed
+the budget before its usage arrives, so these are not provider billing caps.
+Budgeted runs also stop when REL cannot determine or save their cost. Increase
+an exhausted total budget to allow more runs.
+
+
 When creating or editing an Action, **Starting URL** optionally specifies the
 page to open before the first step. Enter a complete `http://` or `https://` URL,
 or leave it blank to use the Session's current page. REL opens it in the Action's
