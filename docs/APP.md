@@ -35,12 +35,16 @@ selection for that Session and reloads its current page. **Default** restores
 the Session's configured browser identity. **Cancel** keeps the current value.
 
 The override survives restarting REL and applies to that Session's HTTP requests,
-page-reported User-Agent, and popup pages. Other Sessions keep their own identity.
+page-reported User-Agent, and popup HTTP requests. Other Sessions keep their own identity.
 These presets change the reported User-Agent, not the rendering engine, viewport,
 or hardware settings. User-Agent Client Hints are omitted while an override is
 active to avoid reporting contradictory browser metadata. Sessions with unique
 User-Agent requests still append a fresh UUID to each HTTP(S) request while the
 page retains the selected base string.
+
+A popup's first startup script may observe the engine's default User-Agent before
+native identity initialization completes. Reload the popup to verify its
+page-reported User-Agent; its HTTP requests already use the selected override.
 
 ## Session viewport presets
 
