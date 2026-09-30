@@ -624,6 +624,10 @@ The configuration uses the profile-creation fields documented in the
 exported fingerprint object intact when preserving a configured identity.
 `image_blocking_mode` is `none`, `all`, or `over_limit`; `image_size_limit_kb`
 is an integer from 1 through 1048576.
+`unique_user_agent_per_request` is an optional boolean that defaults to false.
+When true, each HTTP or HTTPS request from a new session gets a distinct
+User-Agent suffix. Page JavaScript and User-Agent Client Hints retain their
+configured values.
 
 Cookies, passwords, browser storage, and referenced proxy definitions are not
 included. Both `includes_cookies` and `includes_passwords` must be false.
