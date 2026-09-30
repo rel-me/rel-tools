@@ -263,6 +263,37 @@ browser's data. Newly created REL sessions initialize their cookie database befo
 the imported records are written. The temporary copies are removed after import. If the source
 files keep changing during capture, REL asks you to retry the import.
 
+### Cookie files
+
+Open a Session’s **Overview → Options → Site Data** to import or export cookies.
+**Export…** saves all cookies in that Session, including cookies hidden by the
+search filter, with a suggested filename such as `Session123.cookies`.
+**Import…** reads a REL `.cookies` file and adds its cookies to the current Session,
+replacing cookies with the same domain, path, and name. Other cookies remain.
+Reload the page after importing. REL reports any cookies rejected by Chromium.
+An empty file leaves a running Session’s cookies unchanged.
+
+In **File → Create Session from Profile**, use **Starting cookies → Choose File…**
+to start a new Session from a cookie file. REL imports the file before opening the
+first page. If you also choose a Profile’s Browser Data, the file replaces its
+cookies while preserving saved passwords. An empty file starts without cookies.
+An invalid or unreadable file stops creation with an error.
+
+**New Profile** and **Edit Profile** also offer **Starting cookies**. Saving imports
+a snapshot of the file into the Profile’s encrypted browser storage. Each new
+Session created from that Profile starts with those cookies; you can move or
+delete the original file afterward. Choosing a new file when editing replaces the
+Profile’s startup cookies, preserves saved passwords, and leaves existing Sessions
+unchanged. In a new Profile, the cookie file takes the place of another browser
+data source. Removing a selected file before saving cancels that selection.
+
+REL cookie files are versioned JSON containing values and cookie attributes,
+including expiration, Secure, HttpOnly, SameSite, and priority. They are plaintext
+and can contain login data. Exports have owner-only file permissions; keep them
+private. REL accepts its own cookie file format, rather than browser database
+files or Netscape cookie files. Cookie files do not include saved passwords,
+local storage, or other site data.
+
 Use the session toolbar's **Proxy** menu to select a saved proxy, or **None** for
 a direct connection. Saved proxies from earlier REL versions remain selectable
 without recreating them or enabling provider-specific sticky sessions.
