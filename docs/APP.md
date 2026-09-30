@@ -26,6 +26,22 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+## User-Agent in Overview
+
+Open the bottom panel and select **Overview**, then click the pencil beside
+**User-Agent**. Choose a Safari, Chrome, Edge, or Firefox browser/device preset,
+or choose **Custom…** to enter your own string. **Apply and Reload** saves the
+selection for that Session and reloads its current page. **Default** restores
+the Session's configured browser identity. **Cancel** keeps the current value.
+
+The override survives restarting REL and applies to that Session's HTTP requests,
+page-reported User-Agent, and popup pages. Other Sessions keep their own identity.
+These presets change the reported User-Agent, not the rendering engine, viewport,
+or hardware settings. User-Agent Client Hints are omitted while an override is
+active to avoid reporting contradictory browser metadata. Sessions with unique
+User-Agent requests still append a fresh UUID to each HTTP(S) request while the
+page retains the selected base string.
+
 ## Session viewport presets
 
 Use **Session Viewport** beside the address field to choose **Desktop 1440w**, **Wide Laptop 1280w**,

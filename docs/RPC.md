@@ -1391,6 +1391,7 @@ Each session value contains:
 
 | Field | Type / meaning |
 | --- | --- |
+| `userAgentOverride` | Optional custom User-Agent for this Session; omit it or use null for the configured identity. Use 1–1,024 printable ASCII characters without control characters or newlines. REL applies it before navigation, including popups; overrides omit User-Agent Client Hints. |
 | `lastCommittedURL` | HTTP(S) URL without credentials, or null |
 | `isNetworkPaused` | Boolean, default false |
 | `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String, viewportPreset?: String}`; tool is `info`, `filters`, `schedules` (Actions), `logs`, or `terminal`; defaults are false, true, and `logs`. `viewportPreset` is `fitWindow`, `laptop` (1024w), `tablet` (768w), or `mobile` (320w); omit it or use `null` to inherit the app default. |
