@@ -1,7 +1,8 @@
-/target/
-/docs/.astro/
-/docs/dist/
-/docs/node_modules/
+/target
+/dist
+/docs/.astro
+/docs/dist
+/docs/node_modules
 /docs/src/content/docs/cli.md
 /docs/src/content/docs/crawler.md
 /docs/src/content/docs/playwright.md

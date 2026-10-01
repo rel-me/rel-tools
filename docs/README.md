@@ -27,6 +27,12 @@ npm ci
 npm run dev
 ```
 
+When developing these guides through REL's `make docs-dev`, generated outputs
+and dependency checkouts live in the checkout's isolated tree under
+`~/Builds/REL/worktrees/`. Documented links keep `docs/node_modules`, `docs/dist`,
+and `docs/.astro` usable at their usual paths. REL installs npm dependencies at
+the physical build path so `npm ci` cannot replace the storage link.
+
 Validate the production build and internal links with:
 
 ```sh
