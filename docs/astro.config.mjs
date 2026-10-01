@@ -1,8 +1,14 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import { mkdirSync, realpathSync } from "node:fs";
+
+const output = new URL("./dist/", import.meta.url);
+mkdirSync(output, { recursive: true });
 
 export default defineConfig({
   site: "https://docs.rel.me",
+  // Keep REL's directory link intact when Astro cleans its output tree.
+  outDir: realpathSync(output),
   integrations: [
     starlight({
       title: "docs.rel.me",
