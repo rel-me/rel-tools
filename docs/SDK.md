@@ -133,12 +133,26 @@ untrusted-data boundary as page text and pixels.
 
 ## Shorthand page workflow
 
-For retrieval without action refs or pixels, use `PageReadRequest`. The helper
-ranks semantic content and links against `query`, caps the Markdown independently
-from the renderer's semantic bound, and reports both truncation states. Reads
-include a bounded page-wide heading outline. Unqueried reads sample content
-across the document rather than returning only its first sections, and the
-result reports available as well as selected content and link counts:
+For retrieval without action refs or pixels, use `PageReadRequest`. Omit `query`
+for an overview when the desired wording is unknown. Unqueried reads sample the
+loaded document, including text without headings. Supply `query` to rank matching
+semantic content and links; it is a lexical relevance filter, not a natural
+language question answering operation. `find_observation` instead searches literal
+substrings and roles in a retained observation.
+
+Reads preserve structural regions, list items, table rows, form text, and explicit
+advertisement labels. Adjacent blocks share their context label once. A heading
+already included in the content is not repeated in the supplementary outline.
+An exact, unambiguous text label can carry its link inline when its structural
+context matches. Duplicate links combine only when their label, destination,
+context, role, state, and value agree; distinct URLs or regions remain separate.
+Each link states whether any identical copy was in the captured viewport.
+
+The Markdown records capture time, document sequence and viewport/document size.
+Source URL, observation ID, selected/available counts, and separate source/output
+truncation flags remain available in the result. Counts describe selected semantic
+records and unique links, not posts, complete page coverage, or content that might
+load after scrolling. Reading does not scroll a dynamic feed to completion.
 
 ```rust
 use rel_client::{PageReadRequest, RelClient};

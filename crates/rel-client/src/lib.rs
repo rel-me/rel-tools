@@ -1665,29 +1665,11 @@ fn page_read_data(
     };
     content.truncate(max_sections);
 
-    let mut seen_links = BTreeSet::new();
-    let mut links = observation
-        .elements
-        .iter()
-        .enumerate()
-        .filter_map(|(index, element)| {
-            let destination = element.destination.as_deref()?.trim();
-            if destination.is_empty() {
-                return None;
-            }
-            let key = format!("{}\n{}", element.name, destination);
-            if !seen_links.insert(key) {
-                return None;
-            }
-            let score = page_read_match_score(&element.name, normalized_query, &terms, false)
-                .max(page_read_link_intent_score(destination, &terms));
-            Some((index, score))
-        })
-        .collect::<Vec<_>>();
-    let links_matched = query_active && links.iter().any(|(_, score)| *score > 0);
+    let mut links = page_read_unique_links(&observation.elements, normalized_query, &terms);
+    let links_matched = query_active && links.iter().any(|link| link.score > 0);
     if links_matched {
-        links.retain(|(_, score)| *score > 0);
-        links.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
+        links.retain(|link| link.score > 0);
+        links.sort_by_key(|link| (std::cmp::Reverse(link.score), link.index));
     } else if content_matched {
         links.clear();
     }
@@ -1724,9 +1706,84 @@ fn page_read_data(
             &format!("Query scope: {} candidate blocks of {} captured blocks. Counts describe matches and nearby context, not whole-page coverage.", available_content_count, observation.content.len()), max_chars);
     }
 
-    let outline = page_read_outline(&observation.content, max_sections.min(16));
+    let viewport = &observation.viewport;
+    push_page_read_block(
+        &mut markdown,
+        &format!(
+            "Snapshot: {} / document {}. Viewport: {}×{} at {},{} of {}×{}.",
+            escape_markdown_text(&observation.captured_at),
+            observation.document_sequence,
+            viewport.css_width,
+            viewport.css_height,
+            viewport.scroll_x,
+            viewport.scroll_y,
+            viewport.document_width,
+            viewport.document_height,
+        ),
+        max_chars,
+    );
+
+    let mut selected_content_count = 0;
+    let mut selected_link_count = 0;
+    let mut emitted_links = BTreeSet::new();
+    let mut emitted_headings = BTreeSet::new();
+    let mut last_context = None;
+    let mut output_truncated = false;
+    for (index, _) in &content {
+        let item = &observation.content[*index];
+        let context = page_read_context(item.context.as_deref());
+        // Link only an unambiguous exact label in the same structural context.
+        // Repeated generic labels with different destinations stay separate.
+        let candidates = links
+            .iter()
+            .filter(|link| {
+                let element = &observation.elements[link.index];
+                page_read_normalize_text(&element.name) == page_read_normalize_text(&item.text)
+                    && page_read_context(element.context.as_deref()) == context
+            })
+            .collect::<Vec<_>>();
+        let inline = (candidates.len() == 1)
+            .then(|| candidates[0])
+            .filter(|link| !emitted_links.contains(&link.index));
+        let body = page_read_content_markdown(item);
+        let linked = inline.map(|link| {
+            page_read_content_with_text(
+                item,
+                &page_read_link_markdown(&observation.elements[link.index], link.in_viewport),
+            )
+        });
+        let linked =
+            linked.filter(|block| block.chars().count() <= page_read_block_limit(max_chars));
+        let block =
+            page_read_with_context(linked.as_deref().unwrap_or(&body), context, last_context);
+        let (block, block_clipped) = page_read_bounded_content_block(block, max_chars);
+        let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
+        output_truncated |= block_clipped || clipped;
+        if added {
+            selected_content_count += 1;
+            last_context = context;
+            if !block_clipped && !clipped {
+                if item.kind == "heading" {
+                    emitted_headings.insert(*index);
+                }
+                if linked.is_some() {
+                    emitted_links.insert(inline.unwrap().index);
+                    selected_link_count += 1;
+                }
+            }
+        }
+    }
+
+    // A selected heading already supplies its outline information. Render only
+    // additional headings, after content so an outline cannot crowd out prose.
+    let outline = page_read_outline(&observation.content, max_sections.min(16))
+        .into_iter()
+        .filter(|index| !emitted_headings.contains(index))
+        .collect::<Vec<_>>();
     let mut selected_outline_count = 0;
-    if !outline.is_empty() && push_page_read_block(&mut markdown, "## Page outline", max_chars) {
+    if !outline.is_empty()
+        && push_page_read_block(&mut markdown, "## Other page headings", max_chars)
+    {
         for index in outline {
             let heading = &observation.content[index];
             let indent = "  ".repeat(heading.level.unwrap_or(2).saturating_sub(2) as usize);
@@ -1739,47 +1796,29 @@ fn page_read_data(
         }
     }
 
-    let mut selected_content_count = 0;
-    let mut output_truncated = false;
-    for (index, _) in &content {
-        let (block, block_clipped) = page_read_bounded_content_block(
-            page_read_content_markdown(&observation.content[*index]),
-            max_chars,
-        );
-        output_truncated |= block_clipped;
-        let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
-        if added {
-            selected_content_count += 1;
-        }
-        if clipped {
-            output_truncated = true;
-            continue;
-        }
-    }
-
-    let mut selected_link_count = 0;
-    if !links.is_empty() && push_page_read_block(&mut markdown, "## Links", max_chars) {
-        for (index, _) in &links {
-            let element = &observation.elements[*index];
-            let destination = element.destination.as_deref().unwrap_or_default();
-            let label = if element.name.trim().is_empty() {
-                destination
-            } else {
-                element.name.trim()
-            };
-            let block = format!(
-                "- [{}](<{}>)",
-                escape_markdown_text(label),
-                escape_markdown_url(destination)
+    let remaining_links = links
+        .iter()
+        .filter(|link| !emitted_links.contains(&link.index))
+        .collect::<Vec<_>>();
+    if !remaining_links.is_empty() && push_page_read_block(&mut markdown, "## Links", max_chars) {
+        last_context = None;
+        for link in remaining_links {
+            let element = &observation.elements[link.index];
+            let context = page_read_context(element.context.as_deref());
+            let block = page_read_with_context(
+                &format!("- {}", page_read_link_markdown(element, link.in_viewport)),
+                context,
+                last_context,
             );
             if push_page_read_block(&mut markdown, &block, max_chars) {
                 selected_link_count += 1;
+                last_context = context;
             } else {
                 output_truncated = true;
                 break;
             }
         }
-    } else if !links.is_empty() {
+    } else if !remaining_links.is_empty() {
         output_truncated = true;
     }
 
@@ -2038,29 +2077,129 @@ fn page_read_match_score(
     score
 }
 
-fn page_read_content_markdown(content: &ObservationContent) -> String {
-    let text = escape_markdown_text(content.text.trim());
-    let block = match content.kind.as_str() {
+fn page_read_normalize_text(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn page_read_context(context: Option<&str>) -> Option<&str> {
+    context.map(str::trim).filter(|value| !value.is_empty())
+}
+
+struct PageReadLink {
+    index: usize,
+    score: usize,
+    in_viewport: bool,
+}
+
+fn page_read_unique_links(
+    elements: &[ObservationElement],
+    query: Option<&str>,
+    terms: &[String],
+) -> Vec<PageReadLink> {
+    let mut seen: BTreeMap<_, usize> = BTreeMap::new();
+    let mut links: Vec<PageReadLink> = Vec::new();
+    for (index, element) in elements.iter().enumerate() {
+        let Some(destination) = element
+            .destination
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+        let mut states = element.states.clone();
+        states.sort();
+        let key = (
+            page_read_normalize_text(&element.name),
+            destination,
+            page_read_context(element.context.as_deref()),
+            &element.role,
+            states,
+            &element.value,
+        );
+        if let Some(previous) = seen.get(&key).copied() {
+            // One logical link can have responsive copies inside/outside the
+            // viewport. Preserve visibility if any identical copy is visible.
+            links[previous].in_viewport |= element.in_viewport;
+            continue;
+        }
+        seen.insert(key, links.len());
+        links.push(PageReadLink {
+            index,
+            score: page_read_match_score(&element.name, query, terms, false)
+                .max(page_read_link_intent_score(destination, terms)),
+            in_viewport: element.in_viewport,
+        });
+    }
+    links
+}
+
+fn page_read_link_markdown(element: &ObservationElement, in_viewport: bool) -> String {
+    let destination = element.destination.as_deref().unwrap_or_default();
+    let label = if element.name.trim().is_empty() {
+        destination
+    } else {
+        element.name.trim()
+    };
+    let mut details = vec![if in_viewport {
+        "in viewport".to_string()
+    } else {
+        "offscreen".to_string()
+    }];
+    if element.role != "link" {
+        details.push(element.role.clone());
+    }
+    details.extend(
+        element
+            .states
+            .iter()
+            .filter(|state| state.as_str() != "enabled")
+            .cloned(),
+    );
+    if let Some(value) = &element.value {
+        details.push(format!("value: {value}"));
+    }
+    format!(
+        "[{}](<{}>) ({})",
+        escape_markdown_text(label),
+        escape_markdown_url(destination),
+        escape_markdown_text(&details.join(", "))
+    )
+}
+
+fn page_read_with_context(block: &str, context: Option<&str>, previous: Option<&str>) -> String {
+    if context == previous {
+        return block.to_string();
+    }
+    match context {
+        Some(context) => format!("Context: {}\n\n{block}", escape_markdown_text(context)),
+        // Explicitly end a contextual run before unrelated unscoped content.
+        None if previous.is_some() => format!("Context: unspecified\n\n{block}"),
+        None => block.to_string(),
+    }
+}
+
+fn page_read_content_with_text(content: &ObservationContent, text: &str) -> String {
+    match content.kind.as_str() {
         "heading" => format!(
             "{} {text}",
             "#".repeat(content.level.unwrap_or(2).clamp(2, 6) as usize)
         ),
         "listitem" | "list_item" | "item" => format!("- {text}"),
-        _ => text,
-    };
-    match content
-        .context
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        Some(context) => format!("Context: {}\n\n{block}", escape_markdown_text(context)),
-        None => block,
+        _ => text.to_string(),
     }
 }
 
+fn page_read_content_markdown(content: &ObservationContent) -> String {
+    page_read_content_with_text(content, &escape_markdown_text(content.text.trim()))
+}
+
+fn page_read_block_limit(max_chars: usize) -> usize {
+    (max_chars / 3).clamp(128, 2_048)
+}
+
 fn page_read_bounded_content_block(block: String, max_chars: usize) -> (String, bool) {
-    let maximum = (max_chars / 3).clamp(128, 2_048);
+    let maximum = page_read_block_limit(max_chars);
     if block.chars().count() <= maximum {
         return (block, false);
     }
@@ -2951,15 +3090,146 @@ mod tests {
     }
 
     #[test]
+    fn page_read_compacts_repeated_context_and_inline_links_without_losing_records() {
+        let mut operation = observation_operation();
+        operation.observation.content = [
+            ("heading", Some("main > section: Guide"), "Guide"),
+            (
+                "paragraph",
+                Some("main > section: Guide"),
+                "First paragraph.",
+            ),
+            ("listitem", Some("main > section: Guide"), "Reference"),
+            (
+                "table_row",
+                Some("main > table: Results > row 1"),
+                "Result | 42",
+            ),
+            (
+                "table_row",
+                Some("main > table: Results > row 2"),
+                "Result | 42",
+            ),
+            ("text", Some("main > form: Signup"), "Email"),
+            ("text", Some("main > form: Signup"), "Required"),
+            ("text", None, "No heading or region."),
+            ("text", None, "Advertisement: a sponsored result"),
+            ("text", None, "Ad"),
+        ]
+        .into_iter()
+        .map(|(kind, context, text)| ObservationContent {
+            kind: kind.into(),
+            level: (kind == "heading").then_some(2),
+            context: context.map(str::to_string),
+            text: text.into(),
+        })
+        .collect();
+        operation.observation.elements[0].name = "Reference".into();
+        operation.observation.elements[0].context = Some("main > section: Guide".into());
+        let read = page_read_data(operation, None, 8_000, 100);
+        assert_eq!(read.selected_content_count, 10);
+        assert_eq!(read.selected_link_count, 1);
+        assert_eq!(read.selected_outline_count, 0);
+        assert_eq!(
+            read.markdown
+                .matches("Context: main > section: Guide")
+                .count(),
+            1
+        );
+        assert_eq!(read.markdown.matches("Reference").count(), 1);
+        assert_eq!(read.markdown.matches("Result | 42").count(), 2);
+        assert!(read.markdown.contains("row 1"));
+        assert!(read.markdown.contains("row 2"));
+        assert!(read.markdown.contains("Email\n\nRequired"));
+        assert!(read
+            .markdown
+            .contains("Context: unspecified\n\nNo heading or region."));
+        assert!(read
+            .markdown
+            .contains("Advertisement: a sponsored result\n\nAd"));
+        assert!(read
+            .markdown
+            .contains("- [Reference](<https://example.com/install>) (in viewport)"));
+        assert!(!read.markdown.contains("## Links"));
+        assert!(!read.truncated);
+    }
+
+    #[test]
+    fn page_read_deduplicates_only_identical_link_meaning_and_combines_visibility() {
+        let mut operation = observation_operation();
+        operation.observation.content.clear();
+        let mut link = operation.observation.elements[0].clone();
+        link.name = "Details".into();
+        link.context = Some("main > article".into());
+        link.in_viewport = false;
+        let mut copy = link.clone();
+        copy.name = "  Details \n ".into();
+        copy.in_viewport = true;
+        let mut different_url = link.clone();
+        different_url.destination = Some("https://example.com/another".into());
+        let mut navigation = link.clone();
+        navigation.context = Some("navigation".into());
+        let mut disabled = link.clone();
+        disabled.states = vec!["disabled".into()];
+        operation.observation.elements = vec![link, copy, different_url, navigation, disabled];
+        let read = page_read_data(operation, None, 8_000, 100);
+        assert_eq!(read.available_link_count, 4);
+        assert_eq!(read.selected_link_count, 4);
+        assert_eq!(
+            read.markdown.matches("https://example.com/install").count(),
+            3
+        );
+        assert!(read.markdown.contains("https://example.com/another"));
+        assert_eq!(read.markdown.matches("in viewport").count(), 1);
+        assert!(read.markdown.contains("offscreen, disabled"));
+        assert!(read.markdown.contains("Context: navigation"));
+        assert!(!read.truncated);
+    }
+
+    #[test]
+    fn page_read_ambiguous_unheaded_labels_keep_destinations_and_source_scope() {
+        let mut operation = observation_operation();
+        operation.observation.content = vec![ObservationContent {
+            kind: "text".into(),
+            level: None,
+            context: None,
+            text: "Details".into(),
+        }];
+        let mut link = operation.observation.elements[0].clone();
+        link.name = "Details".into();
+        link.context = None;
+        let mut other = link.clone();
+        other.destination = Some("https://example.com/other".into());
+        operation.observation.elements = vec![link, other];
+        operation.observation.document_sequence = 7;
+        operation.observation.viewport.scroll_y = 900;
+        operation.observation.truncated = true;
+        let read = page_read_data(operation, None, 8_000, 100);
+        assert!(read.markdown.contains("\n\nDetails\n\n## Links"));
+        assert_eq!(read.available_link_count, 2);
+        assert_eq!(read.selected_link_count, 2);
+        assert!(read.markdown.contains("2026-08-19T00:00:00Z / document 7"));
+        assert!(read
+            .markdown
+            .contains("Viewport: 1280×720 at 0,900 of 1280×1800"));
+        assert!(read.source_truncated);
+        assert!(!read.truncated);
+    }
+
+    #[test]
     fn page_read_is_query_directed_and_markdown_bounded() {
-        let data = page_read_data(observation_operation(), Some("install package"), 512, 10);
+        let data = page_read_data(observation_operation(), Some("install package"), 1_024, 10);
         assert!(data.markdown.contains("## Installation"));
         assert!(data.markdown.contains("Install the package with Cargo."));
-        assert!(data.markdown.contains("Installation reference"));
+        assert!(
+            data.markdown.contains("Installation reference"),
+            "{}",
+            data.markdown
+        );
         assert!(data.markdown.contains("Context: main"));
         assert!(!data.markdown.contains("company history"));
         assert!(data.matched_query);
-        assert!(data.markdown.chars().count() <= 512);
+        assert!(data.markdown.chars().count() <= 1_024);
 
         let mut operation = observation_operation();
         operation.observation.content[1].text = "x".repeat(1_000);
@@ -2994,12 +3264,11 @@ mod tests {
 
         let data = page_read_data(operation, None, 8_000, 6);
 
-        assert!(data.markdown.contains("## Page outline"));
         assert!(data.markdown.contains("Document section 0"));
         assert!(data.markdown.contains("Document section 29"));
         assert_eq!(data.available_content_count, 30);
         assert_eq!(data.selected_content_count, 6);
-        assert!(data.selected_outline_count > 0);
+        assert_eq!(data.selected_outline_count, 1);
         assert!(data.truncated);
     }
 

@@ -874,12 +874,19 @@ open the same setup.
 **Ollama** connects to an Ollama server using its endpoint settings. Install and
 manage models in Ollama, then use **Refresh Models** in REL to discover them.
 REL’s **Download** action manages REL’s native models.
-Chat uses compact semantic text and controls for ordinary browser work. HTML is
-available only for explicit source inspection. Screenshots are used for visual
-or spatial questions, canvas content, or insufficient semantics when the selected
-model supports image tool results. Semantic-only observations omit pixel bounds.
-Changed page text is prioritized after actions; full retained observations remain
-available for focused recall without reloading the page.
+
+Chat starts page summaries and inventories with bounded semantic reading. Its
+reading tools can inspect the current page, navigate to a source, and recall
+retained text without loading the same page again. They do not expose click or
+input tools. Omit a specific search phrase when asking for a general overview;
+Chat uses a focused query only when it has a useful literal label or fact to find.
+Loaded-page coverage and output limits remain explicit, including on dynamic feeds.
+
+HTML is reserved for explicit source inspection. Automatic observation stays
+semantic for nonvisual work, even when the page contains SVGs, canvas elements or
+unnamed controls. A visual task, or an explicit promotion to inspect pixels, can
+request a bounded screenshot when the selected model supports image tool results.
+Switching to interaction makes controls available through scoped native references.
 
 Element references belong to the observation that displayed them. A text read
 provides a searchable observation handle, but Chat must find its controls before
@@ -890,7 +897,8 @@ is enforced by the browser operation, so timed-out input is not retried in the
 background. Chat returns a final answer when its model-call limit is reached or
 a browser error code fails twice, including errors marked non-retryable.
 
-Each Chat response stops after 12 model calls or a 64,000-token request budget.
+By default, each Chat response stops after 8 model calls or a 24,000-token request
+budget. Explicit response settings can change these limits.
 REL uses the preceding model call's reported usage to avoid starting a call
 that would predictably exceed the remaining budget. A retryable browser error
 gets one recovery attempt. If the same error recurs through another tool or
@@ -898,6 +906,24 @@ argument set, REL removes browser tools for the rest of that response so the
 model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
+
+## GPT-6 reasoning and estimated costs
+
+The profile model picker supports **None**, **Low**, **Medium**, **High**, **XHigh**
+and **Max** reasoning for `gpt-6-luna` and `gpt-6-sol`. `gpt-6-astra` and
+`gpt-6.1-sol` support **Low** through **Max**. Date snapshots use their family's
+settings. A restored **Minimal** setting, or **None** for a model without that
+option, becomes **Low**. Selecting a model does not mark it REL-verified.
+
+REL estimates Standard-tier GPT-6 costs from each call's reported usage. Rates
+per million input/cached-input/output tokens are $0.10/$0.01/$0.50 for Luna,
+$2/$0.20/$10 for Sol, $10/$1/$50 for Astra and $2/$0.10/$10 for 6.1 Sol. Cache
+writes use 1.25 times the input rate. Calls above 272,000 input tokens use twice
+the input/cache rate and 1.5 times the output rate. These estimates use the
+[OpenAI model rates](https://developers.openai.com/api/docs/models/gpt-6-luna)
+and [cache accounting](https://developers.openai.com/api/docs/guides/prompt-caching).
+Provider-reported cost takes precedence. Restored logs containing only aggregate
+usage cannot resolve per-call thresholds and show no GPT-6 estimate.
 
 ## Streaming responses and tool activity
 
