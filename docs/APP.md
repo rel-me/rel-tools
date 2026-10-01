@@ -882,6 +882,15 @@ input tools. Omit a specific search phrase when asking for a general overview;
 Chat uses a focused query only when it has a useful literal label or fact to find.
 Loaded-page coverage and output limits remain explicit, including on dynamic feeds.
 
+During an active reading task, Chat keeps up to three selected semantic excerpts
+from the current response so it can combine facts from successive reads without
+repeating queries. Each excerpt is limited to 5,000 characters, with a total
+limit of 16,000 characters including source context. The latest tool result is
+not duplicated in this working set. Images, raw HTML and action references are
+not retained there. A new user turn or a known page mutation clears these
+excerpts. They describe captured evidence and do not guarantee that the page is
+still unchanged; current facts may require a fresh read.
+
 HTML is reserved for explicit source inspection. Automatic observation stays
 semantic for nonvisual work, even when the page contains SVGs, canvas elements or
 unnamed controls. A visual task, or an explicit promotion to inspect pixels, can
