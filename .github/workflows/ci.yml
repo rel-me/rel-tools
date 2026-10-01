@@ -16,11 +16,11 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# Submit checks serially to the single persistent runner. This also avoids
+# Submit this workflow's checks serially to the shared persistent runner pool. This avoids
 # pre-queuing the next job during the runner's Busy-to-Online handoff.
 jobs:
   rust:
-    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    runs-on: [self-hosted, macOS, ARM64, runner-ci]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -46,7 +46,7 @@ jobs:
   msrv:
     needs: rust
     if: ${{ !cancelled() }}
-    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    runs-on: [self-hosted, macOS, ARM64, runner-ci]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
@@ -68,7 +68,7 @@ jobs:
   ruby:
     needs: msrv
     if: ${{ !cancelled() }}
-    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    runs-on: [self-hosted, macOS, ARM64, runner-ci]
     timeout-minutes: 20
     defaults:
       run:
@@ -97,7 +97,7 @@ jobs:
   python:
     needs: ruby
     if: ${{ !cancelled() }}
-    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    runs-on: [self-hosted, macOS, ARM64, runner-ci]
     timeout-minutes: 20
     defaults:
       run:
@@ -120,7 +120,7 @@ jobs:
   crawlee:
     needs: python
     if: ${{ !cancelled() }}
-    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    runs-on: [self-hosted, macOS, ARM64, runner-ci]
     timeout-minutes: 20
     strategy:
       max-parallel: 1
@@ -144,7 +144,7 @@ jobs:
   docs:
     needs: crawlee
     if: ${{ !cancelled() }}
-    runs-on: [self-hosted, macOS, ARM64, rel-tools-ci]
+    runs-on: [self-hosted, macOS, ARM64, runner-ci]
     timeout-minutes: 20
     defaults:
       run:
