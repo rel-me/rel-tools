@@ -574,6 +574,11 @@ rel session create \
   --image-size-limit-kb 100
 ```
 
+When `--name` is omitted, sessions created from a saved profile use its name
+followed by the global session number, for example `Reddit123`. Custom sessions
+use `Session123`. The canonical session ID remains `Session123`; duplicate
+visible names receive ` (2)`, ` (3)`, and so on.
+
 Every create option is optional. `--profile` accepts the unique name shown in
 **REL → Settings… → Profiles**; omission uses the configured default (Custom when unset). Omitted proxy and
 filtering options use the selected profile. Use `--direct` to override it with

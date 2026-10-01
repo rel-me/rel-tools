@@ -915,7 +915,7 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `POST /v1/sessions` accepts optional `name`, `group`, `profile`, `proxy_alias`,
+- `POST /v1/sessions` accepts optional `name`, `name_prefix`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
 - `PATCH /v1/sessions/{id}` is partial and returns `data.session`. Changes that require a new browser context are saved without reloading an open page; REL shows a banner for the user to choose Reload and apply them. Empty browsers with no active page, popup, or navigation history apply the changes automatically without a banner.
@@ -938,6 +938,15 @@ case-insensitively unique; the canonical `id` is immutable. Session routes accep
 only that ID; numeric database IDs are neither accepted nor returned. A group
 is immutable, contains 1–128 non-control characters after trimming, and may be
 shared by any number of sessions.
+
+When `name` is omitted, a session created from a saved profile uses the profile's
+stored name followed by the global session number, for example `Reddit123` for
+`Session123`. Standalone Custom sessions use `Session123`. Existing names are
+unchanged. Case-insensitive collisions add ` (2)`, ` (3)`, and so on.
+`name_prefix` optionally overrides the naming prefix without changing the selected
+profile or browser-data source; it must be a non-empty string after trimming.
+Omission or null uses the selected profile's name, or `Session` for Custom.
+An explicit `name` takes priority over the generated name.
 
 ## Profiles
 
