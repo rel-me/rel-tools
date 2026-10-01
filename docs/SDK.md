@@ -140,6 +140,16 @@ semantic content and links; it is a lexical relevance filter, not a natural
 language question answering operation. `find_observation` instead searches literal
 substrings and roles in a retained observation.
 
+Use a specific label, phrase or API identifier when known. Underscores and
+qualified names stay intact: `Archive.copy_into` can match `copy_into`, but does
+not become a broad query for `Archive` or `into`. Exact terms and identifiers
+rank above ordinary word-prefix matches such as `install`/`installation`;
+repeated boilerplate does not gain rank by repeating the same word. Both
+`read_page` and `read_observation` select relevant content and its surrounding
+context within character and section budgets before arranging it in document
+order. A late precise match can therefore survive an early page full of weak
+matches.
+
 Reads preserve structural regions, list items, table rows, form text, and explicit
 advertisement labels. Adjacent blocks share their context label once. A heading
 already included in the content is not repeated in the supplementary outline.
@@ -530,12 +540,16 @@ policy and `last_activity_at`. Keep idle clients alive by pinging well before th
 timeout. Session listing and background page traffic do not refresh activity.
 ### Query context in semantic reads
 
-Query-directed reads include up to two following blocks from the same structural
-region, stopping at a heading or landmark. When the query matches the literal
-name of a table, section, form or region, its captured descendants also qualify.
+Query-directed reads keep a matching block with its nearby heading and preceding
+text label, when available. They include two following blocks and continuing
+prose or list items from the same structural region, stopping at the next text
+label, heading, landmark or region change. This preserves definition descriptions,
+defaults and caveats that follow an API signature. The character and section
+budgets bound these windows; an oversized individual block can still be clipped.
+When the query matches the literal name of a table, section, form or region, its
+captured descendants also qualify.
 This keeps table rows and form values associated with their caption or label,
 even when the values use different words. Matching considers the region name,
-not generic path roles such as `main` or `table`. The character
-and section limits still apply. Query output states how many candidate blocks were
-selected from the captured page; selected/available counts describe that query,
+not generic path roles such as `main` or `table`. Query output states how many
+candidate blocks were selected from the captured page; selected/available counts describe that query,
 not complete page coverage. Omit the query when the desired text is unknown.

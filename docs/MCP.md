@@ -281,7 +281,11 @@ to either form. `profile` and `proxy` apply only when `url` is present;
 `profile` cannot be combined with `session_id`.
 
 Omit `query` for a page overview when its wording is unknown. A supplied `query`
-ranks lexical matches in semantic sections and link labels. A literal match to a
+ranks lexical matches in semantic sections and link labels. Exact terms and
+underscored or qualified identifiers take precedence over weak word-prefix
+matches; `Archive.copy_into` does not broaden into every mention of `Archive`.
+Relevant blocks and nearby descriptions are selected within the character and
+section budgets before they are arranged in document order. A literal match to a
 named table, section, form or region also includes its captured descendants,
 subject to the same output bounds. Generic path roles are not matching labels.
 Use `rel_find` for a

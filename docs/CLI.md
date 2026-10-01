@@ -138,6 +138,12 @@ rel read https://example.com/docs --query="installation" --max-chars=6000
 rel read --session-id=Session1 --query="current plan"
 ```
 
+Queries preserve underscored and qualified identifiers, so `Archive.copy_into`
+does not broaden into every mention of `Archive`. Exact matches rank above weak
+word prefixes, with nearby descriptions retained within both output limits
+before the selected blocks are arranged in document order. See
+[query context in semantic reads](SDK.md#query-context-in-semantic-reads).
+
 Omit `--query` for an overview when the desired page wording is unknown. A query
 ranks lexical matches; it does not interpret an arbitrary question. Read output
 preserves context, explicit advertisement labels, source/viewport metadata, and

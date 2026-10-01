@@ -1667,7 +1667,9 @@ fn page_read_data(
     } else {
         observation.content.len()
     };
-    content.truncate(max_sections);
+    if !query_active {
+        content.truncate(max_sections);
+    }
 
     let mut links = page_read_unique_links(&observation.elements, normalized_query, &terms);
     let links_matched = query_active && links.iter().any(|link| link.score > 0);
@@ -1727,6 +1729,35 @@ fn page_read_data(
         max_chars,
     );
 
+    if query_active {
+        // Budget the ranked windows before arranging their retained blocks for
+        // reading. Otherwise early weak matches can exhaust either limit before
+        // a precise match near the end of the document is ever rendered.
+        let mut remaining_chars = max_chars.saturating_sub(markdown.chars().count());
+        let mut retained = 0;
+        content.retain(|(index, _)| {
+            if retained == max_sections {
+                return false;
+            }
+            let item = &observation.content[*index];
+            let (body, _) = page_read_content_body(item, &observation.elements, &links, max_chars);
+            let context = page_read_context(item.context.as_deref());
+            // Charge every block for a context transition, including a reset to
+            // unspecified context. Document-order rendering can only cost less.
+            let previous = context.is_none().then_some("previous context");
+            let block = page_read_with_context(&body, context, previous);
+            let (block, _) = page_read_bounded_content_block(block, max_chars);
+            let cost = block.chars().count() + 2;
+            if cost > remaining_chars {
+                return false;
+            }
+            remaining_chars -= cost;
+            retained += 1;
+            true
+        });
+        content.sort_by_key(|(index, _)| *index);
+    }
+
     let mut selected_content_count = 0;
     let mut selected_link_count = 0;
     let mut emitted_links = BTreeSet::new();
@@ -1736,30 +1767,13 @@ fn page_read_data(
     for (index, _) in &content {
         let item = &observation.content[*index];
         let context = page_read_context(item.context.as_deref());
-        // Link only an unambiguous exact label in the same structural context.
-        // Repeated generic labels with different destinations stay separate.
-        let candidates = links
-            .iter()
-            .filter(|link| {
-                let element = &observation.elements[link.index];
-                page_read_normalize_text(&element.name) == page_read_normalize_text(&item.text)
-                    && page_read_context(element.context.as_deref()) == context
-            })
-            .collect::<Vec<_>>();
-        let inline = (candidates.len() == 1)
-            .then(|| candidates[0])
-            .filter(|link| !emitted_links.contains(&link.index));
-        let body = page_read_content_markdown(item);
-        let linked = inline.map(|link| {
-            page_read_content_with_text(
-                item,
-                &page_read_link_markdown(&observation.elements[link.index], link.in_viewport),
-            )
-        });
-        let linked =
-            linked.filter(|block| block.chars().count() <= page_read_block_limit(max_chars));
-        let block =
-            page_read_with_context(linked.as_deref().unwrap_or(&body), context, last_context);
+        let (mut body, mut inline) =
+            page_read_content_body(item, &observation.elements, &links, max_chars);
+        if inline.is_some_and(|index| emitted_links.contains(&index)) {
+            body = page_read_content_markdown(item);
+            inline = None;
+        }
+        let block = page_read_with_context(&body, context, last_context);
         let (block, block_clipped) = page_read_bounded_content_block(block, max_chars);
         let (added, clipped) = push_page_read_excerpt(&mut markdown, &block, max_chars);
         output_truncated |= block_clipped || clipped;
@@ -1770,8 +1784,8 @@ fn page_read_data(
                 if item.kind == "heading" {
                     emitted_headings.insert(*index);
                 }
-                if linked.is_some() {
-                    emitted_links.insert(inline.unwrap().index);
+                if let Some(index) = inline {
+                    emitted_links.insert(index);
                     selected_link_count += 1;
                 }
             }
@@ -1850,48 +1864,85 @@ fn page_read_matched_content_with_context(
     content: &[ObservationContent],
     ranked: &[(usize, usize)],
 ) -> Vec<(usize, usize)> {
-    let mut selected = BTreeSet::new();
-    for (index, _) in ranked {
-        if let Some(heading) = (0..=*index)
-            .rev()
-            .find(|candidate| content[*candidate].kind == "heading")
+    let mut seen = BTreeSet::new();
+    let mut selected = Vec::new();
+    for (index, score) in ranked {
+        let mut retain = |candidate| {
+            if seen.insert(candidate) {
+                selected.push((candidate, *score));
+            }
+        };
+        // The match and its context remain together in relevance order until
+        // the caller has applied both budgets. Only then use document order.
+        retain(*index);
+        if *index > 0
+            && !matches!(content[*index].kind.as_str(), "heading" | "landmark")
+            && content[*index - 1].kind == "text"
+            && page_read_context(content[*index - 1].context.as_deref())
+                == page_read_context(content[*index].context.as_deref())
         {
-            selected.insert(heading);
+            // A definition body may be the lexical hit while the immediately
+            // preceding text record supplies its label or API signature.
+            retain(*index - 1);
         }
-        selected.insert(*index);
+        if let Some(heading) = (0..=*index).rev().find(|candidate| {
+            content[*candidate].kind == "heading"
+                && page_read_contexts_overlap(
+                    content[*candidate].context.as_deref(),
+                    content[*index].context.as_deref(),
+                )
+        }) {
+            retain(heading);
+        }
         // Labels/headings often name a value whose own words do not match the
-        // query (generated text, prices, confirmation codes). Keep a small
-        // forward window in the same structural region, stopping at the next
-        // heading/landmark. Never turn a query into a whole-section dump.
-        for next in (*index + 1)..content.len().min(*index + 3) {
-            let neighbor = &content[next];
-            let crosses_region = matches!((&neighbor.context, &content[*index].context),
-                (Some(next_context), Some(matched_context)) if next_context != matched_context);
-            if crosses_region || matches!(neighbor.kind.as_str(), "heading" | "landmark") {
+        // query. Retain two following blocks, then any continuing prose/list
+        // description. This includes definition bodies and platform caveats,
+        // stopping before the next text label/signature, heading or landmark.
+        // The caller bounds the retained window by characters and sections.
+        for (next, neighbor) in content.iter().enumerate().skip(*index + 1) {
+            let changes_region = matches!(
+                (page_read_context(neighbor.context.as_deref()),
+                 page_read_context(content[*index].context.as_deref())),
+                (Some(next), Some(current)) if next != current
+            );
+            if changes_region
+                || matches!(neighbor.kind.as_str(), "heading" | "landmark")
+                || (next > *index + 2
+                    && !matches!(
+                        neighbor.kind.as_str(),
+                        "paragraph" | "blockquote" | "listitem" | "list_item" | "item"
+                    ))
+            {
                 break;
             }
-            selected.insert(next);
+            retain(next);
         }
         if page_read_text_is_rating(&content[*index].text) && *index > 0 {
-            selected.insert(*index - 1);
+            retain(*index - 1);
         }
         if *index > 0 && page_read_text_is_rating(&content[*index - 1].text) {
-            selected.insert(*index - 1);
+            retain(*index - 1);
         }
         if *index + 1 < content.len() && page_read_text_is_rating(&content[*index + 1].text) {
-            selected.insert(*index + 1);
+            retain(*index + 1);
         }
     }
     selected
-        .into_iter()
-        .map(|index| {
-            let score = ranked
-                .iter()
-                .find_map(|(candidate, score)| (*candidate == index).then_some(*score))
-                .unwrap_or_default();
-            (index, score)
-        })
-        .collect()
+}
+
+fn page_read_contexts_overlap(left: Option<&str>, right: Option<&str>) -> bool {
+    match (page_read_context(left), page_read_context(right)) {
+        (Some(left), Some(right)) => {
+            left == right
+                || left
+                    .strip_prefix(right)
+                    .is_some_and(|tail| tail.starts_with(" > "))
+                || right
+                    .strip_prefix(left)
+                    .is_some_and(|tail| tail.starts_with(" > "))
+        }
+        _ => true,
+    }
 }
 
 fn page_read_coverage_content(content: &[ObservationContent], limit: usize) -> Vec<(usize, usize)> {
@@ -1979,12 +2030,21 @@ fn page_read_query_terms(query: &str) -> Vec<String> {
         "who", "why", "with",
     ];
     let mut terms = query
-        .split(|character: char| !character.is_alphanumeric())
+        .split(|character: char| !character.is_alphanumeric() && !matches!(character, '_' | '.'))
+        .map(|term| term.trim_matches('.'))
         .map(str::to_lowercase)
         .filter(|term| term.len() >= 2 && !STOP_WORDS.contains(&term.as_str()))
         .collect::<BTreeSet<_>>();
     let originals = terms.iter().cloned().collect::<Vec<_>>();
     for term in originals {
+        // Keep qualified identifiers intact. Their final component can match a
+        // separately rendered method name, but the qualifier alone must not
+        // turn `Path.copy_into` into a search for every mention of `Path`.
+        if let Some((_, member)) = term.rsplit_once('.') {
+            if member.len() >= 2 {
+                terms.insert(member.to_string());
+            }
+        }
         match term.as_str() {
             "critic" | "critics" | "rating" | "ratings" | "score" | "scores" => {
                 terms.extend(["review", "reviews", "rating", "score"].map(str::to_string));
@@ -2123,18 +2183,42 @@ fn page_read_match_score(
     };
     let text = text.to_lowercase();
     let query = query.to_lowercase();
-    let mut score = if !query.is_empty() && text.contains(&query) {
-        12
+    let mut score = if !query.is_empty() && page_read_term_matches(&text, &query) {
+        128
     } else {
         0
     };
     for term in terms {
-        score += text.matches(term).count().min(4) * 3;
+        if page_read_term_matches(&text, term) {
+            score += if term.contains(['_', '.']) { 64 } else { 8 };
+        } else if !term.contains(['_', '.'])
+            && text
+                .split(|character: char| !character.is_alphanumeric() && character != '_')
+                .any(|word| word.starts_with(term))
+        {
+            // Retain weak lexical matches such as install/installation, but
+            // repeated boilerplate must never gain score from repetition.
+            score += 1;
+        }
     }
     if is_heading && score > 0 {
         score *= 2;
     }
     score
+}
+
+fn page_read_term_matches(text: &str, term: &str) -> bool {
+    let continues_word = |character: char| character.is_alphanumeric() || character == '_';
+    text.match_indices(term).any(|(start, _)| {
+        !text[..start]
+            .chars()
+            .next_back()
+            .is_some_and(continues_word)
+            && !text[start + term.len()..]
+                .chars()
+                .next()
+                .is_some_and(continues_word)
+    })
 }
 
 fn page_read_normalize_text(value: &str) -> String {
@@ -2256,6 +2340,35 @@ fn page_read_content_with_text(content: &ObservationContent, text: &str) -> Stri
 
 fn page_read_content_markdown(content: &ObservationContent) -> String {
     page_read_content_with_text(content, &escape_markdown_text(content.text.trim()))
+}
+
+fn page_read_content_body(
+    content: &ObservationContent,
+    elements: &[ObservationElement],
+    links: &[PageReadLink],
+    max_chars: usize,
+) -> (String, Option<usize>) {
+    // Link only an unambiguous exact label in the same structural context.
+    // Repeated generic labels with different destinations stay separate.
+    let candidates = links
+        .iter()
+        .filter(|link| {
+            let element = &elements[link.index];
+            page_read_normalize_text(&element.name) == page_read_normalize_text(&content.text)
+                && page_read_context(element.context.as_deref())
+                    == page_read_context(content.context.as_deref())
+        })
+        .collect::<Vec<_>>();
+    if let [link] = candidates.as_slice() {
+        let body = page_read_content_with_text(
+            content,
+            &page_read_link_markdown(&elements[link.index], link.in_viewport),
+        );
+        if body.chars().count() <= page_read_block_limit(max_chars) {
+            return (body, Some(link.index));
+        }
+    }
+    (page_read_content_markdown(content), None)
 }
 
 fn page_read_block_limit(max_chars: usize) -> usize {
@@ -3391,6 +3504,121 @@ mod tests {
         let source_limited = page_read_data(source_limited, None, 32_768, 10);
         assert!(source_limited.source_truncated);
         assert!(!source_limited.truncated);
+    }
+
+    fn long_reference_operation() -> ObservationOperationData {
+        let mut operation = observation_operation();
+        operation.observation.elements.clear();
+        operation.observation.content = (0..80)
+            .map(|index| ObservationContent {
+                kind: "text".into(),
+                level: None,
+                context: Some("main > section: Examples".into()),
+                text: format!(
+                    "Copy Copy Copy example {index}. {}",
+                    "Ordinary example text. ".repeat(8)
+                ),
+            })
+            .collect();
+        operation.observation.content.extend([
+            ("heading", "Transfer reference"),
+            ("text", "Archive.copy(target, follow_symlinks=True, preserve_metadata=False)"),
+            ("text", "Copy to the complete target path. Symlinks are followed by default. Metadata preservation defaults to false. Supported metadata is always preserved on platform Z."),
+            ("paragraph", "Copy to the complete target path."),
+            ("paragraph", "Symlinks are followed by default."),
+            ("paragraph", "Metadata preservation defaults to false."),
+            ("paragraph", "Supported metadata is always preserved on platform Z."),
+            ("text", "Archive.copy_into(target_dir, follow_symlinks=True, preserve_metadata=False)"),
+            ("text", "The destination must be an existing directory. Other options follow Archive.copy(). Returns the destination joined with the source name."),
+            ("paragraph", "The destination must be an existing directory."),
+            ("paragraph", "Other options follow Archive.copy()."),
+            ("paragraph", "Returns the destination joined with the source name."),
+            ("text", "Archive.move(target)"),
+            ("text", "Unrelated move behavior."),
+        ].into_iter().map(|(kind, text)| ObservationContent {
+            kind: kind.into(),
+            level: (kind == "heading").then_some(2),
+            context: Some("main > section: Transfer reference".into()),
+            text: text.into(),
+        }));
+        operation
+    }
+
+    #[test]
+    fn late_identifier_hits_keep_definition_bodies_before_early_common_labels() {
+        for (max_chars, max_sections) in [(8_000, 12), (2_000, 100)] {
+            let read = page_read_data(
+                long_reference_operation(),
+                Some("copy copy_into metadata symlinks"),
+                max_chars,
+                max_sections,
+            );
+            assert!(
+                read.markdown.contains("Archive.copy\\_into"),
+                "{}",
+                read.markdown
+            );
+            assert!(
+                read.markdown.contains("existing directory"),
+                "{}",
+                read.markdown
+            );
+            assert!(read.markdown.contains("platform Z"), "{}", read.markdown);
+            assert!(!read.markdown.contains("Unrelated move behavior"));
+            assert!(read.markdown.chars().count() <= max_chars);
+            assert!(read.selected_content_count <= max_sections);
+            assert!(read.available_content_count > read.selected_content_count);
+            assert!(read.truncated);
+        }
+    }
+
+    #[test]
+    fn qualified_identifier_queries_do_not_expand_into_generic_qualifiers_or_substrings() {
+        let terms = page_read_query_terms("Archive.copy_into");
+        assert_eq!(terms, ["archive.copy_into", "copy_into"]);
+        for text in [
+            "Archive examples",
+            "Copy into an archive",
+            "Archive.copy_into_extra()",
+        ] {
+            assert_eq!(
+                page_read_match_score(text, Some("Archive.copy_into"), &terms, false),
+                0
+            );
+        }
+        let read = page_read_data(
+            long_reference_operation(),
+            Some("Archive.copy_into"),
+            4_000,
+            10,
+        );
+        assert!(read.markdown.contains("existing directory"));
+        assert!(read.markdown.contains("Returns the destination joined"));
+        assert!(!read.markdown.contains("Ordinary example text"));
+        assert!(!read.markdown.contains("Archive.move"));
+        assert!(!read.markdown.contains("Unrelated move behavior"));
+    }
+
+    #[test]
+    fn description_queries_keep_the_label_and_continuing_prose_without_crossing_regions() {
+        let mut operation = observation_operation();
+        operation.observation.elements.clear();
+        operation.observation.content = serde_json::from_value(json!([
+            {"kind":"heading","level":2,"context":"main > section: Network","text":"Network options"},
+            {"kind":"text","context":"main > section: Network","text":"Connection.retry(count, delay)"},
+            {"kind":"paragraph","context":"main > section: Network","text":"Backoff grows after each failure."},
+            {"kind":"paragraph","context":"main > section: Network","text":"The default count is three."},
+            {"kind":"paragraph","context":"main > section: Network","text":"The default delay is one second."},
+            {"kind":"paragraph","context":"main > section: Network","text":"A zero count disables retries."},
+            {"kind":"paragraph","context":"main > section: Network","text":"Timer precision varies by platform."},
+            {"kind":"paragraph","context":"main > section: Storage","text":"Private unrelated storage value."}
+        ])).unwrap();
+        let read = page_read_data(operation, Some("backoff"), 4_000, 10);
+        assert!(read.markdown.contains("Connection.retry"));
+        assert!(read.markdown.contains("default count is three"));
+        assert!(read.markdown.contains("Timer precision varies"));
+        assert!(!read.markdown.contains("Private unrelated storage"));
+        assert!(!read.truncated);
     }
 
     #[test]
