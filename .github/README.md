@@ -1,14 +1,14 @@
 # CI on the Mac mini
 
-All seven CI jobs run on the repository-scoped `rel-tools-mac-mini` runner,
-using `[self-hosted, macOS, ARM64, rel-tools-ci]`. There are no GitHub-hosted
+All seven CI jobs use the organization's five shared Mac mini runners,
+using `[self-hosted, macOS, ARM64, runner-ci]`. There are no GitHub-hosted
 runner jobs. Rust stable, Rust 1.71.1, Ruby 3.1, Python 3.11/3.13, and Node 24
 checks are retained; the former Linux jobs now validate on macOS ARM64.
 
 CI runs for pull requests and pushes to `main`. Branch pushes do not duplicate
 PR validation. New commits cancel superseded runs for the same PR or branch,
 and each job has a 20-minute timeout. Job dependencies and the Python matrix's
-`max-parallel: 1` submit checks serially to the single runner. Downstream checks
+`max-parallel: 1` submit this workflow's checks serially to the shared pool. Downstream checks
 still run after a failure, but stop on cancellation. This reduces exposure to
 [the persistent runner job-handoff race](https://github.com/actions/runner/issues/4728)
 by keeping this workflow's next check out of the queue until its predecessor
@@ -16,13 +16,16 @@ finishes. It does not fix the upstream runner bug across simultaneous workflows.
 
 ## Host setup
 
-The service lives at `/Users/local/actions-runner-rel-tools` on
-`local@locals-Mac-mini-2.local`. It has its own `_work` directory and launch
-service, separate from the existing REL and Fritz runners. The `local` account
-must remain signed in for the LaunchAgent to run.
+The organization-scoped `Mac mini` runner group allows only `rel`, `rel-tools`,
+and `fritz`. Its runners, `runner-mac-mini-1` through `runner-mac-mini-5`, all
+carry `runner-ci` and `runner-snapshot-ci`. Their installations live at
+`/Users/local/actions-runner-mac-mini-1` through
+`/Users/local/actions-runner-mac-mini-5` on `local@locals-Mac-mini-2.local`.
+Each has its own `_work`, tool cache, and LaunchAgent service. The `local`
+account must remain signed in for those services to run.
 
 ```sh
-cd /Users/local/actions-runner-rel-tools
+cd /Users/local/actions-runner-mac-mini-1
 ./svc.sh status
 ```
 
@@ -65,6 +68,6 @@ actionlint .github/workflows/ci.yml
 
 Run the affected job commands on the mini in a separate verification checkout
 before publishing workflow changes, starting with the service's PATH from
-`/Users/local/actions-runner-rel-tools/.path` rather than the SSH login PATH.
+`/Users/local/actions-runner-mac-mini-1/.path` rather than the SSH login PATH.
 CI does not require opening the REL app;
 the Python and Ruby suites use local test fixtures.
