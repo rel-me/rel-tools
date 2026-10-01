@@ -51,6 +51,18 @@ browsers. Cookie saves overlap in small batches to reduce the wait when many
 Sessions are open. Quit retains its four-second deadline for asynchronous
 cleanup; it does not wait indefinitely for a stalled browser.
 
+### Debug app lifetime
+
+RELDebug stays running when you start it manually from Finder, Dock, a Run
+action, or `make dev-open`. Closing its window leaves it running; quit from the
+app menu or press **⌘Q** when finished. If you started it with `make dev-open`,
+**Ctrl-C** in that terminal also requests a normal quit.
+
+Automated verification can opt into a 15-minute quit timer with
+`make REL_DEBUG_AUTO_QUIT=1 dev-open`. The flag applies only to that launched
+Debug process and is not saved in preferences or the app bundle. Later manual
+launches stay open. Release builds have no automatic quit timer.
+
 ## Start on Login
 
 Enable **Settings → General → Startup → Start on Login** to open REL
