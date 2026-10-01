@@ -281,7 +281,10 @@ to either form. `profile` and `proxy` apply only when `url` is present;
 `profile` cannot be combined with `session_id`.
 
 Omit `query` for a page overview when its wording is unknown. A supplied `query`
-ranks lexical matches in semantic sections and link labels. Use `rel_find` for a
+ranks lexical matches in semantic sections and link labels. A literal match to a
+named table, section, form or region also includes its captured descendants,
+subject to the same output bounds. Generic path roles are not matching labels.
+Use `rel_find` for a
 literal substring or ARIA-role search; a broad request such as “summarize this
 page” should not become a literal find query.
 

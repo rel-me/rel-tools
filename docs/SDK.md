@@ -531,8 +531,11 @@ timeout. Session listing and background page traffic do not refresh activity.
 ### Query context in semantic reads
 
 Query-directed reads include up to two following blocks from the same structural
-region, stopping at a heading or landmark. This preserves values or generated text
-beneath a matching label even when the value uses different words. The character
+region, stopping at a heading or landmark. When the query matches the literal
+name of a table, section, form or region, its captured descendants also qualify.
+This keeps table rows and form values associated with their caption or label,
+even when the values use different words. Matching considers the region name,
+not generic path roles such as `main` or `table`. The character
 and section limits still apply. Query output states how many candidate blocks were
 selected from the captured page; selected/available counts describe that query,
 not complete page coverage. Omit the query when the desired text is unknown.

@@ -1637,7 +1637,11 @@ fn page_read_data(
         .enumerate()
         .map(|(index, item)| {
             let mut score =
-                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading");
+                page_read_match_score(&item.text, normalized_query, &terms, item.kind == "heading")
+                    .max(page_read_named_context_score(
+                        item.context.as_deref(),
+                        normalized_query,
+                    ));
             if page_read_query_requests_ratings(&terms) && page_read_text_is_rating(&item.text) {
                 score = score.max(2);
             }
@@ -1703,7 +1707,7 @@ fn page_read_data(
 
     if query_active {
         push_page_read_block(&mut markdown,
-            &format!("Query scope: {} candidate blocks of {} captured blocks. Counts describe matches and nearby context, not whole-page coverage.", available_content_count, observation.content.len()), max_chars);
+            &format!("Query scope: {} candidate blocks of {} captured blocks. Counts describe matches and structural context, not whole-page coverage.", available_content_count, observation.content.len()), max_chars);
     }
 
     let viewport = &observation.viewport;
@@ -2039,6 +2043,62 @@ fn page_read_text_is_rating(text: &str) -> bool {
     })
 }
 
+// A named structural region supplies the missing association between its
+// caption/heading and descendants whose own text does not repeat that name.
+// Match a complete literal word sequence in the name only: generic path roles
+// and loose matches to one word in a longer query must not select whole regions.
+fn page_read_named_context_score(context: Option<&str>, query: Option<&str>) -> usize {
+    let (Some(context), Some(query)) = (context, query) else {
+        return 0;
+    };
+    let words = |value: &str| {
+        value
+            .split(|character: char| !character.is_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .map(str::to_lowercase)
+            .collect::<Vec<_>>()
+    };
+    let query_words = words(query);
+    const STRUCTURAL_WORDS: &[&str] = &[
+        "main",
+        "header",
+        "footer",
+        "navigation",
+        "section",
+        "table",
+        "form",
+        "region",
+        "article",
+        "list",
+        "row",
+        "content",
+        "page",
+    ];
+    if query_words.is_empty()
+        || !query_words
+            .iter()
+            .any(|word| !STRUCTURAL_WORDS.contains(&word.as_str()))
+    {
+        return 0;
+    }
+    for component in context.split(" > ") {
+        let Some((kind, name)) = component.split_once(':') else {
+            continue;
+        };
+        if !matches!(kind.trim(), "table" | "section" | "form" | "region") {
+            continue;
+        }
+        let name_words = words(name);
+        if name_words
+            .windows(query_words.len())
+            .any(|candidate| candidate == query_words)
+        {
+            return 12;
+        }
+    }
+    0
+}
+
 fn page_read_link_intent_score(destination: &str, terms: &[String]) -> usize {
     let destination = destination.to_ascii_lowercase();
     let has_term =
@@ -2127,7 +2187,11 @@ fn page_read_unique_links(
         links.push(PageReadLink {
             index,
             score: page_read_match_score(&element.name, query, terms, false)
-                .max(page_read_link_intent_score(destination, terms)),
+                .max(page_read_link_intent_score(destination, terms))
+                .max(page_read_named_context_score(
+                    element.context.as_deref(),
+                    query,
+                )),
             in_viewport: element.in_viewport,
         });
     }
@@ -3214,6 +3278,89 @@ mod tests {
             .contains("Viewport: 1280×720 at 0,900 of 1280×1800"));
         assert!(read.source_truncated);
         assert!(!read.truncated);
+    }
+
+    #[test]
+    fn named_table_query_keeps_all_associated_rows_and_duplicate_values_within_bounds() {
+        let mut operation = observation_operation();
+        operation.observation.elements.clear();
+        operation.observation.content = [
+            ("heading", "main", "Warehouse report"),
+            ("text", "main", "Shipment weights"),
+            ("text", "main > table: Shipment weights", "Shipment weights"),
+            (
+                "text",
+                "main > table: Shipment weights > tr: Shipment",
+                "Shipment",
+            ),
+            (
+                "text",
+                "main > table: Shipment weights > tr: Shipment",
+                "Weight (kg)",
+            ),
+            (
+                "text",
+                "main > table: Shipment weights > tr: Orion",
+                "Orion",
+            ),
+            ("text", "main > table: Shipment weights > tr: Orion", "25"),
+            ("text", "main > table: Shipment weights > tr: Lyra", "Lyra"),
+            ("text", "main > table: Shipment weights > tr: Lyra", "14"),
+            ("text", "main > table: Shipment weights > tr: Vega", "Vega"),
+            ("text", "main > table: Shipment weights > tr: Vega", "25"),
+            ("heading", "main > form: Shipment contact", "Contact"),
+            ("text", "main > form: Shipment contact", "Email address"),
+            (
+                "text",
+                "main > form: Shipment contact",
+                "person@example.test",
+            ),
+        ]
+        .into_iter()
+        .map(|(kind, context, text)| ObservationContent {
+            kind: kind.into(),
+            level: (kind == "heading").then_some(2),
+            context: Some(context.into()),
+            text: text.into(),
+        })
+        .collect();
+        let read = page_read_data(operation.clone(), Some("shipment weights"), 4_000, 100);
+        assert!(read.matched_query);
+        assert!(read.markdown.contains("Orion\n\n25"));
+        assert!(read.markdown.contains("Lyra\n\n14"));
+        assert!(read.markdown.contains("Vega\n\n25"));
+        assert_eq!(read.markdown.matches("\n\n25").count(), 2);
+        assert!(!read.markdown.contains("person@example.test"));
+        assert!(!read.markdown.contains("Email address"));
+        assert_eq!(read.available_content_count, 11);
+        assert_eq!(read.selected_content_count, 11);
+        assert!(!read.truncated);
+        let bounded = page_read_data(operation.clone(), Some("shipment weights"), 4_000, 5);
+        assert_eq!(bounded.selected_content_count, 5);
+        assert_eq!(bounded.available_content_count, 11);
+        assert!(bounded.truncated);
+        let generic = page_read_data(operation, Some("table"), 4_000, 100);
+        assert_eq!(generic.selected_content_count, 0);
+        assert!(!generic.matched_query);
+    }
+
+    #[test]
+    fn named_sections_and_forms_match_names_without_matching_generic_path_roles() {
+        for kind in ["section", "form", "region"] {
+            let context = format!("main > {kind}: Delivery preferences > group: Address");
+            assert!(
+                page_read_named_context_score(Some(&context), Some("DELIVERY preferences")) > 0
+            );
+            assert_eq!(
+                page_read_named_context_score(Some(&context), Some("delivery charges")),
+                0
+            );
+            assert_eq!(
+                page_read_named_context_score(Some(&context), Some("main")),
+                0
+            );
+            assert_eq!(page_read_named_context_score(Some(&context), Some(kind)), 0);
+        }
     }
 
     #[test]
