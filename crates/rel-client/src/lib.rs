@@ -2037,11 +2037,12 @@ fn page_read_query_terms(query: &str) -> Vec<String> {
         .collect::<BTreeSet<_>>();
     let originals = terms.iter().cloned().collect::<Vec<_>>();
     for term in originals {
-        // Keep qualified identifiers intact. Their final component can match a
-        // separately rendered method name, but the qualifier alone must not
-        // turn `Path.copy_into` into a search for every mention of `Path`.
+        // Keep qualified identifiers intact. A distinctive underscored member
+        // can match a separately rendered method name, but neither a qualifier
+        // nor an ordinary member word may broaden the query to generic prose
+        // or controls (`Path.copy` must not match every "Copy" button).
         if let Some((_, member)) = term.rsplit_once('.') {
-            if member.len() >= 2 {
+            if member.contains('_') {
                 terms.insert(member.to_string());
             }
         }
@@ -3597,6 +3598,23 @@ mod tests {
         assert!(!read.markdown.contains("Ordinary example text"));
         assert!(!read.markdown.contains("Archive.move"));
         assert!(!read.markdown.contains("Unrelated move behavior"));
+    }
+
+    #[test]
+    fn qualified_plain_members_do_not_admit_common_controls_or_prose() {
+        let terms = page_read_query_terms("Archive.copy");
+        assert_eq!(terms, ["archive.copy"]);
+        for text in ["Copy", "Copy the example", "Archive.copy_into()"] {
+            assert_eq!(
+                page_read_match_score(text, Some("Archive.copy"), &terms, false),
+                0
+            );
+        }
+        let read = page_read_data(long_reference_operation(), Some("Archive.copy"), 8_000, 100);
+        assert!(read.markdown.contains("Archive.copy("));
+        assert!(read.markdown.contains("platform Z"));
+        assert!(!read.markdown.contains("Ordinary example text"));
+        assert!(read.available_content_count < 20);
     }
 
     #[test]

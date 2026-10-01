@@ -142,8 +142,9 @@ substrings and roles in a retained observation.
 
 Use a specific label, phrase or API identifier when known. Underscores and
 qualified names stay intact: `Archive.copy_into` can match `copy_into`, but does
-not become a broad query for `Archive` or `into`. Exact terms and identifiers
-rank above ordinary word-prefix matches such as `install`/`installation`;
+not become a broad query for `Archive` or `into`. A plain member is not expanded:
+`Archive.copy` does not match an ordinary `Copy` control. Exact terms and
+identifiers rank above ordinary word-prefix matches such as `install`/`installation`;
 repeated boilerplate does not gain rank by repeating the same word. Both
 `read_page` and `read_observation` select relevant content and its surrounding
 context within character and section budgets before arranging it in document
