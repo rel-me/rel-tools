@@ -1262,9 +1262,10 @@ For example, navigate a Session to
 > Find one-way flights from Zurich to London on September 27, 2026, for one adult
 > in economy. Stop when matching flight options are visible.
 
-For a multi-step search like this, select the 96k response token budget in
-**Chat Options**. The default 24k budget can stop before the form is complete;
-Jev and text-helper calls share that budget.
+The response token budget defaults to **Unlimited**. If you previously selected
+a finite budget, choose **Unlimited** in **Chat Options** to remove that response
+cap. Jev and text-helper calls share any explicitly selected budget. Model-call,
+per-call output, and conversation-wide usage limits still apply.
 
 To use a running Debug runtime from a shell, navigate with its bundled `rel`
 CLI, then invoke the same bundle's `rel-harness run --provider jev --model

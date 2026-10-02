@@ -908,10 +908,13 @@ is enforced by the browser operation, so timed-out input is not retried in the
 background. Chat returns a final answer when its model-call limit is reached or
 a browser error code fails twice, including errors marked non-retryable.
 
-By default, each Chat response stops after 8 model calls or a 24,000-token request
-budget. Explicit response settings can change these limits.
-REL uses the preceding model call's reported usage to avoid starting a call
-that would predictably exceed the remaining budget. A retryable browser error
+By default, each Chat response allows 64 model calls with no cumulative response
+token cap. **Chat Options** can set an explicit token budget; previously saved
+choices remain in effect. Select **Unlimited** to remove a saved response token
+cap. Protocol requests may omit `response_token_budget` or pass zero for unlimited
+response tokens. With a positive budget, REL uses the preceding model call's
+reported usage to avoid starting a call that would predictably exceed it.
+Per-call output limits and conversation-wide usage limits still apply. A retryable browser error
 gets one recovery attempt. If the same error recurs through another tool or
 argument set, REL removes browser tools for the rest of that response so the
 model answers from collected evidence or explains the limitation. When an
