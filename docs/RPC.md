@@ -193,6 +193,7 @@ previously stored resources remain available.
 | `POST` | `/v1/observations/{observation_id}/actions` | Perform ordered observation-scoped actions |
 | `POST` | `/v1/observations/{observation_id}/find` | Search stored public observation semantics |
 | `GET` | `/v1/observations/{observation_id}` | Read one retained public semantic snapshot |
+| `GET` | `/v1/model-providers` | Read shared Models connection metadata and default selection |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
@@ -1486,3 +1487,13 @@ command prefix (followed by whitespace or end of text), preventing an Action
 notification from executing as a command on another linked-device delivery.
 Add a descriptive heading to such notification output. Remote replies already
 receive the `REL: ` heading.
+
+## Shared Models metadata
+
+`GET /v1/model-providers` returns `data.version`, `data.connections`, and
+`data.defaultConnectionId`. Each connection has `id`, `name`, `provider`,
+`baseUrl`, and `modelId`. Credentials are never returned. REL supplies its
+current database and explicit Keychain reference to Fritz's shared Models service;
+there is no separate Fritz provider database. Use the shared Models UI to edit
+connections. Chat reads this metadata through the versioned API and reads its
+explicit Keychain reference in Rust; it does not open the REL database directly.

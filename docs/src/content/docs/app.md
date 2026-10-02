@@ -1232,17 +1232,22 @@ and choose **Download**. The installer shows progress and supports cancellation
 and retry. Chats never download weights automatically.
 
 Fritz owns native inference, installation, and the local service. REL retains
-its browser tools, response budgets, and conversation history. Provider storage
-is isolated under the app variant's `Data/Fritz` directory; native model files
-are under `Data/Fritz/Models`. Model weights are not bundled with the app.
+its browser tools, response budgets, and conversation history. REL supplies its
+existing `Data/rel-data.sqlite3` database and variant-specific Keychain reference
+to Fritz. Provider records share that database; no Fritz default storage or
+credential namespace is used. Native model files use the variant's `Data/Models`
+directory. Model weights are not bundled with the app.
 
 The provider-record migration retains the previous local model selection.
-Weights in the former `Data/Models` directory remain untouched; install missing
-weights through the shared Fritz editor before using that model.
+Existing weight files remain untouched. The shared editor reports whether the
+selected model is installed in Fritz's flat cache layout; install missing weights
+there before using that model.
 
-For explicit shell access, use the bundled `fritz` command with `FRITZ_DATA_DIR`,
-`FRITZ_MODELS_DIR`, and `FRITZ_KEYCHAIN_SERVICE` matching that app variant.
-Use `rel-harness chat/run --connection ID` to select a stored Fritz provider.
+Use `rel-harness chat/run --connection ID` to select a stored provider, with
+`REL_AGENT_PORT`, `REL_MODELS_DIRECTORY`, and `REL_MODELS_KEYCHAIN_SERVICE` matching
+the owning app variant. The Debug runtime wrapper supplies those references.
+Connection metadata is read through `GET /v1/model-providers`; credentials stay in
+Rust and Keychain.
 The former `--config` TOML provider registry is retired.
 
 ## Control REL through WhatsApp
