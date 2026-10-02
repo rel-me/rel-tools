@@ -133,12 +133,43 @@ untrusted-data boundary as page text and pixels.
 
 ## Shorthand page workflow
 
-For retrieval without action refs or pixels, use `PageReadRequest`. The helper
-ranks semantic content and links against `query`, caps the Markdown independently
-from the renderer's semantic bound, and reports both truncation states. Reads
-include a bounded page-wide heading outline. Unqueried reads sample content
-across the document rather than returning only its first sections, and the
-result reports available as well as selected content and link counts:
+For retrieval without action refs or pixels, use `PageReadRequest`. Omit `query`
+for an overview when the desired wording is unknown. Unqueried reads sample the
+loaded document, including text without headings. Supply `query` to rank matching
+semantic content and links; it is a lexical relevance filter, not a natural
+language question answering operation. `find_observation` instead searches literal
+substrings and roles in a retained observation.
+
+Dense lists in navigation, sidebar, header or footer regions may be omitted from
+an overview when substantive page content is also present. The output reports
+the omitted block/link counts, and ordinary selection counts still include those
+omissions. A literal query can retrieve the omitted region. Sparse menus and
+pages consisting mainly of navigation keep their usual overview behavior.
+
+Use a specific label, phrase or API identifier when known. Underscores and
+qualified names stay intact: `Archive.copy_into` can match `copy_into`, but does
+not become a broad query for `Archive` or `into`. A plain member is not expanded:
+`Archive.copy` does not match an ordinary `Copy` control. Exact terms and
+identifiers rank above ordinary word-prefix matches such as `install`/`installation`;
+repeated boilerplate does not gain rank by repeating the same word. Both
+`read_page` and `read_observation` select relevant content and its surrounding
+context within character and section budgets before arranging it in document
+order. A late precise match can therefore survive an early page full of weak
+matches.
+
+Reads preserve structural regions, list items, table rows, form text, and explicit
+advertisement labels. Adjacent blocks share their context label once. A heading
+already included in the content is not repeated in the supplementary outline.
+An exact, unambiguous text label can carry its link inline when its structural
+context matches. Duplicate links combine only when their label, destination,
+context, role, state, and value agree; distinct URLs or regions remain separate.
+Each link states whether any identical copy was in the captured viewport.
+
+The Markdown records capture time, document sequence and viewport/document size.
+Source URL, observation ID, selected/available counts, and separate source/output
+truncation flags remain available in the result. Counts describe selected semantic
+records and unique links, not posts, complete page coverage, or content that might
+load after scrolling. Reading does not scroll a dynamic feed to completion.
 
 ```rust
 use rel_client::{PageReadRequest, RelClient};
@@ -514,3 +545,18 @@ seconds of inactivity. `RelClient::ping_session(id)` refreshes the timer without
 browser work and returns `SessionData`. The `Session` response exposes the
 policy and `last_activity_at`. Keep idle clients alive by pinging well before the
 timeout. Session listing and background page traffic do not refresh activity.
+### Query context in semantic reads
+
+Query-directed reads keep a matching block with its nearby heading and preceding
+text label, when available. They include two following blocks and continuing
+prose or list items from the same structural region, stopping at the next text
+label, heading, landmark or region change. This preserves definition descriptions,
+defaults and caveats that follow an API signature. The character and section
+budgets bound these windows; an oversized individual block can still be clipped.
+When the query matches the literal name of a table, section, form or region, its
+captured descendants also qualify.
+This keeps table rows and form values associated with their caption or label,
+even when the values use different words. Matching considers the region name,
+not generic path roles such as `main` or `table`. Query output states how many
+candidate blocks were selected from the captured page; selected/available counts describe that query,
+not complete page coverage. Omit the query when the desired text is unknown.

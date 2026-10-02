@@ -909,9 +909,12 @@ changes apply to the next message in existing chats.
 
 Every native Chat turn also includes the current page URL from its attached
 Session. The default system prompt uses that context for requests such as
-“summarize this page” or “summarize the top 3 links”: it reads the current page,
-identifies the requested links in page order, reads their destinations, and
-then answers. Restoring the default prompt returns to this behavior.
+“summarize this page” or “list these links”. Page identity alone does not establish
+its contents: REL answers from loaded or retained page evidence, preserving page
+order when listing items. It reads linked destinations only when their contents
+are needed and can search within the document without replacing the task with a
+web search. Restoring the default prompt returns to this behavior. Existing
+unmodified defaults upgrade automatically; customized instructions are preserved.
 
 ## Actions
 
@@ -1259,9 +1262,11 @@ For example, navigate a Session to
 > Find one-way flights from Zurich to London on September 27, 2026, for one adult
 > in economy. Stop when matching flight options are visible.
 
-For a multi-step search like this, select the 96k response token budget in
-**Chat Options**. The default 24k budget can stop before the form is complete;
-Jev and text-helper calls share that budget.
+The response token budget defaults to **Unlimited**. If you previously selected
+a finite budget, choose **Unlimited** in **Chat Options** to remove that response
+cap. Jev and text-helper calls share any explicitly selected budget. The shared
+model-call limit and browser action deadlines still apply; REL has no cumulative
+conversation token budget or per-call output cap.
 
 To use a running Debug runtime from a shell, navigate with its bundled `rel`
 CLI, then invoke the same bundle's `rel-harness run --provider jev --model
@@ -1368,11 +1373,12 @@ The assistant can resume the remaining goal without restarting the workflow.
 
 Optional `finish_when` predicates check observable results independently. A
 `verified` result means those predicates passed, not that arbitrary requirements
-were proved. A Jev `done` proposal always requires host verification. Each call
-permits at most 12 decisions, has a 20,000-token local budget, and checks elapsed
-time against 60 seconds before further model decisions or actions; in-flight
-native operations use their normal deadlines. Jev usage counts toward the main
-response and conversation budgets.
+were proved. A Jev `done` proposal always requires host verification. Delegation
+has no separate step, token or elapsed-time budget and no decision-request
+timeout. The `max_steps` argument is removed. Calls share the host's model-call
+limit and any explicitly selected response token budget, reserving one model
+call for host verification. Native operations retain their normal deadlines,
+and observation bounds and repeated-action checks still apply.
 
 Settings writes only nonsecret Keychain service/account references into
 `ai-providers.toml`. The Rust harness reads the helper credential directly from

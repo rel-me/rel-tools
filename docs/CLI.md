@@ -125,8 +125,8 @@ The action response contains a new observation. Old observation refs fail with
 
 `rel read` is the smaller retrieval path for reading and research. It observes
 the current shorthand page, or navigates first when `URL` is supplied, then
-returns query-ranked content and links as bounded Markdown. A compact heading
-outline covers the page, and an unqueried read samples across long documents
+returns query-ranked content and links as bounded Markdown. A supplementary heading
+outline covers headings omitted from the selected content, and an unqueried read samples across loaded documents
 instead of stopping at their first sections. It is always
 semantic-only and does not return action refs or an image. `--max-chars`
 defaults to 12000 (range 512–32768), and `--max-sections` defaults to 24 (range
@@ -137,6 +137,26 @@ are needed:
 rel read https://example.com/docs --query="installation" --max-chars=6000
 rel read --session-id=Session1 --query="current plan"
 ```
+
+Queries preserve underscored and qualified identifiers, so `Archive.copy_into`
+does not broaden into every mention of `Archive`. Exact matches rank above weak
+word prefixes, with nearby descriptions retained within both output limits
+before the selected blocks are arranged in document order. See
+[query context in semantic reads](SDK.md#query-context-in-semantic-reads).
+
+Dense lists in navigation, sidebar, header or footer regions may be omitted from
+an overview when substantive page content is also present. The output reports
+the omitted block/link counts, and ordinary selection counts still include those
+omissions. A literal query can retrieve the omitted region. Sparse menus and
+pages consisting mainly of navigation keep their usual overview behavior.
+
+Omit `--query` for an overview when the desired page wording is unknown. A query
+ranks lexical matches; it does not interpret an arbitrary question. Read output
+preserves context, explicit advertisement labels, source/viewport metadata, and
+separate same-label links to distinct destinations. Counts and truncation flags
+refer to the loaded snapshot, including offscreen semantic content; the command
+does not scroll a feed until every item has loaded.
+
 
 The JSON envelope reports the source URL, title, observation ID, outline and
 selection counts, available content and link counts, whether the query matched,

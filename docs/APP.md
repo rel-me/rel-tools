@@ -887,14 +887,85 @@ open the same setup.
 manage models in Ollama, then use **Refresh Models** in REL to discover them.
 REL’s **Download** action manages REL’s native models.
 
-Each Chat response stops after 12 model calls or a 64,000-token request budget.
-REL uses the preceding model call's reported usage to avoid starting a call
-that would predictably exceed the remaining budget. A retryable browser error
+Chat starts page summaries and inventories with bounded semantic reading. Its
+reading tools can inspect the current page, navigate to a source, and recall
+retained text without loading the same page again. They do not expose click or
+input tools. Omit a specific search phrase when asking for a general overview;
+Chat uses a focused query only when it has a useful literal label or fact to find.
+Loaded-page coverage and output limits remain explicit, including on dynamic feeds.
+
+During an active reading task, Chat retains selections from up to eight source
+snapshots. Complementary lookups from the same snapshot stay together, so reading
+stock after an identifier does not discard the identifier. Each source can use
+up to 8,000 characters within a shared 16,000-character working set, including
+source and coverage information. Smaller selections leave room for longer ones;
+clipping and omitted selections remain explicit. The latest tool result is not
+duplicated. Images, raw HTML and action references are not retained there.
+A new user turn or known page mutation clears these excerpts. They describe
+captured evidence, not a guarantee that a page remains unchanged.
+
+Chat manages excerpt sizes itself. Its model-facing reading tools accept a
+source and optional literal query; character and section controls remain
+available in the public SDK and RPC reader. Comparisons use already available
+facts directly and recall sources when requested facts are missing. Repeating
+an identical recall once restores the retained snapshot without loading a page;
+further identical repetitions stop. Unknown snapshot IDs return a correction
+hint without discarding unrelated evidence. Control-reference search is exposed
+for interaction tasks, while reading tasks search source text through recall.
+
+HTML is reserved for explicit source inspection. Automatic observation stays
+semantic for nonvisual work, even when the page contains SVGs, canvas elements or
+unnamed controls. A visual task, or an explicit promotion to inspect pixels, can
+request a bounded screenshot when the selected model supports image tool results.
+Switching to interaction makes controls available through scoped native references.
+
+Element references belong to the observation that displayed them. A text read
+provides a searchable observation handle, but Chat must find its controls before
+acting. After a stale-reference error, Chat observes the visible page again.
+Current-page metadata cannot repair an element reference. Action batches have a
+15-second default deadline plus explicit waits, capped at 60 seconds. The deadline
+is enforced by the browser operation, so timed-out input is not retried in the
+background. Chat returns a final answer when its model-call limit is reached or
+a browser error code fails twice, including errors marked non-retryable.
+
+By default, each Chat response allows 64 model calls with no cumulative response
+token cap. **Chat Options** can set an explicit token budget; previously saved
+choices remain in effect. Select **Unlimited** to remove a saved response token
+cap. Protocol requests may omit `response_token_budget` or pass zero for unlimited
+response tokens. With a positive budget, REL uses the preceding model call's
+reported usage to avoid starting a call that would predictably exceed it.
+REL imposes no per-call output cap or cumulative conversation token budget.
+Provider/model ceilings and browser action deadlines still apply. A retryable browser error
 gets one recovery attempt. If the same error recurs through another tool or
 argument set, REL removes browser tools for the rest of that response so the
 model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
+
+Output caps are omitted for OpenAI, OpenAI-compatible, OpenRouter, Gemini and
+Ollama requests. Anthropic requires `max_tokens`, so REL uses the selected
+endpoint's advertised model ceiling from `/v1/models/{model}`. An endpoint that
+cannot supply a positive ceiling returns an explicit setup error. Local chat
+models can use the remaining context capacity instead of a fixed output cap.
+The synthetic provider-compatibility probe remains bounded.
+
+## GPT-6 reasoning and estimated costs
+
+The profile model picker supports **None**, **Low**, **Medium**, **High**, **XHigh**
+and **Max** reasoning for `gpt-6-luna` and `gpt-6-sol`. `gpt-6-astra` and
+`gpt-6.1-sol` support **Low** through **Max**. Date snapshots use their family's
+settings. A restored **Minimal** setting, or **None** for a model without that
+option, becomes **Low**. Selecting a model does not mark it REL-verified.
+
+REL estimates Standard-tier GPT-6 costs from each call's reported usage. Rates
+per million input/cached-input/output tokens are $0.10/$0.01/$0.50 for Luna,
+$2/$0.20/$10 for Sol, $10/$1/$50 for Astra and $2/$0.10/$10 for 6.1 Sol. Cache
+writes use 1.25 times the input rate. Calls above 272,000 input tokens use twice
+the input/cache rate and 1.5 times the output rate. These estimates use the
+[OpenAI model rates](https://developers.openai.com/api/docs/models/gpt-6-luna)
+and [cache accounting](https://developers.openai.com/api/docs/guides/prompt-caching).
+Provider-reported cost takes precedence. Restored logs containing only aggregate
+usage cannot resolve per-call thresholds and show no GPT-6 estimate.
 
 ## Streaming responses and tool activity
 
@@ -948,9 +1019,12 @@ changes apply to the next message in existing chats.
 
 Every native Chat turn also includes the current page URL from its attached
 Session. The default system prompt uses that context for requests such as
-“summarize this page” or “summarize the top 3 links”: it reads the current page,
-identifies the requested links in page order, reads their destinations, and
-then answers. Restoring the default prompt returns to this behavior.
+“summarize this page” or “list these links”. Page identity alone does not establish
+its contents: REL answers from loaded or retained page evidence, preserving page
+order when listing items. It reads linked destinations only when their contents
+are needed and can search within the document without replacing the task with a
+web search. Restoring the default prompt returns to this behavior. Existing
+unmodified defaults upgrade automatically; customized instructions are preserved.
 
 ## Actions
 
@@ -1290,11 +1364,12 @@ The assistant can resume the remaining goal without restarting the workflow.
 
 Optional `finish_when` predicates check observable results independently. A
 `verified` result means those predicates passed, not that arbitrary requirements
-were proved. A Jev `done` proposal always requires host verification. Each call
-permits at most 12 decisions, has a 20,000-token local budget, and checks elapsed
-time against 60 seconds before further model decisions or actions; in-flight
-native operations use their normal deadlines. Jev usage counts toward the main
-response and conversation budgets.
+were proved. A Jev `done` proposal always requires host verification. Delegation
+has no separate step, token or elapsed-time budget and no decision-request
+timeout. The `max_steps` argument is removed. Calls share the host's model-call
+limit and any explicitly selected response token budget, reserving one model
+call for host verification. Native operations retain their normal deadlines,
+and observation bounds and repeated-action checks still apply.
 
 Settings writes only nonsecret Keychain service/account references into
 `ai-providers.toml`. The Rust harness reads the Jev credential directly from
