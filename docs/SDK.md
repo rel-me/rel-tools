@@ -165,6 +165,27 @@ context matches. Duplicate links combine only when their label, destination,
 context, role, state, and value agree; distinct URLs or regions remain separate.
 Each link states whether any identical copy was in the captured viewport.
 
+Table row markers and their captured cells form an intact record when their
+context paths identify the row. List items and descendants in a named child
+article/list-item context are selected together. Matching any member selects
+that record; a record that cannot fit the character or section budget is omitted
+whole, with an omission marker. `max_sections` and selected/available counts still
+count captured content blocks: a row containing three blocks needs three slots.
+Query and field selections also retain a table's captured caption/name and first
+captured row as explicitly labeled leading context. The first row is not assumed
+to be a header: cell order and text remain verbatim, including in headerless
+tables. A match in that leading context admits the captured table's remaining
+rows when budgets allow, so a column-label query can return associated values.
+Rows and their required leading context must fit together; omitted rows remain
+visible in the omission marker and coverage counts. Explicit new table markers
+keep identically named tables separate. Overview sampling remains unchanged.
+
+Ordinary prose retains bounded excerpts. Missing structural boundaries are not
+inferred from wording: the current capture represents definition terms and
+descriptions as ordinary text, and does not distinguish header cells from data
+cells. Source clipping can already have removed part of a record; intact selection
+does not restore uncaptured content or override `source_truncated`.
+
 The Markdown records capture time, document sequence and viewport/document size.
 Source URL, observation ID, selected/available counts, and separate source/output
 truncation flags remain available in the result. Counts describe selected semantic
@@ -339,6 +360,49 @@ creating one only when none exists; later unscoped requests use the most recent
 shorthand page. Session-scoped shorthand pages let clients operate concurrently
 across sessions. The state is cleared when the agent restarts or the session
 closes. Use explicit page methods for concurrent work within one session.
+
+### Reading an already captured snapshot
+
+`ObservationOperationData::read(query, max_chars, max_sections)` formats a captured
+observation locally with the same matching, standard Markdown prelude and coverage
+as `RelClient::read_observation`. Pass `None` for an overview or `Some(query)` for a
+query-directed read. It uses the usual character and section limits and makes no
+RPC calls. A caller can fetch one observation with `get_observation`, then produce
+both ordinary reads and literal field selections from that same immutable snapshot.
+
+### Literal field selection from a captured snapshot
+
+`ObservationOperationData::read_field(field, max_chars, max_sections)` is a pure
+formatter: retrieve one observation, then select several fields locally without
+additional RPC calls. It matches the full literal phrase after case and whitespace
+normalization, preserving punctuation and identifier boundaries. It performs no
+keyword splitting or synonym matching. For example, `Price (incl. tax)` does not
+match `Price (excl. tax)`, and `Archive.copy` does not match `Archive.copy_into`.
+Field names must contain 1–128 characters after trimming; the usual character
+and section limits apply.
+
+```rust
+let snapshot = client.get_observation("observation-id")?;
+for field in ["Price (incl. tax)", "UPC", "Availability"] {
+    let selected = snapshot.data.read_field(field, 4_000, 100)?;
+    println!("{}: {}", field, selected.markdown);
+}
+```
+
+Unlike ordinary read Markdown, field Markdown contains only selected record and
+context text, plus missing-match or budget-omission markers. It omits the page
+title/source/snapshot prelude, supplementary heading outline and standalone link
+list. The returned `PageReadData` still includes page identity, source URL, title,
+observation ID and coverage flags, so callers can render source attribution once
+around a field bundle. `matched_query` means the literal field was found, even
+when its entire record was omitted by the budget; it does not guarantee a value
+was returned. No match describes the captured snapshot only. Atomic field matches
+retain their records plus the leading table context described above; matching a
+leading row can return other captured rows from that table. Context is not an
+additional literal field match, and the first captured row is not identified as a
+header. Other neighboring records are excluded; ordinary prose still uses the
+existing contextual window. Ordinary `read_page` and `read_observation`
+queries keep their relevance-based matching and standard Markdown prelude.
 
 ## Capture streaming
 
@@ -552,7 +616,8 @@ text label, when available. They include two following blocks and continuing
 prose or list items from the same structural region, stopping at the next text
 label, heading, landmark or region change. This preserves definition descriptions,
 defaults and caveats that follow an API signature. The character and section
-budgets bound these windows; an oversized individual block can still be clipped.
+budgets bound these windows; an oversized prose block can still be clipped.
+Structurally identified table/list records are selected intact or omitted whole.
 When the query matches the literal name of a table, section, form or region, its
 captured descendants also qualify.
 This keeps table rows and form values associated with their caption or label,
