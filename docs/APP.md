@@ -882,16 +882,24 @@ input tools. Omit a specific search phrase when asking for a general overview;
 Chat uses a focused query only when it has a useful literal label or fact to find.
 Loaded-page coverage and output limits remain explicit, including on dynamic feeds.
 
-During an active reading task, Chat keeps up to three selected semantic excerpts
-from the current response so it can combine facts from successive reads without
-repeating queries. Each excerpt can use up to 8,000 characters within a shared
-16,000-character limit including source context. Smaller excerpts leave room for
-longer sources; all retained excerpts receive space when Chat finalizes an answer,
-and any clipping remains explicit. The latest tool result is
-not duplicated in this working set. Images, raw HTML and action references are
-not retained there. A new user turn or a known page mutation clears these
-excerpts. They describe captured evidence and do not guarantee that the page is
-still unchanged; current facts may require a fresh read.
+During an active reading task, Chat retains selections from up to eight source
+snapshots. Complementary lookups from the same snapshot stay together, so reading
+stock after an identifier does not discard the identifier. Each source can use
+up to 8,000 characters within a shared 16,000-character working set, including
+source and coverage information. Smaller selections leave room for longer ones;
+clipping and omitted selections remain explicit. The latest tool result is not
+duplicated. Images, raw HTML and action references are not retained there.
+A new user turn or known page mutation clears these excerpts. They describe
+captured evidence, not a guarantee that a page remains unchanged.
+
+Chat manages excerpt sizes itself. Its model-facing reading tools accept a
+source and optional literal query; character and section controls remain
+available in the public SDK and RPC reader. Comparisons use already available
+facts directly and recall sources when requested facts are missing. Repeating
+an identical recall once restores the retained snapshot without loading a page;
+further identical repetitions stop. Unknown snapshot IDs return a correction
+hint without discarding unrelated evidence. Control-reference search is exposed
+for interaction tasks, while reading tasks search source text through recall.
 
 HTML is reserved for explicit source inspection. Automatic observation stays
 semantic for nonvisual work, even when the page contains SVGs, canvas elements or
