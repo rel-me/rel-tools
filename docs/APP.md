@@ -913,6 +913,17 @@ further identical repetitions stop. Unknown snapshot IDs return a correction
 hint without discarding unrelated evidence. Control-reference search is exposed
 for interaction tasks, while reading tasks search source text through recall.
 
+For several missing named fields, Chat can recall literal field labels together
+from the same saved snapshots. Each source is fetched once and results keep the
+field, matching passages and coverage together. Matching ignores case and repeated
+whitespace while preserving punctuation and identifier boundaries. A matched label
+does not prove that its value is complete. A missing label applies only to captured
+text; alternative wording or uncaptured content can still contain the information.
+Field batches contain up to eight labels and 32,768 output characters; ordinary
+passage recall keeps its 12,000-character output bound. These are evidence-payload
+bounds, not response token limits. Public reader selection preserves identifiable
+table rows and list records, omitting a whole record when it cannot fit.
+
 HTML is reserved for explicit source inspection. Automatic observation stays
 semantic for nonvisual work, even when the page contains SVGs, canvas elements or
 unnamed controls. A visual task, or an explicit promotion to inspect pixels, can
