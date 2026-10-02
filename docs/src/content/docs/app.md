@@ -1264,8 +1264,9 @@ For example, navigate a Session to
 
 The response token budget defaults to **Unlimited**. If you previously selected
 a finite budget, choose **Unlimited** in **Chat Options** to remove that response
-cap. Jev and text-helper calls share any explicitly selected budget. Model-call,
-per-call output, and conversation-wide usage limits still apply.
+cap. Jev and text-helper calls share any explicitly selected budget. The shared
+model-call limit and browser action deadlines still apply; REL has no cumulative
+conversation token budget or per-call output cap.
 
 To use a running Debug runtime from a shell, navigate with its bundled `rel`
 CLI, then invoke the same bundle's `rel-harness run --provider jev --model
@@ -1372,11 +1373,12 @@ The assistant can resume the remaining goal without restarting the workflow.
 
 Optional `finish_when` predicates check observable results independently. A
 `verified` result means those predicates passed, not that arbitrary requirements
-were proved. A Jev `done` proposal always requires host verification. Each call
-permits at most 12 decisions, has a 20,000-token local budget, and checks elapsed
-time against 60 seconds before further model decisions or actions; in-flight
-native operations use their normal deadlines. Jev usage counts toward the main
-response and conversation budgets.
+were proved. A Jev `done` proposal always requires host verification. Delegation
+has no separate step, token or elapsed-time budget and no decision-request
+timeout. The `max_steps` argument is removed. Calls share the host's model-call
+limit and any explicitly selected response token budget, reserving one model
+call for host verification. Native operations retain their normal deadlines,
+and observation bounds and repeated-action checks still apply.
 
 Settings writes only nonsecret Keychain service/account references into
 `ai-providers.toml`. The Rust harness reads the helper credential directly from

@@ -914,12 +914,20 @@ choices remain in effect. Select **Unlimited** to remove a saved response token
 cap. Protocol requests may omit `response_token_budget` or pass zero for unlimited
 response tokens. With a positive budget, REL uses the preceding model call's
 reported usage to avoid starting a call that would predictably exceed it.
-Per-call output limits and conversation-wide usage limits still apply. A retryable browser error
+REL imposes no per-call output cap or cumulative conversation token budget.
+Provider/model ceilings and browser action deadlines still apply. A retryable browser error
 gets one recovery attempt. If the same error recurs through another tool or
 argument set, REL removes browser tools for the rest of that response so the
 model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
+
+Output caps are omitted for OpenAI, OpenAI-compatible, OpenRouter, Gemini and
+Ollama requests. Anthropic requires `max_tokens`, so REL uses the selected
+endpoint's advertised model ceiling from `/v1/models/{model}`. An endpoint that
+cannot supply a positive ceiling returns an explicit setup error. Local chat
+models can use the remaining context capacity instead of a fixed output cap.
+The synthetic provider-compatibility probe remains bounded.
 
 ## GPT-6 reasoning and estimated costs
 
@@ -1336,11 +1344,12 @@ The assistant can resume the remaining goal without restarting the workflow.
 
 Optional `finish_when` predicates check observable results independently. A
 `verified` result means those predicates passed, not that arbitrary requirements
-were proved. A Jev `done` proposal always requires host verification. Each call
-permits at most 12 decisions, has a 20,000-token local budget, and checks elapsed
-time against 60 seconds before further model decisions or actions; in-flight
-native operations use their normal deadlines. Jev usage counts toward the main
-response and conversation budgets.
+were proved. A Jev `done` proposal always requires host verification. Delegation
+has no separate step, token or elapsed-time budget and no decision-request
+timeout. The `max_steps` argument is removed. Calls share the host's model-call
+limit and any explicitly selected response token budget, reserving one model
+call for host verification. Native operations retain their normal deadlines,
+and observation bounds and repeated-action checks still apply.
 
 Settings writes only nonsecret Keychain service/account references into
 `ai-providers.toml`. The Rust harness reads the Jev credential directly from
