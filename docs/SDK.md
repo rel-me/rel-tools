@@ -361,6 +361,15 @@ shorthand page. Session-scoped shorthand pages let clients operate concurrently
 across sessions. The state is cleared when the agent restarts or the session
 closes. Use explicit page methods for concurrent work within one session.
 
+### Reading an already captured snapshot
+
+`ObservationOperationData::read(query, max_chars, max_sections)` formats a captured
+observation locally with the same matching, standard Markdown prelude and coverage
+as `RelClient::read_observation`. Pass `None` for an overview or `Some(query)` for a
+query-directed read. It uses the usual character and section limits and makes no
+RPC calls. A caller can fetch one observation with `get_observation`, then produce
+both ordinary reads and literal field selections from that same immutable snapshot.
+
 ### Literal field selection from a captured snapshot
 
 `ObservationOperationData::read_field(field, max_chars, max_sections)` is a pure

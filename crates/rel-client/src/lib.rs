@@ -1545,6 +1545,19 @@ pub struct ObservationOperationData {
 }
 
 impl ObservationOperationData {
+    /// Format this captured observation as ordinary query-directed Markdown,
+    /// with the same matching, prelude and coverage as `RelClient::read_observation`.
+    /// This is a pure operation and makes no RPC calls.
+    pub fn read(
+        &self,
+        query: Option<&str>,
+        max_chars: usize,
+        max_sections: usize,
+    ) -> Result<PageReadData, ClientError> {
+        let (max_chars, max_sections) = page_read_limits(Some(max_chars), Some(max_sections))?;
+        Ok(page_read_data(self.clone(), query, max_chars, max_sections))
+    }
+
     /// Select a literal field from this already captured observation without RPC.
     /// Unlike ordinary reads, Markdown contains only selected record/context text
     /// and missing/omission markers. Source metadata remains in `PageReadData`.
@@ -4294,6 +4307,7 @@ mod tests {
         }
         for (chars, sections) in [(511, 100), (32_769, 100), (512, 0), (512, 101)] {
             assert!(operation.read_field("UPC", chars, sections).is_err());
+            assert!(operation.read(Some("UPC"), chars, sections).is_err());
         }
     }
 
@@ -4701,27 +4715,42 @@ mod tests {
 
     #[test]
     fn retained_observation_can_be_read_without_navigation() {
+        let operation = observation_operation();
+        let queries = [None, Some("install"), Some("missing-field"), Some("  ")];
         let response_body = json!({
             "status": "ok",
             "request_id": "request-1",
-            "data": observation_operation()
+            "data": operation
         });
-        let (base_url, handle) = start_test_server(1, move |_, _| {
+        let (base_url, handle) = start_test_server(queries.len(), move |_, _| {
             http_json(200, "request-1", response_body.clone())
         });
-        let response = RelClient::new(base_url)
-            .read_observation(
-                "observation-1",
-                &ObservationReadRequest {
-                    query: Some("install".to_string()),
-                    ..ObservationReadRequest::default()
-                },
-            )
-            .unwrap();
-        assert!(response.data.markdown.contains("Install the package"));
+        let client = RelClient::new(base_url);
+        for query in queries {
+            let response = client
+                .read_observation(
+                    "observation-1",
+                    &ObservationReadRequest {
+                        query: query.map(str::to_string),
+                        max_chars: Some(4_000),
+                        max_sections: Some(20),
+                    },
+                )
+                .unwrap();
+            let local = operation.read(query, 4_000, 20).unwrap();
+            assert_eq!(local, response.data);
+            if query == Some("install") {
+                assert!(local.markdown.contains("Install the package"));
+                assert!(local.markdown.contains("Source:"));
+                assert!(local.markdown.contains("Snapshot:"));
+            }
+        }
         let requests = handle.join().unwrap();
-        assert_eq!(requests[0].method, "GET");
-        assert_eq!(requests[0].path, "/v1/observations/observation-1");
+        assert_eq!(requests.len(), queries.len());
+        for request in requests {
+            assert_eq!(request.method, "GET");
+            assert_eq!(request.path, "/v1/observations/observation-1");
+        }
     }
 
     #[test]
