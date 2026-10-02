@@ -144,6 +144,12 @@ word prefixes, with nearby descriptions retained within both output limits
 before the selected blocks are arranged in document order. See
 [query context in semantic reads](SDK.md#query-context-in-semantic-reads).
 
+Dense lists in navigation, sidebar, header or footer regions may be omitted from
+an overview when substantive page content is also present. The output reports
+the omitted block/link counts, and ordinary selection counts still include those
+omissions. A literal query can retrieve the omitted region. Sparse menus and
+pages consisting mainly of navigation keep their usual overview behavior.
+
 Omit `--query` for an overview when the desired page wording is unknown. A query
 ranks lexical matches; it does not interpret an arbitrary question. Read output
 preserves context, explicit advertisement labels, source/viewport metadata, and

@@ -1648,6 +1648,26 @@ fn page_read_data(
             (index, score)
         })
         .collect::<Vec<_>>();
+    // A dense auxiliary menu must not consume an overview's content budget.
+    // Keep this structural: no site, class, URL or content-word heuristics.
+    // Sparse menus and pages consisting primarily of navigation stay intact.
+    let auxiliary_count = observation
+        .content
+        .iter()
+        .filter(|item| page_read_auxiliary_list(item.context.as_deref()))
+        .count();
+    let compact_auxiliary = !query_active
+        && auxiliary_count >= 12
+        && observation.content.len().saturating_sub(auxiliary_count) >= 8;
+    let overview_indices = observation
+        .content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| {
+            (!compact_auxiliary || !page_read_auxiliary_list(item.context.as_deref()))
+                .then_some(index)
+        })
+        .collect::<Vec<_>>();
     let content_matched = query_active && scored_content.iter().any(|(_, score)| *score > 0);
     let mut content = if content_matched {
         let mut ranked = scored_content
@@ -1658,7 +1678,14 @@ fn page_read_data(
         ranked.sort_by_key(|(index, score)| (std::cmp::Reverse(*score), *index));
         page_read_matched_content_with_context(&observation.content, &ranked)
     } else if !query_active {
-        page_read_coverage_content(&observation.content, max_sections)
+        let overview = overview_indices
+            .iter()
+            .map(|index| observation.content[*index].clone())
+            .collect::<Vec<_>>();
+        page_read_coverage_content(&overview, max_sections)
+            .into_iter()
+            .map(|(index, score)| (overview_indices[index], score))
+            .collect()
     } else {
         Vec::new()
     };
@@ -1680,6 +1707,12 @@ fn page_read_data(
         links.clear();
     }
     let available_link_count = links.len();
+    if compact_auxiliary {
+        links.retain(|link| {
+            !page_read_auxiliary_list(observation.elements[link.index].context.as_deref())
+        });
+    }
+    let omitted_auxiliary_links = available_link_count - links.len();
     links.truncate(max_sections);
 
     let mut markdown = String::new();
@@ -1728,6 +1761,11 @@ fn page_read_data(
         ),
         max_chars,
     );
+
+    if compact_auxiliary {
+        push_page_read_block(&mut markdown, &format!(
+            "Overview omits {auxiliary_count} navigation/sidebar list blocks and {omitted_auxiliary_links} links. These auxiliary regions remain available through a literal query; omission is included in selection counts."), max_chars);
+    }
 
     if query_active {
         // Budget the ranked windows before arranging their retained blocks for
@@ -1943,6 +1981,20 @@ fn page_read_contexts_overlap(left: Option<&str>, right: Option<&str>) -> bool {
         }
         _ => true,
     }
+}
+
+fn page_read_auxiliary_list(context: Option<&str>) -> bool {
+    let Some(context) = page_read_context(context) else {
+        return false;
+    };
+    let roles = context
+        .split(" > ")
+        .map(|part| part.split(':').next().unwrap_or_default().trim())
+        .collect::<Vec<_>>();
+    matches!(
+        roles.first(),
+        Some(&"navigation" | &"aside" | &"header" | &"footer")
+    ) && roles.contains(&"list")
 }
 
 fn page_read_coverage_content(content: &[ObservationContent], limit: usize) -> Vec<(usize, usize)> {
@@ -3475,6 +3527,85 @@ mod tests {
             );
             assert_eq!(page_read_named_context_score(Some(&context), Some(kind)), 0);
         }
+    }
+
+    #[test]
+    fn dense_auxiliary_lists_do_not_displace_primary_records_or_lose_query_access() {
+        let mut operation = observation_operation();
+        let template = operation.observation.elements[0].clone();
+        operation.observation.content.clear();
+        operation.observation.elements.clear();
+        for index in 0..48 {
+            let name = format!("Navigation destination {index}");
+            let context = Some("aside > list > list".to_string());
+            operation.observation.content.push(ObservationContent {
+                kind: "listitem".into(),
+                level: None,
+                context: context.clone(),
+                text: name.clone(),
+            });
+            let mut link = template.clone();
+            link.name = name;
+            link.context = context;
+            link.destination = Some(format!("https://example.test/navigation/{index}"));
+            operation.observation.elements.push(link);
+        }
+        for index in 0..10 {
+            let name = format!("Record {index}: value {}", 30 - index);
+            let context = Some("section > list".to_string());
+            operation.observation.content.push(ObservationContent {
+                kind: "listitem".into(),
+                level: None,
+                context: context.clone(),
+                text: name.clone(),
+            });
+            let mut link = template.clone();
+            link.name = name;
+            link.context = context;
+            link.destination = Some(format!("https://example.test/record/{index}"));
+            operation.observation.elements.push(link);
+        }
+        operation.observation.content.push(ObservationContent {
+            kind: "paragraph".into(),
+            level: None,
+            context: Some("aside: Advertisement".into()),
+            text: "Sponsored offer".into(),
+        });
+        let read = page_read_data(operation.clone(), None, 3_000, 20);
+        assert!(read
+            .markdown
+            .contains("Overview omits 48 navigation/sidebar list blocks and 48 links"));
+        assert!(read.markdown.contains("Sponsored offer"));
+        assert!(!read.markdown.contains("Navigation destination"));
+        for index in 0..10 {
+            assert!(read
+                .markdown
+                .contains(&format!("Record {index}: value {}", 30 - index)));
+            assert!(read
+                .markdown
+                .contains(&format!("https://example.test/record/{index}")));
+        }
+        assert_eq!(read.selected_content_count, 11);
+        assert_eq!(read.available_content_count, 59);
+        assert!(read.truncated);
+        assert!(!read.source_truncated);
+        let query = page_read_data(
+            operation.clone(),
+            Some("Navigation destination 47"),
+            3_000,
+            20,
+        );
+        assert!(query
+            .markdown
+            .contains("https://example.test/navigation/47"));
+        assert!(!query.markdown.contains("Overview omits"));
+        // A navigation directory with no substantive primary region is itself
+        // useful content, not auxiliary clutter.
+        operation.observation.content.truncate(48);
+        operation.observation.elements.truncate(48);
+        let directory = page_read_data(operation, None, 3_000, 20);
+        assert!(!directory.markdown.contains("Overview omits"));
+        assert!(directory.markdown.contains("Navigation destination"));
     }
 
     #[test]

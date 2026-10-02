@@ -140,6 +140,12 @@ semantic content and links; it is a lexical relevance filter, not a natural
 language question answering operation. `find_observation` instead searches literal
 substrings and roles in a retained observation.
 
+Dense lists in navigation, sidebar, header or footer regions may be omitted from
+an overview when substantive page content is also present. The output reports
+the omitted block/link counts, and ordinary selection counts still include those
+omissions. A literal query can retrieve the omitted region. Sparse menus and
+pages consisting mainly of navigation keep their usual overview behavior.
+
 Use a specific label, phrase or API identifier when known. Underscores and
 qualified names stay intact: `Archive.copy_into` can match `copy_into`, but does
 not become a broad query for `Archive` or `into`. A plain member is not expanded:
