@@ -171,6 +171,15 @@ article/list-item context are selected together. Matching any member selects
 that record; a record that cannot fit the character or section budget is omitted
 whole, with an omission marker. `max_sections` and selected/available counts still
 count captured content blocks: a row containing three blocks needs three slots.
+Query and field selections also retain a table's captured caption/name and first
+captured row as explicitly labeled leading context. The first row is not assumed
+to be a header: cell order and text remain verbatim, including in headerless
+tables. A match in that leading context admits the captured table's remaining
+rows when budgets allow, so a column-label query can return associated values.
+Rows and their required leading context must fit together; omitted rows remain
+visible in the omission marker and coverage counts. Explicit new table markers
+keep identically named tables separate. Overview sampling remains unchanged.
+
 Ordinary prose retains bounded excerpts. Missing structural boundaries are not
 inferred from wording: the current capture represents definition terms and
 descriptions as ordinary text, and does not distinguish header cells from data
@@ -378,9 +387,12 @@ list. The returned `PageReadData` still includes page identity, source URL, titl
 observation ID and coverage flags, so callers can render source attribution once
 around a field bundle. `matched_query` means the literal field was found, even
 when its entire record was omitted by the budget; it does not guarantee a value
-was returned. No match describes the captured snapshot only. An atomic field
-match does not expand into unrelated neighboring records; ordinary prose still
-uses the existing contextual window. Ordinary `read_page` and `read_observation`
+was returned. No match describes the captured snapshot only. Atomic field matches
+retain their records plus the leading table context described above; matching a
+leading row can return other captured rows from that table. Context is not an
+additional literal field match, and the first captured row is not identified as a
+header. Other neighboring records are excluded; ordinary prose still uses the
+existing contextual window. Ordinary `read_page` and `read_observation`
 queries keep their relevance-based matching and standard Markdown prelude.
 
 ## Capture streaming

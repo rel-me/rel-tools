@@ -915,10 +915,13 @@ for interaction tasks, while reading tasks search source text through recall.
 
 For several missing named fields, Chat can recall literal field labels together
 from the same saved snapshots. Each source is fetched once and results keep the
-field, matching passages and coverage together. Matching ignores case and repeated
+field, matching passages and coverage together. Complete matched fields take
+priority over broad excerpts and unsuccessful label guesses in the working set;
+any field that cannot fit is omitted whole with explicit status. Matching ignores case and repeated
 whitespace while preserving punctuation and identifier boundaries. A matched label
 does not prove that its value is complete. A missing label applies only to captured
-text; alternative wording or uncaptured content can still contain the information.
+content blocks and named contexts; alternative wording, control-only values or
+uncaptured content can still contain the information.
 Field batches contain up to eight labels and 32,768 output characters; ordinary
 passage recall keeps its 12,000-character output bound. These are evidence-payload
 bounds, not response token limits. Public reader selection preserves identifiable

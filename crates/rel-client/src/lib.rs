@@ -1723,7 +1723,7 @@ fn page_read_data_with_mode(
                 .then_some(index)
         })
         .collect::<Vec<_>>();
-    let units = page_read_units(&observation.content);
+    let mut units = page_read_units(&observation.content);
     let mut unit_for_index = vec![0; observation.content.len()];
     for (unit_index, unit) in units.iter().enumerate() {
         for index in &unit.indices {
@@ -1787,18 +1787,57 @@ fn page_read_data_with_mode(
             seen_units.insert(unit).then_some((unit, score))
         })
         .collect::<Vec<_>>();
+    // The capture does not distinguish header cells from data cells. Preserve
+    // the first captured row verbatim as context, without assigning it a role.
+    let tables = if query_active {
+        page_read_tables(&observation.content, &units)
+    } else {
+        Vec::new()
+    };
+    let mut table_for_unit = vec![None; units.len()];
+    for (table_index, table) in tables.iter().enumerate() {
+        for unit in &table.units {
+            table_for_unit[*unit] = Some(table_index);
+        }
+        if table.leading.iter().any(|unit| {
+            units[*unit]
+                .indices
+                .iter()
+                .any(|index| scored_content[*index].1 > 0)
+        }) {
+            // A column label may appear only in the leading row. Its small
+            // captured table supplies the associated rows when budgets permit.
+            for unit in &table.units {
+                if seen_units.insert(*unit) {
+                    content.push((*unit, 0));
+                }
+            }
+        }
+    }
+    let mut available_units = content
+        .iter()
+        .map(|(unit, _)| *unit)
+        .collect::<BTreeSet<_>>();
+    for (unit, _) in &content {
+        if let Some(table) = table_for_unit[*unit].map(|index| &tables[index]) {
+            for leading in &table.leading {
+                available_units.insert(*leading);
+                units[*leading].table_context = true;
+            }
+        }
+    }
     let available_content_count = if query_active {
-        content
+        available_units
             .iter()
-            .map(|(unit, _)| units[*unit].indices.len())
+            .map(|unit| units[*unit].indices.len())
             .sum()
     } else {
         observation.content.len()
     };
     let available_atomic = if query_active {
-        content
+        available_units
             .iter()
-            .filter(|(unit, _)| units[*unit].atomic)
+            .filter(|unit| units[**unit].atomic)
             .count()
     } else {
         units
@@ -1895,28 +1934,45 @@ fn page_read_data_with_mode(
         // windows keep their existing bounded-block behavior.
         let mut remaining_chars = content_budget.saturating_sub(markdown.chars().count());
         let mut retained = 0;
-        content.retain(|(unit_index, _)| {
-            let unit = &units[*unit_index];
-            if retained + unit.indices.len() > max_sections {
-                return false;
+        let mut selected = BTreeSet::new();
+        for (unit_index, _) in &content {
+            let mut bundle = table_for_unit[*unit_index]
+                .map(|table| tables[table].leading.clone())
+                .unwrap_or_default();
+            if !bundle.contains(unit_index) {
+                bundle.push(*unit_index);
             }
-            let (block, _, _) = page_read_unit_markdown(
-                unit,
-                &observation.content,
-                &observation.elements,
-                &links,
-                max_chars,
-                Some("previous context"),
-                &BTreeSet::new(),
-            );
-            let cost = block.chars().count() + 2;
+            bundle.retain(|unit| !selected.contains(unit));
+            let sections = bundle
+                .iter()
+                .map(|unit| units[*unit].indices.len())
+                .sum::<usize>();
+            if retained + sections > max_sections {
+                continue;
+            }
+            let cost = bundle
+                .iter()
+                .map(|unit| {
+                    let (block, _, _) = page_read_unit_markdown(
+                        &units[*unit],
+                        &observation.content,
+                        &observation.elements,
+                        &links,
+                        max_chars,
+                        Some("previous context"),
+                        &BTreeSet::new(),
+                    );
+                    block.chars().count() + 2
+                })
+                .sum::<usize>();
             if cost > remaining_chars {
-                return false;
+                continue;
             }
             remaining_chars -= cost;
-            retained += unit.indices.len();
-            true
-        });
+            retained += sections;
+            selected.extend(bundle);
+        }
+        content = selected.into_iter().map(|unit| (unit, 0)).collect();
         content.sort_by_key(|(unit, _)| units[*unit].indices[0]);
     }
 
@@ -1941,7 +1997,7 @@ fn page_read_data_with_mode(
             last_context,
             &emitted_links,
         );
-        let (added, clipped) = if unit.atomic {
+        let (added, clipped) = if unit.atomic || unit.table_context {
             (
                 push_page_read_block(&mut markdown, &block, content_budget),
                 false,
@@ -2064,6 +2120,7 @@ fn page_read_data_with_mode(
 struct PageReadUnit {
     indices: Vec<usize>,
     atomic: bool,
+    table_context: bool,
 }
 
 fn page_read_units(content: &[ObservationContent]) -> Vec<PageReadUnit> {
@@ -2112,10 +2169,75 @@ fn page_read_units(content: &[ObservationContent]) -> Vec<PageReadUnit> {
         units.push(PageReadUnit {
             indices: (index..end).collect(),
             atomic: row || list_item,
+            table_context: false,
         });
         index = end;
     }
     units
+}
+
+struct PageReadTable {
+    units: Vec<usize>,
+    leading: Vec<usize>,
+}
+
+fn page_read_table_context(context: Option<&str>) -> Option<String> {
+    let context = page_read_context(context)?;
+    let parts = context.split(" > ").collect::<Vec<_>>();
+    let table = parts
+        .iter()
+        .rposition(|part| part.split(':').next() == Some("table"))?;
+    Some(parts[..=table].join(" > "))
+}
+
+fn page_read_tables(content: &[ObservationContent], units: &[PageReadUnit]) -> Vec<PageReadTable> {
+    let mut tables: Vec<PageReadTable> = Vec::new();
+    let mut previous = None;
+    for (unit_index, unit) in units.iter().enumerate() {
+        let first_index = unit.indices[0];
+        let first = &content[first_index];
+        let context = if first.kind == "table" {
+            // Table container markers carry their parent's context. Associate
+            // one only with its immediately following captured descendant.
+            content.get(first_index + 1).and_then(|next| {
+                let parent = page_read_context(first.context.as_deref())?;
+                let context = page_read_table_context(next.context.as_deref())?;
+                context
+                    .strip_prefix(parent)?
+                    .starts_with(" > ")
+                    .then_some(context)
+            })
+        } else {
+            page_read_table_context(first.context.as_deref())
+        };
+        if let Some(context) = context {
+            // Never bridge a capture gap or an explicit new table marker, even
+            // when two tables have identical accessible names.
+            if previous.as_ref() != Some(&context) || first.kind == "table" {
+                tables.push(PageReadTable {
+                    units: Vec::new(),
+                    leading: Vec::new(),
+                });
+            }
+            tables.last_mut().unwrap().units.push(unit_index);
+            previous = Some(context);
+        } else {
+            previous = None;
+        }
+    }
+    for table in &mut tables {
+        for unit in &table.units {
+            let kind = content[units[*unit].indices[0]].kind.as_str();
+            if matches!(kind, "table_row" | "table_cell") {
+                table.leading.push(*unit);
+                break;
+            }
+            if matches!(kind, "table" | "table_caption") {
+                table.leading.push(*unit);
+            }
+        }
+    }
+    tables
 }
 
 fn page_read_row_context(context: Option<&str>) -> Option<String> {
@@ -2137,6 +2259,14 @@ fn page_read_unit_markdown<'a>(
     emitted_links: &BTreeSet<usize>,
 ) -> (String, bool, Vec<usize>) {
     let mut blocks = Vec::new();
+    if unit.table_context {
+        let kind = content[unit.indices[0]].kind.as_str();
+        blocks.push(if matches!(kind, "table_row" | "table_cell") {
+            "Table context: first captured row (cell roles unspecified).".to_string()
+        } else {
+            "Table context: captured caption/name.".to_string()
+        });
+    }
     let mut inline_links = Vec::new();
     let mut clipped = false;
     for index in &unit.indices {
@@ -2150,7 +2280,7 @@ fn page_read_unit_markdown<'a>(
             inline = None;
         }
         let block = page_read_with_context(&body, context, previous);
-        let block = if unit.atomic {
+        let block = if unit.atomic || unit.table_context {
             block
         } else {
             let (bounded, was_clipped) = page_read_bounded_content_block(block, max_chars);
@@ -3938,9 +4068,10 @@ mod tests {
         assert!(!read.markdown.contains("code-0042"));
         assert!(!read.markdown.contains("Context: main > table > tr: UPC"));
         // Ordinary query context also admits the adjacent numeric row. Both
-        // records must stay whole even though only two block slots are allowed.
+        // records and the first row used as table context must stay whole even
+        // though only two block slots are allowed.
         assert!(
-            read.markdown.contains("Omitted 2 intact record"),
+            read.markdown.contains("Omitted 3 intact record"),
             "{}",
             read.markdown
         );
@@ -3950,10 +4081,10 @@ mod tests {
         let read = oversized.read_field("UPC", 512, 100).unwrap();
         assert!(read.matched_query);
         assert_eq!(read.selected_content_count, 0);
-        assert_eq!(read.available_content_count, 3);
+        assert_eq!(read.available_content_count, 6);
         assert!(!read.markdown.contains("Identifier"));
         assert!(!read.markdown.contains("UPC"));
-        assert!(read.markdown.contains("Omitted 1 intact record"));
+        assert!(read.markdown.contains("Omitted 2 intact record"));
         assert!(read.truncated);
         assert!(read.markdown.chars().count() <= 512);
     }
@@ -3966,9 +4097,18 @@ mod tests {
             .unwrap();
         assert!(read.matched_query);
         assert!(read.markdown.contains("23.75"));
-        assert!(!read.markdown.contains("21.50"));
+        // The headerless table's first row is preserved as explicitly named
+        // context, not misclassified as a header or as the field match.
+        assert!(read.markdown.contains("21.50"));
+        assert!(read
+            .markdown
+            .contains("first captured row (cell roles unspecified)"));
         assert!(!read.markdown.contains("code-0042"));
-        assert!(!read.markdown.contains("Price (excl. tax)"));
+        assert!(read.markdown.contains("Price (excl. tax)"));
+        assert!(!page_read_field_matches(
+            "Price (excl. tax)",
+            "Price (incl. tax)"
+        ));
         assert!(!read.markdown.contains("Source:"));
         assert!(!read.markdown.contains("Snapshot:"));
         assert!(!read.markdown.contains("Query:"));
@@ -3976,8 +4116,8 @@ mod tests {
         assert_eq!(read.page, operation.page);
         assert_eq!(read.observation_id, operation.observation.id);
         assert_eq!(read.title, operation.observation.title);
-        assert_eq!(read.selected_content_count, 3);
-        assert_eq!(read.available_content_count, 3);
+        assert_eq!(read.selected_content_count, 6);
+        assert_eq!(read.available_content_count, 6);
         for field in ["Price incl tax", "Price (incl. fee)", "UP", "UPC_code"] {
             let missing = operation.read_field(field, 512, 100).unwrap();
             assert!(!missing.matched_query, "{field}");
@@ -3999,6 +4139,128 @@ mod tests {
                 .unwrap()
                 .source_truncated
         );
+    }
+
+    fn table_context_operation() -> ObservationOperationData {
+        let mut operation = observation_operation();
+        operation.observation.elements.clear();
+        operation.observation.content = serde_json::from_value(json!([
+            {"kind":"table","context":"main","text":"Hire rates"},
+            {"kind":"table_caption","context":"main > table: Hire rates","text":"All charges per hour"},
+            {"kind":"table_row","context":"main > table: Hire rates","text":"Booking category"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Booking category","text":"Booking category"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Booking category","text":"Weekday daytime"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Booking category","text":"Weekend"},
+            {"kind":"table_row","context":"main > table: Hire rates","text":"Community group"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Community group","text":"Community group"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Community group","text":"£28"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Community group","text":"£36"},
+            {"kind":"table_row","context":"main > table: Hire rates","text":"Commercial activity"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Commercial activity","text":"Commercial activity"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Commercial activity","text":"£40"},
+            {"kind":"table_cell","context":"main > table: Hire rates > tr: Commercial activity","text":"£52"},
+            {"kind":"paragraph","context":"main","text":"Outside table content"}
+        ])).unwrap();
+        operation
+    }
+
+    #[test]
+    fn table_rows_retain_caption_and_leading_row_without_inferred_roles() {
+        let operation = table_context_operation();
+        let row = operation.read_field("Community group", 4_000, 100).unwrap();
+        for text in [
+            "Hire rates",
+            "All charges per hour",
+            "Booking category",
+            "Weekday daytime",
+            "Weekend",
+            "£28",
+            "£36",
+        ] {
+            assert!(row.markdown.contains(text), "{}", row.markdown);
+        }
+        assert!(!row.markdown.contains("Commercial activity"));
+        assert!(!row.markdown.contains("Outside table content"));
+        assert_eq!(row.selected_content_count, 10);
+        assert_eq!(row.available_content_count, 10);
+        assert!(!row.truncated);
+        assert!(row
+            .markdown
+            .contains("first captured row (cell roles unspecified)"));
+        let query = page_read_data(operation.clone(), Some("Community group"), 4_000, 100);
+        for text in ["All charges per hour", "Weekday daytime", "£28", "£36"] {
+            assert!(query.markdown.contains(text), "{}", query.markdown);
+        }
+        for sections in 1..=10 {
+            let bounded = operation
+                .read_field("Community group", 4_000, sections)
+                .unwrap();
+            assert_eq!(bounded.markdown.contains("£28"), sections == 10);
+            assert_eq!(bounded.markdown.contains("Weekday daytime"), sections == 10);
+            assert!(bounded.selected_content_count <= sections);
+            if sections < 10 {
+                assert!(bounded.matched_query && bounded.truncated);
+                assert!(bounded.markdown.contains("Omitted 2 intact record"));
+            }
+        }
+        let mut large_caption = operation;
+        large_caption.observation.content[1].text = "Long table caption ".repeat(100);
+        let omitted = large_caption
+            .read_field("Community group", 512, 100)
+            .unwrap();
+        assert!(omitted.matched_query && omitted.truncated);
+        assert_eq!(omitted.selected_content_count, 0);
+        assert!(!omitted.markdown.contains("£28"));
+        assert!(!omitted.markdown.contains("Long table caption"));
+        assert!(omitted.markdown.chars().count() <= 512);
+    }
+
+    #[test]
+    fn leading_row_queries_expand_small_tables_and_report_omitted_rows() {
+        let operation = table_context_operation();
+        let all = operation.read_field("Weekday daytime", 4_000, 100).unwrap();
+        for text in ["Community group", "£28", "Commercial activity", "£40"] {
+            assert!(all.markdown.contains(text), "{}", all.markdown);
+        }
+        assert_eq!(all.selected_content_count, 14);
+        assert_eq!(all.available_content_count, 14);
+        assert!(!all.truncated);
+        let bounded = operation.read_field("Weekday daytime", 4_000, 10).unwrap();
+        assert_eq!(bounded.selected_content_count, 10);
+        assert_eq!(bounded.available_content_count, 14);
+        assert!(bounded.markdown.contains("£28"));
+        assert!(!bounded.markdown.contains("£40"));
+        assert!(bounded.markdown.contains("Omitted 1 intact record"));
+        assert!(bounded.matched_query && bounded.truncated);
+        // The same operation applies to a headerless first row, without
+        // transforming it into headings or inventing column associations.
+        let headerless = atomic_record_operation()
+            .read_field("Price (excl. tax)", 4_000, 100)
+            .unwrap();
+        assert!(headerless.markdown.contains("code-0042"));
+        assert!(headerless
+            .markdown
+            .contains("first captured row (cell roles unspecified)"));
+        assert_eq!(headerless.selected_content_count, 9);
+    }
+
+    #[test]
+    fn identically_named_table_markers_keep_leading_context_separate() {
+        let mut operation = table_context_operation();
+        let mut second = operation.observation.content[..14].to_vec();
+        second[1].text = "Second table caption".into();
+        second[6].text = "Second booking".into();
+        second[7].text = "Second booking".into();
+        second[8].text = "£99".into();
+        operation.observation.content.truncate(14);
+        operation.observation.content.extend(second);
+        let read = operation.read_field("Second booking", 4_000, 100).unwrap();
+        assert!(read.markdown.contains("Second table caption"));
+        assert!(read.markdown.contains("Weekday daytime"));
+        assert!(read.markdown.contains("£99"));
+        assert!(!read.markdown.contains("All charges per hour"));
+        assert!(!read.markdown.contains("£28"));
+        assert_eq!(read.selected_content_count, 10);
     }
 
     #[test]
