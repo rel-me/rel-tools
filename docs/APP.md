@@ -986,9 +986,12 @@ changes apply to the next message in existing chats.
 
 Every native Chat turn also includes the current page URL from its attached
 Session. The default system prompt uses that context for requests such as
-“summarize this page” or “summarize the top 3 links”: it reads the current page,
-identifies the requested links in page order, reads their destinations, and
-then answers. Restoring the default prompt returns to this behavior.
+“summarize this page” or “list these links”. Page identity alone does not establish
+its contents: REL answers from loaded or retained page evidence, preserving page
+order when listing items. It reads linked destinations only when their contents
+are needed and can search within the document without replacing the task with a
+web search. Restoring the default prompt returns to this behavior. Existing
+unmodified defaults upgrade automatically; customized instructions are preserved.
 
 ## Actions
 
