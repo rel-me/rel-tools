@@ -55,6 +55,7 @@ without navigating.
 | --- | --- |
 | `health()` | `GET /v1/health` |
 | `status()` | `GET /v1/status` |
+| `model_providers()` | `GET /v1/model-providers` |
 | `list_notifications()` | `GET /v1/notifications` |
 | `navigate(&NavigateRequest)` | `POST /v1/navigate` |
 | `navigate_and_observe(&NavigateObservationRequest)` | `POST /v1/navigate/observe` |
