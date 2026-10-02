@@ -884,8 +884,10 @@ Loaded-page coverage and output limits remain explicit, including on dynamic fee
 
 During an active reading task, Chat keeps up to three selected semantic excerpts
 from the current response so it can combine facts from successive reads without
-repeating queries. Each excerpt is limited to 5,000 characters, with a total
-limit of 16,000 characters including source context. The latest tool result is
+repeating queries. Each excerpt can use up to 8,000 characters within a shared
+16,000-character limit including source context. Smaller excerpts leave room for
+longer sources; all retained excerpts receive space when Chat finalizes an answer,
+and any clipping remains explicit. The latest tool result is
 not duplicated in this working set. Images, raw HTML and action references are
 not retained there. A new user turn or a known page mutation clears these
 excerpts. They describe captured evidence and do not guarantee that the page is
