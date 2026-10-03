@@ -109,6 +109,25 @@ pub mod rpc_error_codes {
     }
 }
 
+/// Shared Models registry metadata. Credentials are held separately in Keychain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelProvidersData {
+    pub version: u32,
+    pub connections: Vec<ModelProviderConnection>,
+    pub default_connection_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelProviderConnection {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    pub base_url: Option<String>,
+    pub model_id: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct RelClient {
     base_url: String,
@@ -146,6 +165,11 @@ impl RelClient {
 
     pub fn health(&self) -> Result<RpcResponse<Health>, ClientError> {
         self.request::<Health, Value>("GET", "/health", None)
+    }
+
+    /// Read connection metadata without credentials from the owning REL agent.
+    pub fn model_providers(&self) -> Result<RpcResponse<ModelProvidersData>, ClientError> {
+        self.request::<ModelProvidersData, Value>("GET", "/model-providers", None)
     }
 
     pub fn status(&self) -> Result<RpcResponse<StatusReport>, ClientError> {
@@ -4951,7 +4975,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(38, |index, request| {
+        let (base_url, server) = start_test_server(39, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -4960,6 +4984,11 @@ mod tests {
                         "worktree":"ba49","branch":"codex/example","commit":"deadbeef",
                         "dirty":true},
                     "worker":{"state":"idle"}
+                }),
+                ("GET", "/v1/model-providers") => json!({
+                    "version":1, "connections":[{"id":"00000000-0000-0000-0000-000000000001",
+                    "name":"Local", "provider":"ollama", "baseUrl":null, "modelId":"test-model"}],
+                    "defaultConnectionId":"00000000-0000-0000-0000-000000000001"
                 }),
                 ("GET", "/v1/status") => json!({
                     "overall_status":"ok", "running_count":1, "total_count":1,
@@ -5266,6 +5295,13 @@ mod tests {
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
         let closed = client.close_session_group("pgm").unwrap();
         assert_eq!(closed.data.deleted_ids, ["machine-a.Session1"]);
+        let models = client.model_providers().unwrap();
+        assert_eq!(models.data.connections[0].provider, "ollama");
+        assert_eq!(
+            models.data.default_connection_id.as_deref(),
+            Some(models.data.connections[0].id.as_str())
+        );
+        assert_eq!(models.data.connections[0].model_id, "test-model");
 
         let requests = server.join().unwrap();
         let routes = requests
@@ -5319,6 +5355,7 @@ mod tests {
                 ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
                 ("POST", "/v1/sessions/close"),
+                ("GET", "/v1/model-providers"),
             ]
         );
         assert_eq!(

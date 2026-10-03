@@ -91,7 +91,7 @@ future updates are eligible; it does not downgrade an installed version.
 
 ## AI provider presets
 
-In **Model Providers → Add**, choose **Fireworks**, **Amazon Bedrock**,
+In **Models → Providers → Add Provider**, choose **Fireworks**, **Amazon Bedrock**,
 or **Baseten** to fill in an OpenAI-compatible endpoint. Enter that service's API
 key, then add the provider. Keys are stored in macOS Keychain. REL discovers the
 available models for the Chat picker.
@@ -114,7 +114,7 @@ and [Baseten](https://docs.baseten.co/reference/inference-api/overview).
 
 ### Jev browser decisions
 
-Add **TypeSafe AI** in Model Providers with your TypeSafe API key. Jev is a
+Add **TypeSafe AI** in Models → Providers with your TypeSafe API key. Jev is a
 separate decision capability, available to the assistant through
 [`rel_delegate_browser`](#delegating-browser-work-to-jev). Select an LLM for chat.
 There is no paired-LLM setting, and Jev cannot be a chat default. Existing Jev
@@ -644,16 +644,16 @@ stable IDs.
 
 ## Settings configuration transfers
 
-In **Settings → Profiles, Proxies, Schedules, or Providers**, the glass button
+In **Settings → Profiles, Proxies, or Schedules**, the glass button
 group contains **Add (+)**, **Edit**, a divider, **Import (down arrow)**, and
 **Export (up arrow)**. Select a row to enable export. Import opens a text editor with a **Paste** button to insert the clipboard
 contents; export shows selectable text with a **Copy** button. No file picker is involved.
 Imports create new records and remain subject to the plan's creation limits.
 Existing records are not overwritten.
 
-Profiles, schedules, and providers use a versioned JSON envelope:
+Profiles and schedules use a versioned JSON envelope:
 `{"format":"rel.<kind>","version":1,"configuration":{...}}`. The kind is
-`profile`, `schedule`, or `provider`. Export produces one line; pasted JSON may
+`profile` or `schedule`. Export produces one line; pasted JSON may
 include whitespace. Paste the complete object, without Markdown fences. JSON
 input is limited to 1 MiB. Profile setups additionally accept version 2, as
 described below. Other versions, mismatched kinds, malformed JSON,
@@ -789,39 +789,23 @@ reviewing its destination, prompt, completion action, and local execution time.
 
 ### Providers: single-line JSON
 
+Models uses Fritz's provider transfer format and editor:
+
 ```json
-{"configuration":{"maxTurns":10,"name":"OpenAI"},"format":"rel.provider","version":1}
+{"configuration":{"name":"OpenAI"},"format":"fritz.provider","version":1}
 ```
 
-Required fields are `name` and `maxTurns`; `baseURL` and `apiKey` are optional,
-except that services using the OpenAI-compatible adapter require a base URL.
-There is no separate `provider` field. `name` identifies the service and must be
-one of `OpenAI`, `OpenAI-compatible`, `OpenRouter`, `TypeSafe AI`, `Anthropic`,
-`Google Gemini`, `Ollama`, `REL`, `Fireworks`, `Amazon Bedrock`, or `Baseten`, with
-that capitalization. Custom connection names are not used for this field.
-Named presets must use a matching endpoint; custom gateways use
-`OpenAI-compatible`. Turn limits and URLs are validated using the provider
-editor's rules.
+`name` identifies the service. `modelID`, `baseURL`, and `apiKey` are optional;
+OpenAI-compatible connections require a base URL. There is no provider turn-limit
+setting. The shared editor validates service names and endpoints. Multiple
+providers use `"format":"fritz.providers"` with an array in `configuration`.
+The import menu supports **Skip** and **Overwrite** for existing services.
+Keys are excluded unless **Export Including API Keys** is selected. Included
+keys are readable in JSON; store and share those exports carefully.
 
-Exports preserve an explicit `modelID`. Retired `jevPairedModel` and
-`jevAdditionalPairedModels` fields in older imports are ignored and are not
-exported. Importing a REL provider never downloads weights; select the model
-in Model Providers to open its download setup.
-
-Exporting multiple providers uses `"format":"rel.providers"` with an array in
-`configuration`. The import validates every entry before saving. Import saves
-directly and defaults to **Skip** for existing services; **Overwrite** preserves
-the existing connection's ID, internal name, and default selection. If multiple
-saved connections use the same service, overwrite reports an ambiguity instead
-of choosing one. Repeated services in an imported list follow the selected skip
-or overwrite policy.
-
-Export excludes API keys unless **Export Including API Keys** is selected.
-Included keys are readable in the JSON and saved in Keychain on import. An
-omitted key preserves an existing connection's key. Import without credentials
-is allowed; the connection remains unready until configured. The exported
-provider's own record ID, model discovery results, and default-provider preference
-are excluded. A new first provider becomes the default normally.
+Older `rel.provider` and `rel.providers` envelopes remain accepted by the shared
+transfer reader for compatible services. Retired REL-only configuration fields
+are not exported. Native weights are installed separately from provider imports.
 
 ### CLI and RPC archive transfers
 
@@ -833,59 +817,39 @@ archive or a replacement input for the archive APIs.
 
 ## AI models
 
-Chat uses the default model configured in **REL → Settings… → Model Providers**.
-A session Profile can specify its own default model. The chat input has no model
-picker; to use a different default for an existing chat, change the provider's
-model in Settings, then choose **Chat → Reset Chat** to start a new conversation.
-The **Chat** menu also contains the response token budget and model-call limit.
+Open **REL → Settings… → Models**, or the main window's **Models** button.
+REL uses the same single Models page and provider editor as Fritz. Use **+** to
+add a provider, double-click a row to edit it, and use the **…** menu to refresh,
+import, export, or choose the default provider. There is no separate Local Models
+page or Providers tab.
 
-Configure providers and choose the default AI model in **REL → Settings… →
-Model Providers**. Use the primary **Add** button to add a connection, or
-double-click a provider to edit it. **Download**, next to Add, opens REL’s model
-installer.
-Provider names have **Ready** or **Needs Setup** status chips. Click a Needs Setup chip to
-open configuration; hover over it for details. **Local** identifies REL models
-and Ollama connections on this Mac. Use **Import** and **Export** for provider
-configuration transfers. The **Models** column lists available models;
-hover over a truncated list to see all its names. API keys are stored in macOS Keychain. Ollama connections can use
-the local server at `http://127.0.0.1:11434` without an API key. Scheduled
-prompts use the default provider and model when their new Session starts. REL
-Free supports one configured external provider alongside REL’s built-in local
-models; REL Pro supports multiple external providers.
+The table shows provider names, readiness, local/default badges, and available
+models. The provider picker groups LLM and System One decision services, with
+local and remote filters. **Fritz** supplies native local LLMs; **Ollaya** supplies
+local decision models; **TypeSafe AI** supplies hosted Jev decisions. Decision
+models cannot become the chat default.
 
-Model Providers uses the provider's display name when available, or the exact
-model ID when no display name is supplied. API requests always use the model ID.
+The Fritz editor includes its model catalog, download progress and cancellation,
+model status, **Start**/**Stop**, **Show in Finder**, and the **First use** or
+**App start** policy. Ollama connects to an existing Ollama server. Manage its
+weights in Ollama and refresh Models to discover them. Provider records and
+native model management are owned by Fritz; adding providers has no REL-specific
+provider limit.
 
-Chat displays response text as the model generates it, including local Ollama models such as Qwen. A model may think before its first text appears. The Stop button remains available during generation. Ordinary questions and writing requests can be answered directly without browser tools.
+Chat uses the selected/default LLM. A session Profile can specify its own model.
+The Chat menu contains response budgets and model-call limits. Chat displays
+response text during generation; Stop remains available. Models' display names
+are for presentation; requests use the actual model ID.
 
-Choose **New Provider**, then open the searchable **Provider** menu. Remote
-services, **Ollama**, and **REL** appear together; local providers have a **local**
-chip. Both the provider menu and Model Providers table are alphabetical by
-displayed name. The menu’s horizontal **All**, **Local**, **Remote**, **Frontier**,
-**Hosted**, and **Custom** chips filter the list; search narrows the selected
-category. Click the selected chip again to return to All. Frontier includes
-OpenAI, Anthropic, and Google Gemini. Hosted includes OpenRouter, Fireworks,
-Amazon Bedrock, and Baseten; Custom shows the OpenAI-compatible preset.
-There is no separate Remote/Local picker.
-
-**REL** appears in Model Providers by default with its supported model catalog,
-with 15 downloadable choices: Qwen3 (0.6B, 1.7B, 4B, 8B, 14B), Qwen3.5
-(0.8B, 2B, 4B, 9B), Qwen3.6 27B, Qwen3.8 27B, Qwen3.8 9B Distill,
-Qwopus3.8 27B Flash, Apodex 1.1 Mini 35B, and the original Qwen2.5 1.5B.
-Selecting an undownloaded REL model in a Profile's default model picker or an
-Action opens its download setup. Choose
-**Download & Add** to download and verify the selected model from Hugging Face.
-The picker shows its download size, recommended RAM, and model license link.
-A warning appears if this Mac has less than the recommended memory.
-The setup shows progress and supports cancellation and retry. The selection is
-applied only after successful installation. Already installed weights can be
-added without downloading again. Model weights are not bundled with the app.
-These models work for ordinary text chat and simple tasks. Double-click REL or click **Download** in Model Providers to
-open the same setup.
-
-**Ollama** connects to an Ollama server using its endpoint settings. Install and
-manage models in Ollama, then use **Refresh Models** in REL to discover them.
-REL’s **Download** action manages REL’s native models.
+On the first launch after this update, REL migrates the former Models records
+into Fritz's provider storage for that app variant. Names, connection identities,
+endpoints, explicit models, and the default selection are preserved. Fritz copies
+referenced keys in Rust and atomically saves provider records with migration
+completion. A restart uses that saved completion instead of importing again.
+Existing destination records and keys are preserved. Unsupported or conflicting
+records produce an error and a retry action; the original metadata and Keychain
+items remain available for recovery. Saved chat, Profile, and Action model
+selections resolve through the migrated connection identities.
 
 Chat starts page summaries and inventories with bounded semantic reading. Its
 reading tools can inspect the current page, navigate to a source, and recall
@@ -1259,42 +1223,31 @@ selection before another message can be sent; no companion is selected implicitl
 
 ### Installed local chat models
 
-To install a local model, open **Model Providers → REL**, select
-a model, and choose **Download & Add**. For example, **Qwen3.5 0.8B** downloads
-0.53 GB of Q4_K_M weights and recommends 8 GB RAM. The selection stays fixed
-during installation; successful verification adds that model to the REL provider.
-Other catalog entries still require their own installation.
-Select the installed model as the REL provider's default model in Model Providers,
-or as a session Profile's default model.
-The installer offers progress, **Cancel**, and **Retry Download & Add**. A cancelled
-or failed installation does not add a provider. Downloads have a 30-minute overall
-timeout and a 60-second read timeout; retry starts a fresh transfer.
+Open **Models → + → Fritz** to choose a native LLM, or edit an existing Fritz
+connection. Use the shared catalog's memory and size filters, select a model,
+and choose **Download**. The installer shows progress and supports cancellation
+and retry. Chats never download weights automatically.
 
-REL verifies the exact size and SHA-256 before installing weights in
-`~/Library/Application Support/REL/Data/Models/<model-id>/`. The original
-Qwen2.5 model keeps its historical `Models/jev-text/` cache across app updates.
-Each model has its own download lock; Debug runtimes keep their own model directory.
-Incomplete or corrupt weights are never loaded. Missing weights produce an error
-pointing to provider setup. Chats and scheduled actions never start downloads.
+Fritz owns native inference, installation, and the local service. REL retains
+its browser tools, response budgets, and conversation history. REL supplies its
+existing `Data/rel-data.sqlite3` database and variant-specific Keychain reference
+to Fritz. Provider records share that database; no Fritz default storage or
+credential namespace is used. Native model files use the flat `~/Models/`
+directory, shared across REL variants. The first actual download creates the
+root directory if it is missing. Opening Models, checking inventory, and app
+startup do not create it. Model weights are not bundled with the app.
 
-The app includes llama.cpp with Metal in `rel-harness`, without model weights.
-No Ollama installation, helper server, or additional API key is required for REL
-models. Ordinary local chat accepts text and bounded browser tools, with a
-32,768-token context, up to 2,048 output tokens, and a 120-second generation
-limit. Replies arrive after generation completes. Small models may struggle with
-complex tasks; no model is guaranteed to handle every site or control.
+The provider-record migration retains the previous local model selection.
+Existing weight files remain untouched. The shared editor reports whether the
+selected model is installed in Fritz's flat cache layout; install missing weights
+there before using that model.
 
-Local installation is separate from the chat protocol. `rel-harness local-models
-list` reports the catalog and verified installation status. Pass a model ID to
-`local-models list MODEL_ID` to verify only that model. `rel-harness
-local-models install qwen3.5-0.8b-q4_k_m` explicitly installs that model. Model IDs
-come from the inventory; unsupported IDs fail without downloading.
-These commands write newline-delimited JSON: `inventory` contains `models` with
-`id`, `name`, `size`, and `installed`; `progress` contains `downloaded`, `total`, and
-`status` (`checking`, `downloading`, `ready`); `error` contains `message` and exits
-nonzero. Wait for successful process exit before treating an installation as ready.
-Closing the installer process cancels its download. Use `--provider rel --model
-qwen3.5-0.8b-q4_k_m` for ordinary local chat after installation.
+Use `rel-harness chat/run --connection ID` to select a stored provider, with
+`REL_AGENT_PORT`, `REL_MODELS_DIRECTORY`, and `REL_MODELS_KEYCHAIN_SERVICE` matching
+the owning app variant. The Debug runtime wrapper supplies those references.
+Connection metadata is read through `GET /v1/model-providers`; credentials stay in
+Rust and Keychain.
+The former `--config` TOML provider registry is retired.
 
 ## Control REL through WhatsApp
 
@@ -1388,17 +1341,11 @@ limit and any explicitly selected response token budget, reserving one model
 call for host verification. Native operations retain their normal deadlines,
 and observation bounds and repeated-action checks still apply.
 
-Settings writes only nonsecret Keychain service/account references into
-`ai-providers.toml`. The Rust harness reads the Jev credential directly from
-Keychain. The app and harness are separate Keychain clients. In Keychain Access,
-authorize the app’s bundled `Contents/Resources/rel-harness` to read the Jev
-profile’s API-key item; the registry reference alone does not grant access.
-REL does not change credential permissions automatically. Locked Keychain or
-missing access produces an explicit error without waiting for a background
-authentication dialog. For a manually managed registry, pass `--config` or set `REL_AI_CONFIG` to its path when launching
-the harness and put `credential_service` and
-`credential_account` on the Jev profile, pointing to its macOS generic-password
-item that authorizes the bundled harness. Model keys must never be placed in the registry.
+Jev connections and keys use Fritz's provider store and Keychain namespace.
+The Rust browser harness resolves the selected decision connection and reads its
+credential without exposing keys to the UI or model context. A missing key or
+denied Keychain access produces an explicit error. Restart the conversation's
+harness after changing decision providers.
 Jev cannot be used as a Chat provider and requires no paired LLM.
 
 
