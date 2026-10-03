@@ -116,6 +116,8 @@ pub struct ModelProvidersData {
     pub version: u32,
     pub connections: Vec<ModelProviderConnection>,
     pub default_connection_id: Option<String>,
+    #[serde(default)]
+    pub model_directories: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -4988,7 +4990,8 @@ mod tests {
                 ("GET", "/v1/model-providers") => json!({
                     "version":1, "connections":[{"id":"00000000-0000-0000-0000-000000000001",
                     "name":"Local", "provider":"ollama", "baseUrl":null, "modelId":"test-model"}],
-                    "defaultConnectionId":"00000000-0000-0000-0000-000000000001"
+                    "defaultConnectionId":"00000000-0000-0000-0000-000000000001",
+                    "modelDirectories":{"local-model":"/fixture/selected-models"}
                 }),
                 ("GET", "/v1/status") => json!({
                     "overall_status":"ok", "running_count":1, "total_count":1,
@@ -5296,6 +5299,10 @@ mod tests {
         let closed = client.close_session_group("pgm").unwrap();
         assert_eq!(closed.data.deleted_ids, ["machine-a.Session1"]);
         let models = client.model_providers().unwrap();
+        assert_eq!(
+            models.data.model_directories["local-model"],
+            "/fixture/selected-models"
+        );
         assert_eq!(models.data.connections[0].provider, "ollama");
         assert_eq!(
             models.data.default_connection_id.as_deref(),
