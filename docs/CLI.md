@@ -610,6 +610,13 @@ ID. Group matching is case-insensitive.
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
 
+An unsuccessful create response without a session ID does not prove that no
+session was created. REL can commit the session before Chromium synchronization
+times out. Stop the workflow, retain the error, and use `rel session list` to
+inspect the exact name and group owned by your workflow before deciding how to
+recover. Do not blindly retry creation. In automated evals, record this setup
+failure separately from model answer correctness and efficiency.
+
 After a successful create, that session is the newest session and therefore the
 default for later CLI commands. Creating or deleting sessions in another shell
 can change this default; use `REL_SESSION_ID` or `--session-id` to pin concurrent
