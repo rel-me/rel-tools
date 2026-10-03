@@ -1414,12 +1414,25 @@ Each token-usage record contains nonnegative integer `modelCalls`,
 `providerReportedCostUSD`. Reported model calls cannot exceed total model calls.
 Session usage and `globalChat.usage` may also include `contextPricingUsage`:
 `{"uncachedInput": 552500.5, "cachedInput": 50000, "output": 3001.5}`. These are
-weighted per-call pricing totals, so all three values must be finite,
-nonnegative numbers and may be fractional. REL preserves them across saves.
+weighted per-call pricing totals; present values must be finite, nonnegative
+numbers and may be fractional. Missing members default to zero. REL preserves
+them across saves.
 Omitting this object or sending null leaves context pricing unavailable; REL
 does not infer it from aggregate tokens. Older records remain valid, and the
 workspace wire version remains 1.
-Unknown fields and malformed nested payloads are rejected without changing state.
+Workspace records ignore unknown JSON properties, including nested properties;
+unknown properties are discarded rather than stored. Missing fields use empty
+collections/strings, zero counts, absent optional values, or existing defaults:
+wire version 1, Logs, chat visible, next chat sequence 2, title `Chat`, message
+role `status`, completed activity status, and uncertain decisions. Missing record
+IDs receive new UUIDs. Missing tab order is derived from saved open sessions;
+missing session records receive defaults for referenced tabs. Unavailable
+selections clear to none. Incomplete model selections clear without discarding
+their conversations; missing effort/speed use medium/standard, and missing
+verification metadata uses unverified. A missing total
+model-call count uses the reported count. The save envelope still requires
+`revision` and `state`; revision conflicts, unsupported wire versions, malformed
+supplied values, and record ownership violations still fail without changing state.
 
 Conversation and message IDs must be unique across the workspace and cannot move
 between parents. Omitting a conversation or message removes its saved record.
