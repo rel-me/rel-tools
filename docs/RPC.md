@@ -1491,7 +1491,8 @@ receive the `REL: ` heading.
 ## Shared Models metadata
 
 `GET /v1/model-providers` returns `data.version`, `data.connections`, and
-`data.defaultConnectionId`. Each connection has `id`, `name`, `provider`,
+`data.defaultConnectionId`, plus `data.modelDirectories`, which maps model IDs
+to selected absolute download folders. Each connection has `id`, `name`, `provider`,
 `baseUrl`, and `modelId`. Credentials are never returned. REL supplies its
 current database and explicit Keychain reference to Fritz's shared Models service;
 there is no separate Fritz provider database. Use the shared Models UI to edit
