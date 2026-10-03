@@ -1407,6 +1407,8 @@ object case named `fireworks`, `amazonBedrock`, or `baseten`. `capabilities`
 contains `supportsReasoningEffort`, `supportedSpeeds`, and
 `isRecommendedInChatPicker`. These are model selection metadata, never API keys.
 
+New conversations follow the [Chat model selection policy](APP.md#ai-models).
+
 Each token-usage record contains nonnegative integer `modelCalls`,
 `reportedModelCalls`, `knownTokens`, `inputTokens`, `outputTokens`,
 `providerReportedTotalTokens`, `cachedInputTokens`, `cacheCreationInputTokens`,
