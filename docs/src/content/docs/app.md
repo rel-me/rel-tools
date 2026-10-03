@@ -926,6 +926,12 @@ model answers from collected evidence or explains the limitation. When an
 exhaustive request exceeds a page or tool output bound, the response summarizes
 the available evidence and states what was omitted.
 
+When browser work stops early, the final answer includes a **REL stop reason**
+with the factual explanation. Instructions that tell the model to stop using
+tools and answer from collected evidence remain internal. A retry-limit message
+identifies the recurring error code; inspect the failed tool's result in the
+completed-work details for its underlying error message.
+
 Output caps are omitted for OpenAI, OpenAI-compatible, OpenRouter, Gemini and
 Ollama requests. Anthropic requires `max_tokens`, so REL uses the selected
 endpoint's advertised model ceiling from `/v1/models/{model}`. An endpoint that
