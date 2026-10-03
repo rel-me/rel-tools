@@ -836,7 +836,15 @@ weights in Ollama and refresh Models to discover them. Provider records and
 native model management are owned by Fritz; adding providers has no REL-specific
 provider limit.
 
-Chat uses the selected/default LLM. A session Profile can specify its own model.
+For a new Chat, a session Profile's explicit model takes precedence. Otherwise
+REL uses the most recently selected available model, then the default provider's
+explicitly configured model. If the default OpenAI provider has no explicit
+model, REL prefers its newest available general-purpose GPT generation, using
+the shortest model alias within that generation. Legacy completion models such
+as `babbage-002` and `davinci-002` are excluded from automatic selection and
+recommended picker rows, but remain searchable. Saved conversation selections
+are preserved. Use **Chat → Reset Chat** to apply the current default to an
+existing conversation.
 The Chat menu contains response budgets and model-call limits. Chat displays
 response text during generation; Stop remains available. Models' display names
 are for presentation; requests use the actual model ID.
