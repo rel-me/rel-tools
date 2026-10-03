@@ -637,6 +637,11 @@ succeeds and returns an empty `data.deleted_ids` array:
 rel session close --group pgm
 ```
 
+If session deletion returns a nonzero exit status, treat cleanup as unconfirmed
+and retain the error. A later list showing no session does not establish that
+its browser storage and active operations were cleaned up. In automated evals,
+record cleanup failures separately from answer correctness and efficiency.
+
 Partially update a session:
 
 ```sh

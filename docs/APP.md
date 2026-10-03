@@ -163,6 +163,11 @@ remain explicit destructive operations without an interactive confirmation.
 
 ## Database migration and recovery
 
+REL keeps its `Data` directory accessible only to the current macOS user
+(`0700`), with the database and its WAL/shared-memory files set to `0600`.
+Concurrent workspace and Session operations use SQLite-managed connections so
+opening another connection preserves the database's existing file locks.
+
 REL validates its local database before starting normal service. Supported
 schema versions 3 through 15 are supported, with older schemas upgraded to schema 15. Before any upgrade or
 repair, REL creates a consistent SQLite snapshot including committed WAL data
