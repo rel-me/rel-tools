@@ -166,6 +166,11 @@ remain explicit destructive operations without an interactive confirmation.
 
 ## Database migration and recovery
 
+REL keeps its `Data` directory accessible only to the current macOS user
+(`0700`), with the database and its WAL/shared-memory files set to `0600`.
+Concurrent workspace and Session operations use SQLite-managed connections so
+opening another connection preserves the database's existing file locks.
+
 REL validates its local database before starting normal service. Supported
 schema versions 3 through 15 are supported, with older schemas upgraded to schema 15. Before any upgrade or
 repair, REL creates a consistent SQLite snapshot including committed WAL data
@@ -839,7 +844,15 @@ weights in Ollama and refresh Models to discover them. Provider records and
 native model management are owned by Fritz; adding providers has no REL-specific
 provider limit.
 
-Chat uses the selected/default LLM. A session Profile can specify its own model.
+For a new Chat, a session Profile's explicit model takes precedence. Otherwise
+REL uses the most recently selected available model, then the default provider's
+explicitly configured model. If the default OpenAI provider has no explicit
+model, REL prefers its newest available general-purpose GPT generation, using
+the shortest model alias within that generation. Legacy completion models such
+as `babbage-002` and `davinci-002` are excluded from automatic selection and
+recommended picker rows, but remain searchable. Saved conversation selections
+are preserved. Use **Chat → Reset Chat** to apply the current default to an
+existing conversation.
 The Chat menu contains response budgets and model-call limits. Chat displays
 response text during generation; Stop remains available. Models' display names
 are for presentation; requests use the actual model ID.
@@ -861,15 +874,28 @@ input tools. Omit a specific search phrase when asking for a general overview;
 Chat uses a focused query only when it has a useful literal label or fact to find.
 Loaded-page coverage and output limits remain explicit, including on dynamic feeds.
 
-During an active reading task, Chat retains selections from up to eight source
-snapshots. Complementary lookups from the same snapshot stay together, so reading
-stock after an identifier does not discard the identifier. Each source can use
-up to 8,000 characters within a shared 16,000-character working set, including
+During reading and interaction tasks, Chat retains semantic read and recall
+selections from up to eight source snapshots. Successful semantic interaction
+observations also contribute bounded text selections from their captured content.
+Complementary lookups from the same snapshot stay together, so reading stock
+after an identifier does not discard the identifier. Each source can use up to
+8,000 characters within a shared 16,000-character working set, including
 source and coverage information. Smaller selections leave room for longer ones;
 clipping and omitted selections remain explicit. The latest tool result is not
 duplicated. Images, raw HTML and action references are not retained there.
-A new user turn or known page mutation clears these excerpts. They describe
-captured evidence, not a guarantee that a page remains unchanged.
+Switching from reading to interaction and using controls within the same document
+keeps these selected snapshots available. This helps a bounded feed inventory
+retain earlier post titles and permalinks after the page removes their cards.
+Chat can recall a saved observation when requested facts are missing from these
+bounded selections.
+A new user turn, explicit interaction navigation, a control that changes the page URL,
+document replacement, stale observation error or switch to another task type
+clears these excerpts. During interaction, changing the target Session also
+expires selected evidence, even when the pages have the same URL. Reading
+comparisons can retain multiple sources; recalling a saved snapshot does not
+change the live browser target. These excerpts describe captured evidence,
+not a guarantee that a page remains unchanged or that an infinite feed
+has reached its end.
 
 Chat manages excerpt sizes itself. Its model-facing reading tools accept a
 source and optional literal query; character and section controls remain

@@ -871,15 +871,28 @@ input tools. Omit a specific search phrase when asking for a general overview;
 Chat uses a focused query only when it has a useful literal label or fact to find.
 Loaded-page coverage and output limits remain explicit, including on dynamic feeds.
 
-During an active reading task, Chat retains selections from up to eight source
-snapshots. Complementary lookups from the same snapshot stay together, so reading
-stock after an identifier does not discard the identifier. Each source can use
-up to 8,000 characters within a shared 16,000-character working set, including
+During reading and interaction tasks, Chat retains semantic read and recall
+selections from up to eight source snapshots. Successful semantic interaction
+observations also contribute bounded text selections from their captured content.
+Complementary lookups from the same snapshot stay together, so reading stock
+after an identifier does not discard the identifier. Each source can use up to
+8,000 characters within a shared 16,000-character working set, including
 source and coverage information. Smaller selections leave room for longer ones;
 clipping and omitted selections remain explicit. The latest tool result is not
 duplicated. Images, raw HTML and action references are not retained there.
-A new user turn or known page mutation clears these excerpts. They describe
-captured evidence, not a guarantee that a page remains unchanged.
+Switching from reading to interaction and using controls within the same document
+keeps these selected snapshots available. This helps a bounded feed inventory
+retain earlier post titles and permalinks after the page removes their cards.
+Chat can recall a saved observation when requested facts are missing from these
+bounded selections.
+A new user turn, explicit interaction navigation, a control that changes the page URL,
+document replacement, stale observation error or switch to another task type
+clears these excerpts. During interaction, changing the target Session also
+expires selected evidence, even when the pages have the same URL. Reading
+comparisons can retain multiple sources; recalling a saved snapshot does not
+change the live browser target. These excerpts describe captured evidence,
+not a guarantee that a page remains unchanged or that an infinite feed
+has reached its end.
 
 Chat manages excerpt sizes itself. Its model-facing reading tools accept a
 source and optional literal query; character and section controls remain
