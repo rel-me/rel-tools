@@ -1407,6 +1407,15 @@ object case named `fireworks`, `amazonBedrock`, or `baseten`. `capabilities`
 contains `supportsReasoningEffort`, `supportedSpeeds`, and
 `isRecommendedInChatPicker`. These are model selection metadata, never API keys.
 
+For a new native Chat, a session Profile's explicit model takes precedence.
+Otherwise REL uses the most recently selected available model, then the default
+provider's explicitly configured model. If the default OpenAI provider has no
+explicit model, REL prefers its newest available general-purpose GPT generation,
+using the shortest model alias within that generation. Legacy completion models
+such as `babbage-002` and `davinci-002` are excluded from automatic selection and
+recommended picker rows, but remain searchable. Saved conversation selections
+are preserved.
+
 Each token-usage record contains nonnegative integer `modelCalls`,
 `reportedModelCalls`, `knownTokens`, `inputTokens`, `outputTokens`,
 `providerReportedTotalTokens`, `cachedInputTokens`, `cacheCreationInputTokens`,
