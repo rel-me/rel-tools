@@ -1412,6 +1412,13 @@ Each token-usage record contains nonnegative integer `modelCalls`,
 `providerReportedTotalTokens`, `cachedInputTokens`, `cacheCreationInputTokens`,
 `toolUsePromptTokens`, and `reasoningTokens`, plus optional nonnegative
 `providerReportedCostUSD`. Reported model calls cannot exceed total model calls.
+Session usage and `globalChat.usage` may also include `contextPricingUsage`:
+`{"uncachedInput": 552500.5, "cachedInput": 50000, "output": 3001.5}`. These are
+weighted per-call pricing totals, so all three values must be finite,
+nonnegative numbers and may be fractional. REL preserves them across saves.
+Omitting this object or sending null leaves context pricing unavailable; REL
+does not infer it from aggregate tokens. Older records remain valid, and the
+workspace wire version remains 1.
 Unknown fields and malformed nested payloads are rejected without changing state.
 
 Conversation and message IDs must be unique across the workspace and cannot move
