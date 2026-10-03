@@ -836,6 +836,12 @@ weights in Ollama and refresh Models to discover them. Provider records and
 native model management are owned by Fritz; adding providers has no REL-specific
 provider limit.
 
+Provider keys stay in macOS Keychain. REL's bundled Rust Models and chat helpers
+share the app's stable signing identity, so upgrades from versions before 0.1.99
+retain access to existing app-created keys without asking you to approve each
+provider again. Keys created solely by the 0.1.99 Beta helper, or by another app,
+may still need explicit Keychain permission.
+
 Chat uses the selected/default LLM. A session Profile can specify its own model.
 The Chat menu contains response budgets and model-call limits. Chat displays
 response text during generation; Stop remains available. Models' display names
