@@ -154,8 +154,11 @@ Omit `--query` for an overview when the desired page wording is unknown. A query
 ranks lexical matches; it does not interpret an arbitrary question. Read output
 preserves context, explicit advertisement labels, source/viewport metadata, and
 separate same-label links to distinct destinations. Counts and truncation flags
-refer to the loaded snapshot, including offscreen semantic content; the command
-does not scroll a feed until every item has loaded.
+refer to the loaded snapshot. Content already loaded offscreen, including
+`content-visibility: auto` sections, is eligible for capture; truly hidden
+content is excluded. An untruncated snapshot describes the finite loaded DOM,
+not every item an infinite feed could later load. Use native scrolling or other
+page actions to load further items, then read again.
 
 
 The JSON envelope reports the source URL, title, observation ID, outline and
