@@ -1232,8 +1232,10 @@ Fritz owns native inference, installation, and the local service. REL retains
 its browser tools, response budgets, and conversation history. REL supplies its
 existing `Data/rel-data.sqlite3` database and variant-specific Keychain reference
 to Fritz. Provider records share that database; no Fritz default storage or
-credential namespace is used. Native model files use the variant's `Data/Models`
-directory. Model weights are not bundled with the app.
+credential namespace is used. Native model files use the flat `~/Models/`
+directory, shared across REL variants. The first actual download creates the
+root directory if it is missing. Opening Models, checking inventory, and app
+startup do not create it. Model weights are not bundled with the app.
 
 The provider-record migration retains the previous local model selection.
 Existing weight files remain untouched. The shared editor reports whether the
