@@ -1356,7 +1356,16 @@ returned by GET or the previous successful PUT. It atomically saves the full
 workspace snapshot and returns `data: {"revision": N+1}`. A stale revision returns
 `CONFLICT` without changing stored data. An uncertain transport result must be
 resolved by reloading the snapshot before another write. The native app serializes
-writes and requires a restart after a save failure.
+writes and requires a restart after a conflict or uncertain save result.
+
+A `VALIDATION_FAILED` rejection does not commit or advance the revision. If a
+workspace snapshot refers to a session that was deleted, the native app reads
+`GET /v1/sessions`, removes only confirmed missing sessions from the rejected
+snapshot, and automatically saves again at the same revision. Edits and sessions
+created during that read are preserved, and late browser or chat callbacks cannot
+restore deleted workspace entries. If session membership cannot be read or the
+validation failure persists, REL keeps the local state and shows the save error;
+use **Save Current Workspace** to retry.
 
 The state uses these camelCase fields:
 
