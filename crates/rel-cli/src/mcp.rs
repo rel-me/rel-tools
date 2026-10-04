@@ -469,7 +469,7 @@ fn supported_protocol_versions() -> Vec<&'static str> {
 
 fn server_info(server_version: &str) -> Value {
     json!({
-        "name": "rel",
+        "name": "REL",
         "title": "REL",
         "version": server_version,
         "description": "Browser capture and automation through REL's embedded Chromium runtime",
@@ -2093,6 +2093,11 @@ mod tests {
 
         assert_eq!(output[0]["id"], "discover");
         assert_eq!(output[0]["result"]["resultType"], "complete");
+        for response in &output {
+            let info = &response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"];
+            assert_eq!(info["name"], "REL");
+            assert_eq!(info["title"], "REL");
+        }
         assert_eq!(
             output[0]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"],
             TEST_SERVER_VERSION
@@ -2157,6 +2162,8 @@ mod tests {
 
         assert_eq!(output.len(), 3);
         assert_eq!(output[0]["result"]["protocolVersion"], "2025-11-25");
+        assert_eq!(output[0]["result"]["serverInfo"]["name"], "REL");
+        assert_eq!(output[0]["result"]["serverInfo"]["title"], "REL");
         assert_eq!(
             output[0]["result"]["serverInfo"]["version"],
             TEST_SERVER_VERSION
