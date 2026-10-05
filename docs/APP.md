@@ -1380,6 +1380,31 @@ denied Keychain access produces an explicit error. Restart the conversation's
 harness after changing decision providers.
 Jev cannot be used as a Chat provider and requires no paired LLM.
 
+### Local decision models
+
+For local judgments, add **Ollaya** in Models → Providers and explicitly download
+an experimental decision model such as **Kev 4B**. Select an LLM for the
+conversation. A configured Ollaya connection is available through the same
+`rel_delegate_browser` tool; with multiple decision connections, the assistant
+must name its intended profile. Local inference requires no API key and never
+downloads weights automatically.
+
+REL uses Fritz's shared typed decision runtime with REL-owned model locations.
+The model selects among observed controls and supplied exact values. Chat keeps
+planning, reading, composition and verification. Local decision input does not
+clean or rewrite the conversation. Context limits produce explicit errors;
+missing evidence is not silently removed, and another provider is not substituted.
+The local decision child has a 120-second terminal deadline and cancels when its
+owning request closes. Single-option choices are resolved in code.
+Local decision tokens remain in usage and response-budget accounting, but are
+excluded from the chat model's hosted-price estimate.
+
+Experimental availability does not establish workflow accuracy. Qualify each
+model's choices, uncertainty and latency for the intended task; a completion
+proposal still requires independent verification. The local typed interface
+validates every returned answer, while existing Jev delegation validates the
+selected branch. Uncertainty in unused branches does not itself stop delegation.
+
 
 Semantic browser observations report current native form values, including empty
 fields and checked/unchecked state after input. If current form state cannot be
