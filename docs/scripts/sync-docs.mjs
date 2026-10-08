@@ -7,6 +7,12 @@ const contentRoot = resolve(docsRoot, "src/content/docs");
 
 const pages = [
   {
+    source: "PROXIES.md",
+    output: "proxies.md",
+    title: "Configure proxies",
+    description: "Configure provider or custom proxies, assign them per Session, and use them from Codex and the CLI.",
+  },
+  {
     source: "CRAWLEE.md",
     output: "crawlee.md",
     title: "Crawlee integration",
@@ -81,6 +87,7 @@ const pages = [
 ];
 
 const siteLinks = new Map([
+  ["PROXIES.md", "/proxies/"],
   ["CRAWLEE.md", "/crawlee/"],
   ["APP.md", "/app/"],
   ["CODEX_PLUGIN.md", "/codex-plugin/"],
@@ -97,7 +104,7 @@ const siteLinks = new Map([
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|CRAWLEE|MCP|PLAYWRIGHT|RPC|RUBY|SDK)\.md(#[^)]+)?\)/g,
+    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|CRAWLEE|MCP|PLAYWRIGHT|PROXIES|RPC|RUBY|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

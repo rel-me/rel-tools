@@ -26,6 +26,8 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+For provider setup and per-Session assignment, see [Configure proxies](PROXIES.md).
+
 ## Session viewport presets
 
 Use **Session Viewport** beside the address field to choose **Desktop 1440w**, **Wide Laptop 1280w**,
