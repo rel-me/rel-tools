@@ -29,23 +29,6 @@ codex plugin add rel@rel
 Start a new Codex task after installation so the task loads the plugin's skill
 and MCP tools.
 
-### Migrate the legacy marketplace
-
-If Codex reports that the `rel` marketplace is already installed from a
-different source, or installs plugin version `0.1.0`, the marketplace is pinned
-to REL's old repository branch. Replace only that plugin and marketplace entry,
-then install from the canonical `main` branch:
-
-```sh
-codex plugin remove rel@rel
-codex plugin marketplace remove rel
-codex plugin marketplace add https://github.com/rel-me/rel-tools.git --ref main
-codex plugin add rel@rel
-```
-
-This removes only the cached Codex plugin. It does not remove REL.app or its
-browser sessions.
-
 ## What the plugin adds
 
 The plugin contains:
@@ -92,5 +75,9 @@ in the marketplace and composer.
 Version `0.4.3` names the plugin MCP server `REL` so Codex preserves the brand's
 capitalization in its MCP servers list. The plugin identifier remains `rel@rel`,
 the adapter remains `rel-mcp`, and tool names remain `rel_*`.
+
+Version `0.4.4` instructs both bundled skills to use `REL` in user-facing text.
+The MCP adapter source also gives every tool an explicit `REL` title; those
+titles require a REL app release containing the updated adapter.
 
 Start another new task after updating so it uses the refreshed plugin cache.

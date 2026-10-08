@@ -5,6 +5,8 @@ description: Use REL's local MCP server to read web content, inspect service hea
 
 # Use REL Browser
 
+Always write the product name as `REL` in user-facing text, never `Rel` or `rel`. Preserve exact lowercase tool identifiers, commands, URLs, and file paths.
+
 Use the MCP server bundled with `/Applications/REL.app`. REL.app owns Chromium;
 the standalone `rel-mcp` adapter only forwards supported calls through the
 local versioned API.

@@ -5,6 +5,8 @@ description: Design, implement, diagnose, or operate restartable website crawler
 
 # Crawl Websites With REL
 
+Always write the product name as `REL` in user-facing text, never `Rel` or `rel`. Preserve exact lowercase tool identifiers, commands, URLs, and file paths.
+
 Use the public `rel-crawler` Python package when the outcome is a reusable crawl,
 captured files, or resumable batch work. Keep REL as the sole browser and network
 owner; do not add Playwright, Selenium, or a direct-HTTP fallback around a
