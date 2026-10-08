@@ -70,7 +70,10 @@ In a REL source checkout, `make release-build` builds and signs
 notarize, package, publish, install, or open the app. It requires the configured
 Release signing certificate and normal build dependencies. Builds reuse compiler
 results and immutable Metal libraries under `~/Builds/RELBuildCache`, while each
-checkout owns its writable build outputs. For build prerequisites
+checkout owns its writable build outputs. An unchanged local build verifies and
+reuses its signed app; changed sources, settings, toolchains, frameworks, or signing
+identities rebuild it. Reuse preserves the existing build timestamp and number.
+Remove `dist/.release-build-reuse.json` to force staging. For build prerequisites
 and the publication workflow, see the
 [repository release guide](https://github.com/rel-me/rel/blob/main/docs/RELEASES.md).
 
