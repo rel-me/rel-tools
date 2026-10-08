@@ -68,7 +68,9 @@ launches stay open. Release builds have no automatic quit timer.
 In a REL source checkout, `make release-build` builds and signs
 `dist/REL.app` using the current version. It does not reserve a release version,
 notarize, package, publish, install, or open the app. It requires the configured
-Release signing certificate and normal build dependencies. For build prerequisites
+Release signing certificate and normal build dependencies. Builds reuse compiler
+results and immutable Metal libraries under `~/Builds/RELBuildCache`, while each
+checkout owns its writable build outputs. For build prerequisites
 and the publication workflow, see the
 [repository release guide](https://github.com/rel-me/rel/blob/main/docs/RELEASES.md).
 
