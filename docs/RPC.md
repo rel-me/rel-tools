@@ -216,6 +216,8 @@ previously stored resources remain available.
 | `POST` | `/v1/sessions/{id}/ping` | Refresh session inactivity without browser work |
 | `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
 | `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
+| `GET` | `/v1/sessions/{id}/proxy-status` | Read current proxy session ID and usage |
+| `POST` | `/v1/sessions/{id}/rotate-proxy-session` | Rotate this browser session’s sticky proxy ID |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 
 There are deliberately no log read, clear, or ingestion routes.
@@ -782,7 +784,41 @@ and UUIDs are neither accepted nor returned by proxy APIs.
 Oxylabs location requires both parameter and value; parameter is `cc`, `country`,
 or `st`. REL generates a distinct persistent sticky ID for each browser session.
 The dedicated rotate-session operation replaces the IDs for all sessions assigned
-to that proxy. IDs are not part of the public proxy resource.
+to that proxy and closes their existing proxy connections. IDs are not part of the public proxy resource.
+
+`POST /v1/sessions/{id}/rotate-proxy-session` takes an empty object and returns
+`data.session`. It requires an assigned Oxylabs- or Bright Data-enabled proxy.
+It replaces only that browser session's sticky ID, closes its existing proxy
+connections, and resets its usage counters. Other browser sessions sharing the
+proxy keep their IDs. The app exposes **Rotate Proxy Session** in the selected
+tab's Proxy menu and tab context menu, and reloads that tab after rotation.
+
+`GET /v1/sessions/{id}/proxy-status` returns these fields under `data`:
+
+```json
+{
+  "proxy_alias": "residential",
+  "proxy_session_id": "a7b92d41",
+  "can_rotate": true,
+  "request_count": 42,
+  "uploaded_bytes": 125000,
+  "downloaded_bytes": 4500000,
+  "active_connections": 3,
+  "scope": "current_proxy_session_since_agent_start"
+}
+```
+
+The app's **Proxy Session Status** panel refreshes every two seconds. Counters
+cover the current proxy assignment and sticky ID since the agent started;
+rotation, reassignment, or agent restart resets them. `request_count` counts
+plaintext HTTP requests and CONNECT tunnels, including unsuccessful attempts.
+Individual HTTPS requests within an encrypted tunnel are not visible to the
+proxy. Bytes include proxy protocol traffic and tunneled payload, rather than
+provider billing or page resource sizes. HTTP body bytes are added when their
+relay completes. `active_connections` counts accepted browser proxy connections
+still being handled. A custom proxy without sticky sessions has a null
+`proxy_session_id` and `can_rotate: false`; an unproxied session also has a null
+`proxy_alias` and zero usage.
 
 The app's New Proxy form suggests the first available alias for the selected
 provider, such as `bright-data-1` or `oxylabs-residential-1`. Custom proxies use
