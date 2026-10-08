@@ -1,7 +1,11 @@
 {
   "mcpServers": {
     "REL": {
-      "command": "/Applications/REL.app/Contents/Resources/rel-mcp"
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "set -eu\nif [ -n \"${REL_APP_PATH:-}\" ]; then\n  app=\"$REL_APP_PATH\"\n  if [ ! -d \"$app\" ]; then\n    printf 'REL_APP_PATH is not an app directory: %s\\n' \"$app\" >&2\n    exit 1\n  fi\nelif [ -d /Applications/REL.app ]; then\n  app=/Applications/REL.app\nelif [ -n \"${HOME:-}\" ] && [ -d \"$HOME/Applications/REL.app\" ]; then\n  app=\"$HOME/Applications/REL.app\"\nelse\n  app=$(/usr/bin/osascript -e 'POSIX path of (path to application id \"me.rel.Rel\")' 2>/dev/null) || app=\nfi\nif [ -z \"$app\" ] || [ ! -d \"$app\" ]; then\n  printf '%s\\n' 'REL.app was not found. Download REL from https://rel.me or set REL_APP_PATH to its app bundle.' >&2\n  exit 1\nfi\nadapter=\"$app/Contents/Resources/rel-mcp\"\nif [ ! -x \"$adapter\" ]; then\n  printf 'REL MCP adapter was not found or is not executable: %s\\n' \"$adapter\" >&2\n  exit 1\nfi\nexec \"$adapter\"\n"
+      ]
     }
   }
 }

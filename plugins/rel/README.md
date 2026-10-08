@@ -1,7 +1,7 @@
 # REL agent plugin
 
 This plugin connects Codex or Claude Code to the MCP server bundled with
-`/Applications/REL.app`. Both hosts load the same `rel-browser` and
+the installed REL app. Both hosts load the same `rel-browser` and
 `crawl-websites-with-rel` skills, MCP configuration, fourteen MCP tools, and
 eight canonical page actions.
 
@@ -14,6 +14,16 @@ REL.app owns Chromium and browser state. The plugin starts only the bundled
 `rel-mcp` adapter; it does not include another browser runtime or access REL's
 private database, logs, Chromium storage, or proxy credentials. Starting the
 adapter does not launch REL.app; validated operational tools start it lazily.
+
+## App discovery
+
+The plugin checks `/Applications/REL.app`, then `~/Applications/REL.app`, then
+asks macOS to locate the registered app with bundle ID `me.rel.Rel`. This also
+supports renamed app bundles and custom locations. Discovery does not open REL.
+Set `REL_APP_PATH` in the MCP host's environment to choose an explicit app bundle,
+for example `/Volumes/Apps/REL.app`. An invalid override reports an error rather
+than selecting another installation. The launcher executes the selected app's
+`Contents/Resources/rel-mcp` directly and preserves its stdio and exit status.
 
 ## Branding
 

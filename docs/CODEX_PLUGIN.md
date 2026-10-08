@@ -10,12 +10,17 @@ Related documents: [MCP server](MCP.md) and [CLI](CLI.md).
 ## Requirements
 
 - macOS 15 or later;
-- REL installed at `/Applications/REL.app`;
+- REL installed on the Mac;
 - a Codex release with plugin marketplace support.
 
 REL.app must be installed so Codex can start its bundled
 `Contents/Resources/rel-mcp` adapter. The app does not need to be running for
 plugin discovery or `rel_status`; other validated tool calls start it lazily.
+
+The plugin checks `/Applications/REL.app`, `~/Applications/REL.app`, then macOS
+application registration using bundle ID `me.rel.Rel`. Set `REL_APP_PATH` in the
+MCP host's environment to select a custom bundle path. Discovery does not launch
+REL; an invalid override reports an error without falling back.
 
 ## Install
 
@@ -33,8 +38,7 @@ and MCP tools.
 
 The plugin contains:
 
-- the bundled REL MCP server configuration, using the absolute installed-app
-  path;
+- the bundled REL MCP server configuration, with automatic app discovery;
 - the `rel-browser` skill for safe session selection and browser workflows;
 - the `crawl-websites-with-rel` skill for rendered-link discovery, readiness,
   checkpoints, capture metadata, bounded retries, and session recovery;
@@ -79,5 +83,8 @@ the adapter remains `rel-mcp`, and tool names remain `rel_*`.
 Version `0.4.4` instructs both bundled skills to use `REL` in user-facing text.
 The MCP adapter source also gives every tool an explicit `REL` title; those
 titles require a REL app release containing the updated adapter.
+
+Version `0.4.5` discovers REL outside `/Applications` and supports a
+`REL_APP_PATH` override.
 
 Start another new task after updating so it uses the refreshed plugin cache.

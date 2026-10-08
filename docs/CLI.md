@@ -1,6 +1,6 @@
 # REL CLI
 
-The recommended CLI is the `rel` binary bundled in `/Applications/REL.app` and
+The recommended CLI is the `rel` binary bundled in the installed REL app and
 linked from a writable directory already in `PATH`. Use **REL → Settings… →
 General → Install Command Line** to create the link. If no safe destination is
 available, REL leaves the filesystem unchanged so you can create the link
@@ -25,6 +25,18 @@ Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
 When session creation omits a profile, REL uses **Settings → General → Default
 Profile**, or **Custom** if the preference is unset. Explicit profile choices
 always take precedence.
+
+## App discovery
+
+When the local agent is unavailable, the CLI starts REL using `REL_APP_PATH` if
+set, otherwise its enclosing app bundle, `/Applications/REL.app`,
+`~/Applications/REL.app`, or the app registered with macOS under `me.rel.Rel`, in
+that order. An invalid override reports an error without falling back. For a
+custom location:
+
+```sh
+REL_APP_PATH="/Volumes/Apps/REL.app" rel navigate https://example.com
+```
 
 ## Commands
 

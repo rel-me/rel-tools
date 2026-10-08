@@ -10,12 +10,17 @@ Related documents: [MCP server](MCP.md) and [CLI](CLI.md).
 ## Requirements
 
 - macOS 15 or later;
-- REL installed at `/Applications/REL.app`;
+- REL installed on the Mac;
 - a current Claude Code release with plugin marketplace support.
 
 REL.app must be installed so Claude Code can start its bundled
 `Contents/Resources/rel-mcp` adapter. The app does not need to be running for
 plugin discovery or `rel_status`; other validated tool calls start it lazily.
+
+The plugin checks `/Applications/REL.app`, `~/Applications/REL.app`, then macOS
+application registration using bundle ID `me.rel.Rel`. Set `REL_APP_PATH` in the
+MCP host's environment to select a custom bundle path. Discovery does not launch
+REL; an invalid override reports an error without falling back.
 
 ## Install
 
@@ -34,8 +39,7 @@ and run `/reload-plugins`.
 
 The plugin contains:
 
-- the bundled REL MCP server configuration, using the absolute installed-app
-  path;
+- the bundled REL MCP server configuration, with automatic app discovery;
 - the namespaced `/rel:rel-browser` skill for safe session selection and browser
   workflows;
 - the namespaced `/rel:crawl-websites-with-rel` skill for rendered-link

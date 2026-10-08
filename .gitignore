@@ -16,3 +16,5 @@
 /docs/src/content/docs/crawlee.md
 /ruby/*.gem
 /ruby/Gemfile.lock
+
+__pycache__/
