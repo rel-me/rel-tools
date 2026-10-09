@@ -99,9 +99,9 @@ provider; the CPU button opens Models settings. Configured providers filter the
 model list.
 
 For models that support them, **Thinking** and **Speed** appear at the bottom of
-the picker. Changes apply to the next turn while keeping the current messages
-and draft. The composer shows the selected thinking level and any nonstandard
-speed; Priority appears as **Fast**. Unsupported controls are omitted.
+the picker. Changing the model, Thinking, or Speed applies to the next turn while
+keeping the current messages and draft. The composer shows the selected thinking
+level and any nonstandard speed; Priority appears as **Fast**. Unsupported controls are omitted.
 
 ## AI provider presets
 
