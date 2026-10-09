@@ -106,15 +106,53 @@ An explicit proxy updates the reused Session's assignment. Omitting `--proxy`
 keeps an existing Session's assignment. See the [CLI proxy reference](CLI.md#proxies)
 for creating, editing, and transferring configurations.
 
-## Exit locale and certificate settings
+## Timezone detection and browser identity
 
-**Detect Exit Locale** is enabled by default for new proxies. When applicable
-browser identity controls are enabled, REL detects the exit country and timezone
-through the Session's proxy using IPWHOIS.io. Automatic language settings use
-the detected country, and enabled timezone settings use the detected timezone.
-A failed lookup reports an error. Turn detection off to use the configured
-location for Automatic language instead; custom language settings take priority.
-See [browser identity](APP.md#browser-identity) for the full precedence rules.
+A proxy changes the Session's network route. Its exit IP and the timezone
+reported by browser JavaScript are separate settings.
+
+**Detect Exit Locale** currently detects the proxy's exit **country** for
+Automatic language selection. Automatic detection of the exit timezone is not
+available in the current REL release. Enabling this option does not replace the
+Session's configured timezone.
+
+To align a Session's browser timezone with its proxy location:
+
+1. Check the proxy's actual exit location using an IP-check page in that Session.
+   Use the exit location rather than assuming the provider's requested country
+   determines a single timezone.
+2. Open the Session's tab menu and edit its **Browser Identity**. Choose
+   **New Browser Identity…** to customize it, or **Edit** beside **Custom Privacy**
+   in a Profile or Session draft.
+3. In **Custom Privacy**, enable **Timezone** and enter an IANA timezone name,
+   such as `America/New_York` or `Europe/Berlin`.
+4. Choose **Use Identity**, save the configuration, and apply any pending
+   **Reload** banner.
+
+With the Timezone control disabled, Chromium uses its native timezone. Saved
+Profile edits apply to future Sessions; edit an existing Session's identity to
+change that Session. If a rotating proxy moves to another timezone, review the
+manual setting again.
+
+To verify the browser's timezone, run this in the Session's developer console
+or ask Codex to evaluate it through REL:
+
+```js
+Intl.DateTimeFormat().resolvedOptions().timeZone
+```
+
+Compare that value with the exit location. This checks the timezone exposed to
+websites; it does not change your Mac's system timezone.
+See [browser identity](APP.md#browser-identity) for the other privacy controls.
+
+## Exit country and certificate settings
+
+When **Detect Exit Locale** and Automatic language are enabled, REL looks up
+the exit country through the Session's proxy using IPWHOIS.io. Successful
+results are cached for up to 30 minutes per Session and upstream route. The
+service sees the proxy's exit IP. A failed lookup reports an error.
+Turn detection off to use the configured location for Automatic language;
+custom language settings take priority.
 
 Under **HTTPS Certificates → Trust**, use **System trust** for ordinary proxy
 connections. The Bright Data preset selects **Bright Data certificate** for
