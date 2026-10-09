@@ -534,6 +534,16 @@ requested URL and a filter explanation. Check **AdBlock** in the Session's
 blocks the page. Blocked scripts, images, or embedded frames remain filter log
 events and do not mark the main page as failed.
 
+### Loopback AdBlock exclusions
+
+REL allows local development destinations through AdBlock: `localhost`, its
+subdomains (such as `app.localhost`), IPv4 loopback addresses in `127.0.0.0/8`,
+and IPv6 `::1`. This applies to main pages and subresources in direct and proxied
+Sessions, even when a downloaded rule would block them.
+
+Only the destination host is exempt. External requests made by local pages still
+use AdBlock rules. Image blocking and image size limits still apply.
+
 ### Proxy-provider AdBlock exclusions
 
 In Sessions using a proxy, REL excludes known proxy-provider destinations and

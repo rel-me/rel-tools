@@ -751,7 +751,7 @@ Passwords are accepted on writes but never returned.
 - `POST /v1/proxies/{alias}/rotate-session` requires an Oxylabs- or Bright Data-enabled proxy and
   returns `data.proxy`.
 
-`detect_exit_locale` is a boolean, on by default for new proxies and preserved
+`detect_exit_locale` is a boolean, off by default for new proxies and preserved
 when omitted on update. Existing saved values and imported settings are unchanged. Automatic language controls use the active provider's configured country
 (Bright Data country, Oxylabs country, or US state). When detection is enabled,
 they instead resolve the exit country through the session's agent-owned proxy

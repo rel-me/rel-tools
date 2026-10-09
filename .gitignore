@@ -18,3 +18,4 @@
 /ruby/Gemfile.lock
 
 __pycache__/
+/docs/src/content/docs/proxies.md

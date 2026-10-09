@@ -26,6 +26,8 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+For provider setup and per-Session assignment, see [Configure proxies](PROXIES.md).
+
 ## Session viewport presets
 
 Use **Session Viewport** beside the address field to choose **Desktop 1440w**, **Wide Laptop 1280w**,
@@ -63,6 +65,20 @@ Automated verification can opt into a 15-minute quit timer with
 Debug process and is not saved in preferences or the app bundle. Later manual
 launches stay open. Release builds have no automatic quit timer.
 
+### Building locally from source
+
+In a REL source checkout, `make release-build` builds and signs
+`dist/REL.app` using the current version. It does not reserve a release version,
+notarize, package, publish, install, or open the app. It requires the configured
+Release signing certificate and normal build dependencies. Builds reuse compiler
+results and immutable Metal libraries under `~/Builds/RELBuildCache`, while each
+checkout owns its writable build outputs. An unchanged local build verifies and
+reuses its signed app; changed sources, settings, toolchains, frameworks, or signing
+identities rebuild it. Reuse preserves the existing build timestamp and number.
+Remove `dist/.release-build-reuse.json` to force staging. For build prerequisites
+and the publication workflow, see the
+[repository release guide](https://github.com/rel-me/rel/blob/main/docs/RELEASES.md).
+
 ## Start on Login
 
 Enable **Settings → General → Startup → Start on Login** to open REL
@@ -88,6 +104,20 @@ clients continue receiving updates.
 
 The selection is saved across app restarts. Changing channels changes which
 future updates are eligible; it does not downgrade an installed version.
+
+## Chat model picker
+
+Open the model control in the Chat composer to search models, filter by provider,
+and choose a recent model. Two rows prioritize OpenAI, Anthropic, Google, Ollama,
+and OpenRouter. Provider filters with an arrow open setup for that provider;
+configured providers filter the model list. The ellipsis at the end of the second
+row and the CPU button open Models settings for all providers. Search includes
+models from every configured provider.
+
+For models that support them, **Thinking** and **Speed** appear at the bottom of
+the picker. Changing the model, Thinking, or Speed applies to the next turn while
+keeping the current messages and draft. The composer shows the selected thinking
+level and any nonstandard speed; Priority appears as **Fast**. Unsupported controls are omitted.
 
 ## AI provider presets
 
@@ -384,10 +414,14 @@ country or US state targeting supply this location. For example, Germany uses
 `de-DE`, Canada uses `en-CA`, and Belgium uses `nl-BE`. Without a configured
 location, REL uses your macOS preferred language.
 
-The proxy editor's **Detect Exit Locale** option is on by default for new proxies.
-It uses the detected exit country instead of the configured target and the
-detected IANA timezone instead of the saved profile timezone. The timezone control must be
-enabled. For Automatic language or enabled timezone controls, REL requests
+Enable the proxy editor's **Detect Exit Locale** option to detect the exit country.
+It is off by default for new proxies.
+It uses the detected exit country instead of the configured target for
+Automatic language. When the **Timezone** control is enabled, it also uses the
+detected IANA timezone instead of the saved identity timezone. With detection
+off, the saved timezone applies; with the control disabled, Chromium stays native. See
+[timezone detection and browser identity](PROXIES.md#timezone-detection-and-browser-identity).
+For Automatic language or an enabled Timezone control, REL requests
 `https://ipwho.is/` through the browser session's agent-owned proxy before preparing
 the browser. IPWHOIS.io sees the proxy's exit IP. Successful results are cached for up to 30 minutes per session and upstream
 route; a provider session rotation changes that route. A failed lookup reports an
@@ -398,13 +432,13 @@ Existing saved proxies keep their current setting, including an explicit off cho
 A country does not identify every resident's preferred language. In Custom
 Privacy, choose **Custom** in the Language row to set an explicit locale such as
 `fr-CA`. Custom takes precedence over automatic language selection. The timezone
-control can still trigger a lookup and use the detected timezone independently.
+control can still use the detected timezone independently.
 Disabling the language control keeps native Chromium language and locale.
 The former proxy-level manual locale is retained in storage and API responses,
 but Automatic now uses country targeting or exit detection.
 
 For HTTP clients, proxy create/update accepts `detect_exit_locale` (boolean,
-default `true` on create and preserved when omitted on update). Proxy responses
+default `false` on create and preserved when omitted on update). Proxy responses
 include that setting. Session responses include `proxy_country` (configured ISO
 country or null) and `proxy_detect_exit_locale`. With detection enabled,
 `GET /v1/sessions/{id}/proxy-location` returns
@@ -530,6 +564,16 @@ requested URL and a filter explanation. Check **AdBlock** in the Session's
 **Filters** panel before trying again; retrying with the same blocking rule still
 blocks the page. Blocked scripts, images, or embedded frames remain filter log
 events and do not mark the main page as failed.
+
+### Loopback AdBlock exclusions
+
+REL allows local development destinations through AdBlock: `localhost`, its
+subdomains (such as `app.localhost`), IPv4 loopback addresses in `127.0.0.0/8`,
+and IPv6 `::1`. This applies to main pages and subresources in direct and proxied
+Sessions, even when a downloaded rule would block them.
+
+Only the destination host is exempt. External requests made by local pages still
+use AdBlock rules. Image blocking and image size limits still apply.
 
 ### Proxy-provider AdBlock exclusions
 

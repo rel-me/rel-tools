@@ -7,6 +7,8 @@ It configures the MCP server bundled with the installed app and adds the
 
 Related documents: [MCP server](MCP.md) and [CLI](CLI.md).
 
+For provider setup and per-Session assignment, see [Configure proxies](PROXIES.md).
+
 ## Requirements
 
 - macOS 15 or later;

@@ -46,6 +46,7 @@ export default defineConfig({
           items: [
             { label: "Overview", slug: "index" },
             { label: "macOS app", slug: "app" },
+            { label: "Configure proxies", slug: "proxies" },
             { label: "Actions", slug: "actions" },
           ],
         },
