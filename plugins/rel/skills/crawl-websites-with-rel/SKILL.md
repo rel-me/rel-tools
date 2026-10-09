@@ -1,18 +1,61 @@
 ---
 name: crawl-websites-with-rel
-description: Design, implement, diagnose, or operate restartable website crawlers through REL's embedded Chromium sessions. Use for interaction-heavy or difficult sites that require rendered-link discovery, native clicking, page-readiness waits, browser-history Back, named Profiles, HTML and metadata captures, checkpoints, bounded retries, or session recovery. Prefer rel-browser for one-off browsing that does not need a reusable crawl.
+description: Design, implement, diagnose, or operate reusable website crawls through REL's embedded Chromium sessions. Use rel-crawlee for queued URL crawling and structured datasets, or rel-crawler for history-preserving click-and-Back captures. Prefer rel-browser for one-off browsing that does not need a reusable crawl.
 ---
 
 # Crawl Websites With REL
 
 Always write the product name as `REL` in user-facing text, never `Rel` or `rel`. Preserve exact lowercase tool identifiers, commands, URLs, and file paths.
 
-Use the public `rel-crawler` Python package when the outcome is a reusable crawl,
-captured files, or resumable batch work. Keep REL as the sole browser and network
-owner; do not add Playwright, Selenium, or a direct-HTTP fallback around a
+Keep REL as the sole browser and network owner. The supported `rel-playwright`
+package is an API adapter to REL, not another browser runtime. Do not launch a
+separate Playwright/Selenium browser or add a direct-HTTP fallback around a
 site-specific failure.
 
-## Workflow
+## Choose the crawler
+
+- Default to `rel-crawlee` for general URL crawling: multi-page traversal,
+  persistent request queues, deduplication, routing, bounded retries,
+  concurrency, and structured datasets.
+- Use `rel-crawler` when the crawl must click each listing link, capture the
+  target, and return with browser-history Back to preserve the source state.
+  It provides a specialized one-level crawl with capture metadata, transition
+  checkpoints, and bounded session recovery.
+- Use `rel-browser` for a few interactive pages rather than a reusable crawl.
+
+Preserve an explicitly requested crawler. Queue persistence does not restore
+live browser state or replace the click-and-Back invariant.
+
+## General URL crawls with Crawlee
+
+Read the maintained [Crawlee guide](https://docs.rel.me/crawlee/) and
+[basic example](https://github.com/rel-me/rel-tools/blob/main/crawlee/examples/basic.py)
+for installation and supported APIs. Use `rel_crawlee.RelCrawler` and
+`RelCrawlingContext`; Crawlee's built-in `PlaywrightCrawler` requires APIs REL
+has not exposed and cannot be made compatible by changing its browser plugin.
+
+1. Inspect representative pages with REL and choose content readiness selectors,
+   extraction fields, allowed URL scope, and a bounded crawl depth/request count.
+2. Put extraction and readiness waits in router handlers. Use
+   `context.enqueue_links()` with an explicit scope and suitable include/exclude
+   filters. Its discovery parses rendered HTML; it does not guarantee every
+   discovered anchor is natively clickable.
+3. Let Crawlee own request deduplication, retry budgets, queues, and datasets.
+   Use named persistent queues and `purge_on_start=False` when resume is required,
+   following the guide. Write HTML and capture metadata explicitly when requested;
+   Crawlee does not automatically supply `rel-crawler`'s sidecars or checkpoints.
+4. Use an existing named REL Profile when needed. Each attempt uses a fresh REL
+   session by default. Opt into `session_pool_size` only when reuse is appropriate;
+   pool slots retain separate cookies/storage and have no URL/account affinity.
+   Use a caller-owned `session_id` for one specific live login; it runs serially
+   and cannot be combined with a Profile or pool. Never automatically close that
+   caller-owned session. Queue resume does not restore an earlier pool.
+5. Set request/retry and concurrency limits appropriate for the local Mac. Start
+   with a small crawl, verify output and queue resume, then scale. Keep browser
+   work inside the awaited handler lifecycle; do not retain pages in background
+   tasks after the handler returns.
+
+## History-preserving crawls with rel-crawler
 
 1. Inspect the source and one target interactively with REL. Identify a source
    selector and target selector that prove the expected content is ready. Verify
@@ -56,10 +99,10 @@ Do not combine load-more mode with captured-HTML extraction.
 
 The maintained implementation and runnable public example are in
 [`rel-tools/crawler`](https://github.com/rel-me/rel-tools/tree/main/crawler).
-For hard-site failure diagnosis and selector rules, read
+For history-preserving crawl failure diagnosis and selector rules, read
 [`references/hard-site-playbook.md`](references/hard-site-playbook.md).
 
-## Guardrails
+## History-preserving crawl guardrails
 
 - Normalize IRIs to ASCII URIs for exact click matching while preserving the
   original readable URL in metadata and logs.
