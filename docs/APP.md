@@ -94,9 +94,11 @@ future updates are eligible; it does not downgrade an installed version.
 ## Chat model picker
 
 Open the model control in the Chat composer to search models, filter by provider,
-and choose a recent model. Provider filters with an arrow open setup for that
-provider; the CPU button opens Models settings. Configured providers filter the
-model list.
+and choose a recent model. Two rows prioritize OpenAI, Anthropic, Google, Ollama,
+and OpenRouter. Provider filters with an arrow open setup for that provider;
+configured providers filter the model list. The ellipsis at the end of the second
+row and the CPU button open Models settings for all providers. Search includes
+models from every configured provider.
 
 For models that support them, **Thinking** and **Speed** appear at the bottom of
 the picker. Changing the model, Thinking, or Speed applies to the next turn while
