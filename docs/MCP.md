@@ -63,6 +63,12 @@ interactive shell's `PATH`:
 }
 ```
 
+These examples assume REL is in `/Applications`. For another location, use the
+path copied from REL Settings, or install the plugin to discover the app
+automatically. The plugin checks `/Applications`, `~/Applications`, and macOS
+application registration; `REL_APP_PATH` overrides its discovery. Setting that
+variable does not change a manually configured absolute MCP command path.
+
 For clients that use TOML configuration:
 
 ```toml

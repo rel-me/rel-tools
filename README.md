@@ -26,8 +26,10 @@ session storage, proxy credentials, or internal service code.
 - [`docs`](docs): the canonical Actions, CLI, MCP, RPC, and Rust SDK
   documentation that powers [docs.rel.me](https://docs.rel.me).
 
-All clients require REL.app in `/Applications`; they connect only to its
-loopback API. Download the app from [REL.me](https://rel.me).
+All clients require REL.app; they connect only to its loopback API. The CLI
+and plugin discover REL in `/Applications`, `~/Applications`, or through
+macOS application registration. Set `REL_APP_PATH` to select a custom app bundle.
+Download the app from [REL.me](https://rel.me).
 
 ## Install the CLI
 
@@ -66,7 +68,7 @@ codex plugin add rel@rel
 
 Start a new Codex task after installation. The plugin configures the bundled
 `rel-mcp` adapter and adds guidance for safe use of persistent browser sessions.
-REL.app must be installed in `/Applications`.
+REL.app must be installed; the plugin locates its bundled adapter automatically.
 
 The same plugin is available through the repository's Claude Code marketplace:
 

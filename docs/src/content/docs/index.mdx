@@ -76,4 +76,6 @@ Session or use it from Codex and the CLI. Proxy use requires REL Pro.
 
 ## Supported runtime
 
-REL has one supported path: the installed `/Applications/REL.app` owns Chromium and supervises its bundled local agent. CLI, SDK, and MCP adapter calls connect to that agent; the agent routes browser work back into the visible app.
+The installed REL app owns Chromium and supervises its bundled local agent. CLI, SDK, and MCP adapter calls connect to that agent; the agent routes browser work back into the visible app.
+
+CLI and plugin startup discover REL in `/Applications`, `~/Applications`, or through macOS application registration. Set `REL_APP_PATH` to choose a custom app bundle.
