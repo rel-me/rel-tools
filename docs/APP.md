@@ -91,6 +91,18 @@ clients continue receiving updates.
 The selection is saved across app restarts. Changing channels changes which
 future updates are eligible; it does not downgrade an installed version.
 
+## Chat model picker
+
+Open the model control in the Chat composer to search models, filter by provider,
+and choose a recent model. Provider filters with an arrow open setup for that
+provider; the CPU button opens Models settings. Configured providers filter the
+model list.
+
+For models that support them, **Thinking** and **Speed** appear at the bottom of
+the picker. Changes apply to the next turn while keeping the current messages
+and draft. The composer shows the selected thinking level and any nonstandard
+speed; Priority appears as **Fast**. Unsupported controls are omitted.
+
 ## AI provider presets
 
 In **Models → Providers → Add Provider**, choose **Fireworks**, **Amazon Bedrock**,
