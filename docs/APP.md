@@ -386,10 +386,13 @@ country or US state targeting supply this location. For example, Germany uses
 `de-DE`, Canada uses `en-CA`, and Belgium uses `nl-BE`. Without a configured
 location, REL uses your macOS preferred language.
 
-The proxy editor's **Detect Exit Locale** option is on by default for new proxies.
-It uses the detected exit country instead of the configured target and the
-detected IANA timezone instead of the saved profile timezone. The timezone control must be
-enabled. For Automatic language or enabled timezone controls, REL requests
+Enable the proxy editor's **Detect Exit Locale** option to detect the exit country.
+It is off by default for new proxies.
+It uses the detected exit country instead of the configured target for
+Automatic language. The current release does not detect the exit timezone;
+set the **Timezone** control explicitly to match the proxy location. See
+[timezone detection and browser identity](PROXIES.md#timezone-detection-and-browser-identity).
+For Automatic language, REL requests
 `https://ipwho.is/` through the browser session's agent-owned proxy before preparing
 the browser. IPWHOIS.io sees the proxy's exit IP. Successful results are cached for up to 30 minutes per session and upstream
 route; a provider session rotation changes that route. A failed lookup reports an
@@ -400,17 +403,17 @@ Existing saved proxies keep their current setting, including an explicit off cho
 A country does not identify every resident's preferred language. In Custom
 Privacy, choose **Custom** in the Language row to set an explicit locale such as
 `fr-CA`. Custom takes precedence over automatic language selection. The timezone
-control can still trigger a lookup and use the detected timezone independently.
+control uses the value saved in the browser identity independently.
 Disabling the language control keeps native Chromium language and locale.
 The former proxy-level manual locale is retained in storage and API responses,
 but Automatic now uses country targeting or exit detection.
 
 For HTTP clients, proxy create/update accepts `detect_exit_locale` (boolean,
-default `true` on create and preserved when omitted on update). Proxy responses
+default `false` on create and preserved when omitted on update). Proxy responses
 include that setting. Session responses include `proxy_country` (configured ISO
 country or null) and `proxy_detect_exit_locale`. With detection enabled,
 `GET /v1/sessions/{id}/proxy-location` returns
-`{ "country": "DE", "timezone": "Europe/Berlin" }` in the standard response envelope, or an error if detection is disabled, the session has
+`{ "country": "DE" }` in the standard response envelope, or an error if detection is disabled, the session has
 no proxy, or the lookup fails. This lookup does not write a language to the proxy.
 
 Privacy controls cover graphics, audio, device surfaces, language and locale,
