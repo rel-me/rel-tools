@@ -541,6 +541,14 @@ excluded along with `hidden` and `aria-hidden` subtrees. Element refs such as
 `e17` are valid only for that page, document sequence, and observation. Private
 locators never cross RPC.
 
+Observations also include `captcha`, REL's current debounced human-verification
+state: `{"active":true,"kind":"reCAPTCHA"}` when a stable challenge is detected,
+or `{"active":false}` otherwise. This is the same native detector used by the
+menu bar and attention notifications. A false value is not proof that a site has
+no CAPTCHA: detection is heuristic and may still be pending. No challenge
+selector, response token, or solver capability is exposed. Retained observations
+report the state at capture time; request a new observation for current state.
+
 Semantic observations visit at most 50,000 DOM nodes, retain at most 5,000
 candidates and returned entries, limit individual text fields to 2,048 bytes,
 and limit total returned semantics to 512 KiB. REL reports rather than silently
