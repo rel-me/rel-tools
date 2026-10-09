@@ -29,6 +29,29 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+## CAPTCHA attention alerts
+
+When a CAPTCHA persists in a live Session, REL sends a time-sensitive macOS
+notification and shows a prominent red alert beside its menu bar label. Click
+the notification or choose **Go to CAPTCHA in [Session]** at the top of the
+REL menu bar menu. REL activates its window, selects the affected Session, and
+focuses its existing browser so you can complete the challenge without reloading
+or losing its state. Additional affected Sessions appear under **Other CAPTCHAs**.
+
+REL recognizes common reCAPTCHA, hCaptcha, Turnstile, Arkose, DataDome, GeeTest,
+and AWS WAF widgets, plus custom human-verification controls such as
+Zillow-style press-and-hold challenges. Recognition is heuristic: a site's new
+or unusual challenge can require you to open the Session manually. Loading a
+CAPTCHA library alone does not trigger an alert, and REL does not solve CAPTCHAs
+automatically. Existing client request deadlines still apply.
+
+macOS asks for notification permission when REL first needs to alert you. Enable
+REL under **System Settings > Notifications** and allow time-sensitive alerts
+if you want them delivered during Focus. The menu bar alert remains available
+when notifications are disabled. REL avoids repeated alerts for the same active
+challenge and clears the alert when the challenge disappears, the page changes,
+or the Session closes.
+
 ## Session viewport presets
 
 Use **Session Viewport** beside the address field to choose **Desktop 1440w**, **Wide Laptop 1280w**,
