@@ -434,6 +434,19 @@ impl RelClient {
         self.request("POST", &path, Some(request))
     }
 
+    /// Activate the owning app's REL Pro license. Never log the supplied key.
+    pub fn activate_license(
+        &self,
+        key: &str,
+    ) -> Result<RpcResponse<LicenseActivationData>, ClientError> {
+        self.request_with_timeout(
+            "POST",
+            "/license/activate",
+            Some(&serde_json::json!({"license_key": key})),
+            Duration::from_secs(120),
+        )
+    }
+
     pub fn list_proxies(&self) -> Result<RpcResponse<ProxyListData>, ClientError> {
         self.request::<ProxyListData, Value>("GET", "/proxies", None)
     }
@@ -3556,6 +3569,27 @@ mod tests {
         body: String,
     }
 
+    #[test]
+    fn license_activation_uses_versioned_route_and_typed_result() {
+        let (url, server) = start_test_server(1, |_, request| {
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/v1/license/activate");
+            assert_eq!(
+                serde_json::from_str::<Value>(&request.body).unwrap(),
+                json!({"license_key":"fixture-key"})
+            );
+            http_json(
+                200,
+                "req_license",
+                json!({"status":"ok","request_id":"req_license","data":{"activated":true,"plan":"pro"}}),
+            )
+        });
+        let response = RelClient::new(url).activate_license("fixture-key").unwrap();
+        assert!(response.data.activated);
+        assert_eq!(response.data.plan, "pro");
+        server.join().unwrap();
+    }
+
     fn start_test_server<F>(
         request_count: usize,
         mut responder: F,
@@ -5635,4 +5669,10 @@ mod database_recovery_tests {
         let health: Health = serde_json::from_value(json.clone()).unwrap();
         assert_eq!(serde_json::to_value(health).unwrap(), json);
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct LicenseActivationData {
+    pub activated: bool,
+    pub plan: String,
 }

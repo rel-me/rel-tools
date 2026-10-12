@@ -13,7 +13,7 @@ use serde::Serialize;
 use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::DirBuilderExt;
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -21,6 +21,7 @@ use uuid::Uuid;
 pub use rel_client::rpc_error_codes;
 
 mod app;
+mod bulk;
 mod mcp;
 mod transfer;
 
@@ -121,6 +122,19 @@ fn print_cli_error(error: CliError) -> i32 {
 
 fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> {
     match command {
+        CliCommand::LicenseActivate => {
+            let key = read_license_key(&mut io::stdin().lock())?;
+            print_json(&client.activate_license(&key)?)?;
+            Ok(0)
+        }
+        CliCommand::BulkExport {
+            profiles,
+            directory,
+        } => bulk::export(&client, profiles, &directory),
+        CliCommand::BulkImport {
+            profiles,
+            directory,
+        } => bulk::import(&client, profiles, &directory),
         CliCommand::Health => {
             print_json(&client.health()?)?;
             Ok(0)
@@ -484,6 +498,15 @@ impl From<client::ClientError> for CliError {
 enum CliCommand {
     Health,
     Status,
+    LicenseActivate,
+    BulkExport {
+        profiles: bool,
+        directory: PathBuf,
+    },
+    BulkImport {
+        profiles: bool,
+        directory: PathBuf,
+    },
     Navigate(NavigateRequest),
     Read(PageReadRequest),
     Perform(PerformRequest),
@@ -587,6 +610,18 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "page" => parse_page(args),
         "observe" => parse_observe(args),
         "observation" => parse_observation(args),
+        "license" => {
+            if args.peek_is_help() {
+                return Err(CliError::Help(license_help()));
+            }
+            let subcommand = args.required_positional("license subcommand")?;
+            let option = args.pop();
+            if subcommand != "activate" || option.as_deref() != Some("--key-stdin") {
+                return Err(CliError::Message(license_help()));
+            }
+            args.finish()?;
+            Ok(CliCommand::LicenseActivate)
+        }
         "proxy" => parse_proxy(args),
         "profile" => parse_profile(args),
         "session" => parse_session(args),
@@ -1208,6 +1243,10 @@ fn parse_proxy_update(mut args: Arguments) -> Result<CliCommand, CliError> {
 }
 
 fn parse_proxy_export(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.values.front().map(String::as_str) == Some("--all") {
+        args.pop();
+        return parse_bulk(args, false);
+    }
     let alias = args.required_positional("proxy alias")?;
     let mut output = None;
     while let Some((option, inline)) = args.pop_option()? {
@@ -1227,12 +1266,31 @@ fn parse_proxy_export(mut args: Arguments) -> Result<CliCommand, CliError> {
 fn parse_proxy_import(mut args: Arguments) -> Result<CliCommand, CliError> {
     let path = PathBuf::from(args.required_positional("proxy transfer file")?);
     let mut alias = None;
+    let mut all = false;
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
+            "--all" => {
+                args.flag(&option, inline)?;
+                if all {
+                    return Err(CliError::Message("--all may only be specified once".into()));
+                }
+                all = true;
+            }
             "--alias" => set_once(&mut alias, args.option_value(&option, inline)?, &option)?,
             "-h" | "--help" => return Err(CliError::Help(proxy_help())),
             _ => return Err(args.unknown_option(&option, "proxy import")),
         }
+    }
+    if all {
+        if alias.is_some() {
+            return Err(CliError::Message(
+                "--all cannot rename imported records".into(),
+            ));
+        }
+        return Ok(CliCommand::BulkImport {
+            profiles: false,
+            directory: path,
+        });
     }
     Ok(CliCommand::ProxyImport { path, alias })
 }
@@ -1255,6 +1313,10 @@ fn parse_profile(mut args: Arguments) -> Result<CliCommand, CliError> {
 }
 
 fn parse_profile_export(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.values.front().map(String::as_str) == Some("--all") {
+        args.pop();
+        return parse_bulk(args, true);
+    }
     let name = args.required_positional("profile name")?;
     let mut output = None;
     while let Some((option, inline)) = args.pop_option()? {
@@ -1274,12 +1336,31 @@ fn parse_profile_export(mut args: Arguments) -> Result<CliCommand, CliError> {
 fn parse_profile_import(mut args: Arguments) -> Result<CliCommand, CliError> {
     let path = PathBuf::from(args.required_positional("profile transfer file")?);
     let mut name = None;
+    let mut all = false;
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
+            "--all" => {
+                args.flag(&option, inline)?;
+                if all {
+                    return Err(CliError::Message("--all may only be specified once".into()));
+                }
+                all = true;
+            }
             "--name" => set_once(&mut name, args.option_value(&option, inline)?, &option)?,
             "-h" | "--help" => return Err(CliError::Help(profile_help())),
             _ => return Err(args.unknown_option(&option, "profile import")),
         }
+    }
+    if all {
+        if name.is_some() {
+            return Err(CliError::Message(
+                "--all cannot rename imported records".into(),
+            ));
+        }
+        return Ok(CliCommand::BulkImport {
+            profiles: true,
+            directory: path,
+        });
     }
     Ok(CliCommand::ProfileImport { path, name })
 }
@@ -1639,6 +1720,7 @@ Usage:\n  \
 rel URL [options]\n  \
 rel health\n  \
 rel status\n  \
+rel license activate --key-stdin\n  \
 rel-mcp\n  \
 rel navigate [URL] [options]\n  \
 rel read [URL] [--query TEXT] [options]\n  \
@@ -1782,6 +1864,8 @@ rel proxy update ALIAS [options]\n  \
 rel proxy delete ALIAS\n  \
 rel proxy rotate ALIAS\n  \
 rel proxy export ALIAS [--output PATH]\n  \
+rel proxy export --all --output DIRECTORY\n  \
+rel proxy import DIRECTORY --all\n  \
 rel proxy import FILE [--alias ALIAS]\n\n\
 Write options:\n  \
 --alias ALIAS --upstream-host HOST --upstream-port PORT\n  \
@@ -1801,6 +1885,8 @@ fn profile_help() -> String {
     "Usage:\n  \
 rel profile list\n  \
 rel profile export NAME [--output PATH]\n  \
+rel profile export --all --output DIRECTORY\n  \
+rel profile import DIRECTORY --all\n  \
 rel profile import FILE [--name NAME]\n\n\
 Export writes a versioned SQLite .relprofile file containing reusable settings.
 Cookies, saved passwords, and proxy credentials are not included. Import creates
@@ -2735,6 +2821,102 @@ mod tests {
     fn rejects_removed_cli_surfaces() {
         for args in [vec!["ping"], vec!["logs"], vec!["--rotate-proxy-session=1"]] {
             assert!(parse(&args).is_err(), "accepted {args:?}");
+        }
+    }
+}
+
+fn license_help() -> String {
+    "Usage: rel license activate --key-stdin\nRead a license key from stdin and activate REL Pro in the owning app.".into()
+}
+
+fn read_license_key(input: &mut impl io::Read) -> Result<String, CliError> {
+    let mut bytes = Vec::new();
+    input
+        .take(4097)
+        .read_to_end(&mut bytes)
+        .map_err(|_| CliError::Message("Could not read license key from stdin".into()))?;
+    if bytes.len() > 4096 {
+        return Err(CliError::Message("License key exceeds 4096 bytes".into()));
+    }
+    let key = String::from_utf8(bytes)
+        .map_err(|_| CliError::Message("License key must be UTF-8".into()))?;
+    let key = key.trim();
+    if key.is_empty() || key.contains(['\n', '\r']) {
+        return Err(CliError::Message(
+            "Provide one nonempty license key on stdin".into(),
+        ));
+    }
+    Ok(key.to_owned())
+}
+
+fn parse_bulk(mut args: Arguments, profiles: bool) -> Result<CliCommand, CliError> {
+    let mut directory = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--output" => set_once(
+                &mut directory,
+                PathBuf::from(args.option_value(&option, inline)?),
+                &option,
+            )?,
+            "--help" | "-h" => {
+                return Err(CliError::Help(if profiles {
+                    profile_help()
+                } else {
+                    proxy_help()
+                }))
+            }
+            _ => return Err(args.unknown_option(&option, "bulk export")),
+        }
+    }
+    let directory = directory
+        .ok_or_else(|| CliError::Message("Bulk export requires --output DIRECTORY".into()))?;
+    Ok(CliCommand::BulkExport {
+        profiles,
+        directory,
+    })
+}
+
+#[cfg(test)]
+mod command_line_transfer_tests {
+    use super::*;
+    fn parse(args: &[&str]) -> Result<CliCommand, CliError> {
+        parse_command(args.iter().map(|arg| arg.to_string()).collect())
+    }
+    #[test]
+    fn bulk_requires_explicit_scope_and_rejects_renaming() {
+        assert_eq!(
+            parse(&["profile", "export", "--all", "--output", "profiles"]).unwrap(),
+            CliCommand::BulkExport {
+                profiles: true,
+                directory: "profiles".into()
+            }
+        );
+        assert_eq!(
+            parse(&["proxy", "import", "proxies", "--all"]).unwrap(),
+            CliCommand::BulkImport {
+                profiles: false,
+                directory: "proxies".into()
+            }
+        );
+        assert!(parse(&["profile", "export", "--all"]).is_err());
+        assert!(parse(&["profile", "import", "profiles", "--all", "--name", "same"]).is_err());
+        assert!(parse(&["proxy", "import", "proxies", "--all=true"]).is_err());
+        assert!(parse(&["proxy", "import", "proxies", "--all", "--all"]).is_err());
+    }
+    #[test]
+    fn activation_only_accepts_bounded_single_key_stdin() {
+        assert_eq!(
+            parse(&["license", "activate", "--key-stdin"]).unwrap(),
+            CliCommand::LicenseActivate
+        );
+        assert!(parse(&["license", "activate", "secret"]).is_err());
+        assert!(parse(&["license", "activate", "--key-stdin", "extra"]).is_err());
+        assert_eq!(
+            read_license_key(&mut &b"  license-test\n"[..]).unwrap(),
+            "license-test"
+        );
+        for bytes in [b"".to_vec(), b"a\nb".to_vec(), vec![b'a'; 4097], vec![255]] {
+            assert!(read_license_key(&mut bytes.as_slice()).is_err());
         }
     }
 }

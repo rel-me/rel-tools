@@ -626,3 +626,8 @@ even when the values use different words. Matching considers the region name,
 not generic path roles such as `main` or `table`. Query output states how many
 candidate blocks were selected from the captured page; selected/available counts describe that query,
 not complete page coverage. Omit the query when the desired text is unknown.
+
+The Rust client exposes `activate_license(&key)` for `POST /v1/license/activate`.
+Pass keys securely and never log them. This activates the owning app's REL Pro
+license using its existing validation and persistence; existing licenses must be
+managed in the app. See the [CLI guide](CLI.md#license-activation) for stdin usage.

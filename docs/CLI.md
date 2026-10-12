@@ -715,3 +715,44 @@ rel session ping Session1
 and browser work refresh activity; session listing does not. Send `session ping`
 periodically while a client is idle (for example every 30 seconds for the default
 lifetime). Ping performs no browser action and cannot reopen a closed session.
+
+## License activation
+
+Activate REL Pro in the local owning app with a license key from stdin:
+
+```sh
+rel license activate --key-stdin < /path/to/private-license-key
+```
+
+The key is never a command argument or part of the JSON response. The app uses
+its existing product validation and Keychain persistence. Activation requires
+configured licensing and fails if this Mac already stores a license. Manage
+replacement or deactivation in the app. Success returns `activated: true` and
+`plan: "pro"`; the app then restarts its agent to apply Pro access.
+
+## Bulk profile and proxy transfers
+
+Export all custom profiles, all proxies, or both with separate commands:
+
+```sh
+rel profile export --all --output ./profiles
+rel proxy export --all --output ./proxies
+rel proxy import ./proxies --all
+rel profile import ./profiles --all
+```
+
+Each export creates a new private directory containing numbered `.relprofile`
+or `.relproxy` SQLite files. Names and aliases remain inside the files. The
+output directory must not already exist, so exports never overwrite a backup.
+Built-in profiles are omitted because they already exist in every REL installation.
+Exports contain reusable settings; cookies, saved passwords and proxy credentials
+remain excluded under the same rules as individual CLI transfers.
+
+Import scans the selected directory without recursion, sorts files of the matching
+extension and checks all local files before sending imports. Import proxies first
+when transferring both. Existing aliases and profile names are never replaced;
+conflicts, capacity limits and other server errors appear in the per-item report.
+A bulk request may partially succeed and is not transactional. JSON includes
+`succeeded`, `failed` and `results`; any failed item produces exit status 1.
+A directory with no matching import files is an error. `--name` and `--alias`
+cannot be combined with bulk import. Use the app for encrypted private-data transfers.

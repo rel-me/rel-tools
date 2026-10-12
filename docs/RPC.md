@@ -1573,3 +1573,13 @@ current database and explicit Keychain reference to Fritz's shared Models servic
 there is no separate Fritz provider database. Use the shared Models UI to edit
 connections. Chat reads this metadata through the versioned API and reads its
 explicit Keychain reference in Rust; it does not open the REL database directly.
+
+## License activation
+
+`POST /v1/license/activate` accepts `{ "license_key": "..." }` and forwards
+activation to the owning REL app. The key must be one nonempty line, at most
+4096 UTF-8 bytes. The app validates the product and stores the credential through
+its existing registration flow. Do not log this request body. The success envelope
+contains `{ "activated": true, "plan": "pro" }`. Failed activation returns
+`VALIDATION_FAILED` with a credential-free message. Licensing must be
+configured and an existing stored license must be managed in the app.
