@@ -631,3 +631,7 @@ The Rust client exposes `activate_license(&key)` for `POST /v1/license/activate`
 Pass keys securely and never log them. This activates the owning app's REL Pro
 license using its existing validation and persistence; existing licenses must be
 managed in the app. See the [CLI guide](CLI.md#license-activation) for stdin usage.
+
+Use `RelClient::update_app()` to request the owning app's native update flow.
+The returned `AppUpdateData` acknowledges the request and reports the selected
+channel and required user interaction. It does not report installation completion.

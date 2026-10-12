@@ -756,3 +756,18 @@ A bulk request may partially succeed and is not transactional. JSON includes
 `succeeded`, `failed` and `results`; any failed item produces exit status 1.
 A directory with no matching import files is an error. `--name` and `--alias`
 cannot be combined with bulk import. Use the app for encrypted private-data transfers.
+
+## App updates
+
+```sh
+rel update
+```
+
+Starts the owning REL app's native Sparkle update flow for its selected Regular,
+Beta or Staging channel. Confirm download, installation and restart in the app.
+The command can launch the app through the normal CLI startup path. Its JSON
+response acknowledges the request with `state: "requested"`, the selected
+`channel`, and `user_interaction_required: true`; it does not claim that an update
+is available or installed. Network errors and update availability appear in the
+native updater. If this build has no update feed/signing key, or an update is
+already running, the command returns a structured error and exits with status 1.

@@ -1583,3 +1583,19 @@ its existing registration flow. Do not log this request body. The success envelo
 contains `{ "activated": true, "plan": "pro" }`. Failed activation returns
 `VALIDATION_FAILED` with a credential-free message. Licensing must be
 configured and an existing stored license must be managed in the app.
+
+## App updates
+
+`POST /v1/app/update` accepts an empty JSON object and requests the owning app's
+native Sparkle update flow. It follows the app's saved update channel. The response
+contains `{ "state": "requested", "channel": "regular", "user_interaction_required": true }`.
+This acknowledges a request, not a completed update. Confirmation, download,
+installation and restart remain in the native updater. Unconfigured builds return
+`VALIDATION_FAILED`; a busy updater returns retryable `CONFLICT`. Extra request
+fields are rejected. See [CLI app updates](CLI.md#app-updates).
+
+While the app is checking registration/updates or requires an upgrade, the agent
+runs in management mode. Only `GET /v1/health`, `GET /v1/status`,
+`POST /v1/license/activate` and `POST /v1/app/update` remain available. Other
+requests return retryable `CONFLICT`; Browser Proxy listeners remain stopped.
+Normal operations resume when the owning app restores access.

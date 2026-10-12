@@ -434,6 +434,11 @@ impl RelClient {
         self.request("POST", &path, Some(request))
     }
 
+    /// Request the owning app's native update flow. Installation requires app confirmation.
+    pub fn update_app(&self) -> Result<RpcResponse<AppUpdateData>, ClientError> {
+        self.request("POST", "/app/update", Some(&serde_json::json!({})))
+    }
+
     /// Activate the owning app's REL Pro license. Never log the supplied key.
     pub fn activate_license(
         &self,
@@ -3570,6 +3575,28 @@ mod tests {
     }
 
     #[test]
+    fn app_update_uses_versioned_route_and_typed_acknowledgment() {
+        let (url, server) = start_test_server(1, |_, request| {
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/v1/app/update");
+            assert_eq!(
+                serde_json::from_str::<Value>(&request.body).unwrap(),
+                json!({})
+            );
+            http_json(
+                200,
+                "req_update",
+                json!({"status":"ok","request_id":"req_update","data":{"state":"requested","channel":"beta","user_interaction_required":true}}),
+            )
+        });
+        let result = RelClient::new(url).update_app().unwrap();
+        assert_eq!(result.data.state, "requested");
+        assert_eq!(result.data.channel, "beta");
+        assert!(result.data.user_interaction_required);
+        server.join().unwrap();
+    }
+
+    #[test]
     fn license_activation_uses_versioned_route_and_typed_result() {
         let (url, server) = start_test_server(1, |_, request| {
             assert_eq!(request.method, "POST");
@@ -5675,4 +5702,11 @@ mod database_recovery_tests {
 pub struct LicenseActivationData {
     pub activated: bool,
     pub plan: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct AppUpdateData {
+    pub state: String,
+    pub channel: String,
+    pub user_interaction_required: bool,
 }

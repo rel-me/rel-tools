@@ -122,6 +122,10 @@ fn print_cli_error(error: CliError) -> i32 {
 
 fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> {
     match command {
+        CliCommand::AppUpdate => {
+            print_json(&client.update_app()?)?;
+            Ok(0)
+        }
         CliCommand::LicenseActivate => {
             let key = read_license_key(&mut io::stdin().lock())?;
             print_json(&client.activate_license(&key)?)?;
@@ -499,6 +503,7 @@ enum CliCommand {
     Health,
     Status,
     LicenseActivate,
+    AppUpdate,
     BulkExport {
         profiles: bool,
         directory: PathBuf,
@@ -610,6 +615,10 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "page" => parse_page(args),
         "observe" => parse_observe(args),
         "observation" => parse_observation(args),
+        "update" => {
+            parse_no_options(&mut args, "update", update_help())?;
+            Ok(CliCommand::AppUpdate)
+        }
         "license" => {
             if args.peek_is_help() {
                 return Err(CliError::Help(license_help()));
@@ -1720,6 +1729,7 @@ Usage:\n  \
 rel URL [options]\n  \
 rel health\n  \
 rel status\n  \
+rel update\n  \
 rel license activate --key-stdin\n  \
 rel-mcp\n  \
 rel navigate [URL] [options]\n  \
@@ -2918,5 +2928,26 @@ mod command_line_transfer_tests {
         for bytes in [b"".to_vec(), b"a\nb".to_vec(), vec![b'a'; 4097], vec![255]] {
             assert!(read_license_key(&mut bytes.as_slice()).is_err());
         }
+    }
+}
+
+fn update_help() -> String {
+    "Usage: rel update\nStart the owning REL app's native update flow for its selected channel.\nConfirm download, installation and restart in the app. The JSON result\nacknowledges the request; it does not report completed installation.".into()
+}
+
+#[cfg(test)]
+mod update_command_tests {
+    use super::*;
+    #[test]
+    fn update_has_explicit_help_and_rejects_unsupported_options() {
+        assert_eq!(
+            parse_command(vec!["update".into()]).unwrap(),
+            CliCommand::AppUpdate
+        );
+        assert!(matches!(
+            parse_command(vec!["update".into(), "--help".into()]),
+            Err(CliError::Help(_))
+        ));
+        assert!(parse_command(vec!["update".into(), "--force".into()]).is_err());
     }
 }
