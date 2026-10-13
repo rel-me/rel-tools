@@ -269,16 +269,25 @@ them. Free prevents additional creation beyond its limits, and any stored proxy
 assignment runs as a direct connection until Pro access is restored.
 
 You can also enter a `REL-PRO-...` promo code in the same Plan field when one
-has been provided to you. Promo codes grant one, two, or three calendar months
-of REL Pro without a checkout or payment method. Each trial can be redeemed on
-one REL installation, and a campaign code stops working after its configured
-number of redemptions.
+has been provided to you. Codes grant one, two, or three calendar months of
+REL Pro, or permanent Pro access, without a checkout or payment method.
+Permanent codes can be redeemed exactly once. Campaign codes for timed trials
+stop working after their configured number of redemptions.
 
-REL displays the trial end date in Plan settings. It checks the grant with REL
-at most once per day and supports up to seven days offline, without extending
-access beyond that end date. At expiry, REL automatically returns to Free and
-keeps existing Sessions and configuration under the Free plan limits described
-above.
+Each grant is bound to one REL installation using credentials stored in macOS
+Keychain. An installation that has already redeemed a managed code cannot
+redeem another, and reusing the code cannot transfer access to another Mac.
+
+Plan settings show the end date for timed grants and **Forever** for permanent
+grants. REL checks saved access on every startup and contacts REL's server when
+the last successful validation is at least 24 hours old. Temporary connection
+failures allow up to seven days offline from the last successful validation,
+without extending a timed grant beyond its end date. Permanent grants have no
+expiry date but still require periodic verification and can be revoked.
+Lemon Squeezy does not track these app-managed redemptions.
+
+At trial expiry, REL automatically returns to Free and keeps existing Sessions
+and configuration under the Free plan limits described above.
 
 ## Profiles and Sessions
 
