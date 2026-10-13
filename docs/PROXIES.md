@@ -204,3 +204,11 @@ Settings. REL parses the command without executing it, opens the populated
 editor for review, and requires saving before creating the proxy. Review the
 alias and certificate settings before saving. See
 [proxy curl import](APP.md#proxies-curl-command).
+
+### HTTP/3 and MASQUE
+
+REL currently connects to upstream proxies over TCP using HTTP relay and
+HTTPS CONNECT. Oxylabs' MASQUE endpoint (`masque.oxylabs.io:50000`) requires
+a QUIC/UDP transport and is not supported by this path. Updating REL's
+embedded engine to CEF 154 does not enable MASQUE proxying. Continue using
+`pr.oxylabs.io:7777` for Oxylabs Residential connections in REL.

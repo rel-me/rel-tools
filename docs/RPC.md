@@ -985,8 +985,8 @@ built-ins, and the list is empty until a Profile is saved. A profile resource is
     "seed": "12345",
     "platform": "macos",
     "browser_brand": "chromium",
-    "browser_version": "151.0.7922.76",
-    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.76 Safari/537.36",
+    "browser_version": "154.0.8037.98",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.8037.98 Safari/537.36",
     "locale": "en-US",
     "timezone": "America/Los_Angeles",
     "network_profile": "desktop",
@@ -1206,12 +1206,12 @@ preferences are preserved. Saving recreates only the session's Chromium context.
 Device surfaces and graphics remain linked groups in the pinned engine.
 Individual fields within those groups cannot independently remain native.
 
-On the Chromium 152 upgrade, REL updates stored Chromium 151 fingerprint
+On the Chromium 154 upgrade, REL updates stored Chromium 152 fingerprint
 versions and their matching user agents in sessions and named profiles before
 loading them. Seeds and other fingerprint settings are preserved; changed
 session fingerprints advance their generation. This happens transactionally
 in the current app database and does not reset browser data. API submissions
-must still use a Chromium 152 four-component version and matching user agent.
+must use a Chromium 154 four-component version and matching user agent.
 
 ### Proxy TLS configuration
 
