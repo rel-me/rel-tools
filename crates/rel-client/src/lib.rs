@@ -2986,6 +2986,8 @@ pub struct ProxyCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oxylabs_enabled: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub oxylabs_masque_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub oxylabs_location_parameter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oxylabs_location_value: Option<String>,
@@ -3017,6 +3019,8 @@ pub struct ProxyUpdateRequest {
     pub password: Change<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oxylabs_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oxylabs_masque_enabled: Option<bool>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
     pub oxylabs_location_parameter: Change<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]

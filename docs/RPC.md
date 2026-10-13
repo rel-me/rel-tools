@@ -750,7 +750,7 @@ Passwords are accepted on writes but never returned.
 - `GET /v1/proxies` returns `data.proxies`, ordered by creation order.
 - `GET /v1/proxies/{alias}` returns `data.proxy`.
 - `POST /v1/proxies` requires `alias`, `upstream_host`, and `upstream_port`. Optional
-  write fields are `username`, `password`, `oxylabs_enabled`,
+  write fields are `username`, `password`, `oxylabs_enabled`, `oxylabs_masque_enabled`,
   `oxylabs_location_parameter`, `oxylabs_location_value`, `bright_data`, `locale`, and `detect_exit_locale`.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
   `username:null`, `password:null`, or `locale:null` clears that value.

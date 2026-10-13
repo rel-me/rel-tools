@@ -207,8 +207,30 @@ alias and certificate settings before saving. See
 
 ### HTTP/3 and MASQUE
 
-REL currently connects to upstream proxies over TCP using HTTP relay and
-HTTPS CONNECT. Oxylabs' MASQUE endpoint (`masque.oxylabs.io:50000`) requires
-a QUIC/UDP transport and is not supported by this path. Updating REL's
-embedded engine to CEF 154 does not enable MASQUE proxying. Continue using
-`pr.oxylabs.io:7777` for Oxylabs Residential connections in REL.
+Enable **MASQUE (HTTP/3)** in the Oxylabs Residential proxy editor, or update an
+existing proxy with:
+
+```sh
+rel proxy update oxylabs --oxylabs-enabled true --oxylabs-masque-enabled true
+```
+
+Keep the TCP upstream set to `pr.oxylabs.io:7777`. REL sends UDP traffic through
+`masque.oxylabs.io:50000` using authenticated HTTP/3 CONNECT-UDP. TCP traffic
+continues through the configured HTTP proxy. Both transports use the same
+Rust-owned credentials, location parameters, and per-session sticky ID.
+The MASQUE flag defaults to false; unrelated updates preserve it, and disabling
+the Oxylabs provider disables MASQUE.
+
+Each browser session connects to its own trusted loopback HTTP/3 relay. Rust
+verifies Oxylabs TLS, adds Proxy-Authorization, and forwards datagrams and
+RFC 9297 capsules. CEF receives only the loopback address and session CA,
+never provider credentials. Proxy-session rotation and deletion close the
+session's QUIC tunnels. Target names are passed to Oxylabs without local DNS
+resolution. WebRTC's non-proxied UDP remains disabled.
+
+Origin HTTP/3 still depends on the site's advertised support. HTTPS sites
+without HTTP/3 use their normal TCP tunnel through the configured proxy.
+Provider authentication, certificate, timeout, or UDP failures are reported as
+proxy errors; REL never sends UDP directly to the origin. Oxylabs restricts
+some UDP targets, including Google. Live provider connectivity requires
+UDP port 50000 to be reachable from your network.
