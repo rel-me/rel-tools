@@ -3087,6 +3087,8 @@ pub struct ProxyData {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct OxylabsProxy {
     pub enabled: bool,
+    #[serde(default)]
+    pub masque_enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3704,6 +3706,16 @@ mod tests {
             "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\n{request_id}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
             body.len()
         )
+    }
+
+    #[test]
+    fn oxylabs_masque_read_metadata_survives_cli_serialization() {
+        let proxy: OxylabsProxy =
+            serde_json::from_value(json!({"enabled":true,"masque_enabled":true})).unwrap();
+        assert!(proxy.masque_enabled);
+        assert_eq!(serde_json::to_value(proxy).unwrap()["masque_enabled"], true);
+        let legacy: OxylabsProxy = serde_json::from_value(json!({"enabled":true})).unwrap();
+        assert!(!legacy.masque_enabled);
     }
 
     fn proxy_json() -> Value {

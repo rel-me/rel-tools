@@ -812,6 +812,7 @@ tab's Proxy menu and tab context menu, and reloads that tab after rotation.
   "uploaded_bytes": 125000,
   "downloaded_bytes": 4500000,
   "active_connections": 3,
+  "active_quic_tunnels": 1,
   "scope": "current_proxy_session_since_agent_start"
 }
 ```
@@ -822,8 +823,11 @@ rotation, reassignment, or agent restart resets them. `request_count` counts
 plaintext HTTP requests and CONNECT tunnels, including unsuccessful attempts.
 Individual HTTPS requests within an encrypted tunnel are not visible to the
 proxy. Bytes include proxy protocol traffic and tunneled payload, rather than
-provider billing or page resource sizes. HTTP body bytes are added when their
-relay completes. `active_connections` counts accepted browser proxy connections
+provider billing or page resource sizes. UDP counters count forwarded payload
+bytes and exclude QUIC/MASQUE framing. HTTP body bytes are added when their
+relay completes. `active_quic_tunnels` counts active tunnels carried over the
+session’s loopback HTTP/3 relay, including TCP CONNECT and CONNECT-UDP.
+`active_connections` includes these tunnels and accepted TCP browser proxy connections
 still being handled. A custom proxy without sticky sessions has a null
 `proxy_session_id` and `can_rotate: false`; an unproxied session also has a null
 `proxy_alias` and zero usage.
