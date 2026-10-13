@@ -1573,3 +1573,29 @@ current database and explicit Keychain reference to Fritz's shared Models servic
 there is no separate Fritz provider database. Use the shared Models UI to edit
 connections. Chat reads this metadata through the versioned API and reads its
 explicit Keychain reference in Rust; it does not open the REL database directly.
+
+## License activation
+
+`POST /v1/license/activate` accepts `{ "license_key": "..." }` and forwards
+activation to the owning REL app. The key must be one nonempty line, at most
+4096 UTF-8 bytes. The app validates the product and stores the credential through
+its existing registration flow. Do not log this request body. The success envelope
+contains `{ "activated": true, "plan": "pro" }`. Failed activation returns
+`VALIDATION_FAILED` with a credential-free message. Licensing must be
+configured and an existing stored license must be managed in the app.
+
+## App updates
+
+`POST /v1/app/update` accepts an empty JSON object and requests the owning app's
+native Sparkle update flow. It follows the app's saved update channel. The response
+contains `{ "state": "requested", "channel": "regular", "user_interaction_required": true }`.
+This acknowledges a request, not a completed update. Confirmation, download,
+installation and restart remain in the native updater. Unconfigured builds return
+`VALIDATION_FAILED`; a busy updater returns retryable `CONFLICT`. Extra request
+fields are rejected. See [CLI app updates](CLI.md#app-updates).
+
+While the app is checking registration/updates or requires an upgrade, the agent
+runs in management mode. Only `GET /v1/health`, `GET /v1/status`,
+`POST /v1/license/activate` and `POST /v1/app/update` remain available. Other
+requests return retryable `CONFLICT`; Browser Proxy listeners remain stopped.
+Normal operations resume when the owning app restores access.
