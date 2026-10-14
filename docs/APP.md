@@ -54,6 +54,8 @@ selection.
 CLI, SDK, and MCP browser operations still target a Session ID. That ID identifies
 the group, and browser commands operate on its selected tab. Session deletion
 deletes the entire group. Chat and actions remain associated with the group.
+The session resource's optional `group` label is separate: it organizes batch
+operations across Sessions and never joins their browser storage.
 
 ## CAPTCHA attention alerts
 

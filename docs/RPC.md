@@ -1384,7 +1384,9 @@ same history.
 
 REL preserves each tab's root-page HTTP(S) Back/Forward history and current
 position across app restarts. Tabs in one Session (tab group) share storage and
-configuration, while their navigation entries stay separate. Opening a saved
+configuration, while their navigation entries stay separate. The session
+resource's optional `group` field remains a batch-management label; sharing that
+label does not share browser storage. Opening a saved
 page restores its native history without fetching earlier or later entries.
 Visiting a new page after going Back discards that tab's forward branch.
 
