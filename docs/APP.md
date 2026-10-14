@@ -123,6 +123,11 @@ launches stay open. Release builds have no automatic quit timer.
 
 ### Building locally from source
 
+In a REL source checkout, run `mise install` once to install the pinned build
+tools. `make dev-open`, `make dev-open-config`, and `make stage-app-dev` enter
+that environment automatically, including Python 3.11, without requiring shell
+activation or an outer `mise exec`.
+
 In a REL source checkout, `make release-build` builds and signs
 `dist/REL.app` using the current version. It does not reserve a release version,
 notarize, package, publish, install, or open the app. It requires the configured
