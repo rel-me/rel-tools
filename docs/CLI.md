@@ -521,7 +521,7 @@ rel proxy create \
 ```
 
 `--alias`, `--upstream-host`, and `--upstream-port` are required. The alias is
-immutable. Optional write fields are `--username`, `--password`, `--oxylabs-enabled true|false`,
+immutable. Optional write fields are `--username`, `--password`, `--oxylabs-enabled true|false`, `--oxylabs-masque-enabled true|false`,
 `--oxylabs-location-parameter cc|country|st`, and
 `--oxylabs-location-value VALUE`.
 

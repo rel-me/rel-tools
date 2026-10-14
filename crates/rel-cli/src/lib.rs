@@ -1154,6 +1154,9 @@ fn parse_proxy_create(mut args: Arguments) -> Result<CliCommand, CliError> {
                 request.tls = Some(parse_proxy_tls(&option, &value)?);
             }
             "--oxylabs-enabled" => request.oxylabs_enabled = Some(args.boolean(&option, inline)?),
+            "--oxylabs-masque-enabled" => {
+                request.oxylabs_masque_enabled = Some(args.boolean(&option, inline)?)
+            }
             "--oxylabs-location-parameter" => {
                 request.oxylabs_location_parameter = Some(args.option_value(&option, inline)?)
             }
@@ -1216,6 +1219,9 @@ fn parse_proxy_update(mut args: Arguments) -> Result<CliCommand, CliError> {
                 request.tls = Some(parse_proxy_tls(&option, &value)?);
             }
             "--oxylabs-enabled" => request.oxylabs_enabled = Some(args.boolean(&option, inline)?),
+            "--oxylabs-masque-enabled" => {
+                request.oxylabs_masque_enabled = Some(args.boolean(&option, inline)?)
+            }
             "--oxylabs-location-parameter" => {
                 set_change(
                     &mut request.oxylabs_location_parameter,
@@ -1598,6 +1604,7 @@ fn proxy_update_is_empty(request: &ProxyUpdateRequest) -> bool {
         && request.password.is_unchanged()
         && request.tls.is_none()
         && request.oxylabs_enabled.is_none()
+        && request.oxylabs_masque_enabled.is_none()
         && request.oxylabs_location_parameter.is_unchanged()
         && request.oxylabs_location_value.is_unchanged()
 }
@@ -1880,7 +1887,7 @@ rel proxy import FILE [--alias ALIAS]\n\n\
 Write options:\n  \
 --alias ALIAS --upstream-host HOST --upstream-port PORT\n  \
 --tls system|bright-data OR --ca-cert PATH (PEM CA bundle)\n  \
---username USER --password PASS --locale BCP47 --oxylabs-enabled true|false\n  \
+--username USER --password PASS --locale BCP47 --oxylabs-enabled true|false --oxylabs-masque-enabled true|false\n  \
 --oxylabs-location-parameter cc|country|st --oxylabs-location-value VALUE\n\
 Update clear options:\n  \
 --clear-username --clear-password --clear-oxylabs-location --clear-locale\n\n\
@@ -2688,6 +2695,40 @@ mod tests {
             "--locale",
             "fr-CA",
             "--clear-locale"
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn proxy_masque_update_can_enable_disable_or_preserve_transport() {
+        for (value, expected) in [("true", true), ("false", false)] {
+            let CliCommand::ProxyUpdate { request, .. } = parse(&[
+                "proxy",
+                "update",
+                "oxylabs",
+                "--oxylabs-masque-enabled",
+                value,
+            ])
+            .unwrap() else {
+                panic!("expected proxy update");
+            };
+            assert_eq!(
+                serde_json::to_value(request).unwrap(),
+                serde_json::json!({"oxylabs_masque_enabled":expected})
+            );
+        }
+        let CliCommand::ProxyUpdate { request, .. } =
+            parse(&["proxy", "update", "oxylabs", "--upstream-port", "7777"]).unwrap()
+        else {
+            panic!("expected proxy update");
+        };
+        assert!(request.oxylabs_masque_enabled.is_none());
+        assert!(parse(&[
+            "proxy",
+            "update",
+            "oxylabs",
+            "--oxylabs-masque-enabled",
+            "maybe"
         ])
         .is_err());
     }

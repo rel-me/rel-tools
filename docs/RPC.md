@@ -750,7 +750,7 @@ Passwords are accepted on writes but never returned.
 - `GET /v1/proxies` returns `data.proxies`, ordered by creation order.
 - `GET /v1/proxies/{alias}` returns `data.proxy`.
 - `POST /v1/proxies` requires `alias`, `upstream_host`, and `upstream_port`. Optional
-  write fields are `username`, `password`, `oxylabs_enabled`,
+  write fields are `username`, `password`, `oxylabs_enabled`, `oxylabs_masque_enabled`,
   `oxylabs_location_parameter`, `oxylabs_location_value`, `bright_data`, `locale`, and `detect_exit_locale`.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
   `username:null`, `password:null`, or `locale:null` clears that value.
@@ -812,6 +812,7 @@ tab's Proxy menu and tab context menu, and reloads that tab after rotation.
   "uploaded_bytes": 125000,
   "downloaded_bytes": 4500000,
   "active_connections": 3,
+  "active_quic_tunnels": 1,
   "scope": "current_proxy_session_since_agent_start"
 }
 ```
@@ -822,8 +823,11 @@ rotation, reassignment, or agent restart resets them. `request_count` counts
 plaintext HTTP requests and CONNECT tunnels, including unsuccessful attempts.
 Individual HTTPS requests within an encrypted tunnel are not visible to the
 proxy. Bytes include proxy protocol traffic and tunneled payload, rather than
-provider billing or page resource sizes. HTTP body bytes are added when their
-relay completes. `active_connections` counts accepted browser proxy connections
+provider billing or page resource sizes. UDP counters count forwarded payload
+bytes and exclude QUIC/MASQUE framing. HTTP body bytes are added when their
+relay completes. `active_quic_tunnels` counts active tunnels carried over the
+session’s loopback HTTP/3 relay, including TCP CONNECT and CONNECT-UDP.
+`active_connections` includes these tunnels and accepted TCP browser proxy connections
 still being handled. A custom proxy without sticky sessions has a null
 `proxy_session_id` and `can_rotate: false`; an unproxied session also has a null
 `proxy_alias` and zero usage.
@@ -985,8 +989,8 @@ built-ins, and the list is empty until a Profile is saved. A profile resource is
     "seed": "12345",
     "platform": "macos",
     "browser_brand": "chromium",
-    "browser_version": "151.0.7922.76",
-    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.76 Safari/537.36",
+    "browser_version": "154.0.8037.98",
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.8037.98 Safari/537.36",
     "locale": "en-US",
     "timezone": "America/Los_Angeles",
     "network_profile": "desktop",
@@ -1206,12 +1210,12 @@ preferences are preserved. Saving recreates only the session's Chromium context.
 Device surfaces and graphics remain linked groups in the pinned engine.
 Individual fields within those groups cannot independently remain native.
 
-On the Chromium 152 upgrade, REL updates stored Chromium 151 fingerprint
+On the Chromium 154 upgrade, REL updates stored Chromium 152 fingerprint
 versions and their matching user agents in sessions and named profiles before
 loading them. Seeds and other fingerprint settings are preserved; changed
 session fingerprints advance their generation. This happens transactionally
 in the current app database and does not reset browser data. API submissions
-must still use a Chromium 152 four-component version and matching user agent.
+must use a Chromium 154 four-component version and matching user agent.
 
 ### Proxy TLS configuration
 
