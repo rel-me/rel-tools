@@ -43,6 +43,25 @@ Sessions receive their own persistent provider session IDs.
 Credentials stay in REL's secure credential storage. MCP's proxy-list tool
 returns aliases and non-secret metadata, not stored passwords.
 
+## Test a saved proxy
+
+Select a proxy in **Settings → Proxies**, then choose **Test**, or right-click
+its row and choose **Test**. The **Proxy Test** sheet runs automatically and
+supports **Run Tests** to repeat the suite.
+
+The suite checks upstream DNS and TCP connectivity, HTTP forwarding,
+authenticated HTTPS with system and proxy-specific certificate trust, exit IP,
+country and IANA timezone, country targeting, and the **Detect Exit Locale**
+setting. It uses the saved configuration and a fresh provider sticky session,
+and sends requests through the proxy to example.com and IPWHOIS.io. It does not
+change existing browser Sessions or expose saved credentials.
+
+Results show passed, failed, warning, or skipped checks and elapsed time.
+A failed destination request can also indicate an unavailable test service.
+A country mismatch or disabled exit-locale detection is a warning. Browser
+fingerprint timezone overrides, DNS/WebRTC leak behavior, and MASQUE/UDP need
+browser-session verification and are explicitly marked untested by this suite.
+
 ## Assign a proxy to a Session
 
 Open a browser Session and use the toolbar's **Proxy** menu to select the saved

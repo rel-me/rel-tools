@@ -759,6 +759,20 @@ Passwords are accepted on writes but never returned.
 - `POST /v1/proxies/{alias}/rotate-session` requires an Oxylabs- or Bright Data-enabled proxy and
   returns `data.proxy`.
 
+`POST /v1/proxies/{alias}/test` takes no body and runs connection diagnostics
+against the saved proxy with a fresh provider session ID. It returns
+`data.checks`, an array of `{id, title, status, detail, duration_ms}` records.
+`status` is `passed`, `failed`, `warning`, or `skipped`. Connection failures are
+check results; an unknown alias or invalid local configuration returns an API
+error. Allow a 90-second client timeout. Early DNS/TCP failures stop dependent
+network checks. HTTPS requests honor system and proxy-specific CA roots and
+never retry directly. Credentials are never included in results.
+
+The fixed test destinations are example.com (HTTP and HTTPS) and IPWHOIS.io
+(exit IP, country, timezone). Country targeting and exit-locale detection are
+reported; browser overrides, leak behavior and MASQUE/UDP are not exercised.
+See [proxy testing](PROXIES.md#test-a-saved-proxy).
+
 `detect_exit_locale` is a boolean, off by default for new proxies and preserved
 when omitted on update. Existing saved values and imported settings are unchanged. Automatic language controls use the active provider's configured country
 (Bright Data country, Oxylabs country, or US state). When detection is enabled,
