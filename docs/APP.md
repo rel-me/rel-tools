@@ -28,6 +28,32 @@ just telemetry removal.
 
 For provider setup and per-Session assignment, see [Configure proxies](PROXIES.md).
 
+## Tab groups
+
+The sidebar stays visible and lists tab groups. Each group is one persistent
+Session: its tabs share cookies, site storage, saved logins, proxy configuration,
+browser identity, and Session settings. Groups keep their browser data isolated
+from each other. Existing Sessions appear as one-tab groups with their existing
+data.
+
+Use **New Tab Group** at the bottom of the sidebar to create a group. Press
+**⌘T** or use the tab strip's **+** button to add a tab to the selected group.
+Tabs have their own page and navigation history. Links opened in a new tab stay
+in the same group.
+
+Use **Tab Placement** at the bottom of the sidebar and enable **Tabs in Sidebar**
+to nest tabs under their group names. Groups expand and collapse like folders.
+Turn it off to put tabs across the top. REL remembers this choice.
+
+**⌘W** closes a tab without deleting group data. Closing a group's last tab
+leaves a blank tab. Use the group's **Delete Tab Group…** action to delete all
+its tabs and shared browser data. Quitting REL preserves groups, tab URLs, and
+selection.
+
+CLI, SDK, and MCP browser operations still target a Session ID. That ID identifies
+the group, and browser commands operate on its selected tab. Session deletion
+deletes the entire group. Chat and actions remain associated with the group.
+
 ## CAPTCHA attention alerts
 
 When a CAPTCHA persists in a live Session, REL sends a time-sensitive macOS
