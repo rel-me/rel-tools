@@ -36,6 +36,10 @@ browser identity, and Session settings. Groups keep their browser data isolated
 from each other. Existing Sessions appear as one-tab groups with their existing
 data.
 
+A single-tab group is labeled `{Profile}/Session` using its source profile's
+name. When it contains multiple tabs, its label is just `{Profile}`. Page tabs
+keep their individual page titles.
+
 Use **New Tab Group** at the bottom of the sidebar to create a group. Press
 **⌘T** or use the tab strip's **+** button to add a tab to the selected group.
 Tabs have their own page and Back/Forward history, including after restarting
