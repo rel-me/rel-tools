@@ -38,7 +38,8 @@ data.
 
 Use **New Tab Group** at the bottom of the sidebar to create a group. Press
 **⌘T** or use the tab strip's **+** button to add a tab to the selected group.
-Tabs have their own page and navigation history. Links opened in a new tab stay
+Tabs have their own page and Back/Forward history, including after restarting
+REL. Links opened in a new tab stay
 in the same group.
 
 Use **Tab Placement** at the bottom of the sidebar and enable **Tabs in Sidebar**

@@ -1382,14 +1382,19 @@ same history.
 
 ## Workspace restoration
 
-REL preserves each session’s root-page HTTP(S) Back/Forward history and current
-position across app restarts. Opening the saved page restores the native history
-without fetching earlier or later entries. Visiting a new page after going Back
-discards the forward branch as usual. History is isolated in each Chromium
-profile and removed when that profile’s browsing data is cleared. Popup history
-is not persisted. Saved entries contain URLs without embedded credentials;
-form values, POST bodies, and scroll positions are not restored across restarts.
-History is browser-owned and is not part of the workspace API payload below.
+REL preserves each tab's root-page HTTP(S) Back/Forward history and current
+position across app restarts. Tabs in one Session (tab group) share storage and
+configuration, while their navigation entries stay separate. Opening a saved
+page restores its native history without fetching earlier or later entries.
+Visiting a new page after going Back discards that tab's forward branch.
+
+The bridge captures URL-only entries from Chromium's navigation controller and
+saves them with the tab in the workspace. Each record contains at most 1,000
+entries and includes its current position. Existing single-tab Sessions retain
+their stored history when first opened as a group. Clearing a group's browsing
+data clears history for all its tabs. Popup history, form values, POST bodies,
+and scroll positions are not restored across restarts. Saved URLs never include
+embedded credentials.
 
 `GET /v1/workspace` returns `data: {"revision": N, "state": ...}`. Revision zero
 with `state: null` means no workspace has been saved. The Rust agent owns this
@@ -1429,11 +1434,20 @@ Each session value contains:
 
 | Field | Type / meaning |
 | --- | --- |
-| `lastCommittedURL` | HTTP(S) URL without credentials, or null |
+| `lastCommittedURL` | Selected tab's HTTP(S) URL without credentials, or null |
+| `pageTabs` | Ordered tabs, default `[]` for existing single-tab state. Each entry has a unique nonempty `id` (at most 128 UTF-8 bytes), optional HTTP(S) `url` without credentials, optional finite `lastOpenedAt`, Boolean `isNetworkPaused` (default false), and optional `navigationHistory`. |
+| `selectedPageTabID` | Tab ID or null; when present it must belong to this session's `pageTabs`. |
 | `isNetworkPaused` | Boolean, default false |
 | `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String, viewportPreset?: String}`; tool is `info`, `filters`, `schedules` (Actions), `logs`, or `terminal`; defaults are false, true, and `logs`. `viewportPreset` is `fitWindow`, `laptop` (1024w), `tablet` (768w), or `mobile` (320w); omit it or use `null` to inherit the app default. |
 | `chatTokenUsageByModel` | Object of cumulative native Chat usage records keyed by model usage key; default `{}` |
 | `chats` | Conversation state described below; defaults to no conversations, null selection, and next sequence 2 |
+
+A tab's `navigationHistory` is `{"urls": ["https://example.com/"], "currentIndex": 0}`.
+It contains 1 to 1,000 HTTP(S) URLs without embedded credentials, with a zero-based
+index inside that array. Omit the history or use null for a fresh tab. History,
+tab order, and selection save atomically with the rest of the workspace. Invalid
+history or tab membership rejects the entire PUT without advancing its revision.
+`lastOpenedAt` uses the native workspace's seconds since 2001-01-01 UTC.
 
 `chats` contains ordered `conversations`, nullable `selectedConversationID`, and
 `nextSequence` (integer at least 2). Each conversation has a stable UUID `id`,
