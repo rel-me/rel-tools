@@ -54,6 +54,9 @@ The top tab strip uses REL's standard tabs, including selection, close controls,
 and drag reordering. Chat lives beside the browser content in the window and is
 shared by all tabs in the selected group. Switching browser tabs keeps the same
 conversation and draft; selecting another group switches its chat content too.
+Use the window toolbar's chat bubble to show or hide chat, and its info icon to
+show or hide the bottom panel. These controls follow the selected group and stay
+outside the browser tab's address toolbar.
 
 **⌘W** closes a tab without deleting group data. Closing a group's last tab
 leaves a blank tab. Use the group's **Delete Tab Group…** action to delete all
