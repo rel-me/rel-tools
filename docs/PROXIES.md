@@ -207,23 +207,20 @@ alias and certificate settings before saving. See
 
 ### HTTP/3 and MASQUE
 
-New Oxylabs Residential proxies enable **MASQUE (HTTP/3)** by default. Existing
-proxies retain their saved setting. Use the toggle in the proxy editor or update
-an existing proxy with:
+Oxylabs Residential proxies automatically use **MASQUE (HTTP/3)**. REL enables
+it for all saved residential proxies at startup, including older configurations
+and proxies previously saved with MASQUE disabled. Creation, edits, and imports
+also enable it automatically. The proxy editor has no residential MASQUE toggle;
+`oxylabs_masque_enabled: false` cannot disable residential MASQUE.
 
-```sh
-rel proxy update oxylabs --oxylabs-enabled true --oxylabs-masque-enabled true
-```
-
-Keep the TCP upstream set to `pr.oxylabs.io:7777`. REL sends UDP traffic through
-`masque.oxylabs.io:50000` using authenticated HTTP/3 CONNECT-UDP. TCP traffic
-continues through the configured HTTP proxy. Both transports use the same
-Rust-owned credentials, location parameters, and per-session sticky ID.
-Omitting `oxylabs_masque_enabled` when creating an Oxylabs Residential proxy
-enables MASQUE. Set it to `false` to disable it, including when outbound UDP is
-blocked. Updates preserve the saved value when this field is omitted; older
-saved proxies without a MASQUE field remain disabled. Disabling the Oxylabs
-provider disables MASQUE.
+Keep the TCP upstream set to `pr.oxylabs.io:7777` with the Oxylabs provider enabled.
+REL sends UDP traffic through `masque.oxylabs.io:50000` using authenticated HTTP/3
+CONNECT-UDP. TCP traffic continues through the configured HTTP proxy. Both
+transports use the same Rust-owned credentials, location parameters, and
+per-session sticky ID. Existing session IDs and credentials are preserved.
+Datacenter, ISP, and custom upstreams retain their configured transport settings.
+Disabling the Oxylabs provider disables MASQUE. Outbound UDP must be available
+for HTTP/3; REL reports transport errors when it is blocked.
 
 Each browser session connects to its own trusted loopback HTTP/3 relay. Rust
 verifies Oxylabs TLS, adds Proxy-Authorization, and forwards datagrams and
