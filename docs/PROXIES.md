@@ -207,8 +207,9 @@ alias and certificate settings before saving. See
 
 ### HTTP/3 and MASQUE
 
-Enable **MASQUE (HTTP/3)** in the Oxylabs Residential proxy editor, or update an
-existing proxy with:
+New Oxylabs Residential proxies enable **MASQUE (HTTP/3)** by default. Existing
+proxies retain their saved setting. Use the toggle in the proxy editor or update
+an existing proxy with:
 
 ```sh
 rel proxy update oxylabs --oxylabs-enabled true --oxylabs-masque-enabled true
@@ -218,8 +219,11 @@ Keep the TCP upstream set to `pr.oxylabs.io:7777`. REL sends UDP traffic through
 `masque.oxylabs.io:50000` using authenticated HTTP/3 CONNECT-UDP. TCP traffic
 continues through the configured HTTP proxy. Both transports use the same
 Rust-owned credentials, location parameters, and per-session sticky ID.
-The MASQUE flag defaults to false; unrelated updates preserve it, and disabling
-the Oxylabs provider disables MASQUE.
+Omitting `oxylabs_masque_enabled` when creating an Oxylabs Residential proxy
+enables MASQUE. Set it to `false` to disable it, including when outbound UDP is
+blocked. Updates preserve the saved value when this field is omitted; older
+saved proxies without a MASQUE field remain disabled. Disabling the Oxylabs
+provider disables MASQUE.
 
 Each browser session connects to its own trusted loopback HTTP/3 relay. Rust
 verifies Oxylabs TLS, adds Proxy-Authorization, and forwards datagrams and
