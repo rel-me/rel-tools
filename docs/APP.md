@@ -137,11 +137,19 @@ tools. `make dev-open`, `make dev-open-config`, and `make stage-app-dev` enter
 that environment automatically, including Python 3.11, without requiring shell
 activation or an outer `mise exec`.
 
+Local generated outputs, release checkouts, compiler caches, and account dependency
+caches live under `~/Builds/Machine/`. Portable CEF SDKs and completed Ghostty
+frameworks/resources live under `~/Builds/Global/`. Build storage directory names
+use `REL`. The repository's `script/sync_builds_from_mac_mini.sh` only pulls Global
+from the Mac mini and refuses to run on the mini. See the
+[build storage and migration guide](https://github.com/rel-me/rel/blob/main/docs/CI.md#syncing-the-private-build-machines)
+for preview, confirmation, and migration instructions.
+
 In a REL source checkout, `make release-build` builds and signs
 `dist/REL.app` using the current version. It does not reserve a release version,
 notarize, package, publish, install, or open the app. It requires the configured
 Release signing certificate and normal build dependencies. Builds reuse compiler
-results and immutable Metal libraries under `~/Builds/RELBuildCache`, while each
+results and immutable Metal libraries under `~/Builds/Machine/RELBuildCache`, while each
 checkout owns its writable build outputs. An unchanged local build verifies and
 reuses its signed app; changed sources, settings, toolchains, frameworks, or signing
 identities rebuild it. Reuse preserves the existing build timestamp and number.
