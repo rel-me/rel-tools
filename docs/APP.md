@@ -28,6 +28,48 @@ just telemetry removal.
 
 For provider setup and per-Session assignment, see [Configure proxies](PROXIES.md).
 
+## Tab groups
+
+The sidebar stays visible and lists tab groups. Each group is one persistent
+Session: its tabs share cookies, site storage, saved logins, proxy configuration,
+browser identity, and Session settings. Groups keep their browser data isolated
+from each other. Existing Sessions appear as one-tab groups with their existing
+data.
+
+A single-tab group is labeled `{Profile}/Session` using its source profile's
+name. When it contains multiple tabs, its label is just `{Profile}`. Page tabs
+keep their individual page titles.
+
+Use **New Tab Group** at the bottom of the sidebar to create a group. Press
+**⌘T** or use the tab strip's **+** button to add a tab to the selected group.
+Tabs have their own page and Back/Forward history, including after restarting
+REL. Links opened in a new tab stay
+in the same group.
+
+Use **Tab Placement** at the bottom of the sidebar and enable **Tabs in Sidebar**
+to nest tabs under their group names. Groups expand and collapse like folders.
+Turn it off to put tabs across the top. REL remembers this choice.
+
+The top tab strip uses REL's standard tabs, including selection, close controls,
+and drag reordering. Chat lives beside the browser content in the window and is
+shared by all tabs in the selected group. Switching browser tabs keeps the same
+conversation and draft; selecting another group switches its chat content too.
+Use the window toolbar's chat bubble to show or hide chat, and its info icon to
+show or hide the bottom panel. These controls follow the selected group and stay
+outside the browser tab's address toolbar. Chat uses a softly shaded background
+in both light and dark appearance to separate it from the surrounding window.
+
+**⌘W** closes a tab without deleting group data. Closing a group's last tab
+leaves a blank tab. Use the group's **Delete Tab Group…** action to delete all
+its tabs and shared browser data. Quitting REL preserves groups, tab URLs, and
+selection.
+
+CLI, SDK, and MCP browser operations still target a Session ID. That ID identifies
+the group, and browser commands operate on its selected tab. Session deletion
+deletes the entire group. Chat and actions remain associated with the group.
+The session resource's optional `group` label is separate: it organizes batch
+operations across Sessions and never joins their browser storage.
+
 ## CAPTCHA attention alerts
 
 When a CAPTCHA persists in a live Session, REL sends a time-sensitive macOS
@@ -89,6 +131,11 @@ Debug process and is not saved in preferences or the app bundle. Later manual
 launches stay open. Release builds have no automatic quit timer.
 
 ### Building locally from source
+
+In a REL source checkout, run `mise install` once to install the pinned build
+tools. `make dev-open`, `make dev-open-config`, and `make stage-app-dev` enter
+that environment automatically, including Python 3.11, without requiring shell
+activation or an outer `mise exec`.
 
 In a REL source checkout, `make release-build` builds and signs
 `dist/REL.app` using the current version. It does not reserve a release version,
