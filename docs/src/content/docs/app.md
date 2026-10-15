@@ -1219,7 +1219,9 @@ RPC `payload` option. See Meta's
 
 A tab group's proxy assignment and browser identity are fixed at creation.
 Every tab in that group shares them. The toolbar shows their current values;
-it does not offer identity or proxy switching. To use a different proxy or
+it does not offer identity or proxy switching. Overview's User-Agent is also
+read-only and retains its copy action. Existing saved overrides still restore.
+To use a different proxy or
 identity, create a new Custom group with the desired settings.
 
 Editing a saved Profile changes the template for future groups. It does not
