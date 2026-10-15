@@ -673,6 +673,9 @@ that attempts to switch the proxy fails without applying other fields. Create a
 new group to use different proxy or identity settings. Session name and filtering
 policy remain mutable; the canonical session ID is immutable.
 
+A proxy used by a tab group cannot be updated or deleted. Create another proxy
+for different settings, or delete every group that uses it first.
+
 ### Proxy TLS certificates
 
 ```sh

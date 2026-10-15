@@ -973,6 +973,11 @@ A session resource is:
   group plus every closed canonical ID as `data.deleted_ids`. Group matching is
   case-insensitive, and an empty group is an idempotent success.
 
+A proxy used by any existing tab group cannot be updated or deleted. Those
+requests return `VALIDATION_FAILED` before changing credentials, routing, or
+session assignments. Create a new proxy for different settings, or delete all
+its groups before editing or deleting it.
+
 `source_profile`, when supplied, names an existing saved Profile used to identify
 the tab group in the app. It is independent of `profile`, which selects browser
 data and creation defaults. The creation sheet supplies both explicitly, so a

@@ -1320,11 +1320,10 @@ identity, create a new Custom group with the desired settings.
 Editing a saved Profile changes the template for future groups. It does not
 replace an existing group's identity or proxy assignment.
 
-Changes to upstream routing apply to new connections; existing connections
-continue until they close. Certificate trust changes that require a new context wait for Reload when there is page
-state to preserve. An empty browser with no active page, popup, or navigation
-history applies these changes automatically without a reload banner. Sessions
-that have not opened a browser yet start with their latest configuration.
+A saved proxy cannot be edited or deleted while a group uses it. Create a new
+proxy for different routing, credentials, provider targeting, or certificate
+trust settings. Deleting a proxy never switches an existing group to direct
+networking. After deleting all groups that use a proxy, you can edit or delete it.
 
 ## Proxy certificate trust
 
@@ -1334,7 +1333,7 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 - **Bright Data certificate** adds REL's bundled Bright Data root CA for `brd.superproxy.io:44445`. Creating a proxy with the Bright Data type preselects this option; an existing proxy requires an explicit change.
 - **Custom certificate** imports a PEM bundle or DER CRT file. REL saves the certificate contents with the proxy, so the original file is no longer needed. PEM bundles may contain 1–16 CA certificates, up to 64 KiB; private keys and website leaf certificates are rejected.
 
-Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
+Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Certificate settings cannot be changed while a group uses that proxy. Create a new proxy and group to use different trust settings.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
 
