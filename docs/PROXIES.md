@@ -53,8 +53,14 @@ The suite checks upstream DNS and TCP connectivity, HTTP forwarding,
 authenticated HTTPS with system and proxy-specific certificate trust, exit IP,
 country and IANA timezone, country targeting, and the **Detect Exit Locale**
 setting. It uses the saved configuration and a fresh provider sticky session,
-and sends requests through the proxy to example.com and IPWHOIS.io. It does not
+and sends requests through the proxy to `https://rel.me/proxy-test` and IPWHOIS.io. It does not
 change existing browser Sessions or expose saved credentials.
+
+The HTTP forwarding check uses `http://rel.me/proxy-test` and accepts either a
+successful response or an upgrade to the exact HTTPS URL. Opening the HTTPS
+endpoint in a browser shows a readable JSON echo of the method, URL, IP,
+edge-observed HTTP protocol, TLS version, location, and selected headers. Responses
+are uncached and exclude authorization headers, cookies, and request bodies.
 
 Results show passed, failed, warning, or skipped checks and elapsed time.
 A failed destination request can also indicate an unavailable test service.
