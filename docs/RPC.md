@@ -1238,12 +1238,14 @@ preferences are preserved. Saving recreates only the session's Chromium context.
 Device surfaces and graphics remain linked groups in the pinned engine.
 Individual fields within those groups cannot independently remain native.
 
-On the Chromium 154 upgrade, REL updates stored Chromium 152 fingerprint
-versions and their matching user agents in sessions and named profiles before
-loading them. Seeds and other fingerprint settings are preserved; changed
-session fingerprints advance their generation. This happens transactionally
-in the current app database and does not reset browser data. API submissions
-must use a Chromium 154 four-component version and matching user agent.
+On every supported database startup, REL refreshes engine-linked fingerprint
+versions and matching user agents in Sessions and named Profiles before loading
+them. Seeds and other fingerprint settings are preserved; changed session
+fingerprints advance their generation once. This happens transactionally in the
+current app database and does not reset browser data. API submissions must supply
+a numeric four-component engine version and its matching User-Agent token; REL
+resolves them to its bundled runtime. Future engine upgrades use the same refresh
+without requiring a separate database migration.
 
 ### Proxy TLS configuration
 

@@ -551,7 +551,7 @@ Permissions Policy can suppress them. These reported values do not change actual
 connection speed or route traffic through a proxy.
 
 Chromium generates the User-Agent in every mode with its product version reduced
-to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its native
+to `MAJOR.0.0.0`, using the bundled engine's current major. The engine supplies its native
 brand list and client hints; these are not editable. High-entropy client hints
 can still expose the engine’s full version when requested by a site.
 
