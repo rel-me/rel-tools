@@ -774,9 +774,12 @@ against the saved proxy with a fresh provider session ID. It returns
 check results; an unknown alias or invalid local configuration returns an API
 error. Allow a 90-second client timeout. Early DNS/TCP failures stop dependent
 network checks. HTTPS requests honor system and proxy-specific CA roots and
-never retry directly. Credentials are never included in results.
+never retry directly. Credentials are never included in results. HTTPS checks target
+`https://rel.me/proxy-test`. HTTP forwarding checks use its HTTP counterpart and
+accept success or a redirect to that exact HTTPS URL. Exit metadata still uses
+IPWHOIS.io.
 
-The fixed test destinations are example.com (HTTP and HTTPS) and IPWHOIS.io
+The fixed test destinations are rel.me/proxy-test (HTTP and HTTPS) and IPWHOIS.io
 (exit IP, country, timezone). Country targeting and exit-locale detection are
 reported; browser overrides, leak behavior and MASQUE/UDP are not exercised.
 See [proxy testing](PROXIES.md#test-a-saved-proxy).
