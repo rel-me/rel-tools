@@ -985,7 +985,17 @@ An explicit `name` takes priority over the generated name.
 ## Profiles
 
 Profiles are user-created session configurations. There are no generated
-built-ins, and the list is empty until a Profile is saved. A profile resource is:
+built-ins, and the list is empty until a Profile is saved.
+
+Fingerprint `browser_version` and its matching `Chrome/` User-Agent token resolve
+to REL's bundled Chromium version when read or imported. An optional
+`chrome_version` equal to the supplied `browser_version` follows that engine
+version automatically, including across future upgrades. A distinct explicit
+`chrome_version` is preserved; omission keeps native Chromium branding. Startup
+also persists refreshed versions for saved Sessions and Profiles without changing
+other fingerprint settings or browser data.
+
+A profile resource is:
 
 ```json
 {
