@@ -747,6 +747,14 @@ If no Oxylabs configuration exists for a proxy, `oxylabs` is omitted.
 
 Passwords are accepted on writes but never returned.
 
+`oxylabs_masque_enabled` defaults to `true` for a new Oxylabs configuration when
+omitted. An explicit `false` is honored for residential proxies too. Updates
+that omit the field retain the saved value; startup and transfer imports preserve
+it. MASQUE enables the trusted Rust session QUIC relay and uses the provider's
+HTTP/3 CONNECT-UDP gateway for UDP; TCP continues through the configured HTTP
+upstream. Changing the setting closes existing QUIC tunnels and publishes updated
+session configuration. Open pages apply it when the user chooses Reload.
+
 - `GET /v1/proxies` returns `data.proxies`, ordered by creation order.
 - `GET /v1/proxies/{alias}` returns `data.proxy`.
 - `POST /v1/proxies` requires `alias`, `upstream_host`, and `upstream_port`. Optional

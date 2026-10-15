@@ -226,11 +226,17 @@ alias and certificate settings before saving. See
 
 ### HTTP/3 and MASQUE
 
-Oxylabs Residential proxies automatically use **MASQUE (HTTP/3)**. REL enables
-it for all saved residential proxies at startup, including older configurations
-and proxies previously saved with MASQUE disabled. Creation, edits, and imports
-also enable it automatically. The proxy editor has no residential MASQUE toggle;
-`oxylabs_masque_enabled: false` cannot disable residential MASQUE.
+The Oxylabs Residential proxy editor has a **MASQUE (HTTP/3)** checkbox.
+The masked connection string updates immediately: enabled shows
+`https://…@masque.oxylabs.io:50000`; disabled shows the configured HTTP upstream,
+normally `http://…@pr.oxylabs.io:7777`. The MASQUE URL describes the HTTP/3
+connection and requires a MASQUE-capable client.
+
+New Oxylabs configurations default to MASQUE enabled when the setting is omitted.
+An explicit `oxylabs_masque_enabled: false` disables it, including for residential
+proxies. The saved choice survives unrelated edits, restart, and transfers.
+After saving, open pages show a configuration banner; choose **Reload** to apply
+the changed transport.
 
 Keep the TCP upstream set to `pr.oxylabs.io:7777` with the Oxylabs provider enabled.
 REL sends UDP traffic through `masque.oxylabs.io:50000` using authenticated HTTP/3
@@ -254,3 +260,9 @@ Provider authentication, certificate, timeout, or UDP failures are reported as
 proxy errors; REL never sends UDP directly to the origin. Oxylabs restricts
 some UDP targets, including Google. Live provider connectivity requires
 UDP port 50000 to be reachable from your network.
+
+The session's **Logs** panel records MASQUE listener and tunnel setup stages,
+CONNECT versus CONNECT-UDP routing, upstream response statuses, elapsed times,
+and redacted provider rejection details. Search for `MASQUE` to trace a tunnel
+by its connection/stream ID. Oxylabs `X-Error-Description` diagnostics are retained;
+credentials, cookies, arbitrary response headers, and page contents are excluded.
