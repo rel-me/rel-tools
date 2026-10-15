@@ -494,6 +494,11 @@ readback seed for the Session, then keeps it stable for that Session. Profile ed
 Use a Session's tab menu to change its identity; saving recreates only that
 Session's Chromium context and returns it to the same page.
 
+REL upgrades saved built-in Chrome 152.0.7977.83 identities to
+154.0.8037.98 when opening an existing database, including during recovery.
+Overview and browser requests then use Chrome 154. Other identity settings,
+custom Chrome versions, cookies, and saved logins are preserved.
+
 **Private** uses **Automatic** for language and locale. REL selects the default
 language for the proxy's configured country using macOS locale data and keeps
 that country as the locale's region. Bright Data country targeting and Oxylabs
