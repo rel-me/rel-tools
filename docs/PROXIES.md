@@ -29,11 +29,20 @@ credentials appropriate to your provider account and product.
 | --- | --- | --- |
 | Oxylabs Residential | `pr.oxylabs.io` | `7777` |
 | Oxylabs Datacenter | `dc.oxylabs.io` | `8000` |
-| Oxylabs ISP | `isp.oxylabs.io` | `8001` |
+| Oxylabs ISP | `disp.oxylabs.io` | `8001` |
 | Bright Data | `brd.superproxy.io` | `44445` |
 | Decodo Residential | `gate.decodo.com` | `7000` |
 | IPRoyal Residential | `geo.iproyal.com` | `12321` |
 | Custom | Enter your provider's HTTP proxy host | Enter its port |
+
+For **Oxylabs ISP**, enter **Available IPs** and the first assigned upstream
+port. For example, 5 IPs starting at port 8001 use ports 8001 through 8005.
+REL keeps each browser session on its assigned port, choosing the least-used
+port for new sessions and sharing ports once all IPs are in use. **Rotate Proxy
+Session** advances to the next port, wrapping to the first port at the end.
+A single-IP pool retains its IP. Existing `isp.oxylabs.io` configurations keep
+their gateway when edited. ISP credentials use `user-USERNAME`; REL does not
+append session IDs or location parameters. See the [API fields](RPC.md#proxies).
 
 For Oxylabs Residential or Datacenter, the editor offers **Location** targeting.
 For Bright Data, enter the proxy username in the `brd-customer-…-zone-…` form;
