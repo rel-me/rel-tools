@@ -1218,8 +1218,11 @@ RPC `payload` option. See Meta's
 ## Browser configuration changes
 
 A tab group's proxy assignment and browser identity are fixed at creation.
-Every tab in that group shares them. The toolbar shows their current values;
-it does not offer identity or proxy switching. Overview's User-Agent is also
+Every tab in that group shares them. In the sidebar, each group header shows its
+tab count and a **Group Info** button. Its popover displays the proxy, Browser
+Identity, and shared cookies/login behavior, with a **New Tab** action for that
+group. **Group Info** is also available in the group's context menu. Proxy and
+identity displays are absent from the page toolbar. Overview's User-Agent is
 read-only and retains its copy action. Existing saved overrides still restore.
 To use a different proxy or
 identity, create a new Custom group with the desired settings.
