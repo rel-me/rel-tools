@@ -3220,6 +3220,10 @@ pub struct FingerprintProfile {
     pub seed: String,
     pub platform: FingerprintPlatform,
     pub browser_brand: FingerprintBrowserBrand,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chrome_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chrome_version_follows_engine: Option<bool>,
     pub browser_version: String,
     pub user_agent: String,
     pub locale: String,
@@ -4854,6 +4858,20 @@ mod tests {
             assert_eq!(request.method, "GET");
             assert_eq!(request.path, "/v1/observations/observation-1");
         }
+    }
+
+    #[test]
+    fn fingerprint_chrome_binding_round_trips_explicit_false_and_legacy_omission() {
+        let mut value = profile_json()["fingerprint_profile"].clone();
+        let legacy: FingerprintProfile = serde_json::from_value(value.clone()).unwrap();
+        assert!(legacy.chrome_version.is_none());
+        assert!(legacy.chrome_version_follows_engine.is_none());
+        value["chrome_version"] = json!("154.0.8037.98");
+        value["chrome_version_follows_engine"] = json!(false);
+        let explicit: FingerprintProfile = serde_json::from_value(value).unwrap();
+        let round_trip = serde_json::to_value(explicit).unwrap();
+        assert_eq!(round_trip["chrome_version"], "154.0.8037.98");
+        assert_eq!(round_trip["chrome_version_follows_engine"], false);
     }
 
     #[test]

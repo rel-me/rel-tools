@@ -985,7 +985,21 @@ An explicit `name` takes priority over the generated name.
 ## Profiles
 
 Profiles are user-created session configurations. There are no generated
-built-ins, and the list is empty until a Profile is saved. A profile resource is:
+built-ins, and the list is empty until a Profile is saved.
+
+Fingerprint `browser_version` and its matching `Chrome/` User-Agent token resolve
+to REL's bundled Chromium version when read or imported. An optional
+`chrome_version` equal to the supplied `browser_version` follows that engine
+version automatically, including across future upgrades. Canonical profiles
+persist `chrome_version_follows_engine`: true follows Chromium, while false
+keeps an explicit fixed version even if the engine later matches it. This field
+requires a non-null `chrome_version`. Older profiles without the field infer the
+binding from version equality. A distinct explicit `chrome_version` is preserved;
+omission keeps native Chromium branding. Startup
+also persists refreshed versions for saved Sessions and Profiles without changing
+other fingerprint settings or browser data.
+
+A profile resource is:
 
 ```json
 {
@@ -1224,12 +1238,14 @@ preferences are preserved. Saving recreates only the session's Chromium context.
 Device surfaces and graphics remain linked groups in the pinned engine.
 Individual fields within those groups cannot independently remain native.
 
-On the Chromium 154 upgrade, REL updates stored Chromium 152 fingerprint
-versions and their matching user agents in sessions and named profiles before
-loading them. Seeds and other fingerprint settings are preserved; changed
-session fingerprints advance their generation. This happens transactionally
-in the current app database and does not reset browser data. API submissions
-must use a Chromium 154 four-component version and matching user agent.
+On every supported database startup, REL refreshes engine-linked fingerprint
+versions and matching user agents in Sessions and named Profiles before loading
+them. Seeds and other fingerprint settings are preserved; changed session
+fingerprints advance their generation once. This happens transactionally in the
+current app database and does not reset browser data. API submissions must supply
+a numeric four-component engine version and its matching User-Agent token; REL
+resolves them to its bundled runtime. Future engine upgrades use the same refresh
+without requiring a separate database migration.
 
 ### Proxy TLS configuration
 

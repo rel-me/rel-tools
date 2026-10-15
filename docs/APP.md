@@ -494,10 +494,14 @@ readback seed for the Session, then keeps it stable for that Session. Profile ed
 Use a Session's tab menu to change its identity; saving recreates only that
 Session's Chromium context and returns it to the same page.
 
-REL upgrades saved built-in Chrome 152.0.7977.83 identities to
-154.0.8037.98 when opening an existing database, including during recovery.
-Overview and browser requests then use Chrome 154. Other identity settings,
-custom Chrome versions, cookies, and saved logins are preserved.
+Built-in Chrome identities follow REL's bundled Chromium version automatically,
+including after future engine upgrades. Custom privacy identities derived from
+them follow the same version. Opening the database refreshes saved Sessions and
+Profiles; saved session-creation defaults and imports resolve the current version
+too. Other identity settings, cookies, and saved logins are preserved.
+Distinct explicit Chrome version overrides remain unchanged. Saved Chrome and
+Edge User-Agent presets also track Chromium; distinct custom User-Agent strings
+retain their explicit values.
 
 **Private** uses **Automatic** for language and locale. REL selects the default
 language for the proxy's configured country using macOS locale data and keeps
@@ -547,7 +551,7 @@ Permissions Policy can suppress them. These reported values do not change actual
 connection speed or route traffic through a proxy.
 
 Chromium generates the User-Agent in every mode with its product version reduced
-to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its native
+to `MAJOR.0.0.0`, using the bundled engine's current major. The engine supplies its native
 brand list and client hints; these are not editable. High-entropy client hints
 can still expose the engine’s full version when requested by a site.
 
