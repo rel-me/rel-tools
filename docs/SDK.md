@@ -534,6 +534,14 @@ for the proxy. `ProxyUpdateRequest.locale: Change<String>` supports set, clear,
 and unchanged. `Proxy.locale` and `Session.proxy_locale` return it. This preference is independent of any
 country selection, and travels with proxy/profile exports.
 
+`FingerprintProfile.chrome_version` optionally adds a Chrome identity. Set
+`chrome_version_follows_engine` to `Some(true)` to follow REL's bundled Chromium
+version, including future upgrades, or `Some(false)` to keep an explicit fixed
+version. Canonical profiles retain this choice when decoded and serialized.
+With both fields omitted, Chromium retains its native branding. The server also
+resolves the fingerprint's engine version and matching User-Agent token to the
+bundled runtime; unrelated privacy settings and browser data stay unchanged.
+
 `FingerprintProfile.locale_mode` accepts `FingerprintLocaleMode::Automatic` or
 `Custom`; the SDK also preserves the optional `overrides` list on round-trip.
 Automatic uses the configured proxy locale, then the macOS user's preferred

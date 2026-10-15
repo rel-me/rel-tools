@@ -990,8 +990,12 @@ built-ins, and the list is empty until a Profile is saved.
 Fingerprint `browser_version` and its matching `Chrome/` User-Agent token resolve
 to REL's bundled Chromium version when read or imported. An optional
 `chrome_version` equal to the supplied `browser_version` follows that engine
-version automatically, including across future upgrades. A distinct explicit
-`chrome_version` is preserved; omission keeps native Chromium branding. Startup
+version automatically, including across future upgrades. Canonical profiles
+persist `chrome_version_follows_engine`: true follows Chromium, while false
+keeps an explicit fixed version even if the engine later matches it. This field
+requires a non-null `chrome_version`. Older profiles without the field infer the
+binding from version equality. A distinct explicit `chrome_version` is preserved;
+omission keeps native Chromium branding. Startup
 also persists refreshed versions for saved Sessions and Profiles without changing
 other fingerprint settings or browser data.
 
