@@ -960,10 +960,10 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `POST /v1/sessions` accepts optional `name`, `name_prefix`, `group`, `profile`, `proxy_alias`,
+- `POST /v1/sessions` accepts optional `name`, `name_prefix`, `source_profile`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
-- `PATCH /v1/sessions/{id}` is partial and returns `data.session`. Changes that require a new browser context are saved without reloading an open page; REL shows a banner for the user to choose Reload and apply them. Empty browsers with no active page, popup, or navigation history apply the changes automatically without a banner.
+- `PATCH /v1/sessions/{id}` is partial and returns `data.session`. Name and network filters remain mutable. Proxy assignment and browser identity are fixed at group creation; attempts to change them return `VALIDATION_FAILED` without applying any part of the update. To use a different proxy or identity, create a new group. Requests that reuse a session with a proxy must match its existing assignment.
 - `POST /v1/sessions/{id}/pause` and `/play` take no body and idempotently
   return `data.session_id` and `data.network_paused`. Pause cancels active
   requests and blocks new network work. Play resumes network activity and
@@ -975,6 +975,16 @@ A session resource is:
 - `POST /v1/sessions/close` accepts `{"group":"pgm"}` and returns the trimmed
   group plus every closed canonical ID as `data.deleted_ids`. Group matching is
   case-insensitive, and an empty group is an idempotent success.
+
+A proxy used by any existing tab group cannot be updated or deleted. Those
+requests return `VALIDATION_FAILED` before changing credentials, routing, or
+session assignments. Create a new proxy for different settings, or delete all
+its groups before editing or deleting it.
+
+`source_profile`, when supplied, names an existing saved Profile used to identify
+the tab group in the app. It is independent of `profile`, which selects browser
+data and creation defaults. The creation sheet supplies both explicitly, so a
+Profile group can start without copying saved browser data and still be reused.
 
 `image_blocking_mode` is `none`, `all`, or `over_limit`. `none` allows every
 image while leaving `adblock_enabled` independent. The legacy `block_images`

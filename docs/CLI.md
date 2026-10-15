@@ -665,13 +665,16 @@ Partially update a session:
 
 ```sh
 rel session update Session12 --name Research-2 --adblock-enabled false
-rel session update Session12 --direct
 ```
 
-`--direct` sends `proxy_alias:null`, selecting direct networking during creation
-or clearing a proxy assignment during update. An update requires at least one
-mutable option. Session name and filtering policy are mutable; the canonical
-session ID is immutable.
+`--direct` sends `proxy_alias:null`, selecting direct networking during creation.
+A group's proxy assignment and browser identity are fixed at creation. An update
+that attempts to switch the proxy fails without applying other fields. Create a
+new group to use different proxy or identity settings. Session name and filtering
+policy remain mutable; the canonical session ID is immutable.
+
+A proxy used by a tab group cannot be updated or deleted. Create another proxy
+for different settings, or delete every group that uses it first.
 
 ### Proxy TLS certificates
 

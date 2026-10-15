@@ -307,9 +307,10 @@ to the draft without changing its proxy selection. A saved proxy remains availab
 in Proxies even if you later cancel the profile.
 
 **Create Session**, **New Session** (Command-T), and the session tab bar’s plus
-button create a session immediately using the configured default Profile, or
-Custom defaults when none is set. You can change AdBlock, image blocking, Proxy,
-and Browser Identity afterward. Changing Browser Identity shows a banner so you can reload when ready.
+button open a tab in the matching default Profile group, creating the group when absent.
+Tabs in a group share its settings, cookies, and logins. Proxy and Browser Identity
+are fixed when the group is created. Create a new group to use a different proxy or
+identity. AdBlock and image blocking remain editable for the group.
 Browser data is copied or imported rather than switched as a setting.
 
 Cookies and saved passwords can be imported while Chrome or another supported
@@ -363,14 +364,16 @@ does not require recreating proxies or importing them again. Earlier app version
 cannot open the upgraded database.
 
 The toolbar **(+) → New Session from Profile** submenu lists saved Profiles.
-Selecting a Profile creates a session immediately with its settings and browser
-data. The submenu appears only when saved Profiles exist.
+Selecting a Profile opens a tab in its existing group, or creates the group with
+its settings and browser data when absent. The submenu appears only when saved Profiles exist.
 
 Use **File → Create Session from Profile** (Option-Command-T) to choose settings
 before creation or copy a saved Profile’s browser data. This form starts with
 **Custom** and shows the Profile picker only
-when saved Profiles exist. Selecting one loads its configuration into the form;
-all settings remain editable and changes apply only to the new Session. AdBlock,
+when saved Profiles exist. Selecting a Profile with an existing group shows
+**Open Tab** and explains that its current settings, cookies, and logins will be reused.
+New-group settings and setup inputs are hidden for that selection. When no matching
+group exists, its configuration loads into the form and can be edited before creation. AdBlock,
 Browser Identity, Proxy, Image Blocking, and Browser Data share one section
 with equal-height setting rows. Choosing **Custom Privacy** in Create Session
 opens a separate editor; **Use Identity** applies it to the draft and **Cancel**
@@ -1214,19 +1217,23 @@ RPC `payload` option. See Meta's
 
 ## Browser configuration changes
 
-Saving browser identity or proxy configuration leaves the current page running.
-If a change requires a new browser context, REL shows a banner above the page:
-**Browser configuration changed. Reload to apply.** Choose **Reload** when you
-are ready. Saving alone does not reload the page, so unsaved form input remains
-available until you reload. Reverting all pending context changes removes the
-banner.
+A tab group's proxy assignment and browser identity are fixed at creation.
+Every tab in that group shares them. In the sidebar, each group header shows its
+tab count and a **Group Info** button. Its popover displays the proxy, Browser
+Identity, and shared cookies/login behavior, with a **New Tab** action for that
+group. **Group Info** is also available in the group's context menu. Proxy and
+identity displays are absent from the page toolbar. Overview's User-Agent is
+read-only and retains its copy action. Existing saved overrides still restore.
+To use a different proxy or
+identity, create a new Custom group with the desired settings.
 
-Changes to upstream routing apply to new connections; existing connections
-continue until they close. Browser identity, proxy assignment, and certificate
-trust changes that require a new context wait for Reload when there is page
-state to preserve. An empty browser with no active page, popup, or navigation
-history applies these changes automatically without a reload banner. Sessions
-that have not opened a browser yet start with their latest configuration.
+Editing a saved Profile changes the template for future groups. It does not
+replace an existing group's identity or proxy assignment.
+
+A saved proxy cannot be edited or deleted while a group uses it. Create a new
+proxy for different routing, credentials, provider targeting, or certificate
+trust settings. Deleting a proxy never switches an existing group to direct
+networking. After deleting all groups that use a proxy, you can edit or delete it.
 
 ## Proxy certificate trust
 
@@ -1236,7 +1243,7 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 - **Bright Data certificate** adds REL's bundled Bright Data root CA for `brd.superproxy.io:44445`. Creating a proxy with the Bright Data type preselects this option; an existing proxy requires an explicit change.
 - **Custom certificate** imports a PEM bundle or DER CRT file. REL saves the certificate contents with the proxy, so the original file is no longer needed. PEM bundles may contain 1–16 CA certificates, up to 64 KiB; private keys and website leaf certificates are rejected.
 
-Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Saving a certificate change shows the configuration banner in affected open browsers. Reload applies the new trust settings while preserving session storage. Switching to another proxy or a direct connection replaces or clears the additional roots.
+Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Certificate settings cannot be changed while a group uses that proxy. Create a new proxy and group to use different trust settings.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
 
