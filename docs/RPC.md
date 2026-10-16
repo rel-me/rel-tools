@@ -839,8 +839,9 @@ Saved-proxy diagnostics test the first port of an ISP pool.
 `data.session`. It requires an assigned Oxylabs- or Bright Data-enabled proxy.
 For an ISP pool it advances that session to the next port. For other providers,
 it replaces only that browser session's sticky ID, closes its existing proxy
-connections, and resets its usage counters. Other browser sessions sharing the
-proxy keep their IDs. The app exposes **Rotate Proxy Session** in the selected
+connections, and resets its usage counters. ISP rotation also closes that
+session’s existing connections and resets its counters. Other browser sessions
+sharing the proxy keep their assignments. The app exposes **Rotate Proxy Session** in the selected
 tab's Proxy menu and tab context menu, and reloads that tab after rotation.
 
 `GET /v1/sessions/{id}/proxy-status` returns these fields under `data`:
@@ -849,6 +850,7 @@ tab's Proxy menu and tab context menu, and reloads that tab after rotation.
 {
   "proxy_alias": "residential",
   "proxy_session_id": "a7b92d41",
+  "assigned_port": null,
   "can_rotate": true,
   "request_count": 42,
   "uploaded_bytes": 125000,
@@ -858,6 +860,10 @@ tab's Proxy menu and tab context menu, and reloads that tab after rotation.
   "scope": "current_proxy_session_since_agent_start"
 }
 ```
+
+For ISP pools, `assigned_port` is the session's fixed upstream port and
+`proxy_session_id` is null. The status panel shows **Assigned Port**. Other
+providers return `assigned_port:null`.
 
 The app's **Proxy Session Status** panel refreshes every two seconds. Counters
 cover the current proxy assignment and sticky ID since the agent started;
