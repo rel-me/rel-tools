@@ -1120,6 +1120,13 @@ A profile resource is:
   the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
   the compatibility template. Set it to `null` for native Chromium identity.
+- `viewport_preset` is optional: `null` (App Default), `fitWindow`, `desktop`
+  (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or `mobile`
+  (320w). `POST /v1/profiles` stores the default for new sessions. On
+  `PATCH /v1/profiles/{id}`, omission preserves it and explicit `null` clears it.
+  Session creation copies the preset into its workspace; later Profile changes
+  leave existing sessions unchanged. Profile archive and settings-text transfers
+  preserve this field.
 - `unique_user_agent_per_request` defaults to `false`. When enabled, each
   allowed HTTP or HTTPS request from a new session receives a distinct
   `Unique/<token>` suffix in its User-Agent header. Page JavaScript and
@@ -1544,7 +1551,7 @@ Each session value contains:
 | `pageTabs` | Ordered tabs, default `[]` for existing single-tab state. Each entry has a unique nonempty `id` (at most 128 UTF-8 bytes), optional HTTP(S) `url` without credentials, optional finite `lastOpenedAt`, Boolean `isNetworkPaused` (default false), and optional `navigationHistory`. |
 | `selectedPageTabID` | Tab ID or null; when present it must belong to this session's `pageTabs`. |
 | `isNetworkPaused` | Boolean, default false |
-| `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String, viewportPreset?: String}`; tool is `info`, `filters`, `schedules` (Actions), `logs`, or `terminal`; defaults are false, true, and `logs`. `viewportPreset` is `fitWindow`, `laptop` (1024w), `tablet` (768w), or `mobile` (320w); omit it or use `null` to inherit the app default. |
+| `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String, viewportPreset?: String}`; tool is `info`, `filters`, `schedules` (Actions), `logs`, or `terminal`; defaults are false, true, and `logs`. `viewportPreset` is `fitWindow`, `desktop` (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or `mobile` (320w); omit it or use `null` to inherit the app default. |
 | `chatTokenUsageByModel` | Object of cumulative native Chat usage records keyed by model usage key; default `{}` |
 | `chats` | Conversation state described below; defaults to no conversations, null selection, and next sequence 2 |
 
