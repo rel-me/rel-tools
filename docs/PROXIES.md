@@ -44,6 +44,24 @@ A single-IP pool retains its IP. Existing `isp.oxylabs.io` configurations keep
 their gateway when edited. ISP credentials use `user-USERNAME`; REL does not
 append session IDs or location parameters. See the [API fields](RPC.md#proxies).
 
+Set **Page Loads per IP** to rotate automatically after that many main-document
+HTTP(S) request attempts on an IP. Leave it blank (or use 0) for unlimited
+page loads and manual rotation. Automatic rotation requires at least two IPs.
+Images, scripts, styles, frames, and other subresources do not consume this
+allowance. Reloads and failed document requests count; cached history changes
+that do not request a document do not count. A redirect chain uses one allowance.
+
+The allowance is shared across browser sessions using the same proxy port.
+Before an exhausted IP's next document request, REL assigns that session the
+next IP with allowance remaining. After every IP reaches the limit, REL begins
+a new round. Rotation closes only the rotating session's old connections and
+drains its Chromium connection pool before the document request continues.
+The status panel shows **Page Loads on IP** separately from requests/tunnels.
+Counts reset on agent restart or a change to the pool's endpoint, IP count, or
+page limit. The configured limit is saved and included in exports; usage counts
+are runtime state. This is a browser page-load rotation threshold, not a
+provider billing counter or an HTTP subresource quota.
+
 For Oxylabs Residential or Datacenter, the editor offers **Location** targeting.
 For Bright Data, enter the proxy username in the `brd-customer-…-zone-…` form;
 the editor offers **Country**, **State**, **City**, and **ASN** fields. Bright Data

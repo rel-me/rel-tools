@@ -760,6 +760,7 @@ session configuration. Open pages apply it when the user chooses Reload.
 - `POST /v1/proxies` requires `alias`, `upstream_host`, and `upstream_port`. Optional
   write fields are `username`, `password`, `oxylabs_enabled`, `oxylabs_masque_enabled`,
   `oxylabs_location_parameter`, `oxylabs_location_value`, `oxylabs_isp_ip_count`,
+  `oxylabs_isp_page_limit`,
   `bright_data`, `locale`, and `detect_exit_locale`.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
   `username:null`, `password:null`, or `locale:null` clears that value.
@@ -819,8 +820,8 @@ to that proxy and closes their existing proxy connections. IDs are not part of t
 
 For fixed-port Oxylabs ISP proxies, set `oxylabs_enabled:true`,
 `oxylabs_masque_enabled:false`, and `oxylabs_isp_ip_count` to the number of
-available IPs. Use `disp.oxylabs.io` (or an existing `isp.oxylabs.io` gateway)
-and set `upstream_port` to the first assigned port, usually 8001. A count of
+available IPs. The preset uses `disp.oxylabs.io`; existing `isp.oxylabs.io` gateways and
+explicitly configured upstream endpoints are supported. Set `upstream_port` to the first assigned port, usually 8001. A count of
 5 covers ports 8001 through 8005. The range must fit within 1 through 65535.
 Location targeting and MASQUE cannot be combined with an ISP pool. Credentials
 use `user-USERNAME` without generated session or location suffixes.
@@ -832,8 +833,31 @@ the pool; a one-IP pool keeps the same IP. Proxy-wide rotation advances every
 assigned session. Changing the IP count reassigns sessions within the new range.
 Omitting the count on PATCH preserves it; setting it to 0 disables fixed-port
 allocation. Responses expose the count as `proxy.oxylabs.isp_ip_count`.
-Proxy and profile transfer version 12 preserves it; older transfers use 0.
+Proxy and profile transfer version 12 preserves the IP count; version 13 also
+preserves the page limit. Older transfers default missing fields to 0.
 Saved-proxy diagnostics test the first port of an ISP pool.
+
+`oxylabs_isp_page_limit` is an integer from 0 through 4294967295. It defaults
+to 0 (automatic rotation disabled), is preserved when omitted on PATCH, and
+requires at least two IPs when positive. REL counts main-document HTTP(S) request
+attempts before network dispatch, including failed attempts and reloads.
+Subresources, subframes, and cached history changes are excluded; a redirect
+chain counts once. The limit is shared across sessions using each port. An
+exhausted IP's next document request moves only that session to the next port
+with allowance remaining. Once all IPs are exhausted, a new round starts.
+Runtime counts reset on agent restart or pool endpoint/count/limit changes.
+Manual rotation does not clear an IP's shared page allowance.
+
+`POST /v1/sessions/{id}/prepare-proxy-page` accepts `{}` and returns `rotated`.
+With automatic ISP rotation enabled it also returns `assigned_port`,
+`page_request_count`, and `page_request_limit`. REL's native browser calls it
+once before releasing each proxied main-document HTTP(S) request, then drains
+Chromium connections if the route changed. This independent admission lane
+cannot wait on browser automation. Embedders should not call it again for a
+navigation already handled by REL's browser, because that would consume an
+extra allowance. Other proxy types return `rotated:false` without changing
+routing or counters. A request-preparation failure cancels the document request
+and surfaces the error; it never continues with an unchecked allowance.
 
 `POST /v1/sessions/{id}/rotate-proxy-session` takes an empty object and returns
 `data.session`. It requires an assigned Oxylabs- or Bright Data-enabled proxy.
@@ -863,7 +887,10 @@ tab's Proxy menu and tab context menu, and reloads that tab after rotation.
 
 For ISP pools, `assigned_port` is the session's fixed upstream port and
 `proxy_session_id` is null. The status panel shows **Assigned Port**. Other
-providers return `assigned_port:null`.
+providers return `assigned_port:null`. With automatic ISP rotation enabled,
+status additionally returns `page_request_count` and `page_request_limit` for
+the assigned IP, shared across its sessions. These fields are absent when the
+page limit is disabled.
 
 The app's **Proxy Session Status** panel refreshes every two seconds. Counters
 cover the current proxy assignment and sticky ID since the agent started;
