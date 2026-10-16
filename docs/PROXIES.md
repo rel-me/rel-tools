@@ -29,11 +29,38 @@ credentials appropriate to your provider account and product.
 | --- | --- | --- |
 | Oxylabs Residential | `pr.oxylabs.io` | `7777` |
 | Oxylabs Datacenter | `dc.oxylabs.io` | `8000` |
-| Oxylabs ISP | `isp.oxylabs.io` | `8001` |
+| Oxylabs ISP | `disp.oxylabs.io` | `8001` |
 | Bright Data | `brd.superproxy.io` | `44445` |
 | Decodo Residential | `gate.decodo.com` | `7000` |
 | IPRoyal Residential | `geo.iproyal.com` | `12321` |
 | Custom | Enter your provider's HTTP proxy host | Enter its port |
+
+For **Oxylabs ISP**, enter **Available IPs** and the first assigned upstream
+port. For example, 5 IPs starting at port 8001 use ports 8001 through 8005.
+REL keeps each browser session on its assigned port, choosing the least-used
+port for new sessions and sharing ports once all IPs are in use. **Rotate Proxy
+Session** advances to the next port, wrapping to the first port at the end.
+A single-IP pool retains its IP. Existing `isp.oxylabs.io` configurations keep
+their gateway when edited. ISP credentials use `user-USERNAME`; REL does not
+append session IDs or location parameters. See the [API fields](RPC.md#proxies).
+
+Set **Page Loads per IP** to rotate automatically after that many main-document
+HTTP(S) request attempts on an IP. Leave it blank (or use 0) for unlimited
+page loads and manual rotation. Automatic rotation requires at least two IPs.
+Images, scripts, styles, frames, and other subresources do not consume this
+allowance. Reloads and failed document requests count; cached history changes
+that do not request a document do not count. A redirect chain uses one allowance.
+
+The allowance is shared across browser sessions using the same proxy port.
+Before an exhausted IP's next document request, REL assigns that session the
+next IP with allowance remaining. After every IP reaches the limit, REL begins
+a new round. Rotation closes only the rotating session's old connections and
+drains its Chromium connection pool before the document request continues.
+The status panel shows **Page Loads on IP** separately from requests/tunnels.
+Counts reset on agent restart or a change to the pool's endpoint, IP count, or
+page limit. The configured limit is saved and included in exports; usage counts
+are runtime state. This is a browser page-load rotation threshold, not a
+provider billing counter or an HTTP subresource quota.
 
 For Oxylabs Residential or Datacenter, the editor offers **Location** targeting.
 For Bright Data, enter the proxy username in the `brd-customer-…-zone-…` form;
