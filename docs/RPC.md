@@ -1124,8 +1124,10 @@ A profile resource is:
   (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or `mobile`
   (320w). `POST /v1/profiles` stores the default for new sessions. On
   `PATCH /v1/profiles/{id}`, omission preserves it and explicit `null` clears it.
-  Session creation copies the preset into its workspace; later Profile changes
-  leave existing sessions unchanged. Profile archive and settings-text transfers
+  Session creation copies it to the session resource’s `initial_viewport_preset`.
+  The app initializes the session workspace with that preset; saved workspace
+  selections take precedence, and later Profile changes leave existing sessions
+  unchanged. Profile archive and settings-text transfers
   preserve this field.
 - `unique_user_agent_per_request` defaults to `false`. When enabled, each
   allowed HTTP or HTTPS request from a new session receives a distinct
