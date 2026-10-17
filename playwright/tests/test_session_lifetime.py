@@ -11,5 +11,6 @@ class SessionLifetimeTests(unittest.TestCase):
             lifetime = {"type": "inactivity", "timeout_seconds": 30}
             self.assertEqual(client.create_session(profile=None, group="test", lifetime=lifetime), "Session1")
             self.assertEqual(request.call_args.args[2]["lifetime"], lifetime)
+            self.assertIs(request.call_args.args[2]["new_group"], True)
             client.ping_session("Session1")
             request.assert_called_with("POST", "/sessions/Session1/ping", {}, timeout=5.0)

@@ -125,7 +125,7 @@ class RelClient:
         data = self._request(
             "POST",
             "/sessions",
-            {"group": group, **({"profile": profile} if profile is not None else {}), **({"lifetime": lifetime} if lifetime is not None else {})},
+            {"new_group": True, "group": group, **({"profile": profile} if profile is not None else {}), **({"lifetime": lifetime} if lifetime is not None else {})},
             timeout=10.0,
         )
         session = data.get("session")

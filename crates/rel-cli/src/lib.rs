@@ -1431,6 +1431,10 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
                     SessionLifetime::Inactivity { timeout_seconds }
                 });
             }
+            "--new-group" => {
+                args.flag(&option, inline)?;
+                request.new_group = Some(true);
+            }
             "--name" => request.name = Some(args.option_value(&option, inline)?),
             "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
@@ -1924,6 +1928,7 @@ rel session play SESSION_ID\n  \
 rel session delete SESSION_ID\n  \
 rel session close --group GROUP\n\n\
 Options:\n  \
+--new-group                  Force a separate tab group\n  \
 --name NAME --group GROUP --profile NAME --proxy ALIAS --adblock-enabled true|false\n  \
 --image-blocking-mode none|all|over_limit --image-size-limit-kb KB\n  \
 --direct                       Override the profile with a direct connection\n  \
@@ -2833,11 +2838,23 @@ mod tests {
     }
 
     #[test]
+    fn session_create_can_force_a_new_group() {
+        let CliCommand::SessionCreate { request, .. } =
+            parse(&["session", "create", "--new-group"]).unwrap()
+        else {
+            panic!("expected session create");
+        };
+        assert_eq!(request.new_group, Some(true));
+        assert!(parse(&["session", "create", "--new-group=false"]).is_err());
+    }
+
+    #[test]
     fn session_create_id_only_prints_a_shell_safe_identifier() {
         let response = client::RpcResponse {
             status: "ok".to_string(),
             request_id: "req_session".to_string(),
             data: client::SessionData {
+                reused_group: Some(false),
                 session: client::Session {
                     lifetime: None,
                     last_activity_at: None,

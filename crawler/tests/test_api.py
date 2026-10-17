@@ -245,7 +245,7 @@ class RelClientTests(unittest.TestCase):
         self.assertEqual(session_id, "Session9")
         method, path, payload = self.server.requests[0]
         self.assertEqual((method, path), ("POST", "/v1/sessions"))
-        self.assertEqual(payload, {"profile": "oxylabs", "group": "crawler"})
+        self.assertEqual(payload, {"new_group": True, "profile": "oxylabs", "group": "crawler"})
 
     def test_create_session_omits_unspecified_profile(self) -> None:
         self.server.responses.append(
@@ -261,7 +261,7 @@ class RelClientTests(unittest.TestCase):
         self.assertEqual(session_id, "Session9")
         method, path, payload = self.server.requests[0]
         self.assertEqual((method, path), ("POST", "/v1/sessions"))
-        self.assertEqual(payload, {"group": "crawler"})
+        self.assertEqual(payload, {"new_group": True, "group": "crawler"})
 
     def test_rejects_non_loopback_base_url(self) -> None:
         with self.assertRaises(ValueError):
