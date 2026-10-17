@@ -374,9 +374,16 @@ and configuration under the Free plan limits described above.
 ## Profiles and Sessions
 
 A **Profile** is a reusable template for a new Session. Profiles select the
-connection, network filters, and any browser data that should be copied when a
+connection, Session Viewport, network filters, and any browser data that should be copied when a
 Session is created. A **Session** is the persistent browser created from that
 template; later Profile changes do not modify existing Sessions.
+
+In the profile editor, **Session Viewport** selects the initial viewport for a new
+Session: **App Default**, **Fit Window**, **Desktop 1440w**, **Wide Laptop 1280w**,
+**Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Fixed widths follow the
+available window height. Each Session can change its viewport independently using
+**Session Viewport**, immediately to the right of **Browser Identity** in its toolbar.
+Changing a saved Profile leaves existing Sessions and tabs in an existing group unchanged.
 
 Manage saved configurations in **Profiles**. There are no built-in Profiles.
 Profiles can use a configured proxy and imported cookies or passwords. The Profiles
