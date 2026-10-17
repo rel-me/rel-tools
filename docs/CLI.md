@@ -606,7 +606,17 @@ rel session create \
   --image-size-limit-kb 100
 ```
 
-When `--name` is omitted, sessions created from a saved profile use its name
+Session creation opens a new page tab in the oldest compatible existing tab group.
+Compatibility includes the selected profile and browser-data source, proxy,
+fingerprint configuration, image/ad blocking, model, and viewport settings.
+The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
+An explicit name or group label must match to reuse a group; an explicit lifetime
+must also match. If no compatible group exists, REL creates one.
+The response's session ID identifies the reused group, so repeated creation can
+return the same ID. `reused_group` reports whether a group was reused.
+Use `rel session create --new-group` to force a separate group.
+
+When a new group is needed and `--name` is omitted, sessions created from a saved profile use its name
 followed by the global session number, for example `Reddit123`. Custom sessions
 use `Session123`. The canonical session ID remains `Session123`; duplicate
 visible names receive ` (2)`, ` (3)`, and so on.

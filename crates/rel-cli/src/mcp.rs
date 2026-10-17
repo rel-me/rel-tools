@@ -645,9 +645,9 @@ fn tool_definitions() -> Vec<Value> {
         ),
         tool_definition(
             "rel_create_session", "REL Create Browser Session",
-            "Create a REL session. Defaults to closing after 120 seconds of client inactivity. Use rel_ping_session to keep it alive, or explicitly select an indefinite lifetime.",
+            "Open a tab in a compatible existing REL group, or create a group when none matches. Set new_group to force a separate group. New groups default to closing after 120 seconds of client inactivity. Use rel_ping_session to keep it alive, or explicitly select an indefinite lifetime.",
             json!({"type":"object","properties":{
-                "name":{"type":"string"},"group":{"type":"string"},"profile":{"type":"string"},
+                "name":{"type":"string"},"group":{"type":"string"},"profile":{"type":"string"},"new_group":{"type":"boolean"},
                 "lifetime":{"oneOf":[
                     {"type":"object","properties":{"type":{"const":"inactivity"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":4294967295_u64}},"required":["type","timeout_seconds"],"additionalProperties":false},
                     {"type":"object","properties":{"type":{"const":"indefinite"}},"required":["type"],"additionalProperties":false}
@@ -1081,6 +1081,7 @@ fn handle_tool_call(
                 client
                     .create_session(&client::SessionCreateRequest {
                         name: arguments.name,
+                        new_group: arguments.new_group,
                         group: arguments.group,
                         profile: arguments.profile,
                         lifetime: arguments.lifetime,
@@ -2118,6 +2119,10 @@ mod tests {
         assert_eq!(tools[10]["name"], "rel_action");
         assert_eq!(tools[12]["name"], "rel_close_session_group");
         assert_eq!(tools[13]["name"], "rel_create_session");
+        assert_eq!(
+            tools[13]["inputSchema"]["properties"]["new_group"]["type"],
+            "boolean"
+        );
         assert_eq!(tools[14]["name"], "rel_ping_session");
         assert_eq!(tools[15]["name"], "rel_list_proxies");
         assert_eq!(output[1]["result"]["resultType"], "complete");
@@ -2989,6 +2994,7 @@ mod tests {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CreateSessionArguments {
+    new_group: Option<bool>,
     name: Option<String>,
     group: Option<String>,
     profile: Option<String>,
