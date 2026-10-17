@@ -1159,7 +1159,7 @@ A profile resource is:
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
   the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
-  the compatibility template. Set it to `null` for native Chromium identity.
+  the Private template. Set it to `null` for native Chromium identity.
 - `viewport_preset` is optional: `null` (App Default), `fitWindow`, `desktop`
   (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or `mobile`
   (320w). `POST /v1/profiles` stores the default for new sessions. On

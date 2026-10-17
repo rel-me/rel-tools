@@ -3183,9 +3183,28 @@ pub struct SessionUpdateRequest {
     pub image_size_limit_kb: Option<i64>,
 }
 
+/// Initial viewport for a new session, in CSS pixels (width presets).
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+pub enum ViewportPreset {
+    #[serde(rename = "fitWindow")]
+    FitWindow,
+    #[serde(rename = "desktop")]
+    Desktop,
+    #[serde(rename = "wideLaptop")]
+    WideLaptop,
+    #[serde(rename = "laptop")]
+    Laptop,
+    #[serde(rename = "tablet")]
+    Tablet,
+    #[serde(rename = "mobile")]
+    Mobile,
+}
+
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ProfileCreateRequest {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub viewport_preset: Option<ViewportPreset>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_alias: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3324,6 +3343,8 @@ pub struct ProfileData {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Profile {
+    #[serde(default)]
+    pub viewport_preset: Option<ViewportPreset>,
     pub id: String,
     pub name: String,
     pub proxy_alias: Option<String>,
@@ -5357,6 +5378,7 @@ mod tests {
         client
             .create_profile(&ProfileCreateRequest {
                 name: "Research".to_string(),
+                viewport_preset: Some(ViewportPreset::Desktop),
                 proxy_alias: None,
                 adblock_enabled: Some(true),
                 image_blocking_mode: Some(ImageBlockingMode::OverLimit),
@@ -5536,6 +5558,7 @@ mod tests {
             serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({
                 "name":"Research",
+                "viewport_preset":"desktop",
                 "adblock_enabled":true,
                 "image_blocking_mode":"over_limit",
                 "image_size_limit_kb":10,
