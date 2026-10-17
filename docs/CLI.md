@@ -62,6 +62,7 @@ rel proxy rotate ALIAS
 rel proxy export ALIAS [--output PATH]
 rel proxy import FILE [--alias ALIAS]
 rel profile list
+rel profile create --name NAME [--proxy ALIAS] [--viewport PRESET] [--browser-identity private|native]
 rel profile export NAME [--output PATH]
 rel profile import FILE [--name NAME]
 rel session list
@@ -99,8 +100,8 @@ selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
-REL Free supports one persistent Session and one custom Profile, and does not
-allow proxy creation, configuration, assignment, or use. Mutations that require
+REL Free supports one persistent Session, one custom Profile, and one Proxy.
+Mutations that require
 REL Pro fail with the non-retryable `PRO_REQUIRED` RPC error. Register Pro in
 **REL → Settings… → Plan** to remove these limits. Read and delete operations
 remain available so stored resources can be inspected or reduced after a
@@ -500,8 +501,8 @@ Every proxy has a required, case-insensitively unique alias. The alias is its
 only public identifier: use it for every CLI and RPC reference. Numeric database
 IDs and UUIDs are not accepted or returned by the public API.
 
-Creating, updating, rotating, assigning, or using a proxy requires REL Pro.
-REL Free can list, inspect, and delete proxies that were saved previously.
+REL Free includes one proxy. Creating additional proxies requires REL Pro.
+Existing proxies can be inspected, configured, used, or deleted.
 
 ```sh
 rel proxy list
@@ -559,6 +560,45 @@ the app and are not available to CLI export, so `credentials_included` is
 export or import credentials with a transfer passphrase.
 
 ## Profiles
+
+Create a reusable setup from the terminal, then open a page with it:
+
+```sh
+# 1. Save your first dedicated ISP proxy
+rel proxy create --alias research-isp \
+  --upstream-host disp.oxylabs.io --upstream-port 8001 \
+  --username user-YOUR_USERNAME --password YOUR_PASSWORD
+
+# 2. Save the proxy, viewport, and browser identity in a profile
+rel profile create --name Research --proxy research-isp \
+  --viewport desktop --browser-identity private
+
+# 3. Open a page using that profile
+rel navigate https://rel.me/proxy-test --profile Research
+```
+
+Install the CLI from **REL → Settings… → General → Install Command Line**.
+REL Free includes one proxy and one custom profile; additional saved resources
+require REL Pro. A separate provider subscription supplies the proxy.
+This example uses [Oxylabs Self-Service Dedicated ISP](https://developers.oxylabs.io/help-center/getting-started/start-using-dedicated-isp-proxies):
+port `8001` selects the first allocated IP. It uses ordinary HTTP proxy
+forwarding, without residential sticky-session or MASQUE options. Use the
+endpoint and credentials for your purchased product. The target page reports
+the IP and country observed by the website. To try a direct connection first,
+run `rel navigate https://example.com` without a proxy.
+
+`profile create` requires a unique, nonempty `--name`. `--proxy ALIAS` selects a
+saved proxy; omission uses direct networking. `--viewport` accepts `fitWindow`,
+`desktop` (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or
+`mobile` (320w). Omission inherits the app default. These are width presets,
+not device screen identity settings.
+
+`--browser-identity private` uses the app's Private template (also the default).
+`native` uses Chromium's unmodified browser identity. The CLI leaves Private
+identity generation to the app and never embeds an engine-specific fingerprint.
+New profiles enable AdBlock. Creating a profile does not modify existing
+Tab Groups. The command returns the ordinary RPC envelope with `data.profile`,
+including its saved `viewport_preset`.
 
 List profiles or transfer their reusable settings:
 

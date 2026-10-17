@@ -5,9 +5,10 @@ use rel_client::{
     self as client, Action, CaptureEvent, CaptureRequest, Change, ImageBlockingMode,
     NavigateRequest, ObservationActionRequest, ObservationMode, ObservationRequest,
     PageActionRequest, PageAttachRequest, PageCaptureRequest, PageObservationRequest,
-    PageReadRequest, PerformRequest, ProfileTransferExportRequest, ProfileTransferImportRequest,
-    ProxyCreateRequest, ProxyTls, ProxyTransferExportRequest, ProxyTransferImportRequest,
-    ProxyUpdateRequest, RelClient, SessionCreateRequest, SessionLifetime, SessionUpdateRequest,
+    PageReadRequest, PerformRequest, ProfileCreateRequest, ProfileTransferExportRequest,
+    ProfileTransferImportRequest, ProxyCreateRequest, ProxyTls, ProxyTransferExportRequest,
+    ProxyTransferImportRequest, ProxyUpdateRequest, RelClient, SessionCreateRequest,
+    SessionLifetime, SessionUpdateRequest, ViewportPreset,
 };
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -301,6 +302,10 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             )?;
             Ok(0)
         }
+        CliCommand::ProfileCreate(request) => {
+            print_json(&client.create_profile(&request)?)?;
+            Ok(0)
+        }
         CliCommand::ProfileList => {
             print_json(&client.list_profiles()?)?;
             Ok(0)
@@ -548,6 +553,7 @@ enum CliCommand {
         alias: Option<String>,
     },
     ProfileList,
+    ProfileCreate(ProfileCreateRequest),
     ProfileExport {
         name: String,
         output: Option<PathBuf>,
@@ -1319,12 +1325,74 @@ fn parse_profile(mut args: Arguments) -> Result<CliCommand, CliError> {
             parse_no_options(&mut args, "profile list", profile_help())?;
             Ok(CliCommand::ProfileList)
         }
+        "create" => parse_profile_create(args),
         "export" => parse_profile_export(args),
         "import" => parse_profile_import(args),
         subcommand => Err(CliError::Message(format!(
             "unknown profile subcommand {subcommand:?}; run `rel profile --help`"
         ))),
     }
+}
+
+fn parse_profile_create(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let mut name = None;
+    let mut proxy_alias = None;
+    let mut viewport_preset = None;
+    let mut browser_identity = None;
+    while let Some((option, inline)) = args.pop_option()? {
+        match option.as_str() {
+            "--name" => set_once(&mut name, args.option_value(&option, inline)?, &option)?,
+            "--proxy" => set_once(
+                &mut proxy_alias,
+                args.option_value(&option, inline)?,
+                &option,
+            )?,
+            "--viewport" => {
+                let value = args.option_value(&option, inline)?;
+                let preset = match value.as_str() {
+                    "fitWindow" => ViewportPreset::FitWindow,
+                    "desktop" => ViewportPreset::Desktop,
+                    "wideLaptop" => ViewportPreset::WideLaptop,
+                    "laptop" => ViewportPreset::Laptop,
+                    "tablet" => ViewportPreset::Tablet,
+                    "mobile" => ViewportPreset::Mobile,
+                    _ => return Err(CliError::Message("--viewport must be fitWindow, desktop, wideLaptop, laptop, tablet, or mobile".to_string())),
+                };
+                set_once(&mut viewport_preset, preset, &option)?;
+            }
+            "--browser-identity" => {
+                let value = args.option_value(&option, inline)?;
+                if !matches!(value.as_str(), "private" | "native") {
+                    return Err(CliError::Message(
+                        "--browser-identity must be private or native".to_string(),
+                    ));
+                }
+                set_once(&mut browser_identity, value, &option)?;
+            }
+            "-h" | "--help" => return Err(CliError::Help(profile_help())),
+            _ => return Err(args.unknown_option(&option, "profile create")),
+        }
+    }
+    let name = name
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| CliError::Message("profile create requires --name NAME".to_string()))?;
+    // Private is the app-owned default. Do not duplicate engine-specific identity templates.
+    let fingerprint_profile = if browser_identity.as_deref() == Some("native") {
+        Change::Clear
+    } else {
+        Change::Unchanged
+    };
+    Ok(CliCommand::ProfileCreate(ProfileCreateRequest {
+        name,
+        proxy_alias,
+        viewport_preset,
+        adblock_enabled: Some(true),
+        image_blocking_mode: None,
+        image_size_limit_kb: None,
+        includes_cookies: None,
+        includes_passwords: None,
+        fingerprint_profile,
+    }))
 }
 
 fn parse_profile_export(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -1905,10 +1973,16 @@ Use the REL app for passphrase-protected credential transfers."
 fn profile_help() -> String {
     "Usage:\n  \
 rel profile list\n  \
+rel profile create --name NAME [--proxy ALIAS] [--viewport PRESET] [--browser-identity private|native]\n  \
 rel profile export NAME [--output PATH]\n  \
 rel profile export --all --output DIRECTORY\n  \
 rel profile import DIRECTORY --all\n  \
 rel profile import FILE [--name NAME]\n\n\
+Create saves a reusable profile with AdBlock enabled. Browser identity defaults to
+Private (the app template); native uses unmodified Chromium identity. Viewports:
+fitWindow, desktop (1440w), wideLaptop (1280w), laptop (1024w), tablet (768w), mobile (320w).
+Omitting --viewport inherits the app default. Existing groups are unchanged.
+
 Export writes a versioned SQLite .relprofile file containing reusable settings.
 Cookies, saved passwords, and proxy credentials are not included. Import creates
 a new custom profile; --name overrides the name stored in the file. Use the REL
@@ -1961,6 +2035,62 @@ mod tests {
         let mut args = args.iter().map(|value| value.to_string()).collect();
         apply_session_url_environment_default(&mut args, session_url.map(OsString::from))?;
         parse_command(args)
+    }
+
+    #[test]
+    fn profile_creation_serializes_identity_and_viewport_contract() {
+        let CliCommand::ProfileCreate(request) = parse(&[
+            "profile",
+            "create",
+            "--name",
+            "Research",
+            "--proxy",
+            "isp",
+            "--viewport",
+            "desktop",
+            "--browser-identity",
+            "private",
+        ])
+        .unwrap() else {
+            panic!("expected profile create")
+        };
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            serde_json::json!({
+                "name":"Research", "proxy_alias":"isp", "viewport_preset":"desktop", "adblock_enabled":true
+            })
+        );
+        let CliCommand::ProfileCreate(request) = parse(&[
+            "profile",
+            "create",
+            "--name=Native",
+            "--browser-identity=native",
+        ])
+        .unwrap() else {
+            panic!("expected profile create")
+        };
+        assert_eq!(
+            serde_json::to_value(request).unwrap(),
+            serde_json::json!({
+                "name":"Native", "fingerprint_profile":null, "adblock_enabled":true
+            })
+        );
+        for invalid in [
+            vec!["profile", "create"],
+            vec!["profile", "create", "--name", " "],
+            vec!["profile", "create", "--name", "R", "--viewport", "unknown"],
+            vec![
+                "profile",
+                "create",
+                "--name",
+                "R",
+                "--browser-identity",
+                "unknown",
+            ],
+            vec!["profile", "create", "--name", "R", "--name", "Duplicate"],
+        ] {
+            assert!(parse(&invalid).is_err(), "{invalid:?}");
+        }
     }
 
     #[test]
