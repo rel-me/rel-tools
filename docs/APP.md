@@ -30,6 +30,12 @@ For provider setup and per-Session assignment, see [Configure proxies](PROXIES.m
 
 ## Tab groups
 
+The info popover beside a tab group shows its proxy's sticky session ID. For
+fixed-IP ISP pools it shows the detected exit IP and assigned port instead.
+It refreshes while open; loading and unavailable states are explicit. All tabs
+in a group share the proxy assignment and rotate together. Other groups keep
+their assignments.
+
 The sidebar stays visible and lists tab groups. Each group is one persistent
 Session: its tabs share cookies, site storage, saved logins, proxy configuration,
 browser identity, and Session settings. Groups keep their browser data isolated

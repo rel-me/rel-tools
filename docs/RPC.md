@@ -801,10 +801,18 @@ Proxy responses include `detect_exit_locale`; session responses include
 `proxy_country` (configured ISO country or null) and `proxy_detect_exit_locale`.
 `GET /v1/sessions/{id}/proxy-location` returns `data.country` (for example `DE`)
 and `data.timezone` (for example `Europe/Berlin`, an IANA timezone identifier)
-when detection is enabled. It errors for a missing proxy, disabled detection,
+when detection is enabled or the proxy uses a fixed-IP ISP pool. It errors for a
+missing proxy, disabled detection on other proxy types,
 failed connection, or invalid lookup response. Successful results are cached for
 30 minutes per session and upstream route; provider session rotation changes the
 route. Lookups have a 10-second timeout and never retry through a direct connection.
+
+The response also includes `data.ip`, the validated IPv4 or IPv6 exit address when
+provided by the detection service. Fixed-IP ISP pools permit this explicit lookup
+even when automatic exit-locale detection is disabled, allowing group info to show
+the assigned exit address without changing fingerprint locale settings. The lookup
+uses the group's own agent-owned proxy route and rejects results if that route
+rotates during detection. Cached results are scoped to the group and route.
 
 The legacy `locale` field remains validated and preserved in storage and transfers,
 but Automatic language selection now uses country targeting or exit detection.
