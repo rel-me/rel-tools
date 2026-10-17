@@ -481,7 +481,17 @@ update.
 
 ## Session profiles
 
-`SessionCreateRequest::default()` serializes to `{}`, so the agent copies the
+Session creation opens a new page tab in the oldest compatible existing tab group.
+Compatibility includes the selected profile and browser-data source, proxy,
+fingerprint configuration, image/ad blocking, model, and viewport settings.
+The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
+An explicit name or group label must match to reuse a group; an explicit lifetime
+must also match. If no compatible group exists, REL creates one.
+The response's session ID identifies the reused group, so repeated creation can
+return the same ID. `reused_group` reports whether a group was reused.
+Set `SessionCreateRequest::new_group` to `Some(true)` to force a separate group.
+
+`SessionCreateRequest::default()` serializes to `{}`, so the agent uses the
 configured **Default Profile**, or **Custom** when the preference is unset.
 Custom uses direct networking, AdBlock on, all images allowed, and Private.
 Set `profile` to a case-insensitively unique saved configuration name. Explicit proxy

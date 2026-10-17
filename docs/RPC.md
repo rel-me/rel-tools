@@ -1013,7 +1013,7 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `POST /v1/sessions` accepts optional `name`, `name_prefix`, `source_profile`, `group`, `profile`, `proxy_alias`,
+- `POST /v1/sessions` accepts optional `new_group`, `name`, `name_prefix`, `source_profile`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
 - `PATCH /v1/sessions/{id}` is partial and returns `data.session`. Name and network filters remain mutable. Proxy assignment and browser identity are fixed at group creation; attempts to change them return `VALIDATION_FAILED` without applying any part of the update. To use a different proxy or identity, create a new group. Requests that reuse a session with a proxy must match its existing assignment.
@@ -1046,6 +1046,16 @@ case-insensitively unique; the canonical `id` is immutable. Session routes accep
 only that ID; numeric database IDs are neither accepted nor returned. A group
 is immutable, contains 1–128 non-control characters after trimming, and may be
 shared by any number of sessions.
+
+Session creation opens a new page tab in the oldest compatible existing tab group.
+Compatibility includes the selected profile and browser-data source, proxy,
+fingerprint configuration, image/ad blocking, model, and viewport settings.
+The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
+An explicit name or group label must match to reuse a group; an explicit lifetime
+must also match. If no compatible group exists, REL creates one.
+The response's session ID identifies the reused group, so repeated creation can
+return the same ID. `reused_group` reports whether a group was reused.
+Set `new_group: true` in `POST /v1/sessions` to force a separate group.
 
 When `name` is omitted, a session created from a saved profile uses the profile's
 stored name followed by the global session number, for example `Reddit123` for

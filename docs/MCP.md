@@ -536,8 +536,8 @@ have effects on those sites. MCP hosts should show tool calls for user review.
 
 ### Session lifetime tools
 
-`rel_create_session` accepts optional `name`, `group`, `profile`, and `lifetime`.
-The default is `{"type":"inactivity","timeout_seconds":120}`. Set a positive
+`rel_create_session` accepts optional `name`, `group`, `profile`, `new_group`, and `lifetime`.
+New groups default to `{"type":"inactivity","timeout_seconds":120}`. Set a positive
 integer `timeout_seconds` for a different idle period, or use
 `{"type":"indefinite"}` to retain the session until explicitly closed.
 
@@ -546,3 +546,7 @@ without browser work. Ping well before the deadline while idle. Browser work
 refreshes activity; `rel_list_sessions` does not. Implicitly created sessions
 also use the default timeout, so create an explicit session when selecting a
 lifetime.
+
+`rel_create_session` opens a new tab in a compatible existing group by default.
+Set `new_group: true` to force a separate storage-isolated tab group.
+A reused group retains its lifetime and returns the same session ID.

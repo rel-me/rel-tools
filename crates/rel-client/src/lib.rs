@@ -3150,6 +3150,8 @@ pub enum SessionLifetime {
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_group: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub lifetime: Option<SessionLifetime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -3298,6 +3300,8 @@ pub struct SessionListData {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionData {
     pub session: Session,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reused_group: Option<bool>,
     #[serde(default)]
     pub closed_session_ids: Vec<String>,
 }
@@ -4895,6 +4899,18 @@ mod tests {
         assert_eq!(
             serde_json::to_value(request).unwrap(),
             serde_json::json!({"upstream_host":"proxy.example.com", "username":null})
+        );
+    }
+
+    #[test]
+    fn session_create_serializes_explicit_group_creation() {
+        assert_eq!(
+            serde_json::to_value(SessionCreateRequest {
+                new_group: Some(true),
+                ..Default::default()
+            })
+            .unwrap(),
+            json!({"new_group":true})
         );
     }
 
