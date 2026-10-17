@@ -826,8 +826,9 @@ characters), and cannot be a UUID. An alias is the sole public proxy identifier:
 and UUIDs are neither accepted nor returned by proxy APIs.
 Oxylabs location requires both parameter and value; parameter is `cc`, `country`,
 or `st`. REL generates a distinct persistent sticky ID for each browser session.
-The dedicated rotate-session operation replaces the IDs for all sessions assigned
-to that proxy and closes their existing proxy connections. IDs are not part of the public proxy resource.
+The dedicated rotate-session operation resets each group assigned to that proxy
+using the same barrier and fresh-state behavior as per-session rotation described
+below. IDs are not part of the public proxy resource.
 
 For fixed-port Oxylabs ISP proxies, set `oxylabs_enabled:true`,
 `oxylabs_masque_enabled:false`, and `oxylabs_isp_ip_count` to the number of
@@ -860,24 +861,45 @@ Runtime counts reset on agent restart or pool endpoint/count/limit changes.
 Manual rotation does not clear an IP's shared page allowance.
 
 `POST /v1/sessions/{id}/prepare-proxy-page` accepts `{}` and returns `rotated`.
-With automatic ISP rotation enabled it also returns `assigned_port`,
-`page_request_count`, and `page_request_limit`. REL's native browser calls it
-once before releasing each proxied main-document HTTP(S) request, then drains
-Chromium connections if the route changed. This independent admission lane
-cannot wait on browser automation. Embedders should not call it again for a
-navigation already handled by REL's browser, because that would consume an
-extra allowance. Other proxy types return `rotated:false` without changing
-routing or counters. A request-preparation failure cancels the document request
-and surfaces the error; it never continues with an unchecked allowance.
+With automatic ISP rotation enabled it returns `assigned_port`,
+`page_request_count`, and `page_request_limit` for an admitted page. When the
+current allowance is exhausted, it returns `rotation_required:true` and
+`expected_proxy_session_id` without changing the route or consuming a page.
+REL cancels that document request first, then runs the group-reset transaction.
+This independent admission lane never waits on browser automation or the app
+bridge. Embedders should not call it again for a navigation already handled by
+REL, because that would consume an extra allowance. Other proxy types return
+`rotated:false` without changing routing or counters. A preparation failure
+cancels the document request and surfaces the error.
 
-`POST /v1/sessions/{id}/rotate-proxy-session` takes an empty object and returns
+`POST /v1/sessions/{id}/rotate-proxy-session` accepts `{}` and returns
 `data.session`. It requires an assigned Oxylabs- or Bright Data-enabled proxy.
-For an ISP pool it advances that session to the next port. For other providers,
-it replaces only that browser session's sticky ID, closes its existing proxy
-connections, and resets its usage counters. ISP rotation also closes that
-session’s existing connections and resets its counters. Other browser sessions
-sharing the proxy keep their assignments. The app exposes **Rotate Proxy Session** in the selected
-tab's Proxy menu and tab context menu, and reloads that tab after rotation.
+For an ISP pool it advances that session to the next port. Other providers
+receive a new sticky ID. The operation waits for a group-scoped barrier,
+pauses requests in every tab, closes all old browser contexts and proxy
+connections, and creates fresh browser state with a new fingerprint seed and
+generation. It clears browser storage and navigation history, then loads any
+cookies/passwords configured by the group's source profile into the fresh
+store. Exit locale is checked again before the fresh context can be used;
+its cache is scoped to the REL session, route, sticky ID, and generation.
+
+All tabs retain their IDs and saved URLs. Rotation does **not** navigate or
+reload them automatically. A saved URL loads on explicit access, such as opening
+the restored page or issuing a current-page browser request. Other tabs stay
+dormant. Native **Rotate Proxy Session** uses the same transaction.
+
+Concurrent group operations and browser callers wait until reset completes.
+Already active browser operations are canceled as their old contexts close.
+Other groups keep running, including groups sharing the proxy. A reset failure
+is returned to the caller and leaves the affected group unavailable until a
+successful rotation retry; partially reset state is never resumed.
+
+The native ISP admission path sends
+`{"expected_proxy_session_id":"<id returned by prepare-proxy-page>"}` to
+coalesce simultaneous rotation requests from multiple tabs. If the group has
+already moved to another sticky ID, the call returns its current session without
+another reset. Otherwise it selects the next available ISP allowance; the first
+explicit navigation after reset consumes that allowance.
 
 `GET /v1/sessions/{id}/proxy-status` returns these fields under `data`:
 
