@@ -149,7 +149,7 @@ route table:
 - Observations: `get_observation`, `perform_observation_action`,
   `find_in_observation`
 - Proxies: `list_proxies`, `get_proxy`, `create_proxy`, `update_proxy`,
-  `delete_proxy`, `rotate_proxy_session`, `export_proxy_transfer`,
+  `delete_proxy`, `reset_profile`, `export_proxy_transfer`,
   `import_proxy_transfer`
 - Sessions: `list_sessions`, `get_session`, `create_session`, `update_session`,
   `ping_session`, `pause_session`, `play_session`, `delete_session`,

@@ -428,7 +428,7 @@ detected IANA timezone instead of the saved profile timezone. The timezone contr
 enabled. For Automatic language or enabled timezone controls, REL requests
 `https://ipwho.is/` through the browser session's agent-owned proxy before preparing
 the browser. IPWHOIS.io sees the proxy's exit IP. Successful results are cached for up to 30 minutes per session and upstream
-route; a provider session rotation changes that route. A failed lookup reports an
+route; a a reset changes that route. A failed lookup reports an
 error rather than using a different locale or timezone. The option is preserved
 in proxy and profile transfers; older transfers import with detection off.
 Existing saved proxies keep their current setting, including an explicit off choice.
@@ -1464,3 +1464,14 @@ read, observation fails explicitly rather than substituting initial HTML attribu
 
 Semantic scroll offsets and document dimensions use CSS pixels, including on
 Retina displays. Native input continues to use observation-scoped references.
+
+## HTTP rules and automatic reset
+
+In the Profile editor, add an **HTTP Rule**, choose a status code and repeat
+allowance, and select **Reset** as the action. Reset is the only action currently
+available. Rules work with every proxy type and without a proxy. Matching
+responses from all tabs and resources share the group's counters. Zero repeats
+resets on the first response; N repeats resets on response N + 1. Reset clears
+browser state, restores initial Profile cookies and passwords, changes the proxy
+route where supported, and reopens the saved URLs. Counts clear after a reset
+or restarting REL. Profile edits apply to newly created groups.

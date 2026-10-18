@@ -78,7 +78,7 @@ without navigating.
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
 | `update_proxy(alias, &ProxyUpdateRequest)` | `PATCH /v1/proxies/{alias}` |
 | `delete_proxy(alias)` | `DELETE /v1/proxies/{alias}` |
-| `rotate_proxy_session(alias)` | `POST /v1/proxies/{alias}/rotate-session` |
+| `reset_profile(name)` | `POST /v1/reset` |
 | `export_proxy_transfer(&ProxyTransferExportRequest)` | `POST /v1/proxy-transfers/export` |
 | `import_proxy_transfer(&ProxyTransferImportRequest)` | `POST /v1/proxy-transfers/import` |
 | `list_sessions()` | `GET /v1/sessions` |

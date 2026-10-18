@@ -58,7 +58,7 @@ rel proxy get ALIAS
 rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [options]
 rel proxy update ALIAS [options]
 rel proxy delete ALIAS
-rel proxy rotate ALIAS
+rel reset --profile NAME
 rel proxy export ALIAS [--output PATH]
 rel proxy import FILE [--alias ALIAS]
 rel profile list
@@ -110,9 +110,7 @@ downgrade.
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free
 `rel capture` instead captures the current shorthand page selected by
-`rel navigate`. The removed `ping`, `logs`, and
-`--rotate-proxy-session` interfaces have no compatibility aliases; use
-`status`, the app's Logs view, and `proxy rotate`, respectively.
+`rel navigate`. Use `rel status` for service diagnostics and the app’s Logs view for events.
 
 The app's Logs view displays each event on one compact line. Browser request
 summaries show the method, URL, HTTP status, failure or block reason, and duration
@@ -537,10 +535,10 @@ rel proxy update office --clear-oxylabs-location
 An update requires at least one mutable option. The clear options send explicit
 JSON `null` values instead of omitting their fields.
 
-Rotate the generated sticky session for an Oxylabs-enabled proxy:
+Reset all existing tab groups created from a Profile:
 
 ```sh
-rel proxy rotate office
+rel reset --profile Research
 ```
 
 Export or import a proxy transfer file:
@@ -831,3 +829,15 @@ response acknowledges the request with `state: "requested"`, the selected
 is available or installed. Network errors and update availability appear in the
 native updater. If this build has no update feed/signing key, or an update is
 already running, the command returns a structured error and exits with status 1.
+
+## Reset
+
+```sh
+rel reset --profile=Research
+```
+
+Reset every existing tab group created from the named Profile. REL closes the
+tabs, changes the proxy route where supported, clears browser state, restores
+initial Profile cookies and passwords, and reopens saved URLs. This works with
+any proxy or no proxy. The result contains `data.reset_session_ids`; no existing
+groups returns an empty list. Unknown Profiles and reset failures return errors.

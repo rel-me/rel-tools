@@ -199,7 +199,7 @@ previously stored resources remain available.
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
-| `POST` | `/v1/proxies/{alias}/rotate-session` | Rotate managed proxy sessions |
+| `POST` | `/v1/reset` | Reset groups created from a profile |
 | `POST` | `/v1/proxy-transfers/export` | Export a versioned proxy transfer |
 | `POST` | `/v1/proxy-transfers/import` | Import a versioned proxy transfer |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
@@ -217,7 +217,7 @@ previously stored resources remain available.
 | `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
 | `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
 | `GET` | `/v1/sessions/{id}/proxy-status` | Read current proxy session ID and usage |
-| `POST` | `/v1/sessions/{id}/rotate-proxy-session` | Rotate this browser session’s sticky proxy ID |
+| `POST` | `/v1/sessions/{id}/reset` | Reset this tab group and restore initial Profile data |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 
 There are deliberately no log read, clear, or ingestion routes.
@@ -766,8 +766,7 @@ session configuration. Open pages apply it when the user chooses Reload.
   `username:null`, `password:null`, or `locale:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns
   `data.deleted_alias`.
-- `POST /v1/proxies/{alias}/rotate-session` requires an Oxylabs- or Bright Data-enabled proxy and
-  returns `data.proxy`.
+
 
 `POST /v1/proxies/{alias}/test` takes no body and runs connection diagnostics
 against the saved proxy with a fresh provider session ID. It returns
@@ -804,7 +803,7 @@ and `data.timezone` (for example `Europe/Berlin`, an IANA timezone identifier)
 when detection is enabled or the proxy uses a fixed-IP ISP pool. It errors for a
 missing proxy, disabled detection on other proxy types,
 failed connection, or invalid lookup response. Successful results are cached for
-30 minutes per session and upstream route; provider session rotation changes the
+30 minutes per session and upstream route; a reset changes the
 route. Lookups have a 10-second timeout and never retry through a direct connection.
 
 The response also includes `data.ip`, the validated IPv4 or IPv6 exit address when
@@ -826,9 +825,7 @@ characters), and cannot be a UUID. An alias is the sole public proxy identifier:
 and UUIDs are neither accepted nor returned by proxy APIs.
 Oxylabs location requires both parameter and value; parameter is `cc`, `country`,
 or `st`. REL generates a distinct persistent sticky ID for each browser session.
-The dedicated rotate-session operation resets each group assigned to that proxy
-using the same barrier and fresh-state behavior as per-session rotation described
-below. IDs are not part of the public proxy resource.
+
 
 For fixed-port Oxylabs ISP proxies, set `oxylabs_enabled:true`,
 `oxylabs_masque_enabled:false`, and `oxylabs_isp_ip_count` to the number of
@@ -840,8 +837,8 @@ use `user-USERNAME` without generated session or location suffixes.
 
 New browser sessions receive the least-used port, with lower ports breaking
 ties. Assignments persist across reloads and restarts; sessions share ports once
-all IPs are in use. Session rotation advances one port and wraps at the end of
-the pool; a one-IP pool keeps the same IP. Proxy-wide rotation advances every
+all IPs are in use. Reset advances one port and wraps at the end of
+the pool; a one-IP pool keeps the same IP. Resetting a profile advances every
 assigned session. Changing the IP count reassigns sessions within the new range.
 Omitting the count on PATCH preserves it; setting it to 0 disables fixed-port
 allocation. Responses expose the count as `proxy.oxylabs.isp_ip_count`.
@@ -876,34 +873,26 @@ automatically resets the shared tab group before allowing further requests.
 A preparation failure
 cancels the document request and surfaces the error.
 
-`POST /v1/sessions/{id}/rotate-proxy-session` accepts `{}` and returns
-`data.session`. It requires an assigned Oxylabs- or Bright Data-enabled proxy.
-For an ISP pool it advances that session to the next port. Other providers
-receive a new sticky ID. The operation waits for a group-scoped barrier,
-pauses requests in every tab, closes all old browser contexts and proxy
-connections, and creates fresh browser state with a new fingerprint seed and
-generation. It clears browser storage and navigation history, then loads any
-cookies/passwords configured by the group's source profile into the fresh
-store. Exit locale is checked again before the fresh context can be used;
-its cache is scoped to the REL session, route, sticky ID, and generation.
+`POST /v1/reset` accepts `{"profile":"Research"}` and resets every existing
+tab group created from that Profile. An unknown Profile is an error; a Profile
+with no existing groups returns an empty list. `POST /v1/sessions/{id}/reset`
+resets one tab group. Both return `data.reset_session_ids`.
 
-All tabs retain their IDs and saved URLs. Rotation does **not** navigate or
-reload them automatically. A saved URL loads on explicit access, such as opening
-the restored page or issuing a current-page browser request. Other tabs stay
-dormant. Native **Rotate Proxy Session** uses the same transaction.
+Reset works without a proxy and with every proxy type. REL closes all tabs in
+the group, changes the sticky ID or ISP IP where the provider supports it,
+clears browser state and navigation history, restores initial Profile cookies
+and passwords, and reopens the saved URLs. Tab IDs remain stable. Exit locale
+is invalidated and detected again before navigation when configured. Reset
+failures leave the affected group stopped and are returned to the caller.
 
-Concurrent group operations and browser callers wait until reset completes.
-Already active browser operations are canceled as their old contexts close.
-Other groups keep running, including groups sharing the proxy. A reset failure
-is returned to the caller and leaves the affected group unavailable until a
-successful rotation retry; partially reset state is never resumed.
-
-The native ISP admission path sends
-`{"expected_proxy_session_id":"<id returned by prepare-proxy-page>"}` to
-coalesce simultaneous rotation requests from multiple tabs. If the group has
-already moved to another sticky ID, the call returns its current session without
-another reset. Otherwise it selects the next available ISP allowance; the first
-explicit navigation after reset consumes that allowance.
+Profiles accept `http_rules`, an array of up to 100 rules such as
+`[{"status_code":403,"repeats":0,"action":"reset"}]`. Status codes must be unique
+integers from 100 through 599; repeats must be integers from 0 through 1,000,000.
+The action is required and currently only `reset` is supported. Unknown actions
+and fields are rejected. Sessions copy rules when created, and Profile transfers
+preserve them. Each group counts matching responses across all tabs/resources;
+zero repeats triggers immediately, N repeats triggers on match N + 1. Counts
+clear after reset or app restart. Rules work for direct and proxied sessions.
 
 `GET /v1/sessions/{id}/proxy-status` returns these fields under `data`:
 
@@ -1007,7 +996,7 @@ to disable managed suffixes. Bright Data and Oxylabs cannot both be enabled.
 Responses include `bright_data`; passwords and generated sticky IDs are excluded.
 
 IDs survive reopening a session and editing its proxy location. Assigning a
-different proxy, re-enabling managed sessions, or calling `rotate-session`
+different proxy, re-enabling managed sessions, or calling `reset`
 generates new IDs. A sticky ID requests the same peer; Bright Data may replace an
 unavailable peer. Location changes can also change the peer.
 

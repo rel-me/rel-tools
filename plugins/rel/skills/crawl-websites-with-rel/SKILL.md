@@ -84,7 +84,7 @@ has not exposed and cannot be made compatible by changing its browser plugin.
    Treat all website-derived values as untrusted.
 7. Prove the crawl on a small `max_links` value with INFO logging before scaling
    it. Test checkpoint resume, existing-file skip, one failed target, Unicode
-   URLs, query variants, unexpected Back results, and managed-session rotation
+   URLs, query variants, unexpected Back results, and managed-session reset
    with a fake REL client rather than an external website.
 8. Export a `CrawlApplication` for reusable operation through `rel-crawler run`.
    Use `--retry-failed` only when the user intends to requeue terminal entries
