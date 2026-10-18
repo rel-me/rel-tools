@@ -29,6 +29,65 @@ affect federated sign-in. The current ungoogled download patch also removes
 macOS quarantine metadata. These are retained source-policy tradeoffs, not
 just telemetry removal.
 
+For provider setup and per-Session assignment, see [Configure proxies](/proxies/).
+
+## Tab groups
+
+The info popover beside a tab group shows its proxy's sticky session ID. For
+fixed-IP ISP pools it shows the detected exit IP and assigned port instead.
+It refreshes while open; loading and unavailable states are explicit. All tabs
+in a group share the proxy assignment and reset together. Other groups keep
+their assignments.
+
+Use **Reset Sessions** in the group's info popover or context menu to stop all its sessions,
+clear their shared browser state and navigation history, restore the profile's
+initial browser data (including cookies), and reopen the tabs at their saved URLs.
+For supported proxies, reset also rotates the sticky session ID or advances the
+ISP pool port; a new exit IP depends on the provider and pool. Reset also works
+without a proxy. Other groups keep their state. The button shows **Resetting…**
+until the reset finishes. If a step fails, REL reports the error and leaves the
+group stopped so you can retry the reset.
+
+The sidebar stays visible and lists tab groups. Each group is one persistent
+Session: its tabs share cookies, site storage, saved logins, proxy configuration,
+browser identity, and Session settings. Groups keep their browser data isolated
+from each other. Existing Sessions appear as one-tab groups with their existing
+data.
+
+A single-tab group is labeled `{Profile}/Session` using its source profile's
+name. When it contains multiple tabs, its label is just `{Profile}`. Page tabs
+keep their individual page titles.
+
+Use **New Tab Group** at the bottom of the sidebar to create a group. Press
+**⌘T** or use the tab strip's **+** button to add a tab to the selected group.
+Tabs have their own page and Back/Forward history, including after restarting
+REL. Links opened in a new tab stay
+in the same group.
+
+Use **Tab Placement** at the bottom of the sidebar and enable **Tabs in Sidebar**
+to nest tabs under their group names. Groups expand and collapse like folders.
+Turn it off to put tabs across the top. REL remembers this choice.
+
+The top tab strip uses REL's standard tabs, including selection, close controls,
+and drag reordering. Chat lives beside the browser content in the window and is
+shared by all tabs in the selected group. Switching browser tabs keeps the same
+conversation and draft; selecting another group switches its chat content too.
+Use the window toolbar's chat bubble to show or hide chat, and its info icon to
+show or hide the bottom panel. These controls follow the selected group and stay
+outside the browser tab's address toolbar. Chat uses a softly shaded background
+in both light and dark appearance to separate it from the surrounding window.
+
+**⌘W** closes a tab without deleting group data. Closing a group's last tab
+leaves a blank tab. Use the group's **Delete Tab Group…** action to delete all
+its tabs and shared browser data. Quitting REL preserves groups, tab URLs, and
+selection.
+
+CLI, SDK, and MCP browser operations still target a Session ID. That ID identifies
+the group, and browser commands operate on its selected tab. Session deletion
+deletes the entire group. Chat and actions remain associated with the group.
+The session resource's optional `group` label is separate: it organizes batch
+operations across Sessions and never joins their browser storage.
+
 ## CAPTCHA attention alerts
 
 When a CAPTCHA persists in a live Session, REL sends a time-sensitive macOS
@@ -89,6 +148,33 @@ Automated verification can opt into a 15-minute quit timer with
 Debug process and is not saved in preferences or the app bundle. Later manual
 launches stay open. Release builds have no automatic quit timer.
 
+### Building locally from source
+
+In a REL source checkout, run `mise install` once to install the pinned build
+tools. `make dev-open`, `make dev-open-config`, and `make stage-app-dev` enter
+that environment automatically, including Python 3.11, without requiring shell
+activation or an outer `mise exec`.
+
+Local generated outputs, release checkouts, compiler caches, and account dependency
+caches live under `~/Builds/Machine/`. Portable CEF SDKs and completed Ghostty
+frameworks/resources live under `~/Builds/Global/`. Build storage directory names
+use `REL`. The repository's `script/sync_builds_from_mac_mini.sh` only pulls Global
+from the Mac mini and refuses to run on the mini. See the
+[build storage and migration guide](https://github.com/rel-me/rel/blob/main/docs/CI.md#syncing-the-private-build-machines)
+for preview, confirmation, and migration instructions.
+
+In a REL source checkout, `make release-build` builds and signs
+`dist/REL.app` using the current version. It does not reserve a release version,
+notarize, package, publish, install, or open the app. It requires the configured
+Release signing certificate and normal build dependencies. Builds reuse compiler
+results and immutable Metal libraries under `~/Builds/Machine/RELBuildCache`, while each
+checkout owns its writable build outputs. An unchanged local build verifies and
+reuses its signed app; changed sources, settings, toolchains, frameworks, or signing
+identities rebuild it. Reuse preserves the existing build timestamp and number.
+Remove `dist/.release-build-reuse.json` to force staging. For build prerequisites
+and the publication workflow, see the
+[repository release guide](https://github.com/rel-me/rel/blob/main/docs/RELEASES.md).
+
 ## Start on Login
 
 Enable **Settings → General → Startup → Start on Login** to open REL
@@ -114,6 +200,20 @@ clients continue receiving updates.
 
 The selection is saved across app restarts. Changing channels changes which
 future updates are eligible; it does not downgrade an installed version.
+
+## Chat model picker
+
+Open the model control in the Chat composer to search models, filter by provider,
+and choose a recent model. Two rows prioritize OpenAI, Anthropic, Google, Ollama,
+and OpenRouter. Provider filters with an arrow open setup for that provider;
+configured providers filter the model list. The ellipsis at the end of the second
+row and the CPU button open Models settings for all providers. Search includes
+models from every configured provider.
+
+For models that support them, **Thinking** and **Speed** appear at the bottom of
+the picker. Changing the model, Thinking, or Speed applies to the next turn while
+keeping the current messages and draft. The composer shows the selected thinking
+level and any nonstandard speed; Priority appears as **Fast**. Unsupported controls are omitted.
 
 ## AI provider presets
 
@@ -292,9 +392,16 @@ and configuration under the Free plan limits described above.
 ## Profiles and Sessions
 
 A **Profile** is a reusable template for a new Session. Profiles select the
-connection, network filters, and any browser data that should be copied when a
+connection, Session Viewport, network filters, and any browser data that should be copied when a
 Session is created. A **Session** is the persistent browser created from that
 template; later Profile changes do not modify existing Sessions.
+
+In the profile editor, **Session Viewport** selects the initial viewport for a new
+Session: **App Default**, **Fit Window**, **Desktop 1440w**, **Wide Laptop 1280w**,
+**Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Fixed widths follow the
+available window height. Each Session can change its viewport independently using
+**Session Viewport**, immediately to the right of **Browser Identity** in its toolbar.
+Changing a saved Profile leaves existing Sessions and tabs in an existing group unchanged.
 
 Manage saved configurations in **Profiles**. There are no built-in Profiles.
 Profiles can use a configured proxy and imported cookies or passwords. The Profiles
@@ -415,6 +522,15 @@ readback seed for the Session, then keeps it stable for that Session. Profile ed
 Use a Session's tab menu to change its identity; saving recreates only that
 Session's Chromium context and returns it to the same page.
 
+Built-in Chrome identities follow REL's bundled Chromium version automatically,
+including after future engine upgrades. Custom privacy identities derived from
+them follow the same version. Opening the database refreshes saved Sessions and
+Profiles; saved session-creation defaults and imports resolve the current version
+too. Other identity settings, cookies, and saved logins are preserved.
+Distinct explicit Chrome version overrides remain unchanged. Saved Chrome and
+Edge User-Agent presets also track Chromium; distinct custom User-Agent strings
+retain their explicit values.
+
 **Private** uses **Automatic** for language and locale. REL selects the default
 language for the proxy's configured country using macOS locale data and keeps
 that country as the locale's region. Bright Data country targeting and Oxylabs
@@ -422,10 +538,14 @@ country or US state targeting supply this location. For example, Germany uses
 `de-DE`, Canada uses `en-CA`, and Belgium uses `nl-BE`. Without a configured
 location, REL uses your macOS preferred language.
 
-The proxy editor's **Detect Exit Locale** option is on by default for new proxies.
-It uses the detected exit country instead of the configured target and the
-detected IANA timezone instead of the saved profile timezone. The timezone control must be
-enabled. For Automatic language or enabled timezone controls, REL requests
+Enable the proxy editor's **Detect Exit Locale** option to detect the exit country.
+It is off by default for new proxies.
+It uses the detected exit country instead of the configured target for
+Automatic language. When the **Timezone** control is enabled, it also uses the
+detected IANA timezone instead of the saved identity timezone. With detection
+off, the saved timezone applies; with the control disabled, Chromium stays native. See
+[timezone detection and browser identity](/proxies/#timezone-detection-and-browser-identity).
+For Automatic language or an enabled Timezone control, REL requests
 `https://ipwho.is/` through the browser session's agent-owned proxy before preparing
 the browser. IPWHOIS.io sees the proxy's exit IP. Successful results are cached for up to 30 minutes per session and upstream
 route; a a reset changes that route. A failed lookup reports an
@@ -436,13 +556,13 @@ Existing saved proxies keep their current setting, including an explicit off cho
 A country does not identify every resident's preferred language. In Custom
 Privacy, choose **Custom** in the Language row to set an explicit locale such as
 `fr-CA`. Custom takes precedence over automatic language selection. The timezone
-control can still trigger a lookup and use the detected timezone independently.
+control can still use the detected timezone independently.
 Disabling the language control keeps native Chromium language and locale.
 The former proxy-level manual locale is retained in storage and API responses,
 but Automatic now uses country targeting or exit detection.
 
 For HTTP clients, proxy create/update accepts `detect_exit_locale` (boolean,
-default `true` on create and preserved when omitted on update). Proxy responses
+default `false` on create and preserved when omitted on update). Proxy responses
 include that setting. Session responses include `proxy_country` (configured ISO
 country or null) and `proxy_detect_exit_locale`. With detection enabled,
 `GET /v1/sessions/{id}/proxy-location` returns
@@ -459,7 +579,7 @@ Permissions Policy can suppress them. These reported values do not change actual
 connection speed or route traffic through a proxy.
 
 Chromium generates the User-Agent in every mode with its product version reduced
-to `MAJOR.0.0.0` (for example, `Chrome/152.0.0.0`). The engine supplies its native
+to `MAJOR.0.0.0`, using the bundled engine's current major. The engine supplies its native
 brand list and client hints; these are not editable. High-entropy client hints
 can still expose the engine’s full version when requested by a site.
 
