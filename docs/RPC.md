@@ -803,7 +803,7 @@ and `data.timezone` (for example `Europe/Berlin`, an IANA timezone identifier)
 when detection is enabled or the proxy uses a fixed-IP ISP pool. It errors for a
 missing proxy, disabled detection on other proxy types,
 failed connection, or invalid lookup response. Successful results are cached for
-30 minutes per session and upstream route; provider session rotation changes the
+30 minutes per session and upstream route; a reset changes the
 route. Lookups have a 10-second timeout and never retry through a direct connection.
 
 The response also includes `data.ip`, the validated IPv4 or IPv6 exit address when

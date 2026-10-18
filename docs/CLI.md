@@ -535,7 +535,7 @@ rel proxy update office --clear-oxylabs-location
 An update requires at least one mutable option. The clear options send explicit
 JSON `null` values instead of omitting their fields.
 
-Rotate the generated sticky session for an Oxylabs-enabled proxy:
+Reset all existing tab groups created from a Profile:
 
 ```sh
 rel reset --profile Research

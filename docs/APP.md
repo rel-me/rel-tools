@@ -545,7 +545,7 @@ off, the saved timezone applies; with the control disabled, Chromium stays nativ
 For Automatic language or an enabled Timezone control, REL requests
 `https://ipwho.is/` through the browser session's agent-owned proxy before preparing
 the browser. IPWHOIS.io sees the proxy's exit IP. Successful results are cached for up to 30 minutes per session and upstream
-route; a provider session rotation changes that route. A failed lookup reports an
+route; a a reset changes that route. A failed lookup reports an
 error rather than using a different locale or timezone. The option is preserved
 in proxy and profile transfers; older transfers import with detection off.
 Existing saved proxies keep their current setting, including an explicit off choice.

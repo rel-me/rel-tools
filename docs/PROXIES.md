@@ -314,7 +314,7 @@ for HTTP/3; REL reports transport errors when it is blocked.
 Each browser session connects to its own trusted loopback HTTP/3 relay. Rust
 verifies Oxylabs TLS, adds Proxy-Authorization, and forwards datagrams and
 RFC 9297 capsules. CEF receives only the loopback address and session CA,
-never provider credentials. Proxy-session rotation and deletion close the
+never provider credentials. Reset and deletion close the
 session's QUIC tunnels. Target names are passed to Oxylabs without local DNS
 resolution. WebRTC's non-proxied UDP remains disabled.
 

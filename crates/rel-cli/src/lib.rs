@@ -2684,6 +2684,23 @@ mod tests {
     }
 
     #[test]
+    fn reset_requires_one_nonempty_profile_and_rejects_proxy_rotation() {
+        for args in [
+            vec!["reset"],
+            vec!["reset", "--profile="],
+            vec!["reset", "--profile=A", "--profile=B"],
+            vec!["reset", "--proxy=A"],
+            vec!["proxy", "rotate", "A"],
+        ] {
+            assert!(parse(&args).is_err(), "{args:?}");
+        }
+        assert_eq!(
+            parse(&["reset", "--profile", "Research Team"]).unwrap(),
+            CliCommand::ResetProfile("Research Team".into())
+        );
+    }
+
+    #[test]
     fn parses_every_resource_command_family() {
         assert_eq!(parse(&["health"]).unwrap(), CliCommand::Health);
         assert_eq!(parse(&["status"]).unwrap(), CliCommand::Status);
