@@ -869,7 +869,11 @@ REL cancels that document request first, then runs the group-reset transaction.
 This independent admission lane never waits on browser automation or the app
 bridge. Embedders should not call it again for a navigation already handled by
 REL, because that would consume an extra allowance. Other proxy types return
-`rotated:false` without changing routing or counters. A preparation failure
+`rotated:false` without changing routing or counters. For an expired or invalid
+Oxylabs Residential session on `pr.oxylabs.io`, the response instead includes
+`reset_required:true` and an `invalid_reason`. REL cancels that navigation and
+automatically resets the shared tab group before allowing further requests.
+A preparation failure
 cancels the document request and surfaces the error.
 
 `POST /v1/sessions/{id}/rotate-proxy-session` accepts `{}` and returns
