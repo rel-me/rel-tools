@@ -1033,6 +1033,7 @@ A session resource is:
   "profile": "BandwidthSaver",
   "profile_data_id": null,
   "group": "pgm",
+  "storage_generation": 0,
   "proxy_alias": null,
   "adblock_enabled": true,
   "image_blocking_mode": "over_limit",
@@ -1043,6 +1044,11 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
+- `storage_generation` is a read-only counter that advances on explicit proxy
+  session rotation, including HTTP-triggered rotation. REL uses it to keep fresh
+  browser storage separate from an old Chromium profile during reset and after
+  app restarts. CEF cleans up retired generations asynchronously; REL also
+  reconciles retired profile directories on startup.
 - `POST /v1/sessions` accepts optional `new_group`, `name`, `name_prefix`, `source_profile`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
@@ -1126,6 +1132,7 @@ A profile resource is:
   "includes_cookies": false,
   "includes_passwords": false,
   "unique_user_agent_per_request": false,
+  "http_rotation_rules": [],
   "fingerprint_profile": {
     "schema_version": 1,
     "seed": "12345",
@@ -1169,6 +1176,26 @@ A profile resource is:
   selections take precedence, and later Profile changes leave existing sessions
   unchanged. Profile archive and settings-text transfers
   preserve this field.
+- `http_rotation_rules` defaults to `[]` (disabled). Each entry has a unique
+  integer `status_code` (100–599) and integer `repeats` (0–1,000,000); up to 100
+  rules are accepted. For example:
+  `[{"status_code":403,"repeats":0},{"status_code":429,"repeats":2},{"status_code":500,"repeats":1}]`.
+  Zero repeats rotates on the first matching response; N repeats rotates on
+  matching response N + 1. Counts are separate for each code, include HTTP
+  responses from all tabs and subresources in the session, and are not reset by
+  other status codes. Canceled requests do not count. Rotation and app restart
+  reset the counters. REL uses the existing proxy rotation endpoint to select a
+  new sticky session ID or the next ISP IP, then clears shared browser data and
+  reloads the selected page. Use an Oxylabs or Bright Data proxy with session
+  rotation support; an ISP pool needs at least two IPs. Failures appear in the
+  session's browser-data feedback. New browser automation requests during the
+  reset return retryable `BROWSER_BUSY`; retry after it finishes.
+  A failure after the route changes leaves the session's network paused, with
+  the error visible. Rules copy to new sessions as
+  `http_rotation_rules`; editing a Profile leaves existing sessions unchanged.
+  `PATCH` omission preserves rules and `[]` disables them. Profile archives and
+  settings-text transfers preserve the rules. Configure them in the Profile's
+  **Automatic Session Rotation** section in REL.app.
 - `unique_user_agent_per_request` defaults to `false`. When enabled, each
   allowed HTTP or HTTPS request from a new session receives a distinct
   `Unique/<token>` suffix in its User-Agent header. Page JavaScript and
