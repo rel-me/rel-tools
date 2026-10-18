@@ -487,7 +487,8 @@ that group's current settings and storage, including groups created in the app
 without copying saved cookies or passwords. Editing the saved profile does not
 force a new group. Explicit name, group label, and lifetime constraints still apply.
 
-Requests with configuration overrides or no saved profile opens a new page tab in the oldest compatible existing tab group.
+Requests with configuration overrides or no saved profile open a page tab in
+the oldest compatible existing tab group.
 Compatibility includes the selected profile and browser-data source, proxy,
 fingerprint configuration, image/ad blocking, model, and viewport settings.
 The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
