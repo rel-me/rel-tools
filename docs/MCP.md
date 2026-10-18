@@ -547,6 +547,10 @@ refreshes activity; `rel_list_sessions` does not. Implicitly created sessions
 also use the default timeout, so create an explicit session when selecting a
 lifetime.
 
-`rel_create_session` opens a new tab in a compatible existing group by default.
+`rel_create_session` with a saved `profile` and no configuration overrides adds
+a tab to that profile's oldest existing group, preserving its current settings
+and storage even if the saved profile has changed. Explicit name, group label,
+and lifetime constraints still apply. Requests with configuration overrides or
+no saved profile open a tab in a compatible existing group by default.
 Set `new_group: true` to force a separate storage-isolated tab group.
 A reused group retains its lifetime and returns the same session ID.
