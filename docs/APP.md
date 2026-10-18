@@ -36,7 +36,7 @@ It refreshes while open; loading and unavailable states are explicit. All tabs
 in a group share the proxy assignment and rotate together. Other groups keep
 their assignments.
 
-Use **Reset Sessions** in the group's info popover to stop all its sessions,
+Use **Reset Sessions** in the group's info popover or context menu to stop all its sessions,
 clear their shared browser state and navigation history, restore the profile's
 initial browser data (including cookies), and reopen the tabs at their saved URLs.
 For supported proxies, reset also rotates the sticky session ID or advances the
