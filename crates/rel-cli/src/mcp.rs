@@ -749,6 +749,10 @@ fn action_schema() -> Value {
                         "type": "number",
                         "exclusiveMinimum": 0,
                         "description": "Maximum seconds to wait for this selector. Defaults to the enclosing operation's remaining timeout."
+                    },
+                    "strict": {
+                        "type": "boolean",
+                        "description": "Fail immediately on HTTP error documents instead of waiting through intermediary pages. Defaults to false."
                     }
                 },
                 "required": ["action", "selector"],
@@ -2257,6 +2261,10 @@ mod tests {
     #[test]
     fn browser_action_schema_exposes_every_canonical_action() {
         let schema = action_schema();
+        assert_eq!(
+            schema["oneOf"][1]["properties"]["strict"]["type"],
+            "boolean"
+        );
         let actions = schema["oneOf"]
             .as_array()
             .unwrap()
@@ -2283,7 +2291,7 @@ mod tests {
     fn mcp_arguments_accept_every_cli_action() {
         let actions = json!([
             {"action": "click", "selector": "button.more", "mouse_move": false, "scroll": false},
-            {"action": "wait-for", "selector": "#loaded", "timeout": 2.5},
+            {"action": "wait-for", "selector": "#loaded", "timeout": 2.5, "strict": true},
             {"action": "type", "selector": "#search", "text": "Magickraft"},
             {"action": "clear", "selector": "#query"},
             {"action": "press", "selector": "#search", "key": "Enter"},
