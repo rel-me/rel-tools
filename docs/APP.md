@@ -36,6 +36,15 @@ It refreshes while open; loading and unavailable states are explicit. All tabs
 in a group share the proxy assignment and rotate together. Other groups keep
 their assignments.
 
+Use **Reset Sessions** in the group's info popover to stop all its sessions,
+clear their shared browser state and navigation history, restore the profile's
+initial browser data (including cookies), and reopen the tabs at their saved URLs.
+For supported proxies, reset also rotates the sticky session ID or advances the
+ISP pool port; a new exit IP depends on the provider and pool. Reset also works
+without a proxy. Other groups keep their state. The button shows **Resetting…**
+until the reset finishes. If a step fails, REL reports the error and leaves the
+group stopped so you can retry the reset.
+
 The sidebar stays visible and lists tab groups. Each group is one persistent
 Session: its tabs share cookies, site storage, saved logins, proxy configuration,
 browser identity, and Session settings. Groups keep their browser data isolated
