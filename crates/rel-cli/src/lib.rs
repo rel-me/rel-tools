@@ -266,8 +266,8 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.delete_proxy(&alias)?)?;
             Ok(0)
         }
-        CliCommand::ProxyRotate(alias) => {
-            print_json(&client.rotate_proxy_session(&alias)?)?;
+        CliCommand::ResetProfile(profile) => {
+            print_json(&client.reset_profile(&profile)?)?;
             Ok(0)
         }
         CliCommand::ProxyExport { alias, output } => {
@@ -543,7 +543,7 @@ enum CliCommand {
         request: ProxyUpdateRequest,
     },
     ProxyDelete(String),
-    ProxyRotate(String),
+    ResetProfile(String),
     ProxyExport {
         alias: String,
         output: Option<PathBuf>,
@@ -614,6 +614,20 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
             parse_no_options(&mut args, "status", root_help())?;
             Ok(CliCommand::Status)
         }
+        "reset" => {
+            let mut profile = None;
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--profile" => { let value = args.option_value(&option, inline)?; set_once(&mut profile, value, &option)?; }
+                    "--help" | "-h" => return Err(CliError::Help("rel reset --profile NAME\nReset every existing tab group created from the profile, including initial cookies.".into())),
+                    _ => return Err(CliError::Message(format!("unknown reset option {option:?}"))),
+                }
+            }
+            let profile = profile
+                .filter(|name| !name.trim().is_empty())
+                .ok_or_else(|| CliError::Message("reset requires --profile NAME".into()))?;
+            Ok(CliCommand::ResetProfile(profile))
+        }
         "navigate" => parse_navigate(args),
         "read" => parse_read(args),
         "perform" => parse_perform(args),
@@ -640,14 +654,9 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "proxy" => parse_proxy(args),
         "profile" => parse_profile(args),
         "session" => parse_session(args),
-        legacy
-            if matches!(legacy, "ping" | "logs")
-                || legacy.starts_with("--rotate-proxy-session") =>
-        {
-            Err(CliError::Message(format!(
-                "unsupported legacy command {legacy:?}; run `rel --help` for the RPC v1 CLI"
-            )))
-        }
+        legacy if matches!(legacy, "ping" | "logs") => Err(CliError::Message(format!(
+            "unsupported legacy command {legacy:?}; run `rel --help` for the RPC v1 CLI"
+        ))),
         option if option.starts_with('-') => Err(CliError::Message(format!(
             "unknown option {option:?}; run `rel --help`"
         ))),
@@ -1103,7 +1112,6 @@ fn parse_proxy(mut args: Arguments) -> Result<CliCommand, CliError> {
         "create" => parse_proxy_create(args),
         "update" => parse_proxy_update(args),
         "delete" => Ok(CliCommand::ProxyDelete(parse_proxy_alias(&mut args)?)),
-        "rotate" => Ok(CliCommand::ProxyRotate(parse_proxy_alias(&mut args)?)),
         "export" => parse_proxy_export(args),
         "import" => parse_proxy_import(args),
         subcommand => Err(CliError::Message(format!(
@@ -1383,6 +1391,7 @@ fn parse_profile_create(mut args: Arguments) -> Result<CliCommand, CliError> {
         Change::Unchanged
     };
     Ok(CliCommand::ProfileCreate(ProfileCreateRequest {
+        http_rules: None,
         name,
         proxy_alias,
         viewport_preset,
@@ -1820,7 +1829,8 @@ rel page attach [URL] [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
 rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
 rel observation action OBSERVATION_ID --request JSON\n  \
-rel proxy <list|get|create|update|delete|rotate|export|import> ...\n  \
+rel reset --profile NAME\n  \
+rel proxy <list|get|create|update|delete|export|import> ...\n  \
 rel profile <list|export|import> ...\n  \
 rel session <list|get|create|update|ping|pause|play|delete|close> ...\n  \
 rel --help\n  \
@@ -1951,7 +1961,6 @@ rel proxy get ALIAS\n  \
 rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [options]\n  \
 rel proxy update ALIAS [options]\n  \
 rel proxy delete ALIAS\n  \
-rel proxy rotate ALIAS\n  \
 rel proxy export ALIAS [--output PATH]\n  \
 rel proxy export --all --output DIRECTORY\n  \
 rel proxy import DIRECTORY --all\n  \
@@ -2688,8 +2697,8 @@ mod tests {
             CliCommand::ProxyDelete("work-proxy".to_string())
         );
         assert_eq!(
-            parse(&["proxy", "rotate", "work-proxy"]).unwrap(),
-            CliCommand::ProxyRotate("work-proxy".to_string())
+            parse(&["reset", "--profile=Research"]).unwrap(),
+            CliCommand::ResetProfile("Research".to_string())
         );
         assert_eq!(
             parse(&[
@@ -3017,7 +3026,11 @@ mod tests {
 
     #[test]
     fn rejects_removed_cli_surfaces() {
-        for args in [vec!["ping"], vec!["logs"], vec!["--rotate-proxy-session=1"]] {
+        for args in [
+            vec!["ping"],
+            vec!["logs"],
+            vec!["proxy", "rotate", "office"],
+        ] {
             assert!(parse(&args).is_err(), "accepted {args:?}");
         }
     }
