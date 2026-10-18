@@ -1094,6 +1094,8 @@ pub enum Action {
         selector: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         timeout: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        strict: Option<bool>,
     },
     Type {
         selector: String,
@@ -5003,6 +5005,20 @@ mod tests {
     }
 
     #[test]
+    fn strict_selector_wait_setting_round_trips() {
+        for strict in [false, true] {
+            let value =
+                serde_json::json!({"action":"wait-for", "selector":"#ready", "strict":strict});
+            let action: Action = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(serde_json::to_value(action).unwrap(), value);
+        }
+        assert!(serde_json::from_value::<Action>(serde_json::json!({
+            "action":"wait-for", "selector":"#ready", "strict":"true"
+        }))
+        .is_err());
+    }
+
+    #[test]
     fn action_uses_the_canonical_rpc_shape() {
         let action = Action::ClickLink {
             link: "https://example.com/next".to_string(),
@@ -5045,6 +5061,7 @@ mod tests {
             serde_json::to_value(Action::WaitFor {
                 selector: "#loaded".to_string(),
                 timeout: None,
+                strict: None,
             })
             .unwrap(),
             serde_json::json!({"action":"wait-for", "selector":"#loaded"})
@@ -5053,6 +5070,7 @@ mod tests {
             serde_json::to_value(Action::WaitFor {
                 selector: "#loaded".to_string(),
                 timeout: Some(2.5),
+                strict: None,
             })
             .unwrap(),
             serde_json::json!({

@@ -69,7 +69,15 @@ pages, including HTTP error documents that later redirect or update their DOM.
 A capture with a `wait-for` action also defers reporting an initial HTTP error
 until the required wait completes or times out. Transport and navigation failures
 still surface immediately. This behavior is shared by CLI, RPC, MCP, and SDK
-calls. If its own timeout expires first, REL returns
+calls. Set `"strict": true` on a `wait-for` action to restore immediate HTTP
+error reporting when its selector is missing; captures with only strict waits
+also report the initial HTTP error before running actions. The default is false.
+
+```json
+{"action":"wait-for","selector":"#loaded-content","timeout":10,"strict":true}
+```
+
+If its own timeout expires first, REL returns
 `ACTION_TIMEOUT`; if the enclosing deadline expires first, REL returns
 `TIMEOUT`. `click` reads the first match's bounds and dispatches CEF mouse
 input. A missing click target returns

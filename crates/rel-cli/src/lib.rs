@@ -2568,7 +2568,7 @@ mod tests {
             "--actions",
             r##"[
                 {"action":"wait","seconds":2},
-                {"action":"wait-for","selector":"#loaded"},
+                {"action":"wait-for","selector":"#loaded","strict":true},
                 {"action":"click","selector":"#more"},
                 {"action":"type","selector":"#search","text":"Magickraft"},
                 {"action":"clear","selector":"#query"},
@@ -2588,7 +2588,8 @@ mod tests {
                 Action::Wait { seconds: 2.0 },
                 Action::WaitFor {
                     selector: "#loaded".to_string(),
-                    timeout: None
+                    timeout: None,
+                    strict: Some(true),
                 },
                 Action::Click {
                     selector: "#more".to_string(),
