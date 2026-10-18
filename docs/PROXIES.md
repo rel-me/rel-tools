@@ -80,8 +80,9 @@ Oxylabs' timer or reserve the IP permanently. See
 
 REL uses `sessid_oneip` on `pr.oxylabs.io` so an unavailable exit returns an
 error instead of silently switching the group's IP. REL saves session timing
-across restarts and checks outbound tunnel activity conservatively for idle
-expiry. Once the session expires or Oxylabs rejects its strict single-IP
+across restarts and checks confirmed upstream requests conservatively for idle expiry. Traffic
+inside an existing encrypted tunnel does not extend the local idle window, so
+REL may reset a group before Oxylabs would. Once the session expires or Oxylabs rejects its strict single-IP
 binding, REL automatically resets the whole tab group: it closes the old
 connections, assigns a fresh session ID, clears shared site data, and reopens
 the tabs. Website logins and other site state in that group are cleared.
