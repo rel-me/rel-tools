@@ -170,14 +170,22 @@ reported by browser JavaScript are separate settings.
    start with detection off.
 2. Assign the proxy to the Session. Use **Private** browser identity, which
    enables the timezone control, or enable **Timezone** in **Custom Privacy**.
-3. Save and apply any pending **Reload** banner.
+3. Save the proxy, then open a page in that Session.
 
-REL requests the exit country and IANA timezone through that Session's proxy
-using IPWHOIS.io before preparing the browser. For example, if the saved
-identity uses `America/Los_Angeles` but the proxy exits in New York, websites
+Detection is lazy. Starting REL, restoring or creating a blank Session, renaming
+it, and refreshing the Session list do not contact the proxy or location service.
+When a page first needs the proxy, REL requests its exit country and IANA timezone
+through that Session's proxy using IPWHOIS.io before releasing the page request.
+For example, if the saved identity uses `America/Los_Angeles` but the proxy exits in New York, websites
 see `America/New_York`. Successful results are cached for up to 30 minutes per
-Session and upstream route; provider session rotation changes that route.
-Lookup failures report an error instead of silently using a different location.
+Session and upstream route. Rotating the provider session invalidates the detected
+location; the next page request resolves the new route without an eager lookup
+during rotation. The proxy info popover does not detect an exit address before
+the proxy has carried traffic.
+
+Lookup failures stop the pending page request and show a page error. Saved
+Sessions stay available. Retry the page once the proxy connection works; REL
+retries detection instead of silently using a different location.
 
 Timezone detection works independently of language: **Custom** language keeps
 its explicit locale while the enabled Timezone control uses the detected
@@ -249,7 +257,8 @@ If a page fails to load:
 - Apply any pending **Reload** banner before checking again.
 - For certificate errors, review the proxy's trust setting and provider CA.
 - Read the page error and REL's Logs for provider diagnostics. Exit-locale lookup
-  errors can also prevent browser preparation when detection is enabled.
+  errors can block the pending page request when detection is enabled. They do
+  not prevent blank Sessions from being restored or created.
 
 To import a provider's HTTP proxy curl example, use **Import Proxy** in Proxies
 Settings. REL parses the command without executing it, opens the populated
