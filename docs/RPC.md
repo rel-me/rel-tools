@@ -793,7 +793,7 @@ The fixed test destinations are rel.me/proxy-test (HTTP and HTTPS) and IPWHOIS.i
 reported; browser overrides, leak behavior and MASQUE/UDP are not exercised.
 See [proxy testing](PROXIES.md#test-a-saved-proxy).
 
-`detect_exit_locale` is a boolean, off by default for new proxies and preserved
+`detect_exit_locale` is a boolean, on by default for new proxies and preserved
 when omitted on update. Existing saved values and imported settings are unchanged. Automatic language controls use the active provider's configured country
 (Bright Data country, Oxylabs country, or US state). When detection is enabled,
 they instead resolve the exit country through the session's agent-owned proxy
