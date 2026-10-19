@@ -932,8 +932,9 @@ page limit is disabled.
 `upstream_host` and `upstream_port` identify the effective upstream endpoint,
 including the assigned ISP port rather than the pool's starting port. They are
 absent for direct sessions and never include credentials. The app's Overview
-shows this endpoint separately from the detected ISP exit IP, which can differ
-from the proxy host. Exit detection uses the current route and can be unavailable.
+shows this endpoint separately from the detected ISP exit IP, country, and
+timezone returned by the exit location lookup. The exit IP can differ from the
+proxy host. Exit detection uses the current route and can be unavailable.
 
 `navigation_request_count` counts main-document HTTP(S) requests admitted by
 the navigation preparation lane for this session, including redirects and
