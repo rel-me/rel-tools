@@ -1082,10 +1082,14 @@ A session resource is:
   group plus every closed canonical ID as `data.deleted_ids`. Group matching is
   case-insensitive, and an empty group is an idempotent success.
 
-A proxy used by any existing tab group cannot be updated or deleted. Those
-requests return `VALIDATION_FAILED` before changing credentials, routing, or
-session assignments. Create a new proxy for different settings, or delete all
-its groups before editing or deleting it.
+A proxy can be updated while tab groups use it. Updated routing and credentials
+apply to new connections; existing browser data and open pages remain unless
+the sessions are reset. The app offers **Save and Reset Sessions** and **Save
+Without Resetting** when editing an in-use proxy. Reset closes every affected
+group's browsers, clears their data, rotates session identity, and reloads open
+pages. A failed reset is reported separately from a successful proxy save.
+Deleting an in-use proxy still returns `VALIDATION_FAILED`; remove it from all
+groups before deleting it.
 
 `source_profile`, when supplied, names an existing saved Profile used to identify
 the tab group in the app. It is independent of `profile`, which selects browser

@@ -731,8 +731,10 @@ that attempts to switch the proxy fails without applying other fields. Create a
 new group to use different proxy or identity settings. Session name and filtering
 policy remain mutable; the canonical session ID is immutable.
 
-A proxy used by a tab group cannot be updated or deleted. Create another proxy
-for different settings, or delete every group that uses it first.
+A proxy can be updated while tab groups use it. Updated settings apply to new
+connections without clearing browser data or reloading pages. The app's proxy
+editor offers saving with or without resetting affected sessions. Deleting an
+in-use proxy remains blocked until no group uses it.
 
 ### Proxy TLS certificates
 
