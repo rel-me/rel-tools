@@ -793,7 +793,7 @@ The fixed test destinations are rel.me/proxy-test (HTTP and HTTPS) and IPWHOIS.i
 reported; browser overrides, leak behavior and MASQUE/UDP are not exercised.
 See [proxy testing](PROXIES.md#test-a-saved-proxy).
 
-`detect_exit_locale` is a boolean, off by default for new proxies and preserved
+`detect_exit_locale` is a boolean, on by default for new proxies and preserved
 when omitted on update. Existing saved values and imported settings are unchanged. Automatic language controls use the active provider's configured country
 (Bright Data country, Oxylabs country, or US state). When detection is enabled,
 they instead resolve the exit country through the session's agent-owned proxy
@@ -909,8 +909,11 @@ clear after reset or app restart. Rules work for direct and proxied sessions.
   "proxy_alias": "residential",
   "proxy_session_id": "a7b92d41",
   "assigned_port": null,
+  "upstream_host": "proxy.example.com",
+  "upstream_port": 33335,
   "can_rotate": true,
   "request_count": 42,
+  "navigation_request_count": 8,
   "uploaded_bytes": 125000,
   "downloaded_bytes": 4500000,
   "active_connections": 3,
@@ -925,6 +928,20 @@ providers return `assigned_port:null`. With automatic ISP rotation enabled,
 status additionally returns `page_request_count` and `page_request_limit` for
 the assigned IP, shared across its sessions. These fields are absent when the
 page limit is disabled.
+
+`upstream_host` and `upstream_port` identify the effective upstream endpoint,
+including the assigned ISP port rather than the pool's starting port. They are
+absent for direct sessions and never include credentials. The app's Overview
+shows this endpoint separately from the detected ISP exit IP, country, and
+timezone returned by the exit location lookup. The exit IP can differ from the
+proxy host. Exit detection uses the current route and can be unavailable.
+
+`navigation_request_count` counts main-document HTTP(S) requests admitted by
+the navigation preparation lane for this session, including redirects and
+attempts that subsequently fail or are cancelled. Reset, route rotation, or
+agent restart clears it. It is separate from the shared per-IP
+`page_request_count` budget, which resets each pool round or agent restart.
+Overview displays both counts, connections, and proxy upload/download totals.
 
 The app's **Proxy Session Status** panel refreshes every two seconds. Counters
 cover the current proxy assignment and sticky ID since the agent started;
@@ -1065,10 +1082,14 @@ A session resource is:
   group plus every closed canonical ID as `data.deleted_ids`. Group matching is
   case-insensitive, and an empty group is an idempotent success.
 
-A proxy used by any existing tab group cannot be updated or deleted. Those
-requests return `VALIDATION_FAILED` before changing credentials, routing, or
-session assignments. Create a new proxy for different settings, or delete all
-its groups before editing or deleting it.
+A proxy can be updated while tab groups use it. Updated routing and credentials
+apply to new connections; existing browser data and open pages remain unless
+the sessions are reset. The app offers **Save and Reset Sessions** and **Save
+Without Resetting** when editing an in-use proxy. Reset closes every affected
+group's browsers, clears their data, rotates session identity, and reloads open
+pages. A failed reset is reported separately from a successful proxy save.
+Deleting an in-use proxy still returns `VALIDATION_FAILED`; remove it from all
+groups before deleting it.
 
 `source_profile`, when supplied, names an existing saved Profile used to identify
 the tab group in the app. It is independent of `profile`, which selects browser
