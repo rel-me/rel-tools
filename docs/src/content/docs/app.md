@@ -536,6 +536,27 @@ settings are saved with the Profile. Use **Edit** beside Custom Privacy to chang
 them later. Starting from **Native** leaves every override off, so you can enable
 only the controls you need. **Native** uses Chromium's native values.
 
+**Chrome** applies Chrome branding while using the device's native hardware and
+rendering values. CPU threads, reported memory, GPU, screen, storage estimates,
+canvas and audio are supplied by Chromium on the user's computer. Chrome mode
+keeps fingerprint privacy overrides off; it does not substitute a device preset
+or add rendering noise. **Private** continues to enable the full privacy preset.
+To combine Chrome branding with selected fingerprint modifications, start from
+Chrome and choose **New Browser Identity…** or **Custom Privacy**, then enable
+only the desired controls. The Chrome brand is retained.
+
+Native hardware and rendering details can contribute to fingerprinting when
+combined with other signals, even when each component is common. Chrome mode
+prioritizes native behavior and compatibility; it does not guarantee anonymity.
+Use Private or Custom Privacy when reducing those signals is more important.
+Browser versions, permissions, build options, and installed extensions can still
+make REL differ from another Chrome installation on the same computer.
+
+Saved Chrome configurations that already enable privacy controls keep those
+controls and appear as **Custom Privacy**. Select **Chrome** again to use native
+surfaces for that configuration. Existing Sessions retain their settings until
+their identity is explicitly changed.
+
 For identities with overrides, every creation path generates a fresh numeric
 readback seed for the Session, then keeps it stable for that Session. Profile edits apply to future Sessions.
 
