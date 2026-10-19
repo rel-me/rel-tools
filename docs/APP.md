@@ -262,6 +262,12 @@ revision has changed, REL blocks further writes until you restart. The button
 cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
+Workspace saves support **Actions** as the selected bottom panel, including
+restoring that selection on the next launch. If an older build reports
+**Unknown workspace bottom tool** after selecting Actions, select **Logs** in
+each affected session and use **Save Current Workspace** before quitting. The
+rejected save leaves the previously saved workspace unchanged.
+
 In Debug builds, **Debug → Error Recovery** can trigger a session error, a
 workspace error, or both. These simulated errors appear in the same toolbar
 warning and details sheet without changing sessions, files, or permissions.
@@ -411,6 +417,12 @@ Profiles can use a configured proxy and imported cookies or passwords. The Profi
 list includes a **Browser Identity** column showing Private, Custom Privacy,
 or Native.
 
+In the Profile editor, **Starting URL** optionally names the HTTP or HTTPS page
+to open when REL creates a Session from that Profile. Leave it empty to create
+without navigation. Reusing an existing Profile tab group opens a tab in that
+group rather than replacing its settings. When editing a Profile with open
+Sessions, choose whether to [save and reset them](#profiles-and-sessions).
+
 In **New Profile**, choose **Proxy → New Proxy…** to add a proxy without leaving
 the profile draft. Saving selects the new proxy automatically. Cancelling returns
 to the draft without changing its proxy selection. A saved proxy remains available
@@ -523,6 +535,12 @@ only the controls you need. **Native** uses Chromium's native values.
 
 For identities with overrides, every creation path generates a fresh numeric
 readback seed for the Session, then keeps it stable for that Session. Profile edits apply to future Sessions.
+
+Opening **Custom Privacy** generates a fresh random seed in the editor draft.
+**Use Identity** applies that seed with the selected settings; **Cancel** leaves
+the original identity unchanged. The seed is managed automatically and has no
+editable field in this panel.
+
 Use a Session's tab menu to change its identity; saving recreates only that
 Session's Chromium context and returns it to the same page.
 
@@ -600,6 +618,36 @@ seed is stable across sites in that Session, so sites may still correlate
 visits. Network identity is also separate: use a Session proxy when traffic
 must leave through another route. Proxied Sessions prevent WebRTC from using a
 non-proxied UDP route, but REL does not turn a direct Session into a VPN.
+
+## Integration reports
+
+Enable **Show Debug menu** in Settings to access the Pro **Debug** menu.
+**BrowserLeaks Tests** can run all diagnostics or an individual page: Canvas,
+WebGL, JavaScript, DNS, WebRTC, Chrome extensions, HTTP/2, Client Hints, CSS,
+ClientRects, Do Not Track and GPC, fonts, geolocation permissions, TLS, and
+content filters/proxy detection. Tests use the selected session's existing
+identity and proxy. Geolocation checks inspect permission state without
+requesting your coordinates.
+
+The report floats above the browser and opens when testing begins. It shows
+loading progress while the page finishes and while the report is created.
+Cancel stops the run and leaves its session open for inspection.
+
+Each comparison shows selectable Chrome and REL values, a Pass or Fail result,
+and the expectation used. Device tracking hashes should differ from Chrome;
+stable capabilities and normalized protocol fingerprints should match.
+Explicitly identified live measurements, permission settings, and other session
+preferences may vary. Missing or invalid results fail. Failures appear first;
+passed matches can be expanded. These comparisons use dated saved Chrome
+captures and are diagnostics, not an anonymity guarantee.
+
+### Chrome extension identity
+
+The **Chrome** browser identity exposes one web-accessible extension entry:
+**Google Docs Offline**. BrowserLeaks extension detection should report one
+extension. REL supplies an inert compatibility resource, not Google's extension
+code or offline document functionality. Private and Native identities do not
+expose this entry. Create a new tab group to use a different identity.
 
 ## Shared asset cache
 
@@ -1013,6 +1061,19 @@ weights in Ollama and refresh Models to discover them. Provider records and
 native model management are owned by Fritz; adding providers has no REL-specific
 provider limit.
 
+In the Profile editor, choose **Default model**, with reasoning effort and speed
+when supported by that model. New Sessions copy this preference for new chats.
+Existing conversations keep their current model. **Use Default Model** follows
+REL's current default-selection policy. A saved unavailable model requires an
+explicit replacement. Profile exports preserve the preference; a provider
+connection from another Mac may need to be configured again.
+
+Provider keys stay in macOS Keychain. REL's bundled Rust Models and chat helpers
+share the app's stable signing identity, so upgrades from versions before 0.1.99
+retain access to existing app-created keys without asking you to approve each
+provider again. Keys created solely by the 0.1.99 Beta helper, or by another app,
+may still need explicit Keychain permission.
+
 For a new Chat, a session Profile's explicit model takes precedence. Otherwise
 REL uses the most recently selected available model, then the default provider's
 explicitly configured model. If the default OpenAI provider has no explicit
@@ -1168,10 +1229,17 @@ use the same redaction as executed calls. Providers that deliver tool calls only
 as complete objects, including the current Ollama adapter, cannot show
 incremental argument progress.
 
+## Stopping a response
+
+Press **Stop** to cancel a response while keeping the text already shown,
+followed by **Stopped by you**. REL saves the partial response with the
+conversation and includes it as context for follow-up prompts.
+
 ## Chat restoration
 
 REL saves each Session's open Chat tabs, their order and selection, conversation
 messages, completed-work details, and unsent drafts in its local SQLite database.
+Drafts are saved periodically while you type, including during an active response.
 Quitting and reopening REL restores them. Completed question-and-answer exchanges
 are restored to the AI harness before you send a follow-up. An interrupted response
 is not resumed automatically; its submitted prompt remains visible in the chat.
@@ -1196,6 +1264,21 @@ to read earlier messages without being pulled back down. Choose **Jump to latest
 to return to the newest content and resume following, or scroll back near the
 bottom yourself.
 
+REL remembers the first visible message separately for each Session and global
+Chat. Switching Chat tabs or reopening REL returns to that message. Chats left
+near the bottom continue following the latest content.
+
+## Tool catalog
+
+Open **REL → Settings… → Tools** to browse built-in AI Chat tools. The **MCP**
+settings page has a separate MCP catalog. Each catalog shows tool descriptions
+and availability; select a tool to read and copy its full description.
+
+Definitions come from the bundled AI host and MCP adapter. These read-only
+catalogs do not change permissions. Model capabilities and browser state still
+determine which operations Chat can use. The bundled `rel-ai-host tools` command
+prints the AI tool catalog as JSON without a model or browser request.
+
 ## Agent instructions and current-page context
 
 Open **REL → Settings… → Agent** to edit the system prompt used by native Chat.
@@ -1212,6 +1295,27 @@ web search. Restoring the default prompt returns to this behavior. Existing
 unmodified defaults upgrade automatically; customized instructions are preserved.
 
 ## Actions
+
+For an Action installed from a setup, open its editor and choose **Review Setup**
+to review the imported setup and enable its Actions.
+
+In the Action editor, choose **Model** to override the session's model, or keep
+**Use Session Model** to inherit it. An unavailable saved model must be configured
+again or replaced before the Action can run.
+
+For models with usage costs, **Budget per run (USD)** limits spending across all
+steps in one run. **Total budget (USD)** limits accumulated spending across all
+runs, including manual runs and failed attempts. Leave either field blank for
+unlimited spending. Local Ollama models do not show monetary budget controls.
+Spending survives edits and app restarts; copying an Action to a new session
+starts independent spending history.
+
+REL checks reported provider costs, or its available token-cost estimate, as
+usage arrives. Reaching either limit stops the current run and skips remaining
+steps, even with **On Error → Ignore**. An in-flight model request can exceed
+the budget before its usage arrives, so these are not provider billing caps.
+Budgeted runs also stop when REL cannot determine or save their cost. Increase
+an exhausted total budget to allow more runs.
 
 When creating or editing an Action, **Starting URL** optionally specifies the
 page to open before the first step. Enter a complete `http://` or `https://` URL,
@@ -1231,11 +1335,33 @@ session Action. Editing it updates the work performed by its triggers. REL runs
 at most one execution per session Action at a time, including manual runs.
 Existing session Actions retain their IDs and webhook routing.
 
+### Editing a session Action
+
+Use **Add Action** in the selected Session's Actions panel to create work, or
+right-click an installed Action to edit, run, or delete it. The editor saves a
+complete Session-owned record; library definitions remain separate.
+
+Start with the prompt steps and use **Add Step** for additional prompts. Steps
+run in order in the same Session. Set the **Name** and **Enabled** state.
+**When** defaults to **Manual**; choose **Schedule**, **Repeat every**, or **Event**
+for automatic execution. A Manual Action runs only through an explicit run.
+Disabling an Action pauses automatic triggers; it can still run manually.
+
+Under **When finished**, select **Shortcut**, **Webhook**, native **WhatsApp**, or
+any combination. Selected destinations receive the final step's response.
+Delivery failures remain visible and mark the run as failed. Cancellation stops
+remaining delivery.
+
+**Advanced** starts collapsed. **On Error → Stop** skips remaining steps after a
+failure. **Ignore** continues with later steps while retaining the failed status.
+Cancellation and spending-budget limits still stop the run.
+
 ### Built-in events
 
-In the Action editor, enable **Page Changed** or **Notification Received** and
-choose a **Source Session**. Both are off by default. Page Changed fires when
-the source session's URL changes, including same-document URL changes. It does
+In the session Action editor, choose **When → Event**, then **Page Changed**,
+**Notification Received**, or both. Switching a new Action to Event initially
+selects Page Changed. Events use the Action's own Session. Page Changed fires
+when its URL changes, including same-document URL changes. It does
 not watch arbitrary DOM mutations or compare page contents. Notification
 Received fires when that session displays an allowed website notification.
 Website notification permissions still apply. Notification Actions are separate
@@ -1274,9 +1400,10 @@ a fresh cadence and count. Disabling and re-enabling preserves both.
 Missed occurrences are skipped when REL starts again, and runs never overlap.
 A run that lasts longer than its interval resumes at the next future occurrence
 after it finishes. The table shows **Repeat ended** when its end condition is met;
-manual **Run Now** remains available while the Action is enabled.
+manual **Run Now** remains available even when the Action is disabled.
 
-Use **Run Now** to execute the Action immediately. Disable the Action to pause
+Use **Run Now** to execute the Action immediately, including a disabled Action,
+without enabling its schedule. Disable the Action to pause
 its timer. Weekday schedules follow the Mac's current time zone; repeat intervals
 measure elapsed minutes. Results and failures remain visible in the Action's
 status.
@@ -1287,8 +1414,7 @@ Open **REL → Settings… → Notifications** in the Browser section to control
 **Send notifications to the agent** and inspect recent shared website notifications.
 Sharing is off by default. Websites must first receive permission to send
 notifications. Sharing adds untrusted website data to the feed. To start a turn automatically,
-enable **Notification Received** for an Action and choose its source session in
-**Settings → Actions**.
+enable **Notification Received** in that Session's Action editor.
 
 The page refreshes automatically and shows up to 256 shared notifications, newest
 first, with each notification's origin, title, body, session ID, and display time.
@@ -1296,6 +1422,51 @@ The Recent section appears only when shared notifications are available.
 Turning sharing off stops new entries; existing entries remain until the local
 agent restarts. The queue is not a permanent notification archive. Debug runtimes
 with website notifications disabled show that status on the page.
+
+## WhatsApp linked device
+
+In Settings > WhatsApp, connect by scanning the pairing QR code from WhatsApp's
+Linked Devices screen on your phone. New pairings advertise the app name: `REL`
+for the released app, or `RELDebug` followed by the open PR number (for example
+`RELDebug469`) for a Debug build. Debug bundles also use that name in Dock and
+Finder. If an existing connection shows an older name such as `Other device`, remove the saved
+connection and pair again after updating REL to register the new name.
+
+Choose a notification group from the dropdown; changes save automatically.
+The refresh icon beside the dropdown reloads the available groups. If saving
+fails, REL restores the previous selection and displays the error.
+
+Turn off **Enabled** to pause WhatsApp without removing the linked account or
+selected group. The preference survives restarting REL. Turn it on to resume
+without another QR scan. **Remove Connection** deletes the saved account,
+group, and enabled preference from this Mac.
+
+In an Action editor, select **When finished > WhatsApp** to send its final
+response to the saved group. This also applies to scheduled and event-triggered
+runs. Multi-step Actions send once, after the final step. You can select
+WhatsApp alongside Shortcut and Webhook. Saving a group alone does not enable
+sending for any Action.
+
+WhatsApp must be enabled with a saved account and group. REL waits briefly for
+a saved account to reconnect after startup. Disabled, missing, disconnected,
+and failed deliveries are reported as Action errors. Keep the final response
+within 4,096 characters; blank or longer responses fail without being sent.
+REL does not split, truncate, or automatically resend messages. After a sending
+timeout, check the group before retrying because delivery may have occurred.
+Disabling WhatsApp does not recall a message already being sent.
+
+### Quiet WhatsApp Action results
+
+In builds with native WhatsApp completion, select **When finished → WhatsApp**
+to send the final response to the group saved in Settings. For monitors, instruct
+the model to start its final response with `NO_ALERT` when there is nothing new
+to report. After trimming whitespace, a leading `NO_ALERT` suppresses WhatsApp
+delivery, including an explanatory no-match response. Other selected completion
+destinations still receive the result. This is an explicit response convention,
+not a classifier: ordinary responses containing the words later are delivered.
+
+This suppression does not deduplicate listings or guarantee model accuracy.
+Keep automatic alerts disabled until matching and duplicate handling are verified.
 
 ## Webhooks
 
@@ -1306,8 +1477,9 @@ variant's Keychain, separately from browser sessions. Settings can send an
 explicit test message and delete a destination.
 
 To deliver an Action's final response, edit it in **Actions** and choose
-**Send Result to Webhook**. A completion action can use either a webhook or a
-macOS Shortcut. Keep Discord results within 2,000 characters and WhatsApp text
+**When finished → Webhook**, then select a destination. A completion action
+can also select a macOS Shortcut or native WhatsApp. Keep Discord results within
+2,000 characters and WhatsApp text
 results within 4,096 characters. Delivery errors mark the prompt run as failed;
 REL does not automatically resend messages.
 

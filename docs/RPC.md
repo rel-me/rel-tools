@@ -11,7 +11,15 @@ Related documents: [CLI](CLI.md), [MCP](MCP.md), [Rust SDK](SDK.md), and
 - Base URL: `http://127.0.0.1:17319/v1`
 - `REL_AGENT_PORT` overrides port `17319`.
 - HTTP/1.1, one request per connection, `Connection: close`.
-- RPC JSON request limit: 16 MiB.
+- RPC JSON request limit: 16 MiB; request line and headers together: 64 KiB.
+- Request headers and body must arrive within two seconds of connection acceptance.
+  Sending bytes gradually does not extend this deadline. This read deadline is
+  separate from the browser operation's `timeout`.
+- The agent parses up to 64 incoming connections concurrently. A stalled request
+  does not block acceptance of other clients, including health/status checks.
+  When all connection readers are occupied, new connections receive a retryable
+  `RATE_LIMITED` error when writable, or close without a response. Retry only when
+  the operation is safe to repeat.
 - Ordinary responses use `application/json`.
 - Capture streams use `application/x-ndjson` and terminate at connection close.
 - The agent is loopback-only but currently has no client authentication.
@@ -1036,6 +1044,11 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
+- `storage_generation` is a read-only counter in the session resource. It advances
+  when browser storage is reset, including manual and HTTP-triggered resets.
+  REL uses it to separate fresh browser storage from retired Chromium profiles
+  during reset and after app restart. Retired generations are cleaned up
+  asynchronously and reconciled at startup.
 - `POST /v1/sessions` accepts optional `new_group`, `name`, `name_prefix`, `source_profile`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
@@ -1169,6 +1182,23 @@ A profile resource is:
   selections take precedence, and later Profile changes leave existing sessions
   unchanged. Profile archive and settings-text transfers
   preserve this field.
+- `http_rules` defaults to `[]` (disabled). Each entry requires `action:"reset"`,
+  a unique integer `status_code` (100–599), and integer `repeats` (0–1,000,000).
+  Up to 100 rules are accepted. For example:
+  `[{"action":"reset","status_code":403,"repeats":0},{"action":"reset","status_code":429,"repeats":2}]`.
+  Reset is the only action. Zero repeats resets on the first matching response;
+  N repeats resets on response N + 1. Counts are separate per status, include
+  responses from all tabs and subresources in the group, and are not cleared by
+  other status codes. Canceled requests do not count. Reset and app restart
+  clear the counts. Rules work with any proxy type and without a proxy.
+  Reset clears shared browser state, restores initial Profile cookies and
+  passwords, changes the route where supported, and reopens saved tab URLs.
+  Browser automation during reset returns retryable `BROWSER_BUSY`; retry after
+  reset finishes. Failures leave the group stopped with a visible error so the
+  reset can be retried. New Sessions copy the rules; Profile edits apply to open
+  Sessions only through **Save and Reset Sessions**. On update, omission
+  preserves rules and `[]` disables them. Profile archives and settings-text
+  transfers preserve rules. Configure them with **HTTP Rule** in the Profile editor.
 - `unique_user_agent_per_request` defaults to `false`. When enabled, each
   allowed HTTP or HTTPS request from a new session receives a distinct
   `Unique/<token>` suffix in its User-Agent header. Page JavaScript and
@@ -1180,6 +1210,35 @@ A profile resource is:
   password values never cross RPC.
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
+
+### Profile model defaults
+
+Profiles accept an optional `default_model` object on creation and update:
+
+```json
+{"default_model":{"model_id":"<model-picker identifier>","effort":"high","speed":"priority"}}
+```
+
+`model_id` is the app's model-picker identifier, including its configured
+provider connection where applicable. `effort` accepts `minimal`, `low`,
+`medium`, `high`, or `xhigh` (default `medium`); `speed` accepts `standard`,
+`priority`, or `flex` (default `standard`). The UI offers only supported controls.
+Omitting `default_model` on update preserves it; `null` clears the override.
+Session creation copies it from the Profile. `POST /v1/sessions` may supply an
+explicit `default_model`, including `null` for application defaults. Session
+responses include the copied preference. Existing chats retain their model.
+Profile archives preserve model preferences; archives before version 7 have no
+model override.
+
+### Profile starting URL
+
+Profile creation and update accept optional `starting_url`: an HTTP or HTTPS URL
+with a host, no embedded whitespace, and at most 2,048 UTF-8 bytes after trimming.
+Omit it or use `null` when creating without a starting page. On update, omission
+preserves the value and `null` clears it. Profile responses include the value.
+The app opens this page when creating a new Session from the Profile; existing
+groups keep their state unless explicitly reset. Profile archives preserve it;
+archives before version 9 import without a starting URL.
 
 ### Profile setup definitions
 
@@ -1772,3 +1831,43 @@ runs in management mode. Only `GET /v1/health`, `GET /v1/status`,
 `POST /v1/license/activate` and `POST /v1/app/update` remain available. Other
 requests return retryable `CONFLICT`; Browser Proxy listeners remain stopped.
 Normal operations resume when the owning app restores access.
+
+## Native WhatsApp settings
+
+These app-authorized routes manage the native linked-device connection. They
+require the owning REL app's authorization and return `Cache-Control: no-store`.
+They are separate from the WhatsApp Cloud API webhook integration.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/v1/whatsapp` | Read connection status |
+| `POST` | `/v1/whatsapp/connect` | Begin or resume pairing when enabled |
+| `POST` | `/v1/whatsapp/enabled` | Persist `{"enabled":true}` or `{"enabled":false}` |
+| `DELETE` | `/v1/whatsapp/connection` | Remove the saved connection and preferences |
+| `GET` | `/v1/whatsapp/groups` | Refresh participating groups while connected |
+| `POST` | `/v1/whatsapp/destination` | Save `{"id":"group@g.us"}` from the refreshed group list |
+| `POST` | `/v1/whatsapp/send` | Send `{"text":"Final response"}` to the saved group |
+
+Status and settings mutation responses contain `connection` with `phase`, `saved`,
+`enabled`, `remote_enabled`, `qr`, `expires_at`, `message`, and `destination`. The destination is
+null or an object with `id` and `name`. Group refresh returns `groups`, an array
+of these objects. Pairing QR values are short-lived secrets.
+
+Disabling sets `phase` to `disabled`, stops the native client, and retains the
+account credentials and group. A disabled saved account does not reconnect on
+restart. Enabling resumes a saved account; an account without saved credentials
+still needs the connect route. The enabled preference defaults to true for
+existing installations. Group selection persists immediately without sending a
+message or enabling an Action.
+
+The send route accepts only `text`, with 1–4,096 Unicode scalar values and at
+least one non-whitespace character, within a 32 KiB JSON body. Recipient overrides
+and unknown fields are rejected. Output must not begin with the reserved `/rel`
+command prefix followed by whitespace or end of text; add a descriptive heading
+when needed. It requires enabled WhatsApp, a saved linked
+account, and a saved group. It waits up to 20 seconds for connection readiness
+and up to 20 seconds for sending. Success data contains `message_id` and
+`destination_id`; it does not confirm the recipient has read the message.
+Failures use the standard error envelope. REL does not automatically retry;
+a send timeout leaves delivery uncertain. Settings changes serialize with
+sending, so disabling cannot recall an in-flight message.
