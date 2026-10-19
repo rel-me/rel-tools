@@ -391,14 +391,20 @@ and configuration under the Free plan limits described above.
 A **Profile** is a reusable template for a new Session. Profiles select the
 connection, Session Viewport, network filters, and any browser data that should be copied when a
 Session is created. A **Session** is the persistent browser created from that
-template; later Profile changes do not modify existing Sessions.
+template. When saving Profile changes with open Sessions, REL asks how to apply
+them. **Save and Reset Sessions** is the default: it applies the new configuration,
+clears and restores browser data from the Profile, and reloads the open pages.
+Session IDs and tab URLs are preserved. Choose **Save Without Resetting** to keep
+open Sessions on their current configuration, or **Cancel** to keep editing.
+Profiles without open Sessions save immediately.
 
 In the profile editor, **Session Viewport** selects the initial viewport for a new
 Session: **App Default**, **Fit Window**, **Desktop 1440w**, **Wide Laptop 1280w**,
 **Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Fixed widths follow the
 available window height. Each Session can change its viewport independently using
 **Session Viewport**, immediately to the right of **Browser Identity** in its toolbar.
-Changing a saved Profile leaves existing Sessions and tabs in an existing group unchanged.
+Resetting Sessions when saving also applies the Profile’s Session Viewport.
+Saving without resetting preserves each Session’s current viewport.
 
 Manage saved configurations in **Profiles**. There are no built-in Profiles.
 Profiles can use a configured proxy and imported cookies or passwords. The Profiles
@@ -444,9 +450,10 @@ An invalid or unreadable file stops creation with an error.
 a snapshot of the file into the Profile’s encrypted browser storage. Each new
 Session created from that Profile starts with those cookies; you can move or
 delete the original file afterward. Choosing a new file when editing replaces the
-Profile’s startup cookies, preserves saved passwords, and leaves existing Sessions
-unchanged. In a new Profile, the cookie file takes the place of another browser
-data source. Removing a selected file before saving cancels that selection.
+Profile’s startup cookies and preserves saved passwords. Open Sessions receive
+the new startup data if you choose **Save and Reset Sessions**; saving without
+resetting leaves their browser data unchanged. In a new Profile, the cookie file
+takes the place of another browser data source. Removing a selected file before saving cancels that selection.
 
 REL cookie files are versioned JSON containing values and cookie attributes,
 including expiration, Secure, HttpOnly, SameSite, and priority. They are plaintext
@@ -1591,4 +1598,5 @@ responses from all tabs and resources share the group's counters. Zero repeats
 resets on the first response; N repeats resets on response N + 1. Reset clears
 browser state, restores initial Profile cookies and passwords, changes the proxy
 route where supported, and reopens the saved URLs. Counts clear after a reset
-or restarting REL. Profile edits apply to newly created groups.
+or restarting REL. Profile edits apply to newly created groups and to existing
+groups when you choose **Save and Reset Sessions**.
