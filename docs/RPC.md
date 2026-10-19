@@ -909,8 +909,11 @@ clear after reset or app restart. Rules work for direct and proxied sessions.
   "proxy_alias": "residential",
   "proxy_session_id": "a7b92d41",
   "assigned_port": null,
+  "upstream_host": "proxy.example.com",
+  "upstream_port": 33335,
   "can_rotate": true,
   "request_count": 42,
+  "navigation_request_count": 8,
   "uploaded_bytes": 125000,
   "downloaded_bytes": 4500000,
   "active_connections": 3,
@@ -925,6 +928,19 @@ providers return `assigned_port:null`. With automatic ISP rotation enabled,
 status additionally returns `page_request_count` and `page_request_limit` for
 the assigned IP, shared across its sessions. These fields are absent when the
 page limit is disabled.
+
+`upstream_host` and `upstream_port` identify the effective upstream endpoint,
+including the assigned ISP port rather than the pool's starting port. They are
+absent for direct sessions and never include credentials. The app's Overview
+shows this endpoint separately from the detected ISP exit IP, which can differ
+from the proxy host. Exit detection uses the current route and can be unavailable.
+
+`navigation_request_count` counts main-document HTTP(S) requests admitted by
+the navigation preparation lane for this session, including redirects and
+attempts that subsequently fail or are cancelled. Reset, route rotation, or
+agent restart clears it. It is separate from the shared per-IP
+`page_request_count` budget, which resets each pool round or agent restart.
+Overview displays both counts, connections, and proxy upload/download totals.
 
 The app's **Proxy Session Status** panel refreshes every two seconds. Counters
 cover the current proxy assignment and sticky ID since the agent started;
