@@ -70,6 +70,28 @@ Sessions receive their own persistent provider session IDs.
 Credentials stay in REL's secure credential storage. MCP's proxy-list tool
 returns aliases and non-secret metadata, not stored passwords.
 
+## Oxylabs Residential session expiry
+
+Oxylabs Residential session IDs are temporary IP assignments. By default, they
+last up to 10 minutes or 60 seconds without requests. An explicit `sesstime`
+parameter can extend the maximum to 24 hours. Restarting REL does not renew
+Oxylabs' timer or reserve the IP permanently. See
+[Oxylabs session control](https://developers.oxylabs.io/products/proxies/residential-proxies/session-control).
+
+REL uses `sessid_oneip` on `pr.oxylabs.io` so an unavailable exit returns an
+error instead of silently switching the group's IP. REL saves session timing
+across restarts and checks confirmed upstream requests conservatively for idle expiry. Traffic
+inside an existing encrypted tunnel does not extend the local idle window, so
+REL may reset a group before Oxylabs would. Once the session expires or Oxylabs rejects its strict single-IP
+binding, REL automatically resets the whole tab group: it closes the old
+connections, assigns a fresh session ID, clears shared site data, and reopens
+the tabs. Website logins and other site state in that group are cleared.
+Old Residential sessions whose lifetime is unknown are reset once after upgrade.
+
+Dedicated ISP port assignments do not use this expiry policy. Authentication
+failures and errors returned by destination websites do not invalidate the
+proxy session.
+
 ## Test a saved proxy
 
 Select a proxy in **Settings → Proxies**, then choose **Test**, or right-click
@@ -292,7 +314,7 @@ for HTTP/3; REL reports transport errors when it is blocked.
 Each browser session connects to its own trusted loopback HTTP/3 relay. Rust
 verifies Oxylabs TLS, adds Proxy-Authorization, and forwards datagrams and
 RFC 9297 capsules. CEF receives only the loopback address and session CA,
-never provider credentials. Proxy-session rotation and deletion close the
+never provider credentials. Reset and deletion close the
 session's QUIC tunnels. Target names are passed to Oxylabs without local DNS
 resolution. WebRTC's non-proxied UDP remains disabled.
 

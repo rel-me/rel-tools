@@ -215,7 +215,7 @@ under sustained load.
 Crawlee owns request retries. Retryable REL errors and handler failures consume
 `max_request_retries`. Nonretryable REL errors and unsupported operations fail
 without retrying. HTTP 4xx statuses fail without retries; HTTP 5xx statuses use
-the request retry budget. Automatic block detection, session rotation, and
+the request retry budget. Automatic block detection, session reset, and
 `Retry-After` behavior are not provided.
 
 `navigation_timeout` accepts a positive `datetime.timedelta` and defaults to

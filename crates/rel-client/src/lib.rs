@@ -491,11 +491,22 @@ impl RelClient {
         )
     }
 
-    pub fn rotate_proxy_session(&self, alias: &str) -> Result<RpcResponse<ProxyData>, ClientError> {
-        self.request::<ProxyData, Value>(
+    /// Reset all existing tab groups created from a profile and restore its initial data.
+    pub fn reset_profile(&self, profile: &str) -> Result<RpcResponse<ResetData>, ClientError> {
+        self.request_with_timeout(
             "POST",
-            &format!("/proxies/{}/rotate-session", encode_path_segment(alias)),
+            "/reset",
+            Some(&serde_json::json!({"profile":profile})),
+            Duration::from_secs(300),
+        )
+    }
+
+    pub fn reset_session(&self, id: &str) -> Result<RpcResponse<ResetData>, ClientError> {
+        self.request_with_timeout::<ResetData, Value>(
+            "POST",
+            &format!("/sessions/{}/reset", encode_path_segment(id)),
             None,
+            Duration::from_secs(90),
         )
     }
 
@@ -1083,6 +1094,8 @@ pub enum Action {
         selector: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         timeout: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        strict: Option<bool>,
     },
     Type {
         selector: String,
@@ -3200,8 +3213,24 @@ pub enum ViewportPreset {
     Mobile,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpRuleAction {
+    Reset,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HttpRule {
+    pub status_code: u16,
+    pub repeats: u32,
+    pub action: HttpRuleAction,
+}
+
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct ProfileCreateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_rules: Option<Vec<HttpRule>>,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub viewport_preset: Option<ViewportPreset>,
@@ -3326,6 +3355,11 @@ pub struct SessionData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ResetData {
+    pub reset_session_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionNetworkStateData {
     pub session_id: String,
     pub network_paused: bool,
@@ -3343,6 +3377,8 @@ pub struct ProfileData {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Profile {
+    #[serde(default)]
+    pub http_rules: Vec<HttpRule>,
     #[serde(default)]
     pub viewport_preset: Option<ViewportPreset>,
     pub id: String,
@@ -4969,6 +5005,20 @@ mod tests {
     }
 
     #[test]
+    fn strict_selector_wait_setting_round_trips() {
+        for strict in [false, true] {
+            let value =
+                serde_json::json!({"action":"wait-for", "selector":"#ready", "strict":strict});
+            let action: Action = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(serde_json::to_value(action).unwrap(), value);
+        }
+        assert!(serde_json::from_value::<Action>(serde_json::json!({
+            "action":"wait-for", "selector":"#ready", "strict":"true"
+        }))
+        .is_err());
+    }
+
+    #[test]
     fn action_uses_the_canonical_rpc_shape() {
         let action = Action::ClickLink {
             link: "https://example.com/next".to_string(),
@@ -5011,6 +5061,7 @@ mod tests {
             serde_json::to_value(Action::WaitFor {
                 selector: "#loaded".to_string(),
                 timeout: None,
+                strict: None,
             })
             .unwrap(),
             serde_json::json!({"action":"wait-for", "selector":"#loaded"})
@@ -5019,6 +5070,7 @@ mod tests {
             serde_json::to_value(Action::WaitFor {
                 selector: "#loaded".to_string(),
                 timeout: Some(2.5),
+                strict: None,
             })
             .unwrap(),
             serde_json::json!({
@@ -5186,8 +5238,8 @@ mod tests {
                 ("GET", "/v1/proxies") => json!({"proxies":[proxy_json()]}),
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
-                | ("PATCH", "/v1/proxies/office")
-                | ("POST", "/v1/proxies/office/rotate-session") => json!({"proxy":proxy_json()}),
+                | ("PATCH", "/v1/proxies/office") => json!({"proxy":proxy_json()}),
+                ("POST", "/v1/reset") => json!({"reset_session_ids":[]}),
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }
@@ -5344,7 +5396,7 @@ mod tests {
             )
             .unwrap();
         client.delete_proxy("office").unwrap();
-        client.rotate_proxy_session("office").unwrap();
+        client.reset_profile("Research").unwrap();
         client
             .export_proxy_transfer(&ProxyTransferExportRequest {
                 alias: "office".to_string(),
@@ -5377,6 +5429,7 @@ mod tests {
         );
         client
             .create_profile(&ProfileCreateRequest {
+                http_rules: None,
                 name: "Research".to_string(),
                 viewport_preset: Some(ViewportPreset::Desktop),
                 proxy_alias: None,
@@ -5477,7 +5530,7 @@ mod tests {
                 ("POST", "/v1/proxies"),
                 ("PATCH", "/v1/proxies/office"),
                 ("DELETE", "/v1/proxies/office"),
-                ("POST", "/v1/proxies/office/rotate-session"),
+                ("POST", "/v1/reset"),
                 ("POST", "/v1/proxy-transfers/export"),
                 ("POST", "/v1/proxy-transfers/import"),
                 ("GET", "/v1/sessions"),

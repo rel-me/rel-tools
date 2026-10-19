@@ -107,7 +107,7 @@ run can resume cleanly.
 
 After exhausted native-action failures or HTTP 403, 429, and 5xx captures,
 discard the crawler-owned session before advancing when policy permits. The
-failed link must stay terminal, so session rotation cannot requeue it forever.
+failed link must stay terminal, so session reset cannot requeue it forever.
 Only an explicit retry-failed operation should reset terminal entries and grant
 fresh attempts on a later run.
 

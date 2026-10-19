@@ -226,8 +226,8 @@ module REL
       request_json(:delete, "/proxies/#{segment(alias_name)}")
     end
 
-    def rotate_proxy_session(alias_name)
-      request_json(:post, "/proxies/#{segment(alias_name)}/rotate-session", body: {})
+    def reset_profile(name)
+      request_json(:post, "/reset", body: { profile: name })
     end
 
     def export_proxy_transfer(payload)

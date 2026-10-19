@@ -58,7 +58,7 @@ rel proxy get ALIAS
 rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [options]
 rel proxy update ALIAS [options]
 rel proxy delete ALIAS
-rel proxy rotate ALIAS
+rel reset --profile NAME
 rel proxy export ALIAS [--output PATH]
 rel proxy import FILE [--alias ALIAS]
 rel profile list
@@ -110,9 +110,7 @@ downgrade.
 Capture with a URL remains the default URL-first command: `rel URL [options]`.
 The explicit `rel capture URL [options]` form is equivalent. Argument-free
 `rel capture` instead captures the current shorthand page selected by
-`rel navigate`. The removed `ping`, `logs`, and
-`--rotate-proxy-session` interfaces have no compatibility aliases; use
-`status`, the app's Logs view, and `proxy rotate`, respectively.
+`rel navigate`. Use `rel status` for service diagnostics and the app’s Logs view for events.
 
 The app's Logs view displays each event on one compact line. Browser request
 summaries show the method, URL, HTTP status, failure or block reason, and duration
@@ -167,8 +165,11 @@ Omit `--query` for an overview when the desired page wording is unknown. A query
 ranks lexical matches; it does not interpret an arbitrary question. Read output
 preserves context, explicit advertisement labels, source/viewport metadata, and
 separate same-label links to distinct destinations. Counts and truncation flags
-refer to the loaded snapshot, including offscreen semantic content; the command
-does not scroll a feed until every item has loaded.
+refer to the loaded snapshot. Content already loaded offscreen, including
+`content-visibility: auto` sections, is eligible for capture; truly hidden
+content is excluded. An untruncated snapshot describes the finite loaded DOM,
+not every item an infinite feed could later load. Use native scrolling or other
+page actions to load further items, then read again.
 
 
 The JSON envelope reports the source URL, title, observation ID, outline and
@@ -537,10 +538,10 @@ rel proxy update office --clear-oxylabs-location
 An update requires at least one mutable option. The clear options send explicit
 JSON `null` values instead of omitting their fields.
 
-Rotate the generated sticky session for an Oxylabs-enabled proxy:
+Reset all existing tab groups created from a Profile:
 
 ```sh
-rel proxy rotate office
+rel reset --profile Research
 ```
 
 Export or import a proxy transfer file:
@@ -646,7 +647,14 @@ rel session create \
   --image-size-limit-kb 100
 ```
 
-Session creation opens a new page tab in the oldest compatible existing tab group.
+When creating a session from a saved profile without configuration overrides,
+REL adds a page tab to the oldest existing group for that profile. It preserves
+that group's current settings and storage, including groups created in the app
+without copying saved cookies or passwords. Editing the saved profile does not
+force a new group. Explicit name, group label, and lifetime constraints still apply.
+
+Requests with configuration overrides or no saved profile open a page tab in
+the oldest compatible existing tab group.
 Compatibility includes the selected profile and browser-data source, proxy,
 fingerprint configuration, image/ad blocking, model, and viewport settings.
 The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
@@ -824,3 +832,15 @@ response acknowledges the request with `state: "requested"`, the selected
 is available or installed. Network errors and update availability appear in the
 native updater. If this build has no update feed/signing key, or an update is
 already running, the command returns a structured error and exits with status 1.
+
+## Reset
+
+```sh
+rel reset --profile=Research
+```
+
+Reset every existing tab group created from the named Profile. REL closes the
+tabs, changes the proxy route where supported, clears browser state, restores
+initial Profile cookies and passwords, and reopens saved URLs. This works with
+any proxy or no proxy. The result contains `data.reset_session_ids`; no existing
+groups returns an empty list. Unknown Profiles and reset failures return errors.

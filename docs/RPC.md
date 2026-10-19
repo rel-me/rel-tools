@@ -11,7 +11,15 @@ Related documents: [CLI](CLI.md), [MCP](MCP.md), [Rust SDK](SDK.md), and
 - Base URL: `http://127.0.0.1:17319/v1`
 - `REL_AGENT_PORT` overrides port `17319`.
 - HTTP/1.1, one request per connection, `Connection: close`.
-- RPC JSON request limit: 16 MiB.
+- RPC JSON request limit: 16 MiB; request line and headers together: 64 KiB.
+- Request headers and body must arrive within two seconds of connection acceptance.
+  Sending bytes gradually does not extend this deadline. This read deadline is
+  separate from the browser operation's `timeout`.
+- The agent parses up to 64 incoming connections concurrently. A stalled request
+  does not block acceptance of other clients, including health/status checks.
+  When all connection readers are occupied, new connections receive a retryable
+  `RATE_LIMITED` error when writable, or close without a response. Retry only when
+  the operation is safe to repeat.
 - Ordinary responses use `application/json`.
 - Capture streams use `application/x-ndjson` and terminate at connection close.
 - The agent is loopback-only but currently has no client authentication.
@@ -199,7 +207,7 @@ previously stored resources remain available.
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
-| `POST` | `/v1/proxies/{alias}/rotate-session` | Rotate managed proxy sessions |
+| `POST` | `/v1/reset` | Reset groups created from a profile |
 | `POST` | `/v1/proxy-transfers/export` | Export a versioned proxy transfer |
 | `POST` | `/v1/proxy-transfers/import` | Import a versioned proxy transfer |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
@@ -217,7 +225,7 @@ previously stored resources remain available.
 | `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
 | `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
 | `GET` | `/v1/sessions/{id}/proxy-status` | Read current proxy session ID and usage |
-| `POST` | `/v1/sessions/{id}/rotate-proxy-session` | Rotate this browser session’s sticky proxy ID |
+| `POST` | `/v1/sessions/{id}/reset` | Reset this tab group and restore initial Profile data |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 
 There are deliberately no log read, clear, or ingestion routes.
@@ -766,8 +774,7 @@ session configuration. Open pages apply it when the user chooses Reload.
   `username:null`, `password:null`, or `locale:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns
   `data.deleted_alias`.
-- `POST /v1/proxies/{alias}/rotate-session` requires an Oxylabs- or Bright Data-enabled proxy and
-  returns `data.proxy`.
+
 
 `POST /v1/proxies/{alias}/test` takes no body and runs connection diagnostics
 against the saved proxy with a fresh provider session ID. It returns
@@ -804,7 +811,7 @@ and `data.timezone` (for example `Europe/Berlin`, an IANA timezone identifier)
 when detection is enabled or the proxy uses a fixed-IP ISP pool. It errors for a
 missing proxy, disabled detection on other proxy types,
 failed connection, or invalid lookup response. Successful results are cached for
-30 minutes per session and upstream route; provider session rotation changes the
+30 minutes per session and upstream route; a reset changes the
 route. Lookups have a 10-second timeout and never retry through a direct connection.
 
 The response also includes `data.ip`, the validated IPv4 or IPv6 exit address when
@@ -826,9 +833,7 @@ characters), and cannot be a UUID. An alias is the sole public proxy identifier:
 and UUIDs are neither accepted nor returned by proxy APIs.
 Oxylabs location requires both parameter and value; parameter is `cc`, `country`,
 or `st`. REL generates a distinct persistent sticky ID for each browser session.
-The dedicated rotate-session operation resets each group assigned to that proxy
-using the same barrier and fresh-state behavior as per-session rotation described
-below. IDs are not part of the public proxy resource.
+
 
 For fixed-port Oxylabs ISP proxies, set `oxylabs_enabled:true`,
 `oxylabs_masque_enabled:false`, and `oxylabs_isp_ip_count` to the number of
@@ -840,8 +845,8 @@ use `user-USERNAME` without generated session or location suffixes.
 
 New browser sessions receive the least-used port, with lower ports breaking
 ties. Assignments persist across reloads and restarts; sessions share ports once
-all IPs are in use. Session rotation advances one port and wraps at the end of
-the pool; a one-IP pool keeps the same IP. Proxy-wide rotation advances every
+all IPs are in use. Reset advances one port and wraps at the end of
+the pool; a one-IP pool keeps the same IP. Resetting a profile advances every
 assigned session. Changing the IP count reassigns sessions within the new range.
 Omitting the count on PATCH preserves it; setting it to 0 disables fixed-port
 allocation. Responses expose the count as `proxy.oxylabs.isp_ip_count`.
@@ -869,37 +874,33 @@ REL cancels that document request first, then runs the group-reset transaction.
 This independent admission lane never waits on browser automation or the app
 bridge. Embedders should not call it again for a navigation already handled by
 REL, because that would consume an extra allowance. Other proxy types return
-`rotated:false` without changing routing or counters. A preparation failure
+`rotated:false` without changing routing or counters. For an expired or invalid
+Oxylabs Residential session on `pr.oxylabs.io`, the response instead includes
+`reset_required:true` and an `invalid_reason`. REL cancels that navigation and
+automatically resets the shared tab group before allowing further requests.
+A preparation failure
 cancels the document request and surfaces the error.
 
-`POST /v1/sessions/{id}/rotate-proxy-session` accepts `{}` and returns
-`data.session`. It requires an assigned Oxylabs- or Bright Data-enabled proxy.
-For an ISP pool it advances that session to the next port. Other providers
-receive a new sticky ID. The operation waits for a group-scoped barrier,
-pauses requests in every tab, closes all old browser contexts and proxy
-connections, and creates fresh browser state with a new fingerprint seed and
-generation. It clears browser storage and navigation history, then loads any
-cookies/passwords configured by the group's source profile into the fresh
-store. Exit locale is checked again before the fresh context can be used;
-its cache is scoped to the REL session, route, sticky ID, and generation.
+`POST /v1/reset` accepts `{"profile":"Research"}` and resets every existing
+tab group created from that Profile. An unknown Profile is an error; a Profile
+with no existing groups returns an empty list. `POST /v1/sessions/{id}/reset`
+resets one tab group. Both return `data.reset_session_ids`.
 
-All tabs retain their IDs and saved URLs. Rotation does **not** navigate or
-reload them automatically. A saved URL loads on explicit access, such as opening
-the restored page or issuing a current-page browser request. Other tabs stay
-dormant. Native **Rotate Proxy Session** uses the same transaction.
+Reset works without a proxy and with every proxy type. REL closes all tabs in
+the group, changes the sticky ID or ISP IP where the provider supports it,
+clears browser state and navigation history, restores initial Profile cookies
+and passwords, and reopens the saved URLs. Tab IDs remain stable. Exit locale
+is invalidated and detected again before navigation when configured. Reset
+failures leave the affected group stopped and are returned to the caller.
 
-Concurrent group operations and browser callers wait until reset completes.
-Already active browser operations are canceled as their old contexts close.
-Other groups keep running, including groups sharing the proxy. A reset failure
-is returned to the caller and leaves the affected group unavailable until a
-successful rotation retry; partially reset state is never resumed.
-
-The native ISP admission path sends
-`{"expected_proxy_session_id":"<id returned by prepare-proxy-page>"}` to
-coalesce simultaneous rotation requests from multiple tabs. If the group has
-already moved to another sticky ID, the call returns its current session without
-another reset. Otherwise it selects the next available ISP allowance; the first
-explicit navigation after reset consumes that allowance.
+Profiles accept `http_rules`, an array of up to 100 rules such as
+`[{"status_code":403,"repeats":0,"action":"reset"}]`. Status codes must be unique
+integers from 100 through 599; repeats must be integers from 0 through 1,000,000.
+The action is required and currently only `reset` is supported. Unknown actions
+and fields are rejected. Sessions copy rules when created, and Profile transfers
+preserve them. Each group counts matching responses across all tabs/resources;
+zero repeats triggers immediately, N repeats triggers on match N + 1. Counts
+clear after reset or app restart. Rules work for direct and proxied sessions.
 
 `GET /v1/sessions/{id}/proxy-status` returns these fields under `data`:
 
@@ -1003,7 +1004,7 @@ to disable managed suffixes. Bright Data and Oxylabs cannot both be enabled.
 Responses include `bright_data`; passwords and generated sticky IDs are excluded.
 
 IDs survive reopening a session and editing its proxy location. Assigning a
-different proxy, re-enabling managed sessions, or calling `rotate-session`
+different proxy, re-enabling managed sessions, or calling `reset`
 generates new IDs. A sticky ID requests the same peer; Bright Data may replace an
 unavailable peer. Location changes can also change the peer.
 
@@ -1033,7 +1034,6 @@ A session resource is:
   "profile": "BandwidthSaver",
   "profile_data_id": null,
   "group": "pgm",
-  "storage_generation": 0,
   "proxy_alias": null,
   "adblock_enabled": true,
   "image_blocking_mode": "over_limit",
@@ -1044,11 +1044,11 @@ A session resource is:
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `storage_generation` is a read-only counter that advances on explicit proxy
-  session rotation, including HTTP-triggered rotation. REL uses it to keep fresh
-  browser storage separate from an old Chromium profile during reset and after
-  app restarts. CEF cleans up retired generations asynchronously; REL also
-  reconciles retired profile directories on startup.
+- `storage_generation` is a read-only counter in the session resource. It advances
+  when browser storage is reset, including manual and HTTP-triggered resets.
+  REL uses it to separate fresh browser storage from retired Chromium profiles
+  during reset and after app restart. Retired generations are cleaned up
+  asynchronously and reconciled at startup.
 - `POST /v1/sessions` accepts optional `new_group`, `name`, `name_prefix`, `source_profile`, `group`, `profile`, `proxy_alias`,
   `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
   `data.session`.
@@ -1083,7 +1083,14 @@ only that ID; numeric database IDs are neither accepted nor returned. A group
 is immutable, contains 1–128 non-control characters after trimming, and may be
 shared by any number of sessions.
 
-Session creation opens a new page tab in the oldest compatible existing tab group.
+When creating a session from a saved profile without configuration overrides,
+REL adds a page tab to the oldest existing group for that profile. It preserves
+that group's current settings and storage, including groups created in the app
+without copying saved cookies or passwords. Editing the saved profile does not
+force a new group. Explicit name, group label, and lifetime constraints still apply.
+
+Requests with configuration overrides or no saved profile open a page tab in
+the oldest compatible existing tab group.
 Compatibility includes the selected profile and browser-data source, proxy,
 fingerprint configuration, image/ad blocking, model, and viewport settings.
 The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
@@ -1132,7 +1139,6 @@ A profile resource is:
   "includes_cookies": false,
   "includes_passwords": false,
   "unique_user_agent_per_request": false,
-  "http_rotation_rules": [],
   "fingerprint_profile": {
     "schema_version": 1,
     "seed": "12345",
@@ -1176,26 +1182,23 @@ A profile resource is:
   selections take precedence, and later Profile changes leave existing sessions
   unchanged. Profile archive and settings-text transfers
   preserve this field.
-- `http_rotation_rules` defaults to `[]` (disabled). Each entry has a unique
-  integer `status_code` (100–599) and integer `repeats` (0–1,000,000); up to 100
-  rules are accepted. For example:
-  `[{"status_code":403,"repeats":0},{"status_code":429,"repeats":2},{"status_code":500,"repeats":1}]`.
-  Zero repeats rotates on the first matching response; N repeats rotates on
-  matching response N + 1. Counts are separate for each code, include HTTP
-  responses from all tabs and subresources in the session, and are not reset by
-  other status codes. Canceled requests do not count. Rotation and app restart
-  reset the counters. REL uses the existing proxy rotation endpoint to select a
-  new sticky session ID or the next ISP IP, then clears shared browser data and
-  reloads the selected page. Use an Oxylabs or Bright Data proxy with session
-  rotation support; an ISP pool needs at least two IPs. Failures appear in the
-  session's browser-data feedback. New browser automation requests during the
-  reset return retryable `BROWSER_BUSY`; retry after it finishes.
-  A failure after the route changes leaves the session's network paused, with
-  the error visible. Rules copy to new sessions as
-  `http_rotation_rules`; editing a Profile leaves existing sessions unchanged.
-  `PATCH` omission preserves rules and `[]` disables them. Profile archives and
-  settings-text transfers preserve the rules. Configure them in the Profile's
-  **Automatic Session Rotation** section in REL.app.
+- `http_rules` defaults to `[]` (disabled). Each entry requires `action:"reset"`,
+  a unique integer `status_code` (100–599), and integer `repeats` (0–1,000,000).
+  Up to 100 rules are accepted. For example:
+  `[{"action":"reset","status_code":403,"repeats":0},{"action":"reset","status_code":429,"repeats":2}]`.
+  Reset is the only action. Zero repeats resets on the first matching response;
+  N repeats resets on response N + 1. Counts are separate per status, include
+  responses from all tabs and subresources in the group, and are not cleared by
+  other status codes. Canceled requests do not count. Reset and app restart
+  clear the counts. Rules work with any proxy type and without a proxy.
+  Reset clears shared browser state, restores initial Profile cookies and
+  passwords, changes the route where supported, and reopens saved tab URLs.
+  Browser automation during reset returns retryable `BROWSER_BUSY`; retry after
+  reset finishes. Failures leave the group stopped with a visible error so the
+  reset can be retried. New Sessions copy the rules; Profile edits apply to open
+  Sessions only through **Save and Reset Sessions**. On update, omission
+  preserves rules and `[]` disables them. Profile archives and settings-text
+  transfers preserve rules. Configure them with **HTTP Rule** in the Profile editor.
 - `unique_user_agent_per_request` defaults to `false`. When enabled, each
   allowed HTTP or HTTPS request from a new session receives a distinct
   `Unique/<token>` suffix in its User-Agent header. Page JavaScript and
@@ -1207,6 +1210,35 @@ A profile resource is:
   password values never cross RPC.
 - `DELETE /v1/profiles/{id}` deletes a custom profile and returns
   `data.deleted_id`. Built-in IDs are not stored and cannot be deleted.
+
+### Profile model defaults
+
+Profiles accept an optional `default_model` object on creation and update:
+
+```json
+{"default_model":{"model_id":"<model-picker identifier>","effort":"high","speed":"priority"}}
+```
+
+`model_id` is the app's model-picker identifier, including its configured
+provider connection where applicable. `effort` accepts `minimal`, `low`,
+`medium`, `high`, or `xhigh` (default `medium`); `speed` accepts `standard`,
+`priority`, or `flex` (default `standard`). The UI offers only supported controls.
+Omitting `default_model` on update preserves it; `null` clears the override.
+Session creation copies it from the Profile. `POST /v1/sessions` may supply an
+explicit `default_model`, including `null` for application defaults. Session
+responses include the copied preference. Existing chats retain their model.
+Profile archives preserve model preferences; archives before version 7 have no
+model override.
+
+### Profile starting URL
+
+Profile creation and update accept optional `starting_url`: an HTTP or HTTPS URL
+with a host, no embedded whitespace, and at most 2,048 UTF-8 bytes after trimming.
+Omit it or use `null` when creating without a starting page. On update, omission
+preserves the value and `null` clears it. Profile responses include the value.
+The app opens this page when creating a new Session from the Profile; existing
+groups keep their state unless explicitly reset. Profile archives preserve it;
+archives before version 9 import without a starting URL.
 
 ### Profile setup definitions
 
@@ -1799,3 +1831,43 @@ runs in management mode. Only `GET /v1/health`, `GET /v1/status`,
 `POST /v1/license/activate` and `POST /v1/app/update` remain available. Other
 requests return retryable `CONFLICT`; Browser Proxy listeners remain stopped.
 Normal operations resume when the owning app restores access.
+
+## Native WhatsApp settings
+
+These app-authorized routes manage the native linked-device connection. They
+require the owning REL app's authorization and return `Cache-Control: no-store`.
+They are separate from the WhatsApp Cloud API webhook integration.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/v1/whatsapp` | Read connection status |
+| `POST` | `/v1/whatsapp/connect` | Begin or resume pairing when enabled |
+| `POST` | `/v1/whatsapp/enabled` | Persist `{"enabled":true}` or `{"enabled":false}` |
+| `DELETE` | `/v1/whatsapp/connection` | Remove the saved connection and preferences |
+| `GET` | `/v1/whatsapp/groups` | Refresh participating groups while connected |
+| `POST` | `/v1/whatsapp/destination` | Save `{"id":"group@g.us"}` from the refreshed group list |
+| `POST` | `/v1/whatsapp/send` | Send `{"text":"Final response"}` to the saved group |
+
+Status and settings mutation responses contain `connection` with `phase`, `saved`,
+`enabled`, `remote_enabled`, `qr`, `expires_at`, `message`, and `destination`. The destination is
+null or an object with `id` and `name`. Group refresh returns `groups`, an array
+of these objects. Pairing QR values are short-lived secrets.
+
+Disabling sets `phase` to `disabled`, stops the native client, and retains the
+account credentials and group. A disabled saved account does not reconnect on
+restart. Enabling resumes a saved account; an account without saved credentials
+still needs the connect route. The enabled preference defaults to true for
+existing installations. Group selection persists immediately without sending a
+message or enabling an Action.
+
+The send route accepts only `text`, with 1–4,096 Unicode scalar values and at
+least one non-whitespace character, within a 32 KiB JSON body. Recipient overrides
+and unknown fields are rejected. Output must not begin with the reserved `/rel`
+command prefix followed by whitespace or end of text; add a descriptive heading
+when needed. It requires enabled WhatsApp, a saved linked
+account, and a saved group. It waits up to 20 seconds for connection readiness
+and up to 20 seconds for sending. Success data contains `message_id` and
+`destination_id`; it does not confirm the recipient has read the message.
+Failures use the standard error envelope. REL does not automatically retry;
+a send timeout leaves delivery uncertain. Settings changes serialize with
+sending, so disabling cannot recall an in-flight message.

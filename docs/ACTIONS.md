@@ -64,7 +64,20 @@ namespaces, and CSS escapes are rejected.
 `wait-for` checks only for presence and does not require layout bounds. Its
 optional positive `timeout` is measured from the start of that action and is
 capped by the enclosing operation's remaining deadline. Omitting it preserves
-the enclosing deadline. If its own timeout expires first, REL returns
+the enclosing deadline. Missing selectors keep polling through intermediary
+pages, including HTTP error documents that later redirect or update their DOM.
+A capture with a `wait-for` action also defers reporting an initial HTTP error
+until the required wait completes or times out. Transport and navigation failures
+still surface immediately. This behavior is shared by CLI, RPC, MCP, and SDK
+calls. Set `"strict": true` on a `wait-for` action to restore immediate HTTP
+error reporting when its selector is missing; captures with only strict waits
+also report the initial HTTP error before running actions. The default is false.
+
+```json
+{"action":"wait-for","selector":"#loaded-content","timeout":10,"strict":true}
+```
+
+If its own timeout expires first, REL returns
 `ACTION_TIMEOUT`; if the enclosing deadline expires first, REL returns
 `TIMEOUT`. `click` reads the first match's bounds and dispatches CEF mouse
 input. A missing click target returns

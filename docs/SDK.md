@@ -78,7 +78,7 @@ without navigating.
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
 | `update_proxy(alias, &ProxyUpdateRequest)` | `PATCH /v1/proxies/{alias}` |
 | `delete_proxy(alias)` | `DELETE /v1/proxies/{alias}` |
-| `rotate_proxy_session(alias)` | `POST /v1/proxies/{alias}/rotate-session` |
+| `reset_profile(name)` | `POST /v1/reset` |
 | `export_proxy_transfer(&ProxyTransferExportRequest)` | `POST /v1/proxy-transfers/export` |
 | `import_proxy_transfer(&ProxyTransferImportRequest)` | `POST /v1/proxy-transfers/import` |
 | `list_sessions()` | `GET /v1/sessions` |
@@ -481,7 +481,14 @@ update.
 
 ## Session profiles
 
-Session creation opens a new page tab in the oldest compatible existing tab group.
+When creating a session from a saved profile without configuration overrides,
+REL adds a page tab to the oldest existing group for that profile. It preserves
+that group's current settings and storage, including groups created in the app
+without copying saved cookies or passwords. Editing the saved profile does not
+force a new group. Explicit name, group label, and lifetime constraints still apply.
+
+Requests with configuration overrides or no saved profile open a page tab in
+the oldest compatible existing tab group.
 Compatibility includes the selected profile and browser-data source, proxy,
 fingerprint configuration, image/ad blocking, model, and viewport settings.
 The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
