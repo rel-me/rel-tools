@@ -447,8 +447,11 @@ the previously tracked URL is stale.
 All three return the same page-operation envelope documented under attached
 pages. When `session_id` is supplied, `navigate` selects and updates that
 session's current shorthand page; `perform` and singular `capture` target it.
-For multiple independent crawls, create a session for each crawl and pass its
-`session_id` on every navigation, action, and capture. Keep staged operations
+For multiple independent crawls, create a session with `new_group: true` for each
+crawl (`rel session create --profile NAME --new-group`) and pass its returned
+`session_id` on every navigation, action, and capture. Ordinary session creation
+can reuse a group, select a new blank tab, and return the same session ID to
+different workers. Keep staged operations
 within each session sequential so another request cannot change its page between
 stages. Switching the visible session does not change an explicit session target.
 `PAGE_MISMATCH` is retryable: refresh the page binding with `POST /v1/capture`
