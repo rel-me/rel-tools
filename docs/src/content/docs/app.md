@@ -88,28 +88,31 @@ deletes the entire group. Chat and actions remain associated with the group.
 The session resource's optional `group` label is separate: it organizes batch
 operations across Sessions and never joins their browser storage.
 
-## CAPTCHA attention alerts
+## Notifications
 
-When a CAPTCHA persists in a live Session, REL sends a time-sensitive macOS
-notification and shows a prominent red alert beside its menu bar label. Click
-the notification or choose **Go to CAPTCHA in [Session]** at the top of the
-REL menu bar menu. REL activates its window, selects the affected Session, and
-focuses its existing browser so you can complete the challenge without reloading
-or losing its state. Additional affected Sessions appear under **Other CAPTCHAs**.
+Open **REL → Settings… → Notifications** to enable or disable REL's macOS
+alerts. **Enable notifications** controls app alerts globally. The individual
+choices are preserved while the global switch is off:
 
-REL recognizes common reCAPTCHA, hCaptcha, Turnstile, Arkose, DataDome, GeeTest,
-and AWS WAF widgets, plus custom human-verification controls such as
-Zillow-style press-and-hold challenges. Recognition is heuristic: a site's new
-or unusual challenge can require you to open the Session manually. Loading a
-CAPTCHA library alone does not trigger an alert, and REL does not solve CAPTCHAs
-automatically. Existing client request deadlines still apply.
+- **Tab group reset** alerts after a successful reset, including resets triggered
+  by HTTP response rules. Failed resets report an error instead.
+- **User input required** alerts for detected reCAPTCHA, hCaptcha, Turnstile,
+  verification-code fields, and website permission requests. Open the affected
+  group to respond. REL waits briefly for automatic browser checks to resolve
+  and avoids repeated input alerts on the same page.
 
-macOS asks for notification permission when REL first needs to alert you. Enable
-REL under **System Settings > Notifications** and allow time-sensitive alerts
-if you want them delivered during Focus. The menu bar alert remains available
-when notifications are disabled. REL avoids repeated alerts for the same active
-challenge and clears the alert when the challenge disappears, the page changes,
-or the Session closes.
+Detection is heuristic. Loading a provider's script alone does not trigger an
+alert, and some custom or dynamically inserted prompts may go undetected. REL
+does not solve challenges automatically.
+
+macOS asks for notification permission when REL first needs to alert you. You can
+also choose **Allow macOS Notifications…** on this Settings page. If permission
+is blocked, open macOS Notification Settings and allow notifications for REL.
+macOS notification and Focus preferences also affect delivery.
+
+The **Website Notifications** section separately controls forwarding allowed
+website notifications to the agent. App reset and input alerts do not require
+website permission or agent forwarding.
 
 ## Session viewport presets
 
@@ -462,13 +465,23 @@ cookies while preserving saved passwords. An empty file starts without cookies.
 An invalid or unreadable file stops creation with an error.
 
 **New Profile** and **Edit Profile** offer **Starting cookies** directly below
-**Starting URL**. Saving imports a snapshot of the file into the Profile’s encrypted browser storage. Each new
+**Starting URL** under **Advanced**. Saving imports a snapshot of the file into the Profile’s encrypted browser storage. Each new
 Session created from that Profile starts with those cookies; you can move or
 delete the original file afterward. Choosing a new file when editing replaces the
 Profile’s startup cookies and preserves saved passwords. Open Sessions receive
 the new startup data if you choose **Save and Reset Sessions**; saving without
 resetting leaves their browser data unchanged. In a new Profile, the cookie file
 takes the place of another browser data source. Removing a selected file before saving cancels that selection.
+
+When editing a Profile with active Sessions, **Copy Cookies from** appears below
+**Starting cookies**. Choose one of that Profile’s Sessions to save all its cookies
+as the Profile’s starting cookies when saving. REL captures them before resetting
+Sessions. Choosing a Session clears the file selection, and choosing a file clears
+the Session selection. A Session that closes before saving produces an error.
+Both sources are copied into REL’s Application Support data directory as encrypted
+Chromium profile storage, using the runtime’s Keychain safe-storage key. REL keeps
+no plaintext copy of an imported file. The source Session remains independent of
+the saved cookie snapshot.
 
 REL cookie files are versioned JSON containing values and cookie attributes,
 including expiration, Secure, HttpOnly, SameSite, and priority. They are plaintext
