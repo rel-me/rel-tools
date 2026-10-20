@@ -461,8 +461,8 @@ first page. If you also choose a Profile’s Browser Data, the file replaces its
 cookies while preserving saved passwords. An empty file starts without cookies.
 An invalid or unreadable file stops creation with an error.
 
-**New Profile** and **Edit Profile** also offer **Starting cookies**. Saving imports
-a snapshot of the file into the Profile’s encrypted browser storage. Each new
+**New Profile** and **Edit Profile** offer **Starting cookies** directly below
+**Starting URL**. Saving imports a snapshot of the file into the Profile’s encrypted browser storage. Each new
 Session created from that Profile starts with those cookies; you can move or
 delete the original file afterward. Choosing a new file when editing replaces the
 Profile’s startup cookies and preserves saved passwords. Open Sessions receive
