@@ -100,15 +100,30 @@ selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
-REL Free supports one persistent Session, one custom Profile, and one Proxy.
+REL Free supports up to two tab groups with two Sessions each (four Sessions
+total), one custom Profile, and one Proxy. A third tab group or a third Session
+in a group requires Pro. Close a Session or group to free its capacity.
 Mutations that require
 REL Pro fail with the non-retryable `PRO_REQUIRED` RPC error. Register Pro in
 **REL → Settings… → Plan** to remove these limits. Read and delete operations
 remain available so stored resources can be inspected or reduced after a
 downgrade.
 
-Capture with a URL remains the default URL-first command: `rel URL [options]`.
-The explicit `rel capture URL [options]` form is equivalent. Argument-free
+Capture with a URL is the default command: `rel [options] URL [options]`.
+The explicit `rel capture [options] URL [options]` form is equivalent. Options
+can appear before or after the URL, using either `--profile NAME` or
+`--profile=NAME`. For example, capture a page in a new Session created from the
+saved RYM Profile:
+
+```sh
+rel --profile=RYM https://rateyourmusic.com/artist/nugreth/
+```
+
+Creating a Session preserves existing Sessions. Capture events omit the obsolete
+`closed_session_ids` field.
+
+The named Profile must already exist; use `rel profile list` to list Profiles.
+Argument-free
 `rel capture` instead captures the current shorthand page selected by
 `rel navigate`. Use `rel status` for service diagnostics and the app’s Logs view for events.
 

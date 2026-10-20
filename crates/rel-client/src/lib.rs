@@ -1257,8 +1257,6 @@ pub struct PageCaptureRequest {
 pub struct PageOperationData {
     pub page: Page,
     pub capture: PageCapture,
-    #[serde(default)]
-    pub closed_session_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

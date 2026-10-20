@@ -501,6 +501,31 @@ and their `sessions` membership. Delete a group to remove every member and share
 data. `CaptureRequest::group_id` and `PageAttachRequest::group_id` create a tab
 inside a specific group.
 
+`Profile` contains its public `id`, unique `name`, proxy and filtering policy,
+browser-data inclusion flags, optional fingerprint identity template, built-in
+status, and creation time.
+`ProfileCreateRequest` creates a custom settings template; browser-data import
+itself remains app-owned. `ProfileDataUpdateRequest` updates the two inclusion
+flags after REL.app stages an import; no cookie or password values cross RPC.
+Re-importing a selected category replaces that category in the template.
+There are no built-in profiles. `ImageBlockingMode::None` allows every
+image without disabling AdBlock. Existing sessions retain copied settings and
+data after their source profile is changed or deleted. REL Free can create up to
+two tab groups with two Sessions each (four Sessions total) and one custom Profile; REL Pro removes those plan limits. A third group
+or a third Session within a group is rejected. Close resources to free capacity.
+
+`ProfileCreateRequest::fingerprint_profile` uses `Change::Unchanged` to select
+the default compatibility template, `Change::Clear` for native Chromium, and
+`Change::Set(profile)` for explicit identity settings. REL.app preserves those
+settings but generates a fresh seed whenever it creates a group from the
+profile. New configurations use Private; explicit native identity stays native.
+
+`Group::profile` exposes the source profile name and
+`Group::profile_data_id` identifies the custom browser-data template copied
+at creation, when any. `CaptureRequest`, `NavigateRequest`, and
+`PageAttachRequest` accept `profile` only when `session_id` is absent.
+
+
 `ProxyCreateRequest.locale: Option<String>` configures an optional BCP-47 locale
 for the proxy. `ProxyUpdateRequest.locale: Change<String>` supports set, clear,
 and unchanged. `Proxy.locale` and `Group.proxy_locale` return it. This preference is independent of any

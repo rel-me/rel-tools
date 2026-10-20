@@ -381,16 +381,17 @@ events are not stored for retry.
 
 ## Free and Pro
 
-REL Free does not require registration. It includes one Session at a time, one
-scheduled prompt, one custom Profile, and one configured AI model provider.
-Proxies cannot be created, configured, assigned, or used on the Free plan.
+REL Free does not require registration. It includes up to two tab groups with
+two Sessions each (four Sessions total), one scheduled prompt, one custom Profile,
+one configured AI model provider, and one Proxy. Creating a third tab group or a third Session within a group requires
+REL Pro. Closing a Session or tab group frees its capacity. The same limits apply
+to sessions created through the CLI, MCP, RPC, and Rust SDK.
 
-REL Pro costs $20 as a single upfront payment for one year of access. It does
-not renew automatically. Register the license in **REL → Settings… → Plan** to
-use proxies and remove the Free plan limits. If Pro registration expires or is
+REL Pro costs $3.99 per month. Register the license in **REL → Settings… → Plan** to
+remove the Free plan limits. If Pro registration expires or is
 removed, REL preserves existing Sessions and configuration instead of deleting
-them. Free prevents additional creation beyond its limits, and any stored proxy
-assignment runs as a direct connection until Pro access is restored.
+them, including groups and Sessions already above the Free limits. Free prevents
+additional creation beyond its limits; close resources to make room.
 
 You can also enter a `REL-PRO-...` promo code in the same Plan field when one
 has been provided to you. Codes grant one, two, or three calendar months of
