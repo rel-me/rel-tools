@@ -88,28 +88,31 @@ deletes the entire group. Chat and actions remain associated with the group.
 The session resource's optional `group` label is separate: it organizes batch
 operations across Sessions and never joins their browser storage.
 
-## CAPTCHA attention alerts
+## Notifications
 
-When a CAPTCHA persists in a live Session, REL sends a time-sensitive macOS
-notification and shows a prominent red alert beside its menu bar label. Click
-the notification or choose **Go to CAPTCHA in [Session]** at the top of the
-REL menu bar menu. REL activates its window, selects the affected Session, and
-focuses its existing browser so you can complete the challenge without reloading
-or losing its state. Additional affected Sessions appear under **Other CAPTCHAs**.
+Open **REL → Settings… → Notifications** to enable or disable REL's macOS
+alerts. **Enable notifications** controls app alerts globally. The individual
+choices are preserved while the global switch is off:
 
-REL recognizes common reCAPTCHA, hCaptcha, Turnstile, Arkose, DataDome, GeeTest,
-and AWS WAF widgets, plus custom human-verification controls such as
-Zillow-style press-and-hold challenges. Recognition is heuristic: a site's new
-or unusual challenge can require you to open the Session manually. Loading a
-CAPTCHA library alone does not trigger an alert, and REL does not solve CAPTCHAs
-automatically. Existing client request deadlines still apply.
+- **Tab group reset** alerts after a successful reset, including resets triggered
+  by HTTP response rules. Failed resets report an error instead.
+- **User input required** alerts for detected reCAPTCHA, hCaptcha, Turnstile,
+  verification-code fields, and website permission requests. Open the affected
+  group to respond. REL waits briefly for automatic browser checks to resolve
+  and avoids repeated input alerts on the same page.
 
-macOS asks for notification permission when REL first needs to alert you. Enable
-REL under **System Settings > Notifications** and allow time-sensitive alerts
-if you want them delivered during Focus. The menu bar alert remains available
-when notifications are disabled. REL avoids repeated alerts for the same active
-challenge and clears the alert when the challenge disappears, the page changes,
-or the Session closes.
+Detection is heuristic. Loading a provider's script alone does not trigger an
+alert, and some custom or dynamically inserted prompts may go undetected. REL
+does not solve challenges automatically.
+
+macOS asks for notification permission when REL first needs to alert you. You can
+also choose **Allow macOS Notifications…** on this Settings page. If permission
+is blocked, open macOS Notification Settings and allow notifications for REL.
+macOS notification and Focus preferences also affect delivery.
+
+The **Website Notifications** section separately controls forwarding allowed
+website notifications to the agent. App reset and input alerts do not require
+website permission or agent forwarding.
 
 ## Session viewport presets
 
@@ -248,9 +251,15 @@ transcripts remain readable; select an LLM to start a new conversation.
 
 ## Session and workspace errors
 
-Click the warning icon in the main toolbar to open **Session and Workspace
-Errors**. The sheet shows session and workspace persistence errors separately,
-with scrollable, selectable details. **Copy Details** copies both error messages.
+Errors appear as notices in the window where the action started. A notice stays
+visible until you dismiss it with its close button or choose its recovery action,
+even if the underlying problem clears first. **Details** expands the message and
+**Copy Details** copies its diagnostic details.
+
+Choose **Window → Recent Issues…**, or **Recent Issues** in a notice, to review
+earlier errors and their status. A resolved issue can still have an unread notice;
+dismissing that notice preserves its resolved status. Background service incidents
+use a quiet **Recent Issues** indicator.
 
 For session errors, use **Refresh Sessions** to reload the session list, then
 retry the failed action. **Open Settings** lets you review session limits and
@@ -271,9 +280,9 @@ restoring that selection on the next launch. If an older build reports
 each affected session and use **Save Current Workspace** before quitting. The
 rejected save leaves the previously saved workspace unchanged.
 
-In Debug builds, **Debug → Error Recovery** can trigger a session error, a
-workspace error, or both. These simulated errors appear in the same toolbar
-warning and details sheet without changing sessions, files, or permissions.
+**Debug → Error Recovery** can trigger a session error, a workspace error, or
+both. These simulated errors appear in the same notices and Recent Issues
+without changing sessions, files, or permissions.
 Use **Refresh Sessions** and **Save Current Workspace** to exercise recovery.
 
 ## Keeping and deleting Sessions
