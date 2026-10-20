@@ -109,8 +109,18 @@ REL Pro fail with the non-retryable `PRO_REQUIRED` RPC error. Register Pro in
 remain available so stored resources can be inspected or reduced after a
 downgrade.
 
-Capture with a URL remains the default URL-first command: `rel URL [options]`.
-The explicit `rel capture URL [options]` form is equivalent. Argument-free
+Capture with a URL is the default command: `rel [options] URL [options]`.
+The explicit `rel capture [options] URL [options]` form is equivalent. Options
+can appear before or after the URL, using either `--profile NAME` or
+`--profile=NAME`. For example, capture a page in a new Session created from the
+saved RYM Profile:
+
+```sh
+rel --profile=RYM https://rateyourmusic.com/artist/nugreth/
+```
+
+The named Profile must already exist; use `rel profile list` to list Profiles.
+Argument-free
 `rel capture` instead captures the current shorthand page selected by
 `rel navigate`. Use `rel status` for service diagnostics and the app’s Logs view for events.
 
