@@ -248,9 +248,15 @@ transcripts remain readable; select an LLM to start a new conversation.
 
 ## Session and workspace errors
 
-Click the warning icon in the main toolbar to open **Session and Workspace
-Errors**. The sheet shows session and workspace persistence errors separately,
-with scrollable, selectable details. **Copy Details** copies both error messages.
+Errors appear as notices in the window where the action started. A notice stays
+visible until you dismiss it with its close button or choose its recovery action,
+even if the underlying problem clears first. **Details** expands the message and
+**Copy Details** copies its diagnostic details.
+
+Choose **Window → Recent Issues…**, or **Recent Issues** in a notice, to review
+earlier errors and their status. A resolved issue can still have an unread notice;
+dismissing that notice preserves its resolved status. Background service incidents
+use a quiet **Recent Issues** indicator.
 
 For session errors, use **Refresh Sessions** to reload the session list, then
 retry the failed action. **Open Settings** lets you review session limits and
@@ -271,9 +277,9 @@ restoring that selection on the next launch. If an older build reports
 each affected session and use **Save Current Workspace** before quitting. The
 rejected save leaves the previously saved workspace unchanged.
 
-In Debug builds, **Debug → Error Recovery** can trigger a session error, a
-workspace error, or both. These simulated errors appear in the same toolbar
-warning and details sheet without changing sessions, files, or permissions.
+**Debug → Error Recovery** can trigger a session error, a workspace error, or
+both. These simulated errors appear in the same notices and Recent Issues
+without changing sessions, files, or permissions.
 Use **Refresh Sessions** and **Save Current Workspace** to exercise recovery.
 
 ## Keeping and deleting Sessions
