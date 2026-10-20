@@ -550,6 +550,12 @@ Reset all existing tab groups created from a Profile:
 rel reset --profile Research
 ```
 
+Reset locks every tab in each affected group. Conflicting CLI/MCP browser actions
+return retryable `BROWSER_BUSY` while reset runs. Active work is cancelled, and
+older queued actions are rejected instead of running on the replacement page.
+After reset finishes, read or observe the new page before retrying an action.
+Other session groups remain usable.
+
 Export or import a proxy transfer file:
 
 ```sh

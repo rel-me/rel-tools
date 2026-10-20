@@ -899,6 +899,15 @@ and passwords, and reopens the saved URLs. Tab IDs remain stable. Exit locale
 is invalidated and detected again before navigation when configured. Reset
 failures leave the affected group stopped and are returned to the caller.
 
+Reset holds an exclusive lock for the entire tab group. Conflicting browser
+requests, tab creation in that group, configuration changes, and deletion are
+rejected while it is held with `BROWSER_BUSY` and `retryable:true`. Active browser
+work is cancelled; queued browser actions from before the reset are invalidated
+rather than replayed against the replacement page. Saved observations are also
+invalidated. Wait for reset to finish, observe the new page again, and decide
+whether to retry the action. Other groups and health/status remain available.
+The app disables conflicting controls throughout the same interval.
+
 Profiles accept `http_rules`, an array of up to 100 rules such as
 `[{"status_code":403,"repeats":0,"action":"reset"}]`. Status codes must be unique
 integers from 100 through 599; repeats must be integers from 0 through 1,000,000.
