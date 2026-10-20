@@ -461,8 +461,8 @@ first page. If you also choose a Profile’s Browser Data, the file replaces its
 cookies while preserving saved passwords. An empty file starts without cookies.
 An invalid or unreadable file stops creation with an error.
 
-**New Profile** and **Edit Profile** also offer **Starting cookies**. Saving imports
-a snapshot of the file into the Profile’s encrypted browser storage. Each new
+**New Profile** and **Edit Profile** offer **Starting cookies** directly below
+**Starting URL**. Saving imports a snapshot of the file into the Profile’s encrypted browser storage. Each new
 Session created from that Profile starts with those cookies; you can move or
 delete the original file afterward. Choosing a new file when editing replaces the
 Profile’s startup cookies and preserves saved passwords. Open Sessions receive
@@ -920,10 +920,6 @@ The configuration uses the profile-creation fields documented in the
 exported fingerprint object intact when preserving a configured identity.
 `image_blocking_mode` is `none`, `all`, or `over_limit`; `image_size_limit_kb`
 is an integer from 1 through 1048576.
-`unique_user_agent_per_request` is an optional boolean that defaults to false.
-When true, each HTTP or HTTPS request from a new session gets a distinct
-User-Agent suffix. Page JavaScript and User-Agent Client Hints retain their
-configured values.
 
 Cookies, passwords, browser storage, and referenced proxy definitions are not
 included. Both `includes_cookies` and `includes_passwords` must be false.

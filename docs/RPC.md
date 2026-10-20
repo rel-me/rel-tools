@@ -1163,7 +1163,6 @@ A profile resource is:
   "image_size_limit_kb": 10,
   "includes_cookies": false,
   "includes_passwords": false,
-  "unique_user_agent_per_request": false,
   "fingerprint_profile": {
     "schema_version": 1,
     "seed": "12345",
@@ -1224,11 +1223,6 @@ A profile resource is:
   Sessions only through **Save and Reset Sessions**. On update, omission
   preserves rules and `[]` disables them. Profile archives and settings-text
   transfers preserve rules. Configure them with **HTTP Rule** in the Profile editor.
-- `unique_user_agent_per_request` defaults to `false`. When enabled, each
-  allowed HTTP or HTTPS request from a new session receives a distinct
-  `Unique/<token>` suffix in its User-Agent header. Page JavaScript and
-  User-Agent Client Hints retain their configured values. Existing sessions
-  keep the value copied when they were created.
 - `PATCH /v1/profiles/{id}` accepts any editable profile setting and returns
   the updated custom profile in `data.profile`. REL.app uses the browser-data
   flags only after it has safely staged imported browser data; cookie and
