@@ -100,7 +100,9 @@ selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
-REL Free supports one persistent Session, one custom Profile, and one Proxy.
+REL Free supports up to two tab groups with two Sessions each (four Sessions
+total), one custom Profile, and one Proxy. A third tab group or a third Session
+in a group requires Pro. Close a Session or group to free its capacity.
 Mutations that require
 REL Pro fail with the non-retryable `PRO_REQUIRED` RPC error. Register Pro in
 **REL → Settings… → Plan** to remove these limits. Read and delete operations

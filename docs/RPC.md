@@ -174,13 +174,17 @@ available; the original Chromium error still remains in the message.
 ### Free and Pro access
 
 The running app selects the agent's access plan; RPC callers cannot override it.
-REL Free permits one persistent Session and one custom Profile. Creating
-another returns `PRO_REQUIRED`. Proxy creation, update, rotation, assignment,
-and use also return `PRO_REQUIRED`; listing, reading, deleting, and detaching
-previously stored resources remain available.
+REL Free permits up to two tab groups with two Sessions each (four Sessions
+total), one custom Profile, and one Proxy. Creating a third tab group returns
+`PRO_REQUIRED`; adding a third Session to an existing group also returns
+`PRO_REQUIRED` from the app bridge. These limits apply to both native and
+automated creation. Closing resources frees capacity; existing groups and
+Sessions are preserved after a downgrade. Additional custom Profiles or Proxies
+return `PRO_REQUIRED`; existing Proxy use, update, rotation, and assignment remain
+available.
 
 `PRO_REQUIRED` uses HTTP 403 and includes stable `details.feature` and
-`details.plan` strings. The currently returned feature values are `proxies`,
+`details.plan` strings. The currently returned feature values are `additional_proxies`,
 `additional_sessions`, and `additional_custom_profiles`. Register REL Pro in
 **REL → Settings… → Plan** to remove these limits.
 

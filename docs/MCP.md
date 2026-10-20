@@ -14,6 +14,10 @@ When session creation omits a profile, REL uses **Settings → General → Defau
 Profile**, or **Custom** if the preference is unset. Explicit profile choices
 always take precedence.
 
+REL Free allows up to two tab groups with two Sessions each (four Sessions total).
+MCP creation follows the same limits as the app: a third tab group or a third
+Session within a group requires REL Pro. Closing resources frees capacity.
+
 ## Tool quick reference
 
 REL MCP exposes exactly fourteen tools. This is the complete discovery list;
