@@ -804,9 +804,11 @@ they instead resolve the exit country through the session's agent-owned proxy
 using `https://ipwho.is/`. Country-to-language selection uses macOS locale data.
 No configured country means the user's preferred language when detection is off.
 Custom fingerprint locales take precedence and disabled language controls stay native.
-Detection also replaces the effective fingerprint timezone when its timezone
-control is enabled, independently of the language control. Disabled timezone
-controls stay native. The saved fingerprint timezone is unchanged.
+Detection also applies the exit timezone independently of the identity's timezone
+and language privacy controls, including Chrome and Native identities. It enables
+only the effective timezone control needed for detection; the saved fingerprint
+and other privacy controls are unchanged. With detection off, disabled timezone
+controls stay native.
 
 Proxy responses include `detect_exit_locale`; session responses include
 `proxy_country` (configured ISO country or null) and `proxy_detect_exit_locale`.
