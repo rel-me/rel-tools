@@ -51,9 +51,9 @@ browser identity, and Session settings. Groups keep their browser data isolated
 from each other. Existing Sessions appear as one-tab groups with their existing
 data.
 
-A single-tab group is labeled `{Profile}/Session` using its source profile's
-name. When it contains multiple tabs, its label is just `{Profile}`. Page tabs
-keep their individual page titles.
+Each group shows its source profile name beside its API `Session<number>` ID.
+Individual browser tabs use `Tab<number>` references so they cannot be mistaken
+for API session IDs. Tab references remain stable after restarting REL.
 
 Use **New Tab Group** at the bottom of the sidebar to create a group. Press
 **⌘T** or use the tab strip's **+** button to add a tab to the selected group.
@@ -84,6 +84,12 @@ the group, and browser commands operate on its selected tab. Session deletion
 deletes the entire group. Chat and actions remain associated with the group.
 The session resource's optional `group` label is separate: it organizes batch
 operations across Sessions and never joins their browser storage.
+
+In **Overview → Identifiers**, **Session / group ID** is the
+ID to pass to CLI, SDK, or MCP browser operations. The selected tab's reference
+and workspace tab ID are also shown, along with the profile data ID when present.
+Values can be selected or copied using **Copy Value**. A tab's context menu also
+provides **Copy Session ID** and **Copy Tab ID**.
 
 ## Notifications
 
