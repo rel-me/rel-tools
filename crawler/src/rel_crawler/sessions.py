@@ -119,7 +119,7 @@ class SessionMixin:
             _LOGGER.info("checking checkpoint REL session %s", state_session)
             session = self.client.get_session(state_session)
             if session is not None:
-                live_profile = session.get("profile")
+                live_profile = self.client.get_group(session["group_id"]).get("profile")
                 profile_changed = (
                     self._state.get("managed_session")
                     and isinstance(live_profile, str)
@@ -238,7 +238,7 @@ class SessionMixin:
         delete_error: str | None = None
         _LOGGER.info("closing REL session %s: %s", session_id, reason)
         try:
-            self.client.delete_session(session_id)
+            self.client.delete_owned_session(session_id, owns_group=self.group_id is None)
             _LOGGER.info("closed REL session %s", session_id)
         except Exception as error:  # noqa: BLE001 - session cleanup is best effort
             delete_error = f"{type(error).__name__}: {error}"
@@ -278,11 +278,11 @@ class SessionMixin:
                     else delete_error
                 )
         _LOGGER.info(
-            "creating REL session with profile=%r group=%r",
+            "creating REL session with profile=%r group_id=%r",
             self.profile,
-            self.group,
+            self.group_id,
         )
-        session_id = self.client.create_session(profile=self.profile, group=self.group)
+        session_id = self.client.create_session(profile=self.profile, group_id=self.group_id)
         _LOGGER.info("created REL session %s", session_id)
         self._state["session_id"] = session_id
         self._state["managed_session"] = True

@@ -14,7 +14,6 @@ import statistics
 import subprocess
 import sys
 import time
-import uuid
 from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
@@ -44,11 +43,9 @@ async def crawl(args) -> None:
     profile = next((p for p in profiles if p["name"] == args.profile), None)
     if profile is None:
         raise ValueError(f"Saved REL Profile not found: {args.profile}")
-    group = "crawlee-benchmark-" + uuid.uuid4().hex[:12]
     crawler = RelCrawler(
         profile=args.profile,
         rel_base_url=args.rel_base_url,
-        group=group,
         session_pool_size=2 if args.mode == "pooled" else None,
         max_requests_per_crawl=10,
         max_request_retries=1,
@@ -61,15 +58,16 @@ async def crawl(args) -> None:
         event_manager=LocalEventManager(),
     )
     pages, failures = [], []
+    owned_group_ids = set()
 
     @crawler.router.default_handler
     async def handler(ctx):
         session = (
             await asyncio.to_thread(rpc_get, "/sessions/" + ctx.page.session_id)
         )["session"]
-        if session.get("profile") != args.profile or session.get(
-            "proxy_alias"
-        ) != profile.get("proxy_alias"):
+        owned_group_ids.add(session["group_id"])
+        group = (await asyncio.to_thread(rpc_get, "/groups/" + session["group_id"]))["group"]
+        if group.get("profile") != args.profile or group.get("proxy_alias") != profile.get("proxy_alias"):
             raise RuntimeError("Session did not inherit the selected Profile and proxy")
         item = {
             "url": ctx.page.url,
@@ -104,7 +102,7 @@ async def crawl(args) -> None:
     stats = await crawler.run(["https://books.toscrape.com/"])
     elapsed = time.perf_counter() - start
     remaining = (await asyncio.to_thread(rpc_get, "/sessions"))["sessions"]
-    leftover = [s["id"] for s in remaining if s.get("group") == group]
+    leftover = [s["id"] for s in remaining if s.get("group_id") in owned_group_ids]
     report = {
         "mode": args.mode,
         "profile": args.profile,

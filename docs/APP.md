@@ -45,15 +45,13 @@ without a proxy. Other groups keep their state. The button shows **Resetting…*
 until the reset finishes. If a step fails, REL reports the error and leaves the
 group stopped so you can retry the reset.
 
-The sidebar stays visible and lists tab groups. Each group is one persistent
-Session: its tabs share cookies, site storage, saved logins, proxy configuration,
+The sidebar stays visible and lists tab groups. Each group has its own `Group<number>` ID. Its tab sessions share cookies, site storage, saved logins, proxy configuration,
 browser identity, and Session settings. Groups keep their browser data isolated
-from each other. Existing Sessions appear as one-tab groups with their existing
-data.
+from each other. Each tab has its own persistent session ID and navigation history.
 
-A single-tab group is labeled `{Profile}/Session` using its source profile's
-name. When it contains multiple tabs, its label is just `{Profile}`. Page tabs
-keep their individual page titles.
+Each group shows its source profile name beside its `Group<number>` ID.
+Individual tabs show their actual `Session<number>` IDs. These are the same IDs
+used by the API and tools and remain stable after restarting REL.
 
 Use **New Tab Group** at the bottom of the sidebar to create a group. Press
 **⌘T** or use the tab strip's **+** button to add a tab to the selected group.
@@ -79,13 +77,24 @@ leaves a blank tab. Use the group's **Delete Tab Group…** action to delete all
 its tabs and shared browser data. Quitting REL preserves groups, tab URLs, and
 selection.
 
-CLI, SDK, and MCP browser operations still target a Session ID. That ID identifies
-the group, and browser commands operate on its selected tab. Session deletion
-deletes the entire group. Chat and actions remain associated with the group.
-The session resource's optional `group` label is separate: it organizes batch
-operations across Sessions and never joins their browser storage.
+CLI, SDK, and MCP browser operations target the exact `Session<number>` tab,
+regardless of native selection. Session deletion closes that tab. Group deletion
+closes every member and removes shared data. Chat remains shared by the group;
+each prompt targets the session selected when it is submitted.
+
+**Overview → Connection** shows **Session ID**, **Group ID**, page status, and
+background status as label/value rows, plus the browser-data **Profile ID** when
+one is assigned. Tab and group context menus provide their corresponding copy actions.
 
 ## Notifications
+
+**Enable notifications** and **User input required** control REL’s local attention
+alerts. These can identify a visible HUMAN Press & Hold challenge, including
+Zillow’s challenge, when its provider container and human-verification prompt are
+present. REL waits for automatic verification to settle and checks that the
+challenge container has visible bounds before notifying. Detection is heuristic;
+provider scripts or an empty container alone do not trigger this alert. REL asks
+you to complete the challenge in its existing browser session.
 
 Open **REL → Settings… → Notifications** to enable or disable REL's macOS
 alerts. **Enable notifications** controls app alerts globally. The individual
@@ -628,7 +637,7 @@ For HTTP clients, proxy create/update accepts `detect_exit_locale` (boolean,
 default `false` on create and preserved when omitted on update). Proxy responses
 include that setting. Session responses include `proxy_country` (configured ISO
 country or null) and `proxy_detect_exit_locale`. With detection enabled,
-`GET /v1/sessions/{id}/proxy-location` returns
+`GET /v1/groups/{id}/proxy-location` returns
 `{ "country": "DE", "timezone": "Europe/Berlin" }` in the standard response envelope, or an error if detection is disabled, the session has
 no proxy, or the lookup fails. This lookup does not write a language to the proxy.
 
@@ -1551,10 +1560,8 @@ RPC `payload` option. See Meta's
 ## Browser configuration changes
 
 A tab group's proxy assignment and browser identity are fixed at creation.
-Every tab in that group shares them. In the sidebar, each group header shows its
-tab count and a **Group Info** button. Its popover displays the proxy, Browser
-Identity, and shared cookies/login behavior, with a **New Tab** action for that
-group. **Group Info** is also available in the group's context menu. Proxy and
+Every tab in that group shares them. Hover over a group folder name to see its
+Group ID, tab count, and proxy. Overview keeps the Session ID and Group ID visible. Proxy and
 identity displays are absent from the page toolbar. Overview's User-Agent is
 read-only and retains its copy action. Existing saved overrides still restore.
 To use a different proxy or

@@ -68,11 +68,11 @@ rel profile import FILE [--name NAME]
 rel session list
 rel session get SESSION_ID
 rel session create [options]
-rel session update SESSION_ID [options]
+rel group update GROUP_ID [options]
 rel session pause SESSION_ID
 rel session play SESSION_ID
 rel session delete SESSION_ID
-rel session close --group GROUP
+rel group delete GROUP_ID
 rel-mcp
 rel --help | -h
 rel --version
@@ -310,7 +310,7 @@ supports current `2026-07-28` discovery and legacy initialization through
 `rel_notifications`, `rel_capture`,
 `rel_page_attach`, `rel_navigate`, `rel_read`, `rel_page_action`, `rel_take_screenshot`,
 `rel_observe`, `rel_find`, `rel_action`, `rel_list_sessions`,
-`rel_close_session_group`, and `rel_list_proxies`.
+`rel_close_group`, `rel_list_groups`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
 validated NDJSON stream into `{request_id, exit_code, events}`. Tool results
@@ -427,7 +427,7 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set, then the newest existing session. Create a persistent session only when none exists. |
 | `--profile NAME` | `profile` | Create the session from this saved profile. Conflicts with `--session-id` and suppresses both implicit defaults. |
-| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses both implicit defaults. |
+| `--group-id GROUP_ID` | `group_id` | Create a new tab in that existing group. Conflicts with `--session-id`, profile, and proxy overrides; suppresses implicit defaults. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
@@ -436,7 +436,7 @@ Exactly one URL is required before the options. Scheme-less localhost
 addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
-When `--session-id`, `--profile`, and `--group` are omitted, the CLI uses
+When `--session-id`, `--profile`, and `--group-id` are omitted, the CLI uses
 `REL_SESSION_ID` if it is set, then the newest existing session. The environment
 variable is exported automatically by each embedded session terminal. An
 explicit option always wins. If neither the environment variable nor an
@@ -499,7 +499,7 @@ rel page attach https://example.com \
 ```
 
 `page attach` accepts `--session-id`, `--profile`, `--proxy`, `--output`,
-`--timeout`, and `--wait`. It also accepts `--group` when creating a session.
+`--timeout`, and `--wait`. It also accepts `--group-id` to create a tab in an existing group.
 `--profile` conflicts with `--session-id`; either creation option suppresses
 both implicit defaults. Otherwise the CLI uses `REL_SESSION_ID` when set, then
 the newest existing session. Its positional URL defaults to `REL_SESSION_URL`
@@ -643,119 +643,50 @@ passphrase-protected browser data or Proxy credentials.
 Both transfer formats are SQLite containers with the same version 1 schema.
 They are limited to 12 MiB. Legacy JSON transfer files are not accepted.
 
-## Sessions
+## Sessions and groups
 
-Read, control, and delete persistent browser sessions by their canonical IDs:
+Each browser tab is a session with an immutable `Session<number>` ID. Tab groups
+have independent `Group<number>` IDs and own shared settings and browser data.
+Browser operations target the exact session even when another tab is selected.
 
 ```sh
 rel session list
+rel session create --name Research --profile BandwidthSaver --id-only
+rel session create --group-id Group7 --id-only
 rel session get Session12
+rel session ping Session12
 rel session pause Session12
 rel session play Session12
 rel session delete Session12
+rel group list
+rel group get Group7
+rel group create --name Research --profile BandwidthSaver
+rel group update Group7 --name Research-2 --adblock-enabled false
+rel group delete Group7
 ```
 
-Create a session:
+Creation with `--group-id` adds a new tab to that existing group and accepts no
+other group configuration. Omit it to create a new group with its initial session.
+Every created tab receives a new session ID. Group creation does not search for
+compatible groups. `--new-group`, label-based `--group`, `session update`, and
+`session close` are removed.
 
-```sh
-rel session create \
-  --name Research \
-  --group pgm \
-  --profile BandwidthSaver \
-  --proxy office \
-  --adblock-enabled true \
-  --image-blocking-mode over_limit \
-  --image-size-limit-kb 100
-```
+Group creation options include `--name`, `--profile`, `--proxy`, `--direct`,
+`--adblock-enabled`, `--image-blocking-mode none|all|over_limit`,
+`--image-size-limit-kb`, and `--lifetime seconds|indefinite`.
+New groups expire after 120 seconds of client inactivity unless configured
+otherwise. Session ping and browser work refresh the owning group's timer.
+Listing does not. Group proxy and identity remain fixed at creation.
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
+`--id-only` prints the new session ID and a newline. Pin concurrent workflows
+with `REL_SESSION_ID` or `--session-id`; otherwise the CLI uses the newest session.
+Pause and play affect only the addressed tab. Deleting a session closes that tab;
+closing the last tab leaves a fresh blank session in the group. Delete the group
+to close every member and remove shared browser data.
 
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's session ID identifies the reused group, so repeated creation can
-return the same ID. `reused_group` reports whether a group was reused.
-Use `rel session create --new-group` to force a separate group.
-
-When a new group is needed and `--name` is omitted, sessions created from a saved profile use its name
-followed by the global session number, for example `Reddit123`. Custom sessions
-use `Session123`. The canonical session ID remains `Session123`; duplicate
-visible names receive ` (2)`, ` (3)`, and so on.
-
-Every create option is optional. `--profile` accepts the unique name shown in
-**REL → Settings… → Profiles**; omission uses the configured default (Custom when unset). Omitted proxy and
-filtering options use the selected profile. Use `--direct` to override it with
-a direct connection. `--image-blocking-mode` is `none`, `all`, or
-`over_limit`; `none` allows every image without changing AdBlock.
-`--group` labels the new session without changing its unique name or canonical
-ID. Group matching is case-insensitive.
-`--id-only` changes successful output to the new canonical
-session ID and a trailing newline instead of the JSON response envelope. Errors
-remain on standard error with the ordinary nonzero exit status.
-
-An unsuccessful create response without a session ID does not prove that no
-session was created. REL can commit the session before Chromium synchronization
-times out. Stop the workflow, retain the error, and use `rel session list` to
-inspect the exact name and group owned by your workflow before deciding how to
-recover. Do not blindly retry creation. In automated evals, record this setup
-failure separately from model answer correctness and efficiency.
-
-After a successful create, that session is the newest session and therefore the
-default for later CLI commands. Creating or deleting sessions in another shell
-can change this default; use `REL_SESSION_ID` or `--session-id` to pin concurrent
-workflows.
-
-New sessions close after 120 seconds of client inactivity by default. Use
-`--lifetime` at creation to select another timeout or `indefinite`, and
-`rel session ping SESSION_ID` to keep an idle session alive.
-
-`pause` idempotently cancels active requests and blocks new network work for
-the session. `play` idempotently resumes network activity and reloads the
-current page when the pause interrupted or deferred navigation. Both commands
-return the RPC envelope with `data.session_id` and `data.network_paused`.
-
-When a new URL is submitted, REL covers the existing page until the new document
-finishes loading. Cancelling before the new document commits restores the previous
-URL and its live page state without reloading. Pausing during this interval also
-restores that page, and playing resumes networking without reloading it. Once the
-new document commits, the previous document can no longer be restored this way.
-
-Close every session in a group. Repeating the command after the group is empty
-succeeds and returns an empty `data.deleted_ids` array:
-
-```sh
-rel session close --group pgm
-```
-
-If session deletion returns a nonzero exit status, treat cleanup as unconfirmed
-and retain the error. A later list showing no session does not establish that
-its browser storage and active operations were cleaned up. In automated evals,
-record cleanup failures separately from answer correctness and efficiency.
-
-Partially update a session:
-
-```sh
-rel session update Session12 --name Research-2 --adblock-enabled false
-```
-
-`--direct` sends `proxy_alias:null`, selecting direct networking during creation.
-A group's proxy assignment and browser identity are fixed at creation. An update
-that attempts to switch the proxy fails without applying other fields. Create a
-new group to use different proxy or identity settings. Session name and filtering
-policy remain mutable; the canonical session ID is immutable.
-
-A proxy can be updated while tab groups use it. Updated settings apply to new
-connections without clearing browser data or reloading pages. The app's proxy
-editor offers saving with or without resetting affected sessions. Deleting an
-in-use proxy remains blocked until no group uses it.
+Creation can commit before Chromium synchronization fails. Retain the error and
+inspect session and group lists before retrying. Treat failed deletion as
+unconfirmed cleanup.
 
 ### Proxy TLS certificates
 
@@ -865,5 +796,5 @@ rel reset --profile=Research
 Reset every existing tab group created from the named Profile. REL closes the
 tabs, changes the proxy route where supported, clears browser state, restores
 initial Profile cookies and passwords, and reopens saved URLs. This works with
-any proxy or no proxy. The result contains `data.reset_session_ids`; no existing
+any proxy or no proxy. The result contains `data.reset_group_ids`; no existing
 groups returns an empty list. Unknown Profiles and reset failures return errors.

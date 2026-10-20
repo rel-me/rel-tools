@@ -2,13 +2,13 @@ use rel_client::transfer::{
     validate_transfer_file, PROFILE_TRANSFER_FORMAT, PROXY_TRANSFER_FORMAT, TRANSFER_FORMAT_VERSION,
 };
 use rel_client::{
-    self as client, Action, CaptureEvent, CaptureRequest, Change, ImageBlockingMode,
-    NavigateRequest, ObservationActionRequest, ObservationMode, ObservationRequest,
-    PageActionRequest, PageAttachRequest, PageCaptureRequest, PageObservationRequest,
-    PageReadRequest, PerformRequest, ProfileCreateRequest, ProfileTransferExportRequest,
-    ProfileTransferImportRequest, ProxyCreateRequest, ProxyTls, ProxyTransferExportRequest,
-    ProxyTransferImportRequest, ProxyUpdateRequest, RelClient, SessionCreateRequest,
-    SessionLifetime, SessionUpdateRequest, ViewportPreset,
+    self as client, Action, CaptureEvent, CaptureRequest, Change, GroupUpdateRequest,
+    ImageBlockingMode, NavigateRequest, ObservationActionRequest, ObservationMode,
+    ObservationRequest, PageActionRequest, PageAttachRequest, PageCaptureRequest,
+    PageObservationRequest, PageReadRequest, PerformRequest, ProfileCreateRequest,
+    ProfileTransferExportRequest, ProfileTransferImportRequest, ProxyCreateRequest, ProxyTls,
+    ProxyTransferExportRequest, ProxyTransferImportRequest, ProxyUpdateRequest, RelClient,
+    SessionCreateRequest, SessionLifetime, ViewportPreset,
 };
 use serde::Serialize;
 use std::collections::VecDeque;
@@ -341,6 +341,18 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             )?)?;
             Ok(0)
         }
+        CliCommand::GroupList => {
+            print_json(&client.list_groups()?)?;
+            Ok(0)
+        }
+        CliCommand::GroupGet(id) => {
+            print_json(&client.get_group(&id)?)?;
+            Ok(0)
+        }
+        CliCommand::GroupCreate(request) => {
+            print_json(&client.create_group(&request)?)?;
+            Ok(0)
+        }
         CliCommand::SessionList => {
             print_json(&client.list_sessions()?)?;
             Ok(0)
@@ -353,8 +365,8 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_session_create_response(&client.create_session(&request)?, id_only)?;
             Ok(0)
         }
-        CliCommand::SessionUpdate { id, request } => {
-            print_json(&client.update_session(&id, &request)?)?;
+        CliCommand::GroupUpdate { id, request } => {
+            print_json(&client.update_group(&id, &request)?)?;
             Ok(0)
         }
         CliCommand::SessionPing(id) => {
@@ -373,8 +385,8 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.delete_session(&id)?)?;
             Ok(0)
         }
-        CliCommand::SessionCloseGroup(group) => {
-            print_json(&client.close_session_group(&group)?)?;
+        CliCommand::GroupDelete(group) => {
+            print_json(&client.delete_group(&group)?)?;
             Ok(0)
         }
     }
@@ -562,21 +574,24 @@ enum CliCommand {
         path: PathBuf,
         name: Option<String>,
     },
+    GroupList,
+    GroupGet(String),
+    GroupCreate(client::GroupCreateRequest),
     SessionList,
     SessionGet(String),
     SessionCreate {
         request: SessionCreateRequest,
         id_only: bool,
     },
-    SessionUpdate {
+    GroupUpdate {
         id: String,
-        request: SessionUpdateRequest,
+        request: GroupUpdateRequest,
     },
     SessionPing(String),
     SessionPause(String),
     SessionPlay(String),
     SessionDelete(String),
-    SessionCloseGroup(String),
+    GroupDelete(String),
 }
 
 impl CliCommand {
@@ -654,6 +669,7 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         "proxy" => parse_proxy(args),
         "profile" => parse_profile(args),
         "session" => parse_session(args),
+        "group" => parse_group(args),
         legacy if matches!(legacy, "ping" | "logs") => Err(CliError::Message(format!(
             "unsupported legacy command {legacy:?}; run `rel --help` for the RPC v1 CLI"
         ))),
@@ -773,12 +789,14 @@ fn session_id_default_target(command: &mut CliCommand) -> Option<&mut Option<Str
     match command {
         CliCommand::Navigate(request) if request.profile.is_none() => Some(&mut request.session_id),
         CliCommand::Read(request) if request.profile.is_none() => Some(&mut request.session_id),
-        CliCommand::Capture(request) if request.group.is_none() && request.profile.is_none() => {
+        CliCommand::Capture(request) if request.group_id.is_none() && request.profile.is_none() => {
             Some(&mut request.session_id)
         }
         CliCommand::CaptureCurrent(request) => Some(&mut request.session_id),
         CliCommand::Perform(request) => Some(&mut request.session_id),
-        CliCommand::PageAttach(request) if request.group.is_none() && request.profile.is_none() => {
+        CliCommand::PageAttach(request)
+            if request.group_id.is_none() && request.profile.is_none() =>
+        {
             Some(&mut request.session_id)
         }
         CliCommand::Observe {
@@ -822,7 +840,7 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
         match option.as_str() {
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
-            "--group" => request.group = Some(args.option_value(&option, inline)?),
+            "--group-id" => request.group_id = Some(args.option_value(&option, inline)?),
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
@@ -847,9 +865,9 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
         });
     };
     request.url = url;
-    if request.session_id.is_some() && (request.group.is_some() || request.profile.is_some()) {
+    if request.session_id.is_some() && (request.group_id.is_some() || request.profile.is_some()) {
         return Err(CliError::Message(
-            "--group and --profile cannot be combined with --session-id".to_string(),
+            "--group-id and --profile cannot be combined with --session-id".to_string(),
         ));
     }
     Ok(CliCommand::Capture(request))
@@ -992,7 +1010,7 @@ fn parse_page_attach(mut args: Arguments) -> Result<CliCommand, CliError> {
             "--wait" => request.wait = Some(args.number(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
-            "--group" => request.group = Some(args.option_value(&option, inline)?),
+            "--group-id" => request.group_id = Some(args.option_value(&option, inline)?),
             "--proxy" => {
                 request.proxy = Some(parse_proxy_selector(&args.option_value(&option, inline)?))
             }
@@ -1000,9 +1018,9 @@ fn parse_page_attach(mut args: Arguments) -> Result<CliCommand, CliError> {
             _ => return Err(args.unknown_option(&option, "page attach")),
         }
     }
-    if request.session_id.is_some() && (request.group.is_some() || request.profile.is_some()) {
+    if request.session_id.is_some() && (request.group_id.is_some() || request.profile.is_some()) {
         return Err(CliError::Message(
-            "--group and --profile cannot be combined with --session-id".to_string(),
+            "--group-id and --profile cannot be combined with --session-id".to_string(),
         ));
     }
     Ok(CliCommand::PageAttach(request))
@@ -1484,15 +1502,59 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
         }
         "get" => Ok(CliCommand::SessionGet(parse_session_id(&mut args)?)),
         "create" => parse_session_create(args),
-        "update" => parse_session_update(args),
         "ping" => Ok(CliCommand::SessionPing(parse_session_id(&mut args)?)),
         "pause" => Ok(CliCommand::SessionPause(parse_session_id(&mut args)?)),
         "play" => Ok(CliCommand::SessionPlay(parse_session_id(&mut args)?)),
         "delete" => Ok(CliCommand::SessionDelete(parse_session_id(&mut args)?)),
-        "close" => parse_session_close_group(args),
         subcommand => Err(CliError::Message(format!(
             "unknown session subcommand {subcommand:?}; run `rel session --help`"
         ))),
+    }
+}
+
+fn parse_group(mut args: Arguments) -> Result<CliCommand, CliError> {
+    if args.peek_is_help() {
+        return Err(CliError::Help(session_help()));
+    }
+    let operation = args.required_positional("group subcommand")?;
+    match operation.as_str() {
+        "list" => {
+            args.finish()?;
+            Ok(CliCommand::GroupList)
+        }
+        "get" | "delete" => {
+            let id = args.required_positional("Group ID")?;
+            args.finish()?;
+            Ok(if operation == "get" {
+                CliCommand::GroupGet(id)
+            } else {
+                CliCommand::GroupDelete(id)
+            })
+        }
+        "create" => {
+            let CliCommand::SessionCreate { request, .. } = parse_session_create(args)? else {
+                unreachable!()
+            };
+            if request.group_id.is_some() {
+                return Err(CliError::Message(
+                    "group create cannot include --group-id".into(),
+                ));
+            }
+            let request = client::GroupCreateRequest {
+                lifetime: request.lifetime,
+                name: request.name,
+                profile: request.profile,
+                proxy_alias: request.proxy_alias,
+                adblock_enabled: request.adblock_enabled,
+                image_blocking_mode: request.image_blocking_mode,
+                image_size_limit_kb: request.image_size_limit_kb,
+            };
+            Ok(CliCommand::GroupCreate(request))
+        }
+        "update" => parse_group_update(args),
+        _ => Err(CliError::Message(
+            "Usage: rel group list|get|create|update|delete".into(),
+        )),
     }
 }
 
@@ -1524,12 +1586,8 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
                     SessionLifetime::Inactivity { timeout_seconds }
                 });
             }
-            "--new-group" => {
-                args.flag(&option, inline)?;
-                request.new_group = Some(true);
-            }
             "--name" => request.name = Some(args.option_value(&option, inline)?),
-            "--group" => request.group = Some(args.option_value(&option, inline)?),
+            "--group-id" => request.group_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
             "--proxy" => set_change(
                 &mut request.proxy_alias,
@@ -1559,33 +1617,12 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
     Ok(CliCommand::SessionCreate { request, id_only })
 }
 
-fn parse_session_close_group(mut args: Arguments) -> Result<CliCommand, CliError> {
-    let mut group = None;
-    while let Some((option, inline)) = args.pop_option()? {
-        match option.as_str() {
-            "--group" => set_once(&mut group, args.option_value(&option, inline)?, &option)?,
-            "-h" | "--help" => return Err(CliError::Help(session_help())),
-            _ => return Err(args.unknown_option(&option, "session close")),
-        }
-    }
-    let group = group
-        .ok_or_else(|| CliError::Message("session close requires --group GROUP".to_string()))?;
-    if group.trim().is_empty() {
-        return Err(CliError::Message(
-            "session group must not be empty".to_string(),
-        ));
-    }
-    Ok(CliCommand::SessionCloseGroup(group))
-}
-
-fn parse_session_update(mut args: Arguments) -> Result<CliCommand, CliError> {
-    let id = args.required_positional("session ID")?;
+fn parse_group_update(mut args: Arguments) -> Result<CliCommand, CliError> {
+    let id = args.required_positional("group ID")?;
     if id.trim().is_empty() {
-        return Err(CliError::Message(
-            "session ID must not be empty".to_string(),
-        ));
+        return Err(CliError::Message("group ID must not be empty".to_string()));
     }
-    let mut request = SessionUpdateRequest::default();
+    let mut request = GroupUpdateRequest::default();
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
             "--name" => request.name = Some(args.option_value(&option, inline)?),
@@ -1607,15 +1644,15 @@ fn parse_session_update(mut args: Arguments) -> Result<CliCommand, CliError> {
                 request.image_size_limit_kb = Some(args.integer(&option, inline)?)
             }
             "-h" | "--help" => return Err(CliError::Help(session_help())),
-            _ => return Err(args.unknown_option(&option, "session update")),
+            _ => return Err(args.unknown_option(&option, "group update")),
         }
     }
-    if session_update_is_empty(&request) {
+    if group_update_is_empty(&request) {
         return Err(CliError::Message(
-            "session update requires at least one mutable option".to_string(),
+            "group update requires at least one mutable option".to_string(),
         ));
     }
-    Ok(CliCommand::SessionUpdate { id, request })
+    Ok(CliCommand::GroupUpdate { id, request })
 }
 
 fn parse_session_id(args: &mut Arguments) -> Result<String, CliError> {
@@ -1706,7 +1743,7 @@ fn proxy_update_is_empty(request: &ProxyUpdateRequest) -> bool {
         && request.oxylabs_location_value.is_unchanged()
 }
 
-fn session_update_is_empty(request: &SessionUpdateRequest) -> bool {
+fn group_update_is_empty(request: &GroupUpdateRequest) -> bool {
     request.name.is_none()
         && request.proxy_alias.is_unchanged()
         && request.adblock_enabled.is_none()
@@ -1848,7 +1885,8 @@ rel observation action OBSERVATION_ID --request JSON\n  \
 rel reset --profile NAME\n  \
 rel proxy <list|get|create|update|delete|export|import> ...\n  \
 rel profile <list|export|import> ...\n  \
-rel session <list|get|create|update|ping|pause|play|delete|close> ...\n  \
+rel session <list|get|create|ping|pause|play|delete> ...\n  \
+rel group <list|get|create|update|delete> ...\n  \
 rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
@@ -1889,7 +1927,7 @@ Options:\n  \
 --actions JSON                Canonical action object array\n  \
 --session-id ID              Default: $REL_SESSION_ID, then newest session\n  \
 --profile NAME               Create the session from this named profile\n  \
---group GROUP                Group a new URL-capture session; conflicts with --session-id\n  \
+--group-id GROUP_ID                Group a new URL-capture session; conflicts with --session-id\n  \
 --proxy ALIAS\n  \
 --retry COUNT\n  \
 --retry-delay SECONDS\n\n\
@@ -1941,11 +1979,11 @@ $REL_SESSION_ID when set, then the newest existing session; an explicit value wi
 
 fn page_help() -> String {
     "Usage:\n  \
-rel page attach [URL] [--session-id ID | --profile NAME] [--group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
+rel page attach [URL] [--session-id ID | --profile NAME] [--group-id GROUP_ID] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
 rel page action PAGE_ID --action JSON [--output PATH] [--timeout S] [--wait S]\n\n\
 For page attach, --session-id defaults to $REL_SESSION_ID when set, then the
 newest existing session. --profile creates a session from a named profile;
---group labels a newly created session. Either creation option suppresses that
+--group-id creates a tab in an existing group. Either creation option suppresses that
 default. URL defaults to $REL_SESSION_URL when omitted; an explicit URL or
 session ID wins."
         .to_string()
@@ -2016,22 +2054,7 @@ app for passphrase-protected private-data transfers."
 }
 
 fn session_help() -> String {
-    "Usage:\n  \
-rel session list\n  \
-rel session get SESSION_ID\n  \
-rel session ping <id> (refresh inactivity timer)\n  \
-rel session create [--lifetime <seconds|indefinite>] [options]\n  \
-rel session update SESSION_ID [options]\n  \
-rel session pause SESSION_ID\n  \
-rel session play SESSION_ID\n  \
-rel session delete SESSION_ID\n  \
-rel session close --group GROUP\n\n\
-Options:\n  \
---new-group                  Force a separate tab group\n  \
---name NAME --group GROUP --profile NAME --proxy ALIAS --adblock-enabled true|false\n  \
---image-blocking-mode none|all|over_limit --image-size-limit-kb KB\n  \
---direct                       Override the profile with a direct connection\n  \
---id-only                     For create, print only the new session ID"
+    "Usage:\n  rel session list|get|create|ping|pause|play|delete\n  rel group list|get|create|update|delete\n\nEach tab has a Session<number>; its group has a Group<number>.\nCreate with --group-id GROUP_ID to add a tab to an existing group.\nOmit --group-id to create a separate group with optional --name, --profile,\n--proxy, --direct, --lifetime, and filtering settings.\n--id-only prints the new session ID. Group settings use rel group update."
         .to_string()
 }
 
@@ -2394,30 +2417,30 @@ mod tests {
     #[test]
     fn session_group_labels_new_capture_and_page_sessions() {
         let CliCommand::Capture(capture) = parse_with_session_default(
-            &["capture", "https://example.com", "--group", "pgm"],
+            &["capture", "https://example.com", "--group-id", "Group7"],
             Some("machine-x.Environment"),
         )
         .unwrap() else {
             panic!("expected capture");
         };
         assert_eq!(capture.session_id, None);
-        assert_eq!(capture.group.as_deref(), Some("pgm"));
+        assert_eq!(capture.group_id.as_deref(), Some("Group7"));
 
         let CliCommand::PageAttach(page) = parse_with_session_default(
-            &["page", "attach", "https://example.com", "--group=pgm"],
+            &["page", "attach", "https://example.com", "--group-id=Group7"],
             Some("machine-x.Environment"),
         )
         .unwrap() else {
             panic!("expected page attach");
         };
         assert_eq!(page.session_id, None);
-        assert_eq!(page.group.as_deref(), Some("pgm"));
+        assert_eq!(page.group_id.as_deref(), Some("Group7"));
 
         assert!(parse(&[
             "capture",
             "https://example.com",
-            "--group",
-            "pgm",
+            "--group-id",
+            "Group7",
             "--session-id",
             "machine-x.Session1",
         ])
@@ -2856,16 +2879,16 @@ mod tests {
             CliCommand::SessionPlay("machine-x.Session4".to_string())
         );
         assert_eq!(
-            parse(&["session", "close", "--group", "pgm"]).unwrap(),
-            CliCommand::SessionCloseGroup("pgm".to_string())
+            parse(&["group", "delete", "Group7"]).unwrap(),
+            CliCommand::GroupDelete("Group7".to_string())
         );
         assert!(parse(&["session", "close"]).is_err());
         assert!(parse(&["tab", "list"]).is_err());
         let CliCommand::SessionCreate { request, .. } = parse(&[
             "session",
             "create",
-            "--group",
-            "pgm",
+            "--group-id",
+            "Group7",
             "--adblock-enabled",
             "true",
             "--image-blocking-mode",
@@ -2875,7 +2898,7 @@ mod tests {
             panic!("expected session create");
         };
         assert_eq!(request.adblock_enabled, Some(true));
-        assert_eq!(request.group.as_deref(), Some("pgm"));
+        assert_eq!(request.group_id.as_deref(), Some("Group7"));
         assert_eq!(request.image_blocking_mode, Some(ImageBlockingMode::None));
     }
 
@@ -3027,8 +3050,8 @@ mod tests {
             })
         );
 
-        let CliCommand::SessionUpdate { request, .. } =
-            parse(&["session", "update", "machine-x.Session2", "--direct"]).unwrap()
+        let CliCommand::GroupUpdate { request, .. } =
+            parse(&["group", "update", "Group7", "--direct"]).unwrap()
         else {
             panic!("expected session update");
         };
@@ -3060,13 +3083,8 @@ mod tests {
     }
 
     #[test]
-    fn session_create_can_force_a_new_group() {
-        let CliCommand::SessionCreate { request, .. } =
-            parse(&["session", "create", "--new-group"]).unwrap()
-        else {
-            panic!("expected session create");
-        };
-        assert_eq!(request.new_group, Some(true));
+    fn session_create_rejects_obsolete_new_group_flag() {
+        assert!(parse(&["session", "create", "--new-group"]).is_err());
         assert!(parse(&["session", "create", "--new-group=false"]).is_err());
     }
 
@@ -3076,20 +3094,9 @@ mod tests {
             status: "ok".to_string(),
             request_id: "req_session".to_string(),
             data: client::SessionData {
-                reused_group: Some(false),
                 session: client::Session {
-                    lifetime: None,
-                    last_activity_at: None,
-                    id: "machine-test.Session12".to_string(),
-                    name: "Research".to_string(),
-                    profile: "BandwidthSaver".to_string(),
-                    profile_data_id: None,
-                    group: Some("pgm".to_string()),
-                    proxy_alias: Some("office".to_string()),
-                    proxy_locale: Some("fr-CA".to_string()),
-                    adblock_enabled: true,
-                    image_blocking_mode: ImageBlockingMode::OverLimit,
-                    image_size_limit_kb: 100,
+                    id: "machine-test.Session12".into(),
+                    group_id: "Group7".into(),
                     created_at: 1,
                 },
             },

@@ -39,7 +39,7 @@ each tool has a detailed contract later in this guide.
 | `rel_create_session` | Create a browser session with an explicit lifetime policy. |
 | `rel_ping_session` | Refresh session inactivity without browser work. |
 | `rel_list_sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
-| `rel_close_session_group` | Close every persistent browser session in a named group. |
+| `rel_close_group` | Delete a Group ID and all member sessions. |
 | `rel_list_proxies` | List configured proxy aliases and non-secret configuration. |
 
 ## Configure an MCP client
@@ -248,10 +248,10 @@ instructions.
 ### `rel_capture`
 
 `url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
-`session_id`, `profile`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied
+`session_id`, `profile`, `group_id`, `proxy`, `retry`, and `retry_delay`. A supplied
 `session_id` uses the canonical `Session<number>` format. Omitting it creates a
 persistent session from `profile`, or from the configured default (Custom when unset) when `profile` is absent.
-`profile` and `group` apply only to a new session and cannot be combined with
+`profile` and `group_id` apply only to a new session and cannot be combined with
 `session_id`. The action objects use every shape in
 the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
 `scroll` booleans on click actions. `output_uri`, when present, must be an
@@ -264,11 +264,11 @@ per-call viewport override.
 
 ### `rel_page_attach`
 
-`url` is required. Optional fields are `session_id`, `profile`, `group`, `proxy`,
+`url` is required. Optional fields are `session_id`, `profile`, `group_id`, `proxy`,
 `output_uri`, `timeout`, and `wait`. The result contains a process-local page ID
 for later `rel_page_action` calls. Omitting `session_id` creates a persistent
 session from the named profile (or the configured default (Custom when unset)) and navigates it to `url`;
-`profile` and `group` cannot be combined with `session_id`. Providing
+`profile` and `group_id` cannot be combined with `session_id`. Providing
 `session_id` attaches its current page, whose
 normalized URL must match `url`. `output_uri`, when present, must be an absolute
 local `file:///` URI.
@@ -400,12 +400,10 @@ persistent browser session with its canonical `Session<number>` ID, profile,
 group, assigned proxy alias, current page, and non-secret filtering state.
 Listing sessions is passive and read-only.
 
-### `rel_close_session_group`
+### `rel_close_group`
 
-Calls `POST /v1/sessions/close`. `group` is required and must contain 1–128
-characters. Matching is case-insensitive. REL closes every persistent session
-in that group; a group with no current sessions succeeds without changing
-anything.
+Calls `DELETE /v1/groups/{group_id}`. Supply a canonical `Group<number>` ID.
+The response identifies the deleted group as `data.deleted_id`.
 
 ### `rel_list_proxies`
 
@@ -545,23 +543,21 @@ sessions, write capture files, navigate websites, and perform page actions that
 have effects on those sites. MCP hosts should show tool calls for user review.
 `rel_list_proxies` never returns stored proxy passwords.
 
-### Session lifetime tools
+### Session and group tools
 
-`rel_create_session` accepts optional `name`, `group`, `profile`, `new_group`, and `lifetime`.
-New groups default to `{"type":"inactivity","timeout_seconds":120}`. Set a positive
-integer `timeout_seconds` for a different idle period, or use
-`{"type":"indefinite"}` to retain the session until explicitly closed.
+`rel_list_sessions` lists tab IDs and their `group_id` values. `rel_list_groups`
+lists Group IDs, member sessions, and shared settings. Browser tools target the
+specified tab even when another tab is selected in REL.
 
-`rel_ping_session` takes `{"session_id":"Session1"}` and refreshes the timer
-without browser work. Ping well before the deadline while idle. Browser work
-refreshes activity; `rel_list_sessions` does not. Implicitly created sessions
-also use the default timeout, so create an explicit session when selecting a
-lifetime.
+`rel_create_session` accepts `group_id` to add a tab to that existing group, or
+`name`, `profile`, and `lifetime` to create a separate group and its initial tab.
+These alternatives cannot be combined. Each created tab receives a new Session ID.
+There is no compatible-group reuse and no `new_group` flag.
 
-`rel_create_session` with a saved `profile` and no configuration overrides adds
-a tab to that profile's oldest existing group, preserving its current settings
-and storage even if the saved profile has changed. Explicit name, group label,
-and lifetime constraints still apply. Requests with configuration overrides or
-no saved profile open a tab in a compatible existing group by default.
-Set `new_group: true` to force a separate storage-isolated tab group.
-A reused group retains its lifetime and returns the same session ID.
+`rel_close_group` takes `{"group_id":"Group7"}` and deletes that group, all
+member sessions, and shared data. The old label-based close tool is removed.
+
+New groups default to `{"type":"inactivity","timeout_seconds":120}`. Set a
+positive integer timeout or `{"type":"indefinite"}` at creation.
+`rel_ping_session` takes `{"session_id":"Session12"}` and refreshes its group's
+timer. Browser work also refreshes activity; listing does not.

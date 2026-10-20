@@ -116,7 +116,9 @@ unawaited background tasks that retain `context.page` after a handler returns.
 In fresh-session mode, adapter-created sessions are deleted after each attempt,
 including its error handlers.
 `persist=True` retains them for inspection, including sessions from failed
-attempts. `group="my-crawl"` makes those retained sessions easy to find and close.
+attempts. Use `rel group list` to find their Group IDs and `rel group delete GROUP_ID`
+to remove them. `group_id="Group7"` adds tabs to an existing group and preserves
+that group during cleanup; it cannot be combined with a profile or session ID.
 REL Profile snapshots do not synchronize storage between newly created sessions.
 
 ## Optional session pool

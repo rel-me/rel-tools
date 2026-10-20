@@ -69,9 +69,9 @@ class AgentHandler(BaseHTTPRequestHandler):
             session = f"Session{agent.sequence}"
             agent.sessions[session] = "about:blank"
             agent.created.append((session, data))
-            result = {"session": {"id": session}}
-        elif self.path.startswith("/v1/sessions/"):
-            session = self.path.rsplit("/", 1)[1]
+            result = {"session": {"id": session, "group_id": f"Group{agent.sequence}"}}
+        elif self.path.startswith(("/v1/sessions/", "/v1/groups/")):
+            session = self.path.rsplit("/", 1)[1].replace("Group", "Session")
             if self.command == "DELETE":
                 if agent.delete_failures:
                     agent.delete_failures -= 1

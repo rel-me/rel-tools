@@ -90,11 +90,14 @@ without navigating.
 | `delete_profile(id)` | `DELETE /v1/profiles/{id}` |
 | `export_profile_transfer(&ProfileTransferExportRequest)` | `POST /v1/profile-transfers/export` |
 | `import_profile_transfer(&ProfileTransferImportRequest)` | `POST /v1/profile-transfers/import` |
-| `update_session(id, &SessionUpdateRequest)` | `PATCH /v1/sessions/{id}` |
+| `update_group(id, &GroupUpdateRequest)` | `PATCH /v1/groups/{id}` |
 | `pause_session(id)` | `POST /v1/sessions/{id}/pause` |
 | `play_session(id)` | `POST /v1/sessions/{id}/play` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
-| `close_session_group(group)` | `POST /v1/sessions/close` |
+| `list_groups()` | `GET /v1/groups` |
+| `get_group(id)` | `GET /v1/groups/{id}` |
+| `create_group(&GroupCreateRequest)` | `POST /v1/groups` |
+| `delete_group(id)` | `DELETE /v1/groups/{id}` |
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
@@ -124,7 +127,7 @@ metadata-bearing app bundle.
 The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
 `read_page`, `perform_page_action`, both screenshot methods, all observation methods,
-`list_sessions`, `close_session_group`, and `list_proxies`; it does not maintain
+`list_sessions`, `list_groups`, `close_group`, and `list_proxies`; it does not maintain
 alternate request types or bypass the RPC transport. For capture, it exhausts
 and validates `CaptureStream` before returning one aggregated MCP result.
 
@@ -462,14 +465,14 @@ JSON `null`. Those fields are proxy username, password, and Oxylabs location,
 plus the `proxy_alias` for a session.
 
 ```rust
-use rel_client::{Change, RelClient, SessionUpdateRequest};
+use rel_client::{Change, RelClient, GroupUpdateRequest};
 
-let request = SessionUpdateRequest {
+let request = GroupUpdateRequest {
     name: Some("Research".into()),
     proxy_alias: Change::Clear,
-    ..SessionUpdateRequest::default()
+    ..GroupUpdateRequest::default()
 };
-RelClient::local().update_session("Session12", &request)?;
+RelClient::local().update_group("Group7", &request)?;
 # Ok::<(), rel_client::ClientError>(())
 ```
 
@@ -483,44 +486,20 @@ update.
 
 ## Session profiles
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
+Each tab has a `Session` descriptor with `id`, `group_id`, and `created_at`.
+`list_sessions`, `get_session`, `create_session`, `ping_session`, `pause_session`,
+`play_session`, and `delete_session` operate on exact tab IDs.
 
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's session ID identifies the reused group, so repeated creation can
-return the same ID. `reused_group` reports whether a group was reused.
-Set `SessionCreateRequest::new_group` to `Some(true)` to force a separate group.
+`SessionCreateRequest::group_id` adds a tab to an existing Group ID. Omit it to
+create a separate group with its initial session. Every tab gets a new ID;
+there is no automatic compatible-group reuse or `new_group` flag.
 
-`SessionCreateRequest::default()` serializes to `{}`, so the agent uses the
-configured **Default Profile**, or **Custom** when the preference is unset.
-Custom uses direct networking, AdBlock on, all images allowed, and Private.
-Set `profile` to a case-insensitively unique saved configuration name. Explicit proxy
-and filtering fields override the selected profile; use
-`Change::Set("alias".into())` for a proxy or `Change::Clear` for direct
-networking:
-
-```rust
-use rel_client::{Change, RelClient, SessionCreateRequest};
-
-let request = SessionCreateRequest {
-    group: Some("pgm".into()),
-    adblock_enabled: Some(true),
-    proxy_alias: Change::Clear,
-    ..SessionCreateRequest::default()
-};
-RelClient::local().create_session(&request)?;
-RelClient::local().close_session_group("pgm")?;
-# Ok::<(), rel_client::ClientError>(())
-```
+Use `GroupCreateRequest`, `GroupUpdateRequest`, `Group`, `GroupData`, and
+`GroupListData` with `create_group`, `update_group`, `get_group`, `list_groups`,
+`reset_group`, and `delete_group`. Group resources expose shared configuration
+and their `sessions` membership. Delete a group to remove every member and shared
+data. `CaptureRequest::group_id` and `PageAttachRequest::group_id` create a tab
+inside a specific group.
 
 `Profile` contains its public `id`, unique `name`, proxy and filtering policy,
 browser-data inclusion flags, optional fingerprint identity template, built-in
@@ -538,20 +517,18 @@ or a third Session within a group is rejected. Close resources to free capacity.
 `ProfileCreateRequest::fingerprint_profile` uses `Change::Unchanged` to select
 the default compatibility template, `Change::Clear` for native Chromium, and
 `Change::Set(profile)` for explicit identity settings. REL.app preserves those
-settings but generates a fresh seed whenever it creates a session from the
+settings but generates a fresh seed whenever it creates a group from the
 profile. New configurations use Private; explicit native identity stays native.
 
-`Session::profile` exposes the source profile name and
-`Session::profile_data_id` identifies the custom browser-data template copied
+`Group::profile` exposes the source profile name and
+`Group::profile_data_id` identifies the custom browser-data template copied
 at creation, when any. `CaptureRequest`, `NavigateRequest`, and
 `PageAttachRequest` accept `profile` only when `session_id` is absent.
-`CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
-created session can join a group. Group matching is case-insensitive; closing
-an empty group succeeds with an empty `deleted_ids` vector.
+
 
 `ProxyCreateRequest.locale: Option<String>` configures an optional BCP-47 locale
 for the proxy. `ProxyUpdateRequest.locale: Change<String>` supports set, clear,
-and unchanged. `Proxy.locale` and `Session.proxy_locale` return it. This preference is independent of any
+and unchanged. `Proxy.locale` and `Group.proxy_locale` return it. This preference is independent of any
 country selection, and travels with proxy/profile exports.
 
 `FingerprintProfile.chrome_version` optionally adds a Chrome identity. Set
@@ -635,7 +612,7 @@ and [app recovery guide](APP.md#database-migration-and-recovery) for semantics.
 `SessionLifetime::Inactivity { timeout_seconds: 300 }` or
 `SessionLifetime::Indefinite`. Leaving it `None` uses the server default of 120
 seconds of inactivity. `RelClient::ping_session(id)` refreshes the timer without
-browser work and returns `SessionData`. The `Session` response exposes the
+browser work and returns `SessionData`. The `Group` response exposes the
 policy and `last_activity_at`. Keep idle clients alive by pinging well before the
 timeout. Session listing and background page traffic do not refresh activity.
 ### Query context in semantic reads

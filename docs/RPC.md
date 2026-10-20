@@ -127,6 +127,7 @@ repeat.
 | `10102` | `PAGE_MISMATCH` | no | Attached page state no longer matches the request |
 | `10103` | `PROXY_NOT_FOUND` | no | Proxy does not exist |
 | `10104` | `ACTIVE_PAGE_NOT_FOUND` | no | The shorthand workflow has no current page |
+| `10105` | `GROUP_NOT_FOUND` | no | The Group ID does not exist |
 | `10200` | `CONFLICT` | no | Name/state/last-session conflict |
 | `10201` | `BROWSER_BUSY` | yes | Chromium is servicing incompatible work |
 | `10202` | `NETWORK_PAUSED` | no | Session networking is paused |
@@ -232,8 +233,8 @@ available.
 | `POST` | `/v1/sessions/{id}/ping` | Refresh session inactivity without browser work |
 | `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
 | `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
-| `GET` | `/v1/sessions/{id}/proxy-status` | Read current proxy session ID and usage |
-| `POST` | `/v1/sessions/{id}/reset` | Reset this tab group and restore initial Profile data |
+| `GET` | `/v1/groups/{id}/proxy-status` | Read current proxy session ID and usage |
+| `POST` | `/v1/groups/{id}/reset` | Reset this tab group and restore initial Profile data |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 
 There are deliberately no log read, clear, or ingestion routes.
@@ -380,7 +381,6 @@ tools. The queue is process-local and bounded; `sequence` is monotonic within
 that agent process and lets a client ignore entries it has already observed.
 
 ## Captures
-
 
 Creating a session preserves existing sessions. Capture events, page operation
 results, and session responses omit the obsolete `closed_session_ids` field.
@@ -650,7 +650,7 @@ semantic content remains readable. The process-local registry retains at most
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
 | `profile` | Optional saved profile name for the newly created session. It cannot be combined with `session_id`; omission uses the configured default or Custom. |
-| `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
+| `group_id` | Existing `Group<number>` in which to create a tab. Cannot be combined with `session_id`, profile, or proxy overrides. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
 | `retry_delay` | Finite seconds 0 through 86400; default 3. |
@@ -711,7 +711,7 @@ code 1; it is not an API error.
 ```
 
 Omitting `session_id` creates a session from the named `profile`, or from
-the configured default (Custom when unset) when it is absent, and navigates it to `url`. `profile` and `group`
+the configured default (Custom when unset) when it is absent, and navigates it to `url`. `profile` and `group_id`
 cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
@@ -822,7 +822,7 @@ controls stay native.
 
 Proxy responses include `detect_exit_locale`; session responses include
 `proxy_country` (configured ISO country or null) and `proxy_detect_exit_locale`.
-`GET /v1/sessions/{id}/proxy-location` returns `data.country` (for example `DE`)
+`GET /v1/groups/{id}/proxy-location` returns `data.country` (for example `DE`)
 and `data.timezone` (for example `Europe/Berlin`, an IANA timezone identifier)
 when detection is enabled or the proxy uses a fixed-IP ISP pool. It errors for a
 missing proxy, disabled detection on other proxy types,
@@ -881,7 +881,7 @@ with allowance remaining. Once all IPs are exhausted, a new round starts.
 Runtime counts reset on agent restart or pool endpoint/count/limit changes.
 Manual rotation does not clear an IP's shared page allowance.
 
-`POST /v1/sessions/{id}/prepare-proxy-page` accepts `{}` and returns `rotated`.
+`POST /v1/groups/{id}/prepare-proxy-page` accepts `{}` and returns `rotated`.
 With automatic ISP rotation enabled it returns `assigned_port`,
 `page_request_count`, and `page_request_limit` for an admitted page. When the
 current allowance is exhausted, it returns `rotation_required:true` and
@@ -899,8 +899,8 @@ cancels the document request and surfaces the error.
 
 `POST /v1/reset` accepts `{"profile":"Research"}` and resets every existing
 tab group created from that Profile. An unknown Profile is an error; a Profile
-with no existing groups returns an empty list. `POST /v1/sessions/{id}/reset`
-resets one tab group. Both return `data.reset_session_ids`.
+with no existing groups returns an empty list. `POST /v1/groups/{id}/reset`
+resets one tab group. Both return `data.reset_group_ids`.
 
 Reset works without a proxy and with every proxy type. REL closes all tabs in
 the group, changes the sticky ID or ISP IP where the provider supports it,
@@ -918,7 +918,7 @@ preserve them. Each group counts matching responses across all tabs/resources;
 zero repeats triggers immediately, N repeats triggers on match N + 1. Counts
 clear after reset or app restart. Rules work for direct and proxied sessions.
 
-`GET /v1/sessions/{id}/proxy-status` returns these fields under `data`:
+`GET /v1/groups/{id}/proxy-status` returns these fields under `data`:
 
 ```json
 {
@@ -1056,95 +1056,59 @@ override, and the passphrase when credentials are included. It validates and
 decrypts the transfer in Rust and returns the newly created `data.proxy`.
 Transfers are limited to 12 MiB and never overwrite an existing alias.
 
-## Sessions
+## Sessions and groups
+
+Each tab has its own immutable `Session<number>` ID. A separate `Group<number>`
+resource owns shared settings and browser data. IDs are allocated independently,
+never reused, and persist across app restarts. Browser requests with `session_id`
+target that tab directly, regardless of native selection.
 
 A session resource is:
 
 ```json
-{
-  "id": "Session12",
-  "name": "Session12",
-  "profile": "BandwidthSaver",
-  "profile_data_id": null,
-  "group": "pgm",
-  "proxy_alias": null,
-  "adblock_enabled": true,
-  "image_blocking_mode": "over_limit",
-  "image_size_limit_kb": 100,
-  "created_at": 1785860000
-}
+{"id":"Session12","group_id":"Group7","created_at":1792468800}
 ```
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` returns `data.session`.
-- `storage_generation` is a read-only counter in the session resource. It advances
-  when browser storage is reset, including manual and HTTP-triggered resets.
-  REL uses it to separate fresh browser storage from retired Chromium profiles
-  during reset and after app restart. Retired generations are cleaned up
-  asynchronously and reconciled at startup.
-- `POST /v1/sessions` accepts optional `new_group`, `name`, `name_prefix`, `source_profile`, `group`, `profile`, `proxy_alias`,
-  `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
-  `data.session`.
-- `PATCH /v1/sessions/{id}` is partial and returns `data.session`. Name and network filters remain mutable. Proxy assignment and browser identity are fixed at group creation; attempts to change them return `VALIDATION_FAILED` without applying any part of the update. To use a different proxy or identity, create a new group. Requests that reuse a session with a proxy must match its existing assignment.
-- `POST /v1/sessions/{id}/pause` and `/play` take no body and idempotently
-  return `data.session_id` and `data.network_paused`. Pause cancels active
-  requests and blocks new network work. Play resumes network activity and
-  reloads the current page when the pause interrupted or deferred navigation.
-  If pause cancels navigation before the new document commits, REL restores the
-  previous URL and live document; play then resumes without reloading that page.
-- `DELETE /v1/sessions/{id}` returns the canonical session ID as
-  `data.deleted_id`.
-- `POST /v1/sessions/close` accepts `{"group":"pgm"}` and returns the trimmed
-  group plus every closed canonical ID as `data.deleted_ids`. Group matching is
-  case-insensitive, and an empty group is an idempotent success.
+- `POST /v1/sessions` with `{"group_id":"Group7"}` creates a new tab in that
+  group. No other fields are accepted with `group_id`.
+- Without `group_id`, session creation accepts group creation settings, creates a
+  separate group and its initial session, and returns `data.session`.
+- `POST /v1/sessions/{id}/ping` with `{}` refreshes the owning group's timer.
+- `POST /v1/sessions/{id}/pause` or `/play` with `{}` controls only that tab and
+  returns `session_id`, `group_id`, and `network_paused`.
+- `DELETE /v1/sessions/{id}` returns `deleted_id`, `group_id`, and the remaining
+  `sessions`. Closing the last tab creates a fresh blank session in that group.
 
-A proxy can be updated while tab groups use it. Updated routing and credentials
-apply to new connections; existing browser data and open pages remain unless
-the sessions are reset. The app offers **Save and Reset Sessions** and **Save
-Without Resetting** when editing an in-use proxy. Reset closes every affected
-group's browsers, clears their data, rotates session identity, and reloads open
-pages. A failed reset is reported separately from a successful proxy save.
-Deleting an in-use proxy still returns `VALIDATION_FAILED`; remove it from all
-groups before deleting it.
+Group resources contain `id`, `name`, `profile`, `profile_data_id`, `storage_id`,
+`created_at`, `sessions`, lifetime, proxy metadata, and filtering/identity settings.
+`storage_id` is an internal browser-data directory key, not an API target.
 
-`source_profile`, when supplied, names an existing saved Profile used to identify
-the tab group in the app. It is independent of `profile`, which selects browser
-data and creation defaults. The creation sheet supplies both explicitly, so a
-Profile group can start without copying saved browser data and still be reused.
+- `GET /v1/groups` returns `data.groups`.
+- `GET /v1/groups/{id}` returns `data.group`.
+- `POST /v1/groups` creates a group and its initial session, returning `data.group`.
+- `PATCH /v1/groups/{id}` updates its name or filtering settings, returning
+  `data.group`. Proxy assignment and browser identity are fixed at creation.
+- `DELETE /v1/groups/{id}` deletes all member sessions and shared browser data,
+  returning `data.deleted_id` with the Group ID.
+- `POST /v1/groups/{id}/reset` resets the group and returns `reset_group_ids`.
 
-`image_blocking_mode` is `none`, `all`, or `over_limit`. `none` allows every
-image while leaving `adblock_enabled` independent. The legacy `block_images`
-alias is rejected. Size is 1 through 1,048,576 kB. The visible name is editable and
-case-insensitively unique; the canonical `id` is immutable. Session routes accept
-only that ID; numeric database IDs are neither accepted nor returned. A group
-is immutable, contains 1–128 non-control characters after trimming, and may be
-shared by any number of sessions.
+Group creation accepts `name`, `name_prefix`, `profile`, `source_profile`,
+`proxy_alias`, `adblock_enabled`, `image_blocking_mode`, `image_size_limit_kb`,
+`fingerprint_profile`, `default_model`, and `lifetime`. Defaults come from the
+selected saved profile. Creation always allocates a new group; there is no
+compatible-group search or `reused_group` response. `new_group`, label-based
+`group`, session configuration routes, and `/v1/sessions/close` are removed.
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
+Capture and page creation accept `group_id` to create a tab in a specific group;
+it cannot be combined with `session_id`, `profile`, or a proxy override. Existing
+sessions must be addressed by `session_id`. Workspace uses `selectedGroupID`,
+`groupOrder`, `groups`, and `closedGroupIDs`; each saved page `id` is its Session ID.
 
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's session ID identifies the reused group, so repeated creation can
-return the same ID. `reused_group` reports whether a group was reused.
-Set `new_group: true` in `POST /v1/sessions` to force a separate group.
-
-When `name` is omitted, a session created from a saved profile uses the profile's
-stored name followed by the global session number, for example `Reddit123` for
-`Session123`. Standalone Custom sessions use `Session123`. Existing names are
-unchanged. Case-insensitive collisions add ` (2)`, ` (3)`, and so on.
-`name_prefix` optionally overrides the naming prefix without changing the selected
-profile or browser-data source; it must be a non-empty string after trimming.
-Omission or null uses the selected profile's name, or `Session` for Custom.
-An explicit `name` takes priority over the generated name.
+New groups default to a 120-second inactivity lifetime. Browser work and session
+ping refresh their timer; listing and background page traffic do not. Expiry
+deletes the group and invalidates its sessions and attached page handles.
 
 ## Profiles
 
@@ -1625,13 +1589,10 @@ same history.
 
 ## Workspace restoration
 
-REL preserves each tab's root-page HTTP(S) Back/Forward history and current
-position across app restarts. Tabs in one Session (tab group) share storage and
-configuration, while their navigation entries stay separate. The session
-resource's optional `group` field remains a batch-management label; sharing that
-label does not share browser storage. Opening a saved
-page restores its native history without fetching earlier or later entries.
-Visiting a new page after going Back discards that tab's forward branch.
+REL preserves each session tab's HTTP(S) Back/Forward history and current
+position across restarts. Session IDs address individual tabs; Group IDs identify
+their shared storage and configuration. Workspace groups contain saved pages
+whose `id` is the canonical Session ID.
 
 The bridge captures URL-only entries from Chromium's navigation controller and
 saves them with the tab in the workspace. Each record contains at most 1,000
@@ -1773,7 +1734,7 @@ remain available while a reload is pending.
 
 ## Session lifetimes and keepalive
 
-Every newly created session has a lifetime policy, including sessions created
+Every newly created group has a lifetime policy, including groups created
 implicitly by browser operations. Omitting `lifetime` selects
 `{"type":"inactivity","timeout_seconds":120}`. Explicit `POST /v1/sessions`
 requests may set a positive integer timeout (up to 4294967295 seconds), or
@@ -1781,10 +1742,10 @@ requests may set a positive integer timeout (up to 4294967295 seconds), or
 For example:
 
 ```json
-{"group":"research","lifetime":{"type":"inactivity","timeout_seconds":300}}
+{"name":"Research","lifetime":{"type":"inactivity","timeout_seconds":300}}
 ```
 
-Session responses include `lifetime` and the Unix-seconds `last_activity_at`.
+Group responses include `lifetime` and the Unix-seconds `last_activity_at`.
 Session-directed requests and browser operations refresh activity. Active browser
 operations do not expire while running. Background page traffic, health checks,
 and listing sessions do not keep sessions alive.
@@ -1793,7 +1754,7 @@ and listing sessions do not keep sessions alive.
 and returns the ordinary session envelope (`data.session`). Ping comfortably
 before the timeout, for example every 30 seconds with the default policy.
 Pinging a closed session returns `SESSION_NOT_FOUND`; it never recreates it.
-Expiry follows normal session close cleanup, invalidating attached pages.
+Expiry deletes the group and its sessions, invalidating attached page handles.
 Lifetime settings survive agent restarts. Existing sessions upgraded from older
 versions retain an indefinite lifetime, as do explicitly created native app tabs.
 

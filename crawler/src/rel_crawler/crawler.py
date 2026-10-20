@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -46,7 +47,7 @@ class RelCrawler(
         rel_base_url: str | None = None,
         session_id: str | None = None,
         profile: str | None = None,
-        group: str | None = None,
+        group_id: str | None = None,
         timeout: float = 90.0,
         wait: float = 1.0,
         action_delay: float = 2.0,
@@ -121,9 +122,11 @@ class RelCrawler(
         self.client = client if client is not None else RelClient(rel_base_url)
         self.requested_session_id = session_id
         self.profile = profile.strip() if profile is not None else None
-        self.group = group.strip() if group is not None else self._default_group()
-        if not self.group:
-            raise CrawlConfigurationError("group must not be empty")
+        self.group_id = group_id
+        if group_id is not None and not re.fullmatch(r"Group[1-9][0-9]*", group_id):
+            raise CrawlConfigurationError("group_id must use the Group<number> format")
+        if group_id is not None and (profile is not None or session_id is not None):
+            raise CrawlConfigurationError("group_id cannot be combined with profile or session_id")
         self.timeout = float(timeout)
         self.wait = float(wait)
         self.action_delay = float(action_delay)
@@ -242,7 +245,7 @@ class RelCrawler(
                 and summary.pending == 0
             ):
                 _LOGGER.info("closing completed crawler-owned session %s", session_id)
-                self.client.delete_session(session_id)
+                self.client.delete_owned_session(session_id, owns_group=self.group_id is None)
                 self._state["session_id"] = None
                 self._save_state()
                 _LOGGER.info("closed completed crawler-owned session %s", session_id)
