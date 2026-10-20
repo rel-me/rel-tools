@@ -87,6 +87,14 @@ operations across Sessions and never joins their browser storage.
 
 ## Notifications
 
+**Enable notifications** and **User input required** control REL’s local attention
+alerts. These can identify a visible HUMAN Press & Hold challenge, including
+Zillow’s challenge, when its provider container and human-verification prompt are
+present. REL waits for automatic verification to settle and checks that the
+challenge container has visible bounds before notifying. Detection is heuristic;
+provider scripts or an empty container alone do not trigger this alert. REL asks
+you to complete the challenge in its existing browser session.
+
 Open **REL → Settings… → Notifications** to enable or disable REL's macOS
 alerts. **Enable notifications** controls app alerts globally. The individual
 choices are preserved while the global switch is off:
