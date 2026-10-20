@@ -148,10 +148,14 @@ repeat.
 A target website returning 404 or 429 is not a REL RPC error for capture
 operations. Its status is reported as `target_http_status` in capture data.
 `POST /v1/navigate` instead returns `UPSTREAM_UNAVAILABLE` when its main frame
-commits an HTTP 4xx or 5xx response. With the default **REL → Settings… →
+finishes an HTTP 4xx or 5xx document and inspection finds no active challenge.
+With the default **REL → Settings… →
 General → Wait for Cloudflare Turnstile** setting, detected Turnstile and
-managed Cloudflare challenge pages receive up to 15 seconds to continue before
-that error is returned. This also applies to browser capture and page-creation
+managed Cloudflare challenge documents with HTTP error statuses receive the
+remaining request timeout to continue verification and redirects. An unresolved
+challenge returns its target HTTP error near the deadline. Successful documents
+with embedded widgets retain a maximum 15-second continuation window. This also
+applies to browser capture and page-creation
 navigation. The error details contain the final `url` and exact
 `target_http_status`; the navigated session remains selected.
 
@@ -441,7 +445,7 @@ a timed `wait` action when a workflow needs additional settling time.
 If navigation commits an HTTP 4xx or 5xx main-frame response, it returns
 `UPSTREAM_UNAVAILABLE` instead of waiting for unrelated background loading to
 become idle. A detected Cloudflare Turnstile or managed challenge receives the
-default-on 15-second continuation window described above. The error includes
+default-on continuation window described above. The error includes
 the exact `target_http_status`, and the page remains the session's current
 shorthand page.
 Without `session_id`, they use the most recently navigated shorthand page for
