@@ -657,12 +657,16 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
         legacy if matches!(legacy, "ping" | "logs") => Err(CliError::Message(format!(
             "unsupported legacy command {legacy:?}; run `rel --help` for the RPC v1 CLI"
         ))),
-        option if option.starts_with('-') => Err(CliError::Message(format!(
-            "unknown option {option:?}; run `rel --help`"
-        ))),
-        url => {
-            args.values.push_front(url.to_string());
-            parse_capture(args)
+        argument => {
+            args.values.push_front(argument.to_string());
+            let command = parse_capture(args)?;
+            if matches!(command, CliCommand::CaptureCurrent(_)) {
+                return Err(CliError::Message(
+                    "capture URL is required; use `rel capture` to capture the current page"
+                        .to_string(),
+                ));
+            }
+            Ok(command)
         }
     }
 }
@@ -799,16 +803,22 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
     if args.peek_is_help() {
         return Err(CliError::Help(capture_help()));
     }
-    let captures_current_page = match args.values.front() {
-        Some(value) => value.starts_with('-'),
-        None => true,
-    };
-    if captures_current_page {
-        return parse_current_capture(args);
-    }
-    let url = args.required_positional("capture URL")?;
-    let mut request = CaptureRequest::new(url);
-    while let Some((option, inline)) = args.pop_option()? {
+    let original_values = args.values.clone();
+    let mut url = None;
+    let mut request = CaptureRequest::new(String::new());
+    while let Some(value) = args.values.front() {
+        if !value.starts_with('-') {
+            let value = args.required_positional("capture URL")?;
+            if url.replace(value.clone()).is_some() {
+                return Err(CliError::Message(format!(
+                    "unexpected positional argument {value:?}"
+                )));
+            }
+            continue;
+        }
+        let Some((option, inline)) = args.pop_option()? else {
+            break;
+        };
         match option.as_str() {
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
@@ -831,6 +841,12 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
             _ => return Err(args.unknown_option(&option, "capture")),
         }
     }
+    let Some(url) = url else {
+        return parse_current_capture(Arguments {
+            values: original_values,
+        });
+    };
+    request.url = url;
     if request.session_id.is_some() && (request.group.is_some() || request.profile.is_some()) {
         return Err(CliError::Message(
             "--group and --profile cannot be combined with --session-id".to_string(),
@@ -1814,7 +1830,7 @@ impl Arguments {
 fn root_help() -> String {
     "REL CLI — typed client for REL RPC v1\n\n\
 Usage:\n  \
-rel URL [options]\n  \
+rel [options] URL [options]\n  \
 rel health\n  \
 rel status\n  \
 rel update\n  \
@@ -1824,7 +1840,7 @@ rel navigate [URL] [options]\n  \
 rel read [URL] [--query TEXT] [options]\n  \
 rel perform ACTIONS [options]\n  \
 rel capture [options]           Capture the current shorthand page\n  \
-rel capture URL [options]       Explicit equivalent of `rel URL`\n  \
+rel capture [options] URL [options]  Explicit equivalent of `rel URL`\n  \
 rel page attach [URL] [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
 rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
@@ -1863,8 +1879,8 @@ operational tools start it lazily when its local agent is unavailable."
 fn capture_help() -> String {
     "Usage:\n  \
 rel capture [options]\n  \
-rel URL [options]\n  \
-rel capture URL [options]\n\n\
+rel [options] URL [options]\n  \
+rel capture [options] URL [options]\n\n\
 Options:\n  \
 --output PATH\n  \
 --timeout SECONDS\n  \
@@ -2044,6 +2060,55 @@ mod tests {
         let mut args = args.iter().map(|value| value.to_string()).collect();
         apply_session_url_environment_default(&mut args, session_url.map(OsString::from))?;
         parse_command(args)
+    }
+
+    #[test]
+    fn capture_options_can_precede_or_follow_the_url() {
+        let url = "https://rateyourmusic.com/artist/nugreth/";
+        let expected = parse(&[url, "--profile", "RYM", "--wait", "2"]).unwrap();
+        for args in [
+            vec!["--profile=RYM", url, "--wait", "2"],
+            vec!["--profile", "RYM", "--wait=2", url],
+            vec!["capture", "--wait", "2", "--profile=RYM", url],
+            vec!["capture", url, "--wait=2", "--profile", "RYM"],
+        ] {
+            assert_eq!(parse(&args).unwrap(), expected, "{args:?}");
+        }
+        let mut command = parse(&["--profile=RYM", url]).unwrap();
+        apply_session_id_environment_default(&mut command, Some("Session42".into())).unwrap();
+        apply_latest_session_id(&mut command, ["Session43"]);
+        let CliCommand::Capture(request) = command else {
+            panic!("expected URL capture");
+        };
+        assert_eq!(request.profile.as_deref(), Some("RYM"));
+        assert_eq!(request.session_id, None);
+    }
+
+    #[test]
+    fn capture_with_leading_options_retains_validation() {
+        for args in [
+            vec![
+                "--profile=RYM",
+                "https://example.com",
+                "https://other.example",
+            ],
+            vec![
+                "--profile=RYM",
+                "https://example.com",
+                "--session-id=Session1",
+            ],
+            vec!["--unknown=RYM", "https://example.com"],
+            vec!["--profile=RYM"],
+            vec!["capture", "--profile=RYM"],
+            vec!["--profile"],
+        ] {
+            assert!(parse(&args).is_err(), "{args:?}");
+        }
+        assert!(parse(&["--output=page.html"]).is_err());
+        assert!(matches!(
+            parse(&["capture", "--output=page.html"]).unwrap(),
+            CliCommand::CaptureCurrent(_)
+        ));
     }
 
     #[test]
@@ -3027,7 +3092,6 @@ mod tests {
                     image_size_limit_kb: 100,
                     created_at: 1,
                 },
-                closed_session_ids: Vec::new(),
             },
         };
 
@@ -3040,6 +3104,7 @@ mod tests {
         let decoded: serde_json::Value = serde_json::from_slice(&json_output).unwrap();
         assert_eq!(decoded["data"]["session"]["id"], "machine-test.Session12");
         assert_eq!(decoded["request_id"], "req_session");
+        assert!(decoded["data"].get("closed_session_ids").is_none());
     }
 
     #[test]

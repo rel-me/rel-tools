@@ -1239,8 +1239,6 @@ pub struct PageCaptureRequest {
 pub struct PageOperationData {
     pub page: Page,
     pub capture: PageCapture,
-    #[serde(default)]
-    pub closed_session_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3350,8 +3348,6 @@ pub struct SessionData {
     pub session: Session,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reused_group: Option<bool>,
-    #[serde(default)]
-    pub closed_session_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
