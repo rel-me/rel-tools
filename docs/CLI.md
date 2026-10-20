@@ -119,6 +119,9 @@ saved RYM Profile:
 rel --profile=RYM https://rateyourmusic.com/artist/nugreth/
 ```
 
+Creating a Session preserves existing Sessions. Capture events omit the obsolete
+`closed_session_ids` field.
+
 The named Profile must already exist; use `rel profile list` to list Profiles.
 Argument-free
 `rel capture` instead captures the current shorthand page selected by

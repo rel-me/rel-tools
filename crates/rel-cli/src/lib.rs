@@ -3092,7 +3092,6 @@ mod tests {
                     image_size_limit_kb: 100,
                     created_at: 1,
                 },
-                closed_session_ids: Vec::new(),
             },
         };
 
@@ -3105,6 +3104,7 @@ mod tests {
         let decoded: serde_json::Value = serde_json::from_slice(&json_output).unwrap();
         assert_eq!(decoded["data"]["session"]["id"], "machine-test.Session12");
         assert_eq!(decoded["request_id"], "req_session");
+        assert!(decoded["data"].get("closed_session_ids").is_none());
     }
 
     #[test]

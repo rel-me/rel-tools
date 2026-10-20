@@ -381,6 +381,12 @@ that agent process and lets a client ignore entries it has already observed.
 
 ## Captures
 
+
+Creating a session preserves existing sessions. Capture events, page operation
+results, and session responses omit the obsolete `closed_session_ids` field.
+Explicit close/delete operations retain their deletion results and cancel work
+on the closed sessions.
+
 ### Shorthand page operations
 
 Sequential clients can use a process-local current page instead of carrying
