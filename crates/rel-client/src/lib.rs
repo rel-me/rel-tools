@@ -501,10 +501,10 @@ impl RelClient {
         )
     }
 
-    pub fn reset_session(&self, id: &str) -> Result<RpcResponse<ResetData>, ClientError> {
+    pub fn reset_group(&self, id: &str) -> Result<RpcResponse<ResetData>, ClientError> {
         self.request_with_timeout::<ResetData, Value>(
             "POST",
-            &format!("/sessions/{}/reset", encode_path_segment(id)),
+            &format!("/groups/{}/reset", encode_path_segment(id)),
             None,
             Duration::from_secs(90),
         )
@@ -597,14 +597,14 @@ impl RelClient {
         self.request("POST", "/profile-transfers/import", Some(request))
     }
 
-    pub fn update_session(
+    pub fn update_group(
         &self,
         id: &str,
-        request: &SessionUpdateRequest,
-    ) -> Result<RpcResponse<SessionData>, ClientError> {
+        request: &GroupUpdateRequest,
+    ) -> Result<RpcResponse<GroupData>, ClientError> {
         self.request(
             "PATCH",
-            &format!("/sessions/{}", encode_path_segment(id)),
+            &format!("/groups/{}", encode_path_segment(id)),
             Some(request),
         )
     }
@@ -641,14 +641,30 @@ impl RelClient {
         )
     }
 
-    pub fn close_session_group(
+    pub fn list_groups(&self) -> Result<RpcResponse<GroupListData>, ClientError> {
+        self.request::<GroupListData, Value>("GET", "/groups", None)
+    }
+
+    pub fn get_group(&self, id: &str) -> Result<RpcResponse<GroupData>, ClientError> {
+        self.request::<GroupData, Value>(
+            "GET",
+            &format!("/groups/{}", encode_path_segment(id)),
+            None,
+        )
+    }
+
+    pub fn create_group(
         &self,
-        group: &str,
-    ) -> Result<RpcResponse<ClosedSessionGroupData>, ClientError> {
-        self.request(
-            "POST",
-            "/sessions/close",
-            Some(&SessionGroupCloseRequest { group }),
+        request: &GroupCreateRequest,
+    ) -> Result<RpcResponse<GroupData>, ClientError> {
+        self.request("POST", "/groups", Some(request))
+    }
+
+    pub fn delete_group(&self, id: &str) -> Result<RpcResponse<DeletedData>, ClientError> {
+        self.request::<DeletedData, Value>(
+            "DELETE",
+            &format!("/groups/{}", encode_path_segment(id)),
+            None,
         )
     }
 
@@ -1036,7 +1052,7 @@ pub struct CaptureRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1156,7 +1172,7 @@ pub struct PageAttachRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3163,13 +3179,11 @@ pub enum SessionLifetime {
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub new_group: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub lifetime: Option<SessionLifetime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
@@ -3183,7 +3197,25 @@ pub struct SessionCreateRequest {
 }
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
-pub struct SessionUpdateRequest {
+pub struct GroupCreateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lifetime: Option<SessionLifetime>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Change::is_unchanged")]
+    pub proxy_alias: Change<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub adblock_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_blocking_mode: Option<ImageBlockingMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_size_limit_kb: Option<i64>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct GroupUpdateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
@@ -3341,6 +3373,16 @@ pub struct FingerprintScreen {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct GroupListData {
+    pub groups: Vec<Group>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct GroupData {
+    pub group: Group,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionListData {
     pub sessions: Vec<Session>,
 }
@@ -3348,15 +3390,11 @@ pub struct SessionListData {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionData {
     pub session: Session,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reused_group: Option<bool>,
-    #[serde(default)]
-    pub closed_session_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ResetData {
-    pub reset_session_ids: Vec<String>,
+    pub reset_group_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3447,6 +3485,13 @@ fn is_false(value: &bool) -> bool {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
+    pub id: String,
+    pub group_id: String,
+    pub created_at: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct Group {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lifetime: Option<SessionLifetime>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3455,7 +3500,8 @@ pub struct Session {
     pub name: String,
     pub profile: String,
     pub profile_data_id: Option<String>,
-    pub group: Option<String>,
+    pub storage_id: String,
+    pub sessions: Vec<Session>,
     pub proxy_alias: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proxy_locale: Option<String>,
@@ -3468,17 +3514,6 @@ pub struct Session {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DeletedData {
     pub deleted_id: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ClosedSessionGroupData {
-    pub group: String,
-    pub deleted_ids: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct SessionGroupCloseRequest<'a> {
-    group: &'a str,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3793,13 +3828,49 @@ mod tests {
         })
     }
 
+    #[test]
+    fn groups_expose_membership_and_use_distinct_resource_routes() {
+        let (base_url, server) = start_test_server(3, |_, request| {
+            let data = if request.path == "/v1/groups" && request.method == "GET" {
+                json!({"groups":[group_json()]})
+            } else {
+                json!({"group":group_json()})
+            };
+            let body = json!({"status":"ok", "request_id":"req_group", "data":data}).to_string();
+            http_response(200, "application/json", Some("req_group"), &body)
+        });
+        let client = RelClient::new(base_url);
+        let groups = client.list_groups().unwrap().data.groups;
+        assert_eq!(groups[0].id, "Group7");
+        assert_eq!(groups[0].sessions[0].group_id, "Group7");
+        assert_eq!(client.get_group("Group7").unwrap().data.group.id, "Group7");
+        client.create_group(&GroupCreateRequest::default()).unwrap();
+        let requests = server.join().unwrap();
+        assert_eq!(
+            requests
+                .iter()
+                .map(|request| (request.method.as_str(), request.path.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("GET", "/v1/groups"),
+                ("GET", "/v1/groups/Group7"),
+                ("POST", "/v1/groups")
+            ]
+        );
+    }
+
     fn session_json() -> Value {
+        json!({"id":"machine-a.Session1", "group_id":"Group7", "created_at":1})
+    }
+
+    fn group_json() -> Value {
         json!({
-            "id": "machine-a.Session1",
+            "id": "Group7",
             "name": "Session1",
             "profile": "Default",
             "profile_data_id": null,
-            "group": "pgm",
+            "storage_id": "Group7",
+            "sessions": [session_json()],
             "proxy_alias": null,
             "adblock_enabled": true,
             "image_blocking_mode": "over_limit",
@@ -4963,11 +5034,11 @@ mod tests {
     fn session_create_serializes_explicit_group_creation() {
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
-                new_group: Some(true),
+                group_id: Some("Group7".into()),
                 ..Default::default()
             })
             .unwrap(),
-            json!({"new_group":true})
+            json!({"group_id":"Group7"})
         );
     }
 
@@ -4979,20 +5050,20 @@ mod tests {
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
-                group: Some("pgm".to_string()),
+                group_id: Some("Group7".to_string()),
                 profile: Some("BandwidthSaver".to_string()),
                 proxy_alias: Change::Clear,
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"group":"pgm", "profile":"BandwidthSaver", "proxy_alias":null})
+            json!({"group_id":"Group7", "profile":"BandwidthSaver", "proxy_alias":null})
         );
         let mut capture = CaptureRequest::new("https://example.com");
-        capture.group = Some("pgm".to_string());
+        capture.group_id = Some("Group7".to_string());
         capture.profile = Some("AdBlock".to_string());
         assert_eq!(
             serde_json::to_value(capture).unwrap(),
-            json!({"url":"https://example.com", "profile":"AdBlock", "group":"pgm"})
+            json!({"url":"https://example.com", "profile":"AdBlock", "group_id":"Group7"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
@@ -5239,7 +5310,7 @@ mod tests {
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
                 | ("PATCH", "/v1/proxies/office") => json!({"proxy":proxy_json()}),
-                ("POST", "/v1/reset") => json!({"reset_session_ids":[]}),
+                ("POST", "/v1/reset") => json!({"reset_group_ids":[]}),
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }
@@ -5256,14 +5327,14 @@ mod tests {
                 ("POST", "/v1/sessions/machine-a.Session1/play") => {
                     json!({"session_id":"machine-a.Session1", "network_paused":false})
                 }
-                ("POST", "/v1/sessions/close") => {
-                    json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
+                ("DELETE", "/v1/groups/Group7") => {
+                    json!({"deleted_id":"Group7"})
                 }
                 ("GET", "/v1/sessions") => json!({"sessions":[session_json()]}),
                 ("GET", "/v1/sessions/machine-a.Session1")
                 | ("POST", "/v1/sessions/machine-a.Session1/ping")
-                | ("POST", "/v1/sessions")
-                | ("PATCH", "/v1/sessions/machine-a.Session1") => json!({"session":session_json()}),
+                | ("POST", "/v1/sessions") => json!({"session":session_json()}),
+                ("PATCH", "/v1/groups/Group7") => json!({"group":group_json()}),
                 ("GET", "/v1/profiles") => json!({"profiles":[profile_json()]}),
                 ("POST", "/v1/profiles") | ("PATCH", "/v1/profiles/custom-profile-id") => {
                     json!({"profile":profile_json()})
@@ -5413,7 +5484,7 @@ mod tests {
             .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
-        assert_eq!(sessions.data.sessions[0].group.as_deref(), Some("pgm"));
+        assert_eq!(sessions.data.sessions[0].group_id, "Group7");
         client.get_session("machine-a.Session1").unwrap();
         client
             .create_session(&SessionCreateRequest::default())
@@ -5468,11 +5539,11 @@ mod tests {
             ))
             .unwrap();
         client
-            .update_session(
-                "machine-a.Session1",
-                &SessionUpdateRequest {
+            .update_group(
+                "Group7",
+                &GroupUpdateRequest {
                     proxy_alias: Change::Clear,
-                    ..SessionUpdateRequest::default()
+                    ..GroupUpdateRequest::default()
                 },
             )
             .unwrap();
@@ -5482,8 +5553,8 @@ mod tests {
         assert!(!playing.data.network_paused);
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
-        let closed = client.close_session_group("pgm").unwrap();
-        assert_eq!(closed.data.deleted_ids, ["machine-a.Session1"]);
+        let closed = client.delete_group("Group7").unwrap();
+        assert_eq!(closed.data.deleted_id, "Group7");
         let models = client.model_providers().unwrap();
         assert_eq!(
             models.data.model_directories["local-model"],
@@ -5543,18 +5614,15 @@ mod tests {
                 ("DELETE", "/v1/profiles/custom-profile-id"),
                 ("POST", "/v1/profile-transfers/export"),
                 ("POST", "/v1/profile-transfers/import"),
-                ("PATCH", "/v1/sessions/machine-a.Session1"),
+                ("PATCH", "/v1/groups/Group7"),
                 ("POST", "/v1/sessions/machine-a.Session1/pause"),
                 ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
-                ("POST", "/v1/sessions/close"),
+                ("DELETE", "/v1/groups/Group7"),
                 ("GET", "/v1/model-providers"),
             ]
         );
-        assert_eq!(
-            serde_json::from_str::<Value>(&requests[37].body).unwrap(),
-            json!({"group":"pgm"})
-        );
+        assert_eq!(requests[37].body.as_str(), "");
         assert_eq!(
             serde_json::from_str::<Value>(&requests[3].body).unwrap(),
             json!({"url":"example.com"})

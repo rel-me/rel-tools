@@ -45,15 +45,13 @@ without a proxy. Other groups keep their state. The button shows **Resetting…*
 until the reset finishes. If a step fails, REL reports the error and leaves the
 group stopped so you can retry the reset.
 
-The sidebar stays visible and lists tab groups. Each group is one persistent
-Session: its tabs share cookies, site storage, saved logins, proxy configuration,
+The sidebar stays visible and lists tab groups. Each group has its own `Group<number>` ID. Its tab sessions share cookies, site storage, saved logins, proxy configuration,
 browser identity, and Session settings. Groups keep their browser data isolated
-from each other. Existing Sessions appear as one-tab groups with their existing
-data.
+from each other. Each tab has its own persistent session ID and navigation history.
 
-Each group shows its source profile name beside its API `Session<number>` ID.
-Individual browser tabs use `Tab<number>` references so they cannot be mistaken
-for API session IDs. Tab references remain stable after restarting REL.
+Each group shows its source profile name beside its `Group<number>` ID.
+Individual tabs show their actual `Session<number>` IDs. These are the same IDs
+used by the API and tools and remain stable after restarting REL.
 
 Use **New Tab Group** at the bottom of the sidebar to create a group. Press
 **⌘T** or use the tab strip's **+** button to add a tab to the selected group.
@@ -79,17 +77,14 @@ leaves a blank tab. Use the group's **Delete Tab Group…** action to delete all
 its tabs and shared browser data. Quitting REL preserves groups, tab URLs, and
 selection.
 
-CLI, SDK, and MCP browser operations still target a Session ID. That ID identifies
-the group, and browser commands operate on its selected tab. Session deletion
-deletes the entire group. Chat and actions remain associated with the group.
-The session resource's optional `group` label is separate: it organizes batch
-operations across Sessions and never joins their browser storage.
+CLI, SDK, and MCP browser operations target the exact `Session<number>` tab,
+regardless of native selection. Session deletion closes that tab. Group deletion
+closes every member and removes shared data. Chat remains shared by the group;
+each prompt targets the session selected when it is submitted.
 
-In **Overview → Identifiers**, **Session / group ID** is the
-ID to pass to CLI, SDK, or MCP browser operations. The selected tab's reference
-and workspace tab ID are also shown, along with the profile data ID when present.
-Values can be selected or copied using **Copy Value**. A tab's context menu also
-provides **Copy Session ID** and **Copy Tab ID**.
+**Overview → Identifiers** shows separate **Session ID** and **Group ID** values,
+plus the browser-data **Profile ID** when one is assigned. Tab and group context
+menus provide their corresponding copy actions.
 
 ## Notifications
 
