@@ -406,7 +406,8 @@ page and session IDs. Navigate it with `POST /v1/navigate`:
 Only `url` is required. The first request without `session_id` reuses the first
 persisted session, creating one from the configured default (Custom when unset) only when none exists. Later
 requests without it reuse the current page and session. An explicit `profile`
-instead creates a new session from that named template; it cannot be combined
+selects the oldest existing group for that saved profile, preserving its storage
+and settings, and creates one when none matches; it cannot be combined
 with `session_id`. An explicit session selects that session as the new current
 page.
 
@@ -648,9 +649,9 @@ semantic content remains readable. The process-local registry retains at most
 | `timeout` | Finite seconds greater than zero; default 90. |
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
-| `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
-| `profile` | Optional saved profile name for the newly created session. It cannot be combined with `session_id`; omission uses the configured default or Custom. |
-| `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
+| `session_id` | Optional existing canonical `Session<number>` ID. Omission selects a compatible group when `profile` or `group` is explicit, otherwise creates a persistent session. Capture events return the effective ID. |
+| `profile` | Optional saved profile name. Reuses its oldest existing group, preserving storage and settings, or creates one when none matches. It cannot be combined with `session_id`; omission uses the configured default or Custom. |
+| `group` | Optional 1–128 character group label. Selects a compatible existing group or creates one when none matches. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
 | `retry_delay` | Finite seconds 0 through 86400; default 3. |
@@ -710,8 +711,10 @@ code 1; it is not an API error.
 }
 ```
 
-Omitting `session_id` creates a session from the named `profile`, or from
-the configured default (Custom when unset) when it is absent, and navigates it to `url`. `profile` and `group`
+Omitting `session_id` selects an existing group when `profile` or `group` is
+explicit, creating one when none matches, and navigates it to `url`. Profile-only
+requests preserve the existing group's storage and settings. Without either
+selector, it creates a session from the configured default (Custom when unset). `profile` and `group`
 cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
@@ -1135,7 +1138,10 @@ An explicit name or group label must match to reuse a group; an explicit lifetim
 must also match. If no compatible group exists, REL creates one.
 The response's session ID identifies the reused group, so repeated creation can
 return the same ID. `reused_group` reports whether a group was reused.
-Set `new_group: true` in `POST /v1/sessions` to force a separate group.
+Capture, page creation, and navigation with an explicit saved profile use the
+same group selection. Explicit proxy overrides require a compatible group.
+Set `new_group: true` in `POST /v1/sessions` to force a separate group, then
+pass its returned `session_id` to target it explicitly.
 
 When `name` is omitted, a session created from a saved profile uses the profile's
 stored name followed by the global session number, for example `Reddit123` for

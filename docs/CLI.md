@@ -350,8 +350,9 @@ prints the ordinary JSON response envelope. Its first call reuses the newest
 existing session unless `--session-id` or `REL_SESSION_ID` supplies one,
 creating a session only when none exists. Later calls without a session ID
 resolve the newest session again and reuse its current page. Supplying
-`--profile NAME` intentionally creates a new session from that profile and
-conflicts with `--session-id`. It also accepts `--proxy`, `--output`,
+`--profile NAME` reuses the oldest existing group for that profile, preserving
+its storage and settings, and creates one only when none matches. It conflicts
+with `--session-id`. It also accepts `--proxy`, `--output`,
 `--timeout`, and `--wait`. The positional URL may be omitted when
 `REL_SESSION_URL` is set; an explicit URL always wins.
 
@@ -426,8 +427,8 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set, then the newest existing session. Create a persistent session only when none exists. |
-| `--profile NAME` | `profile` | Create the session from this saved profile. Conflicts with `--session-id` and suppresses both implicit defaults. |
-| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses both implicit defaults. |
+| `--profile NAME` | `profile` | Reuse a group for this saved profile, creating one when none matches. Preserve existing storage and settings. Conflicts with `--session-id` and suppresses both implicit defaults. |
+| `--group GROUP` | `group` | Select a compatible group with this label, creating one when none matches. Conflicts with `--session-id` and suppresses both implicit defaults. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
