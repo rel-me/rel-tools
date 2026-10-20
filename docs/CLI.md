@@ -361,8 +361,9 @@ unsuccessfully after the main-frame document finishes and REL inspects it,
 without waiting for unrelated background loading. By default, detected Cloudflare
 Turnstile and managed challenge documents with an HTTP error status receive the
 remaining request timeout to complete verification and redirects in the same
-session. A successful redirect completes normally; an unresolved challenge
-returns its target HTTP error near the deadline. Successful pages with embedded
+session. A successful redirect completes normally. If verification remains
+unresolved, the request fails with the target HTTP error or a timeout when the
+budget expires. Successful pages with embedded
 Turnstile widgets retain a maximum 15-second continuation window. Turn off
 **REL → Settings… → General → Wait for
 Cloudflare Turnstile** to restore immediate failure for every HTTP error. The

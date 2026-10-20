@@ -153,7 +153,7 @@ With the default **REL → Settings… →
 General → Wait for Cloudflare Turnstile** setting, detected Turnstile and
 managed Cloudflare challenge documents with HTTP error statuses receive the
 remaining request timeout to continue verification and redirects. An unresolved
-challenge returns its target HTTP error near the deadline. Successful documents
+challenge fails with its target HTTP error or a timeout when the budget expires. Successful documents
 with embedded widgets retain a maximum 15-second continuation window. This also
 applies to browser capture and page-creation
 navigation. The error details contain the final `url` and exact
