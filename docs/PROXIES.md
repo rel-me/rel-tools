@@ -190,8 +190,8 @@ reported by browser JavaScript are separate settings.
 1. Open **REL → Settings… → Proxies**, edit the proxy, and enable
    **Detect Exit Locale**. Existing detection choices are preserved; new proxies
    start with detection off.
-2. Assign the proxy to the Session. Use **Private** browser identity, which
-   enables the timezone control, or enable **Timezone** in **Custom Privacy**.
+2. Assign the proxy to the Session. Detection applies to every browser identity,
+   including **Chrome**, **Native**, **Private**, and **Custom Privacy**.
 3. Save the proxy, then open a page in that Session.
 
 Detection is lazy. Starting REL, restoring or creating a blank Session, renaming
@@ -209,11 +209,13 @@ Lookup failures stop the pending page request and show a page error. Saved
 Sessions stay available. Retry the page once the proxy connection works; REL
 retries detection instead of silently using a different location.
 
-Timezone detection works independently of language: **Custom** language keeps
-its explicit locale while the enabled Timezone control uses the detected
-zone. With Timezone disabled, Chromium keeps its native timezone.
-Detection changes the effective browser identity without overwriting the saved
-manual timezone or your Mac's system timezone.
+Timezone detection works independently of language and identity privacy controls:
+**Custom** language keeps its explicit locale, and the detected exit timezone
+applies even when the identity's **Timezone** control is off. Other privacy
+controls stay unchanged. Detection changes the effective browser identity without
+overwriting the saved manual timezone or your Mac's system timezone. With
+**Detect Exit Locale** off and **Timezone** disabled, Chromium uses its native
+timezone.
 
 ### Set a timezone manually
 
