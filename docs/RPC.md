@@ -124,7 +124,7 @@ repeat.
 | `10007` | `OBSERVATION_TOO_LARGE` | no | A semantic snapshot or image exceeds its independent bound |
 | `10100` | `SESSION_NOT_FOUND` | no | Session ID does not exist |
 | `10101` | `PAGE_NOT_FOUND` | no | Ephemeral attached page does not exist |
-| `10102` | `PAGE_MISMATCH` | no | Attached page state no longer matches the request |
+| `10102` | `PAGE_MISMATCH` | yes | Attached page state no longer matches the request; refresh the page binding before retrying |
 | `10103` | `PROXY_NOT_FOUND` | no | Proxy does not exist |
 | `10104` | `ACTIVE_PAGE_NOT_FOUND` | no | The shorthand workflow has no current page |
 | `10200` | `CONFLICT` | no | Name/state/last-session conflict |
@@ -447,6 +447,13 @@ the previously tracked URL is stale.
 All three return the same page-operation envelope documented under attached
 pages. When `session_id` is supplied, `navigate` selects and updates that
 session's current shorthand page; `perform` and singular `capture` target it.
+For multiple independent crawls, create a session for each crawl and pass its
+`session_id` on every navigation, action, and capture. Keep staged operations
+within each session sequential so another request cannot change its page between
+stages. Switching the visible session does not change an explicit session target.
+`PAGE_MISMATCH` is retryable: refresh the page binding with `POST /v1/capture`
+using that same `session_id`, or navigate to the intended URL, before retrying an
+idempotent operation. Inspect the result before replaying actions with side effects.
 Navigation becomes ready after the requested HTTP(S) main frame starts,
 finishes, and has nonempty rendered source. Subframe and page-initiated
 background loading does not delay completion. The `wait` delay begins after
