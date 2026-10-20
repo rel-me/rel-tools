@@ -82,9 +82,9 @@ regardless of native selection. Session deletion closes that tab. Group deletion
 closes every member and removes shared data. Chat remains shared by the group;
 each prompt targets the session selected when it is submitted.
 
-**Overview → Identifiers** shows separate **Session ID** and **Group ID** values,
-plus the browser-data **Profile ID** when one is assigned. Tab and group context
-menus provide their corresponding copy actions.
+**Overview → Connection** shows **Session ID**, **Group ID**, page status, and
+background status as label/value rows, plus the browser-data **Profile ID** when
+one is assigned. Tab and group context menus provide their corresponding copy actions.
 
 ## Notifications
 
