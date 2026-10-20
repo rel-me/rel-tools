@@ -1139,7 +1139,8 @@ must also match. If no compatible group exists, REL creates one.
 The response's session ID identifies the reused group, so repeated creation can
 return the same ID. `reused_group` reports whether a group was reused.
 Capture, page creation, and navigation with an explicit saved profile use the
-same group selection. Explicit proxy overrides require a compatible group.
+same group selection, opening a new tab while preserving the existing tabs.
+Explicit proxy overrides require a compatible group.
 Set `new_group: true` in `POST /v1/sessions` to force a separate group, then
 pass its returned `session_id` to target it explicitly.
 
