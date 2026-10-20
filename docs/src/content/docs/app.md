@@ -461,14 +461,24 @@ first page. If you also choose a Profile’s Browser Data, the file replaces its
 cookies while preserving saved passwords. An empty file starts without cookies.
 An invalid or unreadable file stops creation with an error.
 
-**New Profile** and **Edit Profile** offer **Starting cookies** directly below
-**Starting URL**. Saving imports a snapshot of the file into the Profile’s encrypted browser storage. Each new
+**New Profile** and **Edit Profile** offer **Starting cookies** under
+**Advanced**. Saving imports a snapshot of the file into the Profile’s encrypted browser storage. Each new
 Session created from that Profile starts with those cookies; you can move or
 delete the original file afterward. Choosing a new file when editing replaces the
 Profile’s startup cookies and preserves saved passwords. Open Sessions receive
 the new startup data if you choose **Save and Reset Sessions**; saving without
 resetting leaves their browser data unchanged. In a new Profile, the cookie file
 takes the place of another browser data source. Removing a selected file before saving cancels that selection.
+
+When editing a Profile with active Sessions, **Copy Cookies from** appears below
+**Starting cookies**. Choose one of that Profile’s Sessions to save all its cookies
+as the Profile’s starting cookies when saving. REL captures them before resetting
+Sessions. Choosing a Session clears the file selection, and choosing a file clears
+the Session selection. A Session that closes before saving produces an error.
+Both sources are copied into REL’s Application Support data directory as encrypted
+Chromium profile storage, using the runtime’s Keychain safe-storage key. REL keeps
+no plaintext copy of an imported file. The source Session remains independent of
+the saved cookie snapshot.
 
 REL cookie files are versioned JSON containing values and cookie attributes,
 including expiration, Secure, HttpOnly, SameSite, and priority. They are plaintext
