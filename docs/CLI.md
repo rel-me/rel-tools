@@ -429,7 +429,7 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set, then the newest existing session. Create a persistent session only when none exists. |
 | `--profile NAME` | `profile` | Open a new tab in a group for this saved profile, creating a group when none matches. Preserve existing tabs, storage, and settings. Conflicts with `--session-id` and suppresses both implicit defaults. |
-| `--group GROUP` | `group` | Select a compatible group with this label, creating one when none matches. Conflicts with `--session-id` and suppresses both implicit defaults. |
+| `--group-id ID` | `group_id` | Open a new session in the specified existing `Group<number>` group. Conflicts with `--session-id`, `--profile`, and `--proxy`, and suppresses implicit defaults. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
