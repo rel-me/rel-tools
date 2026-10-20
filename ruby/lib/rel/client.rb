@@ -22,6 +22,7 @@ module REL
     "PAGE_MISMATCH" => 10_102,
     "PROXY_NOT_FOUND" => 10_103,
     "ACTIVE_PAGE_NOT_FOUND" => 10_104,
+    "GROUP_NOT_FOUND" => 10_105,
     "CONFLICT" => 10_200,
     "BROWSER_BUSY" => 10_201,
     "NETWORK_PAUSED" => 10_202,
@@ -250,8 +251,8 @@ module REL
       request_json(:post, "/sessions", body: payload)
     end
 
-    def update_session(session_id, payload)
-      request_json(:patch, "/sessions/#{segment(session_id)}", body: payload)
+    def update_group(group_id, payload)
+      request_json(:patch, "/groups/#{segment(group_id)}", body: payload)
     end
 
     def ping_session(session_id)
@@ -270,8 +271,20 @@ module REL
       request_json(:delete, "/sessions/#{segment(session_id)}")
     end
 
-    def close_session_group(group)
-      request_json(:post, "/sessions/close", body: { group: group })
+    def list_groups
+      request_json(:get, "/groups")
+    end
+
+    def get_group(group_id)
+      request_json(:get, "/groups/#{segment(group_id)}")
+    end
+
+    def create_group(payload = {})
+      request_json(:post, "/groups", body: payload)
+    end
+
+    def delete_group(group_id)
+      request_json(:delete, "/groups/#{segment(group_id)}")
     end
 
     def list_profiles

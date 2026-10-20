@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -77,6 +78,7 @@ class RelRpcClient:
             port = os.environ.get("REL_AGENT_PORT", "17319")
             base_url = f"http://127.0.0.1:{port}/v1"
         self.base_url = _validate_base_url(base_url)
+        self._owned_groups: dict[str, str] = {}
         self._temporary = tempfile.TemporaryDirectory(prefix="rel-playwright-")
         self._temporary_lock = threading.Lock()
         self._temporary_sequence = 0
@@ -96,18 +98,45 @@ class RelRpcClient:
             raise RpcProtocolError("REL session response is missing data.session")
         return session
 
-    def create_session(self, *, profile: str | None, group: str, lifetime: dict[str, Any] | None = None) -> str:
+    def get_group(self, group_id: str) -> dict[str, Any]:
+        data = self._request("GET", f"/groups/{quote(group_id, safe='')}", None, timeout=5.0)
+        group = data.get("group")
+        if not isinstance(group, dict):
+            raise RpcProtocolError("REL group response is missing data.group")
+        return group
+
+    def create_session(self, *, profile: str | None, group_id: str | None = None, lifetime: dict[str, Any] | None = None) -> str:
+        if group_id is not None and (profile is not None or lifetime is not None):
+            raise ValueError("group_id cannot be combined with profile or lifetime")
         data = self._request(
             "POST",
             "/sessions",
-            {"new_group": True, "group": group, **({"profile": profile} if profile is not None else {}), **({"lifetime": lifetime} if lifetime is not None else {})},
+            ({"group_id": group_id} if group_id is not None else {**({"profile": profile} if profile is not None else {}), **({"lifetime": lifetime} if lifetime is not None else {})}),
             timeout=10.0,
         )
         session = data.get("session")
         session_id = session.get("id") if isinstance(session, dict) else None
         if not isinstance(session_id, str) or not session_id:
             raise RpcProtocolError("REL session response is missing data.session.id")
+        created_group = session.get("group_id")
+        if not isinstance(created_group, str) or not re.fullmatch(r"Group[1-9][0-9]*", created_group):
+            raise RpcProtocolError("REL session response is missing data.session.group_id")
+        if group_id is None:
+            self._owned_groups[session_id] = created_group
         return session_id
+
+    def delete_owned_session(self, session_id: str, *, owns_group: bool) -> None:
+        if not owns_group:
+            self.delete_session(session_id)
+            return
+        group_id = self._owned_groups.get(session_id)
+        if group_id is None:
+            session = self.get_session(session_id)
+            group_id = session.get("group_id") if isinstance(session, dict) else None
+        if not isinstance(group_id, str) or not re.fullmatch(r"Group[1-9][0-9]*", group_id):
+            raise RpcProtocolError("Cannot confirm the managed session's Group ID for cleanup")
+        self._request("DELETE", f"/groups/{quote(group_id, safe='')}", None, timeout=10.0)
+        self._owned_groups.pop(session_id, None)
 
     def ping_session(self, session_id: str) -> None:
         """Refresh the inactivity timeout without changing the browser page."""

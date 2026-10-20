@@ -48,10 +48,10 @@ class _Handler(BaseHTTPRequestHandler):
                 "session": {
                     "id": f"Session{server.session_sequence}",
                     "profile": payload.get("profile", "Configured default"),
-                    "group": payload["group"],
+                    "group_id": payload.get("group_id", f"Group{server.session_sequence}"),
                 }
             }
-        elif self.command == "DELETE" and self.path.startswith("/v1/sessions/"):
+        elif self.command == "DELETE" and (self.path.startswith("/v1/sessions/") or self.path.startswith("/v1/groups/")):
             data = {"deleted_id": self.path.rsplit("/", 1)[-1]}
         elif self.command == "POST" and self.path == "/v1/navigate/observe":
             data = {

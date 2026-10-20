@@ -44,6 +44,7 @@ pub mod rpc_error_codes {
     pub const PAGE_MISMATCH: u32 = 10_102;
     pub const PROXY_NOT_FOUND: u32 = 10_103;
     pub const ACTIVE_PAGE_NOT_FOUND: u32 = 10_104;
+    pub const GROUP_NOT_FOUND: u32 = 10_105;
 
     pub const CONFLICT: u32 = 10_200;
     pub const BROWSER_BUSY: u32 = 10_201;
@@ -80,6 +81,7 @@ pub mod rpc_error_codes {
             "PAGE_MISMATCH" => PAGE_MISMATCH,
             "PROXY_NOT_FOUND" => PROXY_NOT_FOUND,
             "ACTIVE_PAGE_NOT_FOUND" => ACTIVE_PAGE_NOT_FOUND,
+            "GROUP_NOT_FOUND" => GROUP_NOT_FOUND,
             "CONFLICT" => CONFLICT,
             "BROWSER_BUSY" => BROWSER_BUSY,
             "NETWORK_PAUSED" => NETWORK_PAUSED,
@@ -3640,6 +3642,7 @@ mod tests {
             rpc_error_codes::PAGE_MISMATCH,
             rpc_error_codes::PROXY_NOT_FOUND,
             rpc_error_codes::ACTIVE_PAGE_NOT_FOUND,
+            rpc_error_codes::GROUP_NOT_FOUND,
             rpc_error_codes::CONFLICT,
             rpc_error_codes::BROWSER_BUSY,
             rpc_error_codes::NETWORK_PAUSED,

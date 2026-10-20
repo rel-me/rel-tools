@@ -639,7 +639,7 @@ For HTTP clients, proxy create/update accepts `detect_exit_locale` (boolean,
 default `false` on create and preserved when omitted on update). Proxy responses
 include that setting. Session responses include `proxy_country` (configured ISO
 country or null) and `proxy_detect_exit_locale`. With detection enabled,
-`GET /v1/sessions/{id}/proxy-location` returns
+`GET /v1/groups/{id}/proxy-location` returns
 `{ "country": "DE", "timezone": "Europe/Berlin" }` in the standard response envelope, or an error if detection is disabled, the session has
 no proxy, or the lookup fails. This lookup does not write a language to the proxy.
 
@@ -1562,10 +1562,8 @@ RPC `payload` option. See Meta's
 ## Browser configuration changes
 
 A tab group's proxy assignment and browser identity are fixed at creation.
-Every tab in that group shares them. In the sidebar, each group header shows its
-tab count and a **Group Info** button. Its popover displays the proxy, Browser
-Identity, and shared cookies/login behavior, with a **New Tab** action for that
-group. **Group Info** is also available in the group's context menu. Proxy and
+Every tab in that group shares them. Hover over a group folder name to see its
+Group ID, tab count, and proxy. Overview keeps the Session ID and Group ID visible. Proxy and
 identity displays are absent from the page toolbar. Overview's User-Agent is
 read-only and retains its copy action. Existing saved overrides still restore.
 To use a different proxy or

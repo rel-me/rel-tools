@@ -90,11 +90,14 @@ without navigating.
 | `delete_profile(id)` | `DELETE /v1/profiles/{id}` |
 | `export_profile_transfer(&ProfileTransferExportRequest)` | `POST /v1/profile-transfers/export` |
 | `import_profile_transfer(&ProfileTransferImportRequest)` | `POST /v1/profile-transfers/import` |
-| `update_session(id, &GroupUpdateRequest)` | `PATCH /v1/sessions/{id}` |
+| `update_group(id, &GroupUpdateRequest)` | `PATCH /v1/groups/{id}` |
 | `pause_session(id)` | `POST /v1/sessions/{id}/pause` |
 | `play_session(id)` | `POST /v1/sessions/{id}/play` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
-| `close_session_group(group)` | `POST /v1/sessions/close` |
+| `list_groups()` | `GET /v1/groups` |
+| `get_group(id)` | `GET /v1/groups/{id}` |
+| `create_group(&GroupCreateRequest)` | `POST /v1/groups` |
+| `delete_group(id)` | `DELETE /v1/groups/{id}` |
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
@@ -124,7 +127,7 @@ metadata-bearing app bundle.
 The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
 `read_page`, `perform_page_action`, both screenshot methods, all observation methods,
-`list_sessions`, `close_session_group`, and `list_proxies`; it does not maintain
+`list_sessions`, `list_groups`, `close_group`, and `list_proxies`; it does not maintain
 alternate request types or bypass the RPC transport. For capture, it exhausts
 and validates `CaptureStream` before returning one aggregated MCP result.
 

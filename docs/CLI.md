@@ -68,11 +68,11 @@ rel profile import FILE [--name NAME]
 rel session list
 rel session get SESSION_ID
 rel session create [options]
-rel session update SESSION_ID [options]
+rel group update GROUP_ID [options]
 rel session pause SESSION_ID
 rel session play SESSION_ID
 rel session delete SESSION_ID
-rel session close --group GROUP
+rel group delete GROUP_ID
 rel-mcp
 rel --help | -h
 rel --version
@@ -295,7 +295,7 @@ supports current `2026-07-28` discovery and legacy initialization through
 `rel_notifications`, `rel_capture`,
 `rel_page_attach`, `rel_navigate`, `rel_read`, `rel_page_action`, `rel_take_screenshot`,
 `rel_observe`, `rel_find`, `rel_action`, `rel_list_sessions`,
-`rel_close_session_group`, and `rel_list_proxies`.
+`rel_close_group`, `rel_list_groups`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
 validated NDJSON stream into `{request_id, exit_code, events}`. Tool results
@@ -412,7 +412,7 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set, then the newest existing session. Create a persistent session only when none exists. |
 | `--profile NAME` | `profile` | Create the session from this saved profile. Conflicts with `--session-id` and suppresses both implicit defaults. |
-| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses both implicit defaults. |
+| `--group-id GROUP_ID` | `group_id` | Create a new tab in that existing group. Conflicts with `--session-id`, profile, and proxy overrides; suppresses implicit defaults. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
@@ -421,7 +421,7 @@ Exactly one URL is required before the options. Scheme-less localhost
 addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
-When `--session-id`, `--profile`, and `--group` are omitted, the CLI uses
+When `--session-id`, `--profile`, and `--group-id` are omitted, the CLI uses
 `REL_SESSION_ID` if it is set, then the newest existing session. The environment
 variable is exported automatically by each embedded session terminal. An
 explicit option always wins. If neither the environment variable nor an
@@ -484,7 +484,7 @@ rel page attach https://example.com \
 ```
 
 `page attach` accepts `--session-id`, `--profile`, `--proxy`, `--output`,
-`--timeout`, and `--wait`. It also accepts `--group` when creating a session.
+`--timeout`, and `--wait`. It also accepts `--group-id` to create a tab in an existing group.
 `--profile` conflicts with `--session-id`; either creation option suppresses
 both implicit defaults. Otherwise the CLI uses `REL_SESSION_ID` when set, then
 the newest existing session. Its positional URL defaults to `REL_SESSION_URL`
@@ -781,5 +781,5 @@ rel reset --profile=Research
 Reset every existing tab group created from the named Profile. REL closes the
 tabs, changes the proxy route where supported, clears browser state, restores
 initial Profile cookies and passwords, and reopens saved URLs. This works with
-any proxy or no proxy. The result contains `data.reset_session_ids`; no existing
+any proxy or no proxy. The result contains `data.reset_group_ids`; no existing
 groups returns an empty list. Unknown Profiles and reset failures return errors.

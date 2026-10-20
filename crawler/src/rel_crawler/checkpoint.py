@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import json
 import logging
 import os
@@ -24,10 +23,6 @@ _LOGGER = logging.getLogger("rel_crawler.crawler")
 
 class CheckpointMixin:
     """Private engine mixin for durable checkpoint state."""
-
-    def _default_group(self) -> str:
-        digest = hashlib.sha256(str(self.state_path).encode("utf-8")).hexdigest()[:16]
-        return f"rel-crawler-{digest}"
 
     def _load_state(self) -> dict[str, Any]:
         if not self.state_path.exists():

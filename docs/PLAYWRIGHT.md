@@ -120,7 +120,7 @@ Sessions concurrently.
 | --- | --- |
 | `profile="Private"` | Explicit existing REL Profile copied into every new page Session. Omitting it uses the configured Default Profile, or `Private` if unset. |
 | `session_id="Session12"` | Use one existing persistent Session instead of creating one. |
-| `group="crawler-run"` | Group assigned to Sessions created by this Browser. A unique group is generated when omitted. |
+| `group_id="Group7"` | Add newly created tab sessions to this existing group. Cannot be combined with `profile` or `session_id`. Omission creates a separate group per new page. |
 | `persist=False` | Leave adapter-created Sessions open after close when true. Existing Sessions are never deleted. |
 | `rel_base_url=...` | Override the loopback RPC v1 root. |
 | `wait=0` | Extra REL settling delay in seconds after navigation and actions. |

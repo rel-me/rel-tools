@@ -68,7 +68,7 @@ has not exposed and cannot be made compatible by changing its browser plugin.
    can scroll to. Use a custom `extract_links` callback only when the crawl
    intentionally needs to parse captured HTML.
 3. Use only an existing REL Profile name. Let the crawler create a dedicated
-   managed session and deterministic group unless the caller deliberately owns
+   managed tab session and its own Group ID unless the caller deliberately owns
    the supplied session ID. Never create, edit, or infer a proxy alias.
 4. Preserve the navigation invariant for each target: exact native link click,
    target readiness, capture, browser-history Back, source readiness. Do not

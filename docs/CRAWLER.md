@@ -201,7 +201,10 @@ entries resume only while budget remains, and exhausted links become terminal
 failures that later runs skip. Existing capture files are skipped and logged by
 default.
 
-New crawls create a dedicated persistent REL session and deterministic group.
+New crawls create a dedicated tab session and its own Group ID. Supply
+`group_id="Group7"` to add the tab to an existing group instead; this cannot be
+combined with a profile or session ID. Cleanup removes newly owned groups and
+preserves explicitly supplied groups.
 The checkpoint reuses the session across Python process restarts. For a managed
 session failure, bounded recovery clears the stale ID, closes the old session
 when possible, creates a replacement from the same Profile, reloads the source,

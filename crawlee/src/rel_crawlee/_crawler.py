@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-import uuid
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, fields
@@ -93,7 +92,7 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         profile: str | None = None,
         session_id: str | None = None,
         rel_base_url: str | None = None,
-        group: str | None = None,
+        group_id: str | None = None,
         persist: bool = False,
         session_pool_size: int | None = None,
         max_requests_per_session: int = 100,
@@ -127,6 +126,10 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
             r"Session[1-9][0-9]*", session_id, re.IGNORECASE
         ):
             raise ValueError("session_id must use the Session<number> format")
+        if group_id is not None and (not isinstance(group_id, str) or re.fullmatch(r"Group[1-9][0-9]*", group_id) is None):
+            raise ValueError("group_id must use the Group<number> format")
+        if group_id is not None and (profile is not None or session_id is not None):
+            raise ValueError("group_id cannot be combined with profile or session_id")
         if navigation_timeout.total_seconds() <= 0:
             raise ValueError("navigation_timeout must be positive")
         concurrency_settings = concurrency_settings or ConcurrencySettings(
@@ -163,7 +166,7 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
             "session_id": session_id,
             "rel_base_url": rel_base_url
             or f"http://127.0.0.1:{os.environ.get('REL_AGENT_PORT', '17319')}/v1",
-            "group": group or f"rel-crawlee-{uuid.uuid4().hex}",
+            "group_id": group_id,
             "persist": persist,
         }
         self._navigation_timeout_ms = navigation_timeout.total_seconds() * 1000

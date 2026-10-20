@@ -139,7 +139,6 @@ async def verify(args):
                 kwargs.setdefault("profile", group)
             return RelCrawler(
                 rel_base_url=args.rel_base_url,
-                group=group,
                 configuration=Configuration(
                     storage_dir=str(Path(temp) / name), purge_on_start=False
                 ),
@@ -247,7 +246,7 @@ async def verify(args):
             )
 
             borrowed = (
-                await cli("session", "create", "--group", group, "--profile", group)
+                await cli("session", "create", "--profile", group)
             )["session"]["id"]
             reuse = crawler("borrowed", session_id=borrowed)
             cookies = []
@@ -320,7 +319,10 @@ async def verify(args):
         finally:
             # Unique group/alias/profile only. Never touch unrelated sessions.
             try:
-                await cli("session", "close", "--group", group)
+                groups = (await cli("group", "list"))["groups"]
+                for owned in groups:
+                    if owned.get("profile") == group:
+                        await cli("group", "delete", owned["id"])
             finally:
                 try:
                     if profile:

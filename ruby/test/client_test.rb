@@ -269,6 +269,25 @@ class RELClientTest < Minitest::Test
     assert_raises(ArgumentError) { REL::Client.local.get_session("") }
   end
 
+  def test_groups_use_distinct_routes_and_session_membership
+    group = { "id" => "Group7", "sessions" => [{ "id" => "Session12", "group_id" => "Group7" }] }
+    @server = FakeServer.new(
+      json_response(200, "groups", data: { "groups" => [group] }),
+      json_response(200, "get-group", data: { "group" => group }),
+      json_response(200, "create-group", data: { "group" => group }),
+      json_response(200, "update-group", data: { "group" => group }),
+      json_response(200, "delete-group", data: { "deleted_id" => "Group7" })
+    )
+    assert_equal "Session12", client.list_groups.data.fetch("groups")[0].fetch("sessions")[0].fetch("id")
+    assert_equal "Group7", client.get_group("Group7").data.fetch("group").fetch("id")
+    client.create_group(name: "Research")
+    client.update_group("Group7", name: "Research-2")
+    assert_equal "Group7", client.delete_group("Group7").data.fetch("deleted_id")
+    requests = 5.times.map { @server.requests.pop }
+    assert_equal [["GET", "/v1/groups"], ["GET", "/v1/groups/Group7"], ["POST", "/v1/groups"],
+                  ["PATCH", "/v1/groups/Group7"], ["DELETE", "/v1/groups/Group7"]], requests.map { |request| [request.method, request.path] }
+  end
+
   private
 
   def client

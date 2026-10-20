@@ -99,10 +99,16 @@ class FakeRelClient:
             return None
         return {
             "id": session_id,
-            "profile": self.profile,
+            "group_id": "Group7",
         }
 
-    def create_session(self, *, profile: str | None, group: str) -> str:
+    def get_group(self, group_id: str) -> dict[str, Any]:
+        return {"id": group_id, "profile": self.profile}
+
+    def delete_owned_session(self, session_id: str, *, owns_group: bool) -> None:
+        self.delete_session(session_id)
+
+    def create_session(self, *, profile: str | None, group_id: str | None) -> str:
         self.create_count += 1
         failure = self.create_failures.get(self.create_count)
         if failure is not None:
