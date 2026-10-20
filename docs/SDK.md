@@ -350,9 +350,11 @@ closes, or the agent exits. Retained snapshots are evidence, not actionable page
 state.
 
 `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
-main frame commits an HTTP 4xx or 5xx response. By default, detected Cloudflare
-Turnstile and managed challenge pages first receive up to 15 seconds to
-continue; this can be disabled in REL's General settings. Error details include
+main frame finishes an HTTP 4xx or 5xx document and inspection finds no active
+challenge. By default, detected Cloudflare Turnstile and managed challenge
+documents with HTTP error statuses receive the remaining request timeout to
+complete verification and redirects in the same session; this can be disabled
+in REL's General settings. Error details include
 the final `url` and exact `target_http_status`; the navigated session remains
 selected.
 

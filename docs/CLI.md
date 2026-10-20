@@ -357,14 +357,20 @@ Fragment-only navigation and same-document Back/Forward complete using the
 existing document. They preserve its HTTP status without requiring a full load.
 
 If the main frame returns HTTP 4xx or 5xx, `navigate` normally exits
-unsuccessfully as soon as Chromium commits that response instead of waiting for
-all background loading to stop. By default, REL first detects Cloudflare
-Turnstile and managed challenge pages and gives them up to 15 seconds to
-continue. A successful redirect completes normally; otherwise the original
-target error is returned. Turn off **REL → Settings… → General → Wait for
+unsuccessfully after the main-frame document finishes and REL inspects it,
+without waiting for unrelated background loading. By default, detected Cloudflare
+Turnstile and managed challenge documents with an HTTP error status receive the
+remaining request timeout to complete verification and redirects in the same
+session. A successful redirect completes normally. If verification remains
+unresolved, the request fails with the target HTTP error or a timeout when the
+budget expires. Successful pages with embedded
+Turnstile widgets retain a maximum 15-second continuation window. Turn off
+**REL → Settings… → General → Wait for
 Cloudflare Turnstile** to restore immediate failure for every HTTP error. The
 `UPSTREAM_UNAVAILABLE` error message and details include the exact target status
-and final URL. The rendered page remains selected in the session.
+and final URL. The rendered page remains selected in the session. A retryable
+error does not require replacing that session; replacement can interrupt
+verification that is still running in its tab.
 
 `perform` calls `POST /v1/perform` with one positional, non-empty JSON array of
 canonical action objects. Actions run in array order. It accepts `--session-id`,

@@ -515,7 +515,10 @@ that event. A target website status such as 404 remains capture data and can
 produce exit code 1 and `isError:true`; it is not a REL RPC or MCP protocol
 error. With **REL → Settings… → General → Wait for Cloudflare Turnstile** on by
 default, REL detects Turnstile and managed Cloudflare challenge pages and gives
-them up to 15 seconds to continue before returning their target error.
+documents with HTTP error statuses the remaining request timeout to complete
+verification and redirects in the same session before returning their target
+error. Successful documents with embedded widgets retain a maximum 15-second
+continuation window.
 
 Malformed JSON-RPC messages, unsupported methods, and unknown tools use
 JSON-RPC errors. Invalid arguments or another failure while executing a known
