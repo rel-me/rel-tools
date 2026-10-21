@@ -729,7 +729,12 @@ Every create option is optional. `--profile` accepts the unique name shown in
 **REL → Settings… → Profiles**; omission uses the configured default (Custom when unset). Omitted proxy and
 filtering options use the selected profile. Use `--direct` to override it with
 a direct connection. `--image-blocking-mode` is `none`, `all`, or
-`over_limit`; `none` allows every image without changing AdBlock.
+`over_limit`. These historical image-named flags apply to images, audio, and
+video: `none` allows all media, `all` blocks all recognized media, and
+`over_limit` blocks media larger than `--image-size-limit-kb` in decimal kB,
+without changing AdBlock. The same limit covers media fetched by page scripts.
+Existing profile thresholds are preserved. See the [RPC guide](RPC.md) for
+streaming and byte-range behavior.
 `--group` labels the new session without changing its unique name or canonical
 ID. Group matching is case-insensitive.
 `--id-only` changes successful output to the new canonical

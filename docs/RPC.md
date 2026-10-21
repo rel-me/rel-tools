@@ -1136,8 +1136,16 @@ the tab group in the app. It is independent of `profile`, which selects browser
 data and creation defaults. The creation sheet supplies both explicitly, so a
 Profile group can start without copying saved browser data and still be reused.
 
-`image_blocking_mode` is `none`, `all`, or `over_limit`. `none` allows every
-image while leaving `adblock_enabled` independent. The legacy `block_images`
+The historical `image_blocking_mode` and `image_size_limit_kb` fields control
+media filtering for images, audio, and video. `none` allows all media, `all`
+blocks all recognized media, and `over_limit` blocks media larger than the
+configured size in decimal kB. AdBlock remains independent. Existing profiles
+retain their mode and threshold. Media is recognized by Chromium resource type
+or response MIME type, including audio/video and HLS/DASH responses fetched by
+page scripts. Byte-range responses use the complete size from Content-Range
+when available; streamed responses are stopped when received bytes exceed the
+limit. The limit applies per media response, not to the combined duration or
+size of a segmented stream. The legacy `block_images`
 alias is rejected. Size is 1 through 1,048,576 kB. The visible name is editable and
 case-insensitively unique; the canonical `id` is immutable. Session routes accept
 only that ID; numeric database IDs are neither accepted nor returned. A group
@@ -1153,7 +1161,7 @@ force a new group. Explicit name, group label, and lifetime constraints still ap
 Requests with configuration overrides or no saved profile open a page tab in
 the oldest compatible existing tab group.
 Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
+fingerprint configuration, media/ad blocking, model, and viewport settings.
 The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
 An explicit name or group label must match to reuse a group; an explicit lifetime
 must also match. If no compatible group exists, REL creates one.

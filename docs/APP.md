@@ -442,7 +442,7 @@ in Proxies even if you later cancel the profile.
 button open a tab in the matching default Profile group, creating the group when absent.
 Tabs in a group share its settings, cookies, and logins. Proxy and Browser Identity
 are fixed when the group is created. Create a new group to use a different proxy or
-identity. AdBlock and image blocking remain editable for the group.
+identity. AdBlock and media blocking remain editable for the group.
 Browser data is copied or imported rather than switched as a setting.
 
 Cookies and saved passwords can be imported while Chrome or another supported
@@ -517,7 +517,7 @@ when saved Profiles exist. Selecting a Profile with an existing group shows
 **Open Tab** and explains that its current settings, cookies, and logins will be reused.
 New-group settings and setup inputs are hidden for that selection. When no matching
 group exists, its configuration loads into the form and can be edited before creation. AdBlock,
-Browser Identity, Proxy, Image Blocking, and Browser Data share one section
+Browser Identity, Proxy, Media Blocking, and Browser Data share one section
 with equal-height setting rows. Choosing **Custom Privacy** in Create Session
 opens a separate editor; **Use Identity** applies it to the draft and **Cancel**
 preserves the previous identity. **Edit** reopens a custom identity.
@@ -790,7 +790,7 @@ and IPv6 `::1`. This applies to main pages and subresources in direct and proxie
 Sessions, even when a downloaded rule would block them.
 
 Only the destination host is exempt. External requests made by local pages still
-use AdBlock rules. Image blocking and image size limits still apply.
+use AdBlock rules. Media blocking and media size limits still apply.
 
 ### Proxy-provider AdBlock exclusions
 
@@ -803,7 +803,7 @@ IPRoyal, Webshare, SOAX, and Rayobyte. For example, `geo.brdtest.com`,
 These exclusions apply only while a Session has a proxy configured, to main
 pages and subresources, with cached or newly downloaded rules. Direct Sessions
 use normal AdBlock rules. Removing a Session's proxy restores normal filtering;
-assigning a proxy enables the exclusions again. Image blocking and image
+assigning a proxy enables the exclusions again. Media blocking and media
 size limits still apply. Unrelated requests from provider pages remain subject
 to AdBlock, as do ordinary destinations reached through a proxy.
 
@@ -936,7 +936,12 @@ The configuration uses the profile-creation fields documented in the
 `proxy_alias` are copied. A null fingerprint selects Native Chromium. Keep an
 exported fingerprint object intact when preserving a configured identity.
 `image_blocking_mode` is `none`, `all`, or `over_limit`; `image_size_limit_kb`
-is an integer from 1 through 1048576.
+is an integer from 1 through 1048576. These historical field names control
+images, audio, and video. Existing modes and thresholds are preserved. In the
+app, **Media Blocking** offers **Allow all media**, **Block all media**, or
+**Block media over a size limit**. The size threshold uses decimal kB and also
+covers media fetched by page scripts. See the [RPC guide](RPC.md) for streaming
+and byte-range behavior.
 
 Cookies, passwords, browser storage, and referenced proxy definitions are not
 included. Both `includes_cookies` and `includes_passwords` must be false.
