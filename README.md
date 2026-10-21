@@ -53,6 +53,20 @@ rel https://rel.me
 Capture writes page data to standard output and events to standard error. Use
 `rel navigate`, `rel perform`, and argument-free `rel capture` for a stateful
 page workflow. Use `rel session` to manage persistent browser sessions.
+For pages that load their content after navigation, wait for a CSS selector
+before continuing:
+
+```sh
+rel navigate https://example.com --wait-for '#content' --timeout 60
+rel capture > page.html
+```
+
+REL keeps navigation and the content wait on the same page and session within
+one timeout. Intermediate HTTP error pages can redirect while it waits; REL
+checks the final HTTP status after the selector appears. The versioned API and
+typed clients expose this option as `wait_for`. See the
+[CLI navigation guide](docs/CLI.md#shorthand-page-workflow) for details.
+
 See the [Actions reference](docs/ACTIONS.md) for every supported browser
 interaction and its JSON shape.
 

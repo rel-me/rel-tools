@@ -24,6 +24,19 @@ REL keeps Chromium inside the installed macOS app. Like curl, the CLI writes
 page data to standard output and events to standard error, so either stream can
 be piped or redirected independently.
 
+To continue only when page content is ready, navigate with a CSS selector:
+
+```sh
+rel navigate https://example.com --wait-for '#content' --timeout 60
+rel capture > page.html
+```
+
+REL waits for `#content` to appear on the same page and session, with one
+60-second timeout for navigation and readiness. Intermediate HTTP error pages
+can redirect while it waits, and REL checks the final HTTP status before
+returning. API and typed-client navigation requests use `wait_for` for the
+same capability.
+
 [Read the CLI guide →](/cli/)
 
 ## Configure per-session proxies

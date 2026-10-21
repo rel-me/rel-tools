@@ -228,6 +228,20 @@ The final argument-free `rel capture` reads the page selected by `rel navigate`
 after `rel perform` finishes. Each CLI process asks REL for the newest existing
 session, so this sequence needs no shell variable or CLI state file.
 
+For dynamically loaded content, add `--wait-for` to navigation so the next
+command runs only after the chosen CSS selector appears:
+
+```sh
+rel navigate https://example.com --wait-for '#content' --timeout 60
+rel capture > example.html
+```
+
+Navigation and the selector wait share the same page, session, and 60-second
+budget. Intermediate HTTP error documents can redirect during the wait; REL
+checks the final HTTP status after the selector matches. Use `--wait-for` to
+wait for content and `--wait` to add a fixed settling delay. Without
+`--wait-for`, navigation keeps its usual main-frame readiness behavior.
+
 To pin a sequence while another shell or process may create sessions, export an
 ID and optional default URL under REL's standard environment variables:
 
