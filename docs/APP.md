@@ -91,10 +91,11 @@ show or hide the bottom panel. These controls follow the selected group and stay
 outside the browser tab's address toolbar. Chat uses a softly shaded background
 in both light and dark appearance to separate it from the surrounding window.
 
-**⌘W** closes a session without deleting shared group data. Closing the last tab
-in the app requests group deletion through confirmation; cancellation preserves
-the tab and its data. Deleting a group closes all its sessions and removes shared
-browser data. Quitting REL preserves groups, saved URLs, and selection.
+**⌘W**, the tab strip's close button, and the sidebar's close button close a
+session. Closing the last session in a group also removes the group and its
+shared browser data. Closing a session with siblings leaves those sessions and
+their shared data intact. **Delete Tab Group…** requests confirmation before
+removing an entire group. Quitting REL preserves groups, saved URLs, and selection.
 
 CLI, SDK, and MCP browser operations target a specific `Session<ID>`, independent
 of the selected UI tab. `Group<ID>` identifies shared configuration and storage.
@@ -304,12 +305,13 @@ Use **Refresh Sessions** and **Save Current Workspace** to exercise recovery.
 Close the REL window or quit REL to keep Sessions and their saved logins for
 next time. Session deletion cannot be undone.
 
-**Delete Session…** in a Session's context menu and the Session tab's close
-button show a confirmation before deleting anything. **Close Session…** (⌘W)
-shows the same confirmation when no browser popup is open; when a popup is
-open, it closes only that popup. The confirmation names the Session and warns
-that deletion removes its cookies, saved logins, saved passwords, and other
-browser data. **Cancel** is the default action and keeps the Session intact.
+The close buttons and **⌘W** close a browser session immediately. If it is the
+last session in its group, REL also removes the group and its shared browser
+data. When a browser popup is open, **⌘W** closes only that popup.
+
+**Delete Tab Group…** in a group's context menu shows a confirmation before
+removing the entire group and its shared browser data. **Cancel** keeps the
+group intact.
 
 **Settings → General → Browser Data → Delete All Sessions…** also requires
 confirmation and warns that all Sessions and their browser data will be deleted.
