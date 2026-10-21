@@ -37,8 +37,12 @@ in a group share the proxy assignment and reset together. Other groups keep
 their assignments.
 
 Use **Reset Sessions** in the group's info popover or context menu to stop all its sessions,
-clear their shared browser state and navigation history, restore the profile's
-initial browser data (including cookies), and reopen the tabs at their saved URLs.
+apply the latest saved Profile configuration, clear their shared browser state
+and navigation history, restore the Profile's initial browser data (including
+cookies), and reopen the tabs at their saved URLs. Profile changes saved with
+**Save Without Resetting** take effect on the next reset, including the proxy,
+identity, network filters, model, Session Viewport, and HTTP rules. If the Profile
+was deleted, the group keeps its copied configuration.
 For supported proxies, reset also rotates the sticky session ID or advances the
 ISP pool port; a new exit IP depends on the provider and pool. Reset also works
 without a proxy. Other groups keep their state. The button shows **Resetting…**
@@ -411,7 +415,8 @@ template. When saving Profile changes with open Sessions, REL asks how to apply
 them. **Save and Reset Sessions** is the default: it applies the new configuration,
 clears and restores browser data from the Profile, and reloads the open pages.
 Session IDs and tab URLs are preserved. Choose **Save Without Resetting** to keep
-open Sessions on their current configuration, or **Cancel** to keep editing.
+open Sessions on their current configuration until their next reset, or
+**Cancel** to keep editing.
 Profiles without open Sessions save immediately.
 
 In the profile editor, **Session Viewport** selects the initial viewport for a new
@@ -1808,4 +1813,5 @@ resets on the first response; N repeats resets on response N + 1. Reset clears
 browser state, restores initial Profile cookies and passwords, changes the proxy
 route where supported, and reopens the saved URLs. Counts clear after a reset
 or restarting REL. Profile edits apply to newly created groups and to existing
-groups when you choose **Save and Reset Sessions**.
+groups on their next manual or automatic reset, including when you choose
+**Save and Reset Sessions**.

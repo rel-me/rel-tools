@@ -898,7 +898,8 @@ rel reset --profile=Research
 ```
 
 Reset every existing tab group created from the named Profile. REL closes the
-tabs, changes the proxy route where supported, clears browser state, restores
-initial Profile cookies and passwords, and reopens saved URLs. This works with
+tabs, applies the latest saved Profile configuration, changes the proxy route
+where supported, clears browser state, restores initial Profile cookies and
+passwords, and reopens saved URLs. This works with
 any proxy or no proxy. The result contains `data.reset_session_ids`; no existing
 groups returns an empty list. Unknown Profiles and reset failures return errors.
