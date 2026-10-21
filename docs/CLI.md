@@ -684,54 +684,21 @@ rel session play Session12
 rel session delete Session12
 ```
 
-Create a session:
+Session listing and creation return `{id, group_id, created_at}` for each tab.
+Names and profile settings belong to the group identified by `group_id`.
 
 ```sh
-rel session create \
-  --name Research \
-  --group pgm \
-  --profile BandwidthSaver \
-  --proxy office \
-  --adblock-enabled true \
-  --image-blocking-mode over_limit \
-  --image-size-limit-kb 100
+rel session create --profile RYM
+rel session create --profile RYM --name RYM
 ```
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
+With only a saved profile and optional name, creation adds a new session to the
+oldest matching profile group, preserving its current settings, storage, cookies,
+and lifetime. A name constrains the group selection case-insensitively. Without
+a matching group, REL creates one. Other configuration options create a new group.
+Creation preserves existing sessions. Use the returned `data.session.id` with
+`--session-id` to target that exact tab; a closed tab reports `SESSION_NOT_FOUND`.
 
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's `data.session.id` identifies the newly created tab. Each creation
-returns a distinct tab ID even when `reused_group` is true; the group's
-configuration and storage remain shared. Pass that complete ID with
-`--session-id` for navigation, actions, observation, and capture. Later creations
-and tab selection changes cannot redirect an explicitly targeted command.
-A closed tab reports `SESSION_NOT_FOUND` instead of targeting another tab.
-`rel session delete TAB_ID` closes only that tab. Group IDs from `session list`
-retain group-level management behavior, including deleting every tab in the group.
-Use `rel session create --new-group` to force a separate group.
-
-When a new group is needed and `--name` is omitted, sessions created from a saved profile use its name
-followed by the global session number, for example `Reddit123`. Custom sessions
-use `Session123`. The canonical session ID remains `Session123`; duplicate
-visible names receive ` (2)`, ` (3)`, and so on.
-
-Every create option is optional. `--profile` accepts the unique name shown in
-**REL → Settings… → Profiles**; omission uses the configured default (Custom when unset). Omitted proxy and
-filtering options use the selected profile. Use `--direct` to override it with
-a direct connection. `--image-blocking-mode` is `none`, `all`, or
-`over_limit`; `none` allows every image without changing AdBlock.
-`--group` labels the new session without changing its unique name or canonical
-ID. Group matching is case-insensitive.
 `--id-only` changes successful output to the new canonical
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
