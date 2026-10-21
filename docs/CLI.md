@@ -681,9 +681,9 @@ fingerprint configuration, image/ad blocking, model, and viewport settings.
 The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
 An explicit name or group label must match to reuse a group; an explicit lifetime
 must also match. If no compatible group exists, REL creates one.
-The response's `data.session.id` identifies the newly created tab, and
-`data.session.group_id` identifies its shared group. Each creation returns a
-distinct tab ID even when `reused_group` is true. Pass that complete ID with
+The response's `data.session.id` identifies the newly created tab. Each creation
+returns a distinct tab ID even when `reused_group` is true; the group's
+configuration and storage remain shared. Pass that complete ID with
 `--session-id` for navigation, actions, observation, and capture. Later creations
 and tab selection changes cannot redirect an explicitly targeted command.
 A closed tab reports `SESSION_NOT_FOUND` instead of targeting another tab.
