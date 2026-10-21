@@ -1069,6 +1069,9 @@ pub struct NavigateRequest {
     pub timeout: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait: Option<f64>,
+    /// Readiness selector awaited within the navigation timeout on the same page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait_for: Option<String>,
 }
 
 impl NavigateRequest {
@@ -3584,6 +3587,23 @@ mod tests {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{TcpListener, TcpStream};
     use std::thread::{self, JoinHandle};
+
+    #[test]
+    fn navigate_serializes_optional_readiness_selector() {
+        let mut request = NavigateRequest::new("https://example.com");
+        assert_eq!(
+            serde_json::to_value(&request).unwrap(),
+            json!({"url":"https://example.com"})
+        );
+        request.wait_for = Some("#content".into());
+        request.timeout = Some(60.0);
+        assert_eq!(
+            serde_json::to_value(&request).unwrap(),
+            json!({
+                "url":"https://example.com", "wait_for":"#content", "timeout":60.0
+            })
+        );
+    }
 
     #[test]
     fn rpc_error_codes_use_a_distinct_high_numeric_namespace() {

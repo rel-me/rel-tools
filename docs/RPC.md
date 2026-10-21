@@ -147,7 +147,7 @@ repeat.
 
 A target website returning 404 or 429 is not a REL RPC error for capture
 operations. Its status is reported as `target_http_status` in capture data.
-`POST /v1/navigate` instead returns `UPSTREAM_UNAVAILABLE` when its main frame
+Without `wait_for`, `POST /v1/navigate` instead returns `UPSTREAM_UNAVAILABLE` when its main frame
 finishes an HTTP 4xx or 5xx document and inspection finds no active challenge.
 With the default **REL → Settings… →
 General → Wait for Cloudflare Turnstile** setting, detected Turnstile and
@@ -410,6 +410,21 @@ instead creates a new session from that named template; it cannot be combined
 with `session_id`. An explicit session selects that session as the new current
 page.
 
+`POST /v1/navigate` also accepts an optional `wait_for` CSS selector:
+
+```json
+{"url":"https://example.com", "session_id":"Session12", "wait_for":"#content", "timeout":60}
+```
+
+REL navigates and uses its tolerant native selector wait within one operation
+on the same page and session. Intermediate HTTP-error documents may redirect
+while waiting. After the selector matches, REL validates the final main-frame
+HTTP status and returns `UPSTREAM_UNAVAILABLE` for a final HTTP 4xx/5xx response.
+The `timeout` bounds navigation and readiness together. Cancellation applies to
+the entire operation and preserves page/session ownership. Without `wait_for`,
+navigation retains its existing readiness and HTTP-error handling. This field
+is specific to `POST /v1/navigate`; it does not add support for navigation actions.
+
 Perform one or more canonical actions with `POST /v1/perform`:
 
 ```json
@@ -452,7 +467,7 @@ finishes, and has nonempty rendered source. Subframe and page-initiated
 background loading does not delay completion. The `wait` delay begins after
 main-frame readiness and restarts if another main-frame navigation begins. Use
 a timed `wait` action when a workflow needs additional settling time.
-If navigation commits an HTTP 4xx or 5xx main-frame response, it returns
+Without `wait_for`, if navigation commits an HTTP 4xx or 5xx main-frame response, it returns
 `UPSTREAM_UNAVAILABLE` instead of waiting for unrelated background loading to
 become idle. A detected Cloudflare Turnstile or managed challenge receives the
 default-on continuation window described above. The error includes

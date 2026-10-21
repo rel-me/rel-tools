@@ -260,6 +260,23 @@ background loading does not hold the request open. Its `wait` value is a
 bounded settling delay after final main-frame readiness. Use `Action::Wait`
 when a workflow needs additional settling time.
 
+Set `NavigateRequest.wait_for` to combine navigation with a tolerant native
+selector wait on the same page and session:
+
+```rust
+let mut request = rel_client::NavigateRequest::new("https://example.com");
+request.wait_for = Some("#content".into());
+request.timeout = Some(60.0);
+rel_client::RelClient::local().navigate(&request)?;
+# Ok::<(), rel_client::ClientError>(())
+```
+
+Intermediate HTTP-error documents may redirect while waiting. REL validates the
+final main-frame HTTP status after the selector matches. The `timeout` is one
+overall navigation and readiness budget. Cancellation covers the combined
+operation and preserves page/session ownership. Leaving `wait_for` as `None`
+preserves existing navigation behavior.
+
 Take a visual capture from the same current page with `ScreenshotRequest`, or
 use `PageScreenshotRequest` with an explicit attached page ID:
 
@@ -349,7 +366,7 @@ snapshot for reading until the 32-observation registry evicts it, the session
 closes, or the agent exits. Retained snapshots are evidence, not actionable page
 state.
 
-`navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
+Without `wait_for`, `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame finishes an HTTP 4xx or 5xx document and inspection finds no active
 challenge. By default, detected Cloudflare Turnstile and managed challenge
 documents with HTTP error statuses receive the remaining request timeout to
