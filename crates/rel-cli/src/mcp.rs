@@ -2324,6 +2324,51 @@ mod tests {
     }
 
     #[test]
+    fn session_tools_accept_tab_resources_without_group_settings() {
+        let session = json!({"id":"Session12", "group_id":"Group4", "created_at":123});
+        for (tool, arguments, data, route) in [
+            (
+                "rel_list_sessions",
+                json!({}),
+                json!({"sessions":[session.clone()]}),
+                "GET /v1/sessions HTTP/1.1",
+            ),
+            (
+                "rel_create_session",
+                json!({"profile":"RYM"}),
+                json!({"session":session.clone()}),
+                "POST /v1/sessions HTTP/1.1",
+            ),
+            (
+                "rel_create_session",
+                json!({"profile":"RYM", "name":"RYM"}),
+                json!({"session":session.clone()}),
+                "POST /v1/sessions HTTP/1.1",
+            ),
+        ] {
+            let body = json!({"status":"ok", "request_id":"req_session", "data":data}).to_string();
+            let (base_url, server) =
+                start_test_server(http_response("application/json", "req_session", &body));
+            let output = run_messages_with_client(
+                &[json!({
+                    "jsonrpc":"2.0", "id":7, "method":"tools/call",
+                    "params":{"_meta":modern_metadata(), "name":tool, "arguments":arguments}
+                })],
+                RelClient::new(base_url),
+            );
+            let request = server.join().unwrap();
+            assert!(request.starts_with(route), "{request}");
+            if tool == "rel_create_session" {
+                let sent: Value =
+                    serde_json::from_str(request.split_once("\r\n").unwrap().1).unwrap();
+                assert_eq!(sent, arguments);
+            }
+            assert_eq!(output[0]["result"]["isError"], false, "{output:?}");
+            assert_eq!(output[0]["result"]["structuredContent"]["data"], data);
+        }
+    }
+
+    #[test]
     fn status_tool_forwards_the_complete_rpc_envelope() {
         let body = json!({
             "status": "ok",

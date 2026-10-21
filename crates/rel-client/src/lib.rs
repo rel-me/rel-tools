@@ -3446,21 +3446,8 @@ fn is_false(value: &bool) -> bool {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lifetime: Option<SessionLifetime>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub last_activity_at: Option<i64>,
     pub id: String,
-    pub name: String,
-    pub profile: String,
-    pub profile_data_id: Option<String>,
-    pub group: Option<String>,
-    pub proxy_alias: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub proxy_locale: Option<String>,
-    pub adblock_enabled: bool,
-    pub image_blocking_mode: ImageBlockingMode,
-    pub image_size_limit_kb: i64,
+    pub group_id: String,
     pub created_at: i64,
 }
 
@@ -3810,16 +3797,10 @@ mod tests {
     }
 
     fn session_json() -> Value {
+        // Actual tab-session resource: settings and names belong to the group.
         json!({
             "id": "machine-a.Session1",
-            "name": "Session1",
-            "profile": "Default",
-            "profile_data_id": null,
-            "group": "pgm",
-            "proxy_alias": null,
-            "adblock_enabled": true,
-            "image_blocking_mode": "over_limit",
-            "image_size_limit_kb": 100,
+            "group_id": "Group1",
             "created_at": 1
         })
     }
@@ -5429,7 +5410,7 @@ mod tests {
             .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
-        assert_eq!(sessions.data.sessions[0].group.as_deref(), Some("pgm"));
+        assert_eq!(sessions.data.sessions[0].group_id, "Group1");
         client.get_session("machine-a.Session1").unwrap();
         client
             .create_session(&SessionCreateRequest::default())
