@@ -708,24 +708,33 @@ extension. REL supplies an inert compatibility resource, not Google's extension
 code or offline document functionality. Private and Native identities do not
 expose this entry. Create a new tab group to use a different identity.
 
-## Shared asset cache
+## Profile asset caches
 
-Enable **Reuse cacheable assets across sessions** in **REL → Settings… → Cache**
-to reuse HTTP resources between Sessions. This is off by default, with a 512 MiB
-size limit. You can change the limit or clear the shared cache there.
+**Cache assets across resets** is enabled by default in every Profile, including
+existing Profiles. Edit a Profile in **REL → Settings… → Profiles** to disable it
+or change its **Maximum Asset Cache Size** (128 MiB, 256 MiB, 512 MiB, or 1 GiB;
+512 MiB by default).
 
-Any resource type can qualify, including compressed resources and responses
-without `Cache-Control: public`. Responses need an explicit fresh `max-age`,
-`s-maxage`, or `Expires` lifetime. REL respects `private`, `no-store`, and
-`no-cache`; requests carrying cookies or authorization and responses setting
-cookies are excluded. Partial responses, downloads with Content-Disposition,
-and bodies larger than 32 MiB after decoding are also excluded.
+Each Profile has its own asset cache. Assets can be reused by its Groups and
+Sessions after a reset, while cookies, site storage, permissions, and private
+HTTP caches are reset normally. Assets are never reused across Profiles. Proxy
+aliases also have separate cache partitions within each Profile.
 
-Direct Sessions share one cache partition. Proxy Sessions share only within
-the same proxy alias. Cookies, site storage, and Session identity remain
-separate. The shared cache reduces repeated downloads; it does not combine
-Chromium renderer processes. Clearing private Session caches leaves the shared
-cache intact, and clearing the shared cache leaves private Session data intact.
+Only read-only images, stylesheets, scripts, fonts, and favicons qualify.
+Documents and fetched data are excluded. Responses need an explicit fresh
+`max-age`, `s-maxage`, or `Expires` lifetime; `Cache-Control: public` is optional.
+REL respects `private`, `no-store`, and `no-cache`. Requests carrying cookies or
+authorization, responses setting cookies, partial responses, downloads with
+Content-Disposition, and decoded bodies larger than 32 MiB are excluded.
+Expired assets return to the network; this cache does not perform conditional
+ETag revalidation.
+
+Profiles settings lists Profiles alphabetically, with each cache's used space,
+maximum size, reused bytes, and request count. **Clear Cache** beside a Profile
+clears only its assets. **Clear All Cache** clears all Profile asset caches.
+**Clear Session Caches** clears private HTTP caches. These actions preserve
+cookies and site storage. Asset cache statistics and clearing are available even
+when no Sessions are open.
 
 ## Navigation feedback, errors, and retry
 
