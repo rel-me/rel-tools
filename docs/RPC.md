@@ -24,13 +24,13 @@ cache, history, site storage, permissions, or previous chat state. Each session
 retains its last URL without loading it. Old IDs, page attachments, and
 observations expire. Responses provide new IDs and old-to-new identity mappings.
 
-`POST /v1/sessions` with `{"group_id":"Group1"}` creates a session in that
-existing group using its copied configuration. Without `group_id`, it creates a
-new group and its first session. `POST /v1/groups` creates a group resource.
-These explicit creation routes do not select compatible groups, accept custom
-group labels, or accept `new_group`. Browser capture/page/navigation operations
-with an explicit saved `profile` can select that Profile's oldest existing group
-and add a new session, creating the group when absent.
+`POST /v1/sessions` with `{"group_id":"Group1"}` joins that existing group.
+With only a saved `profile` and optional `name`, it selects the oldest matching
+Profile group, creating one if absent. A name constrains selection
+case-insensitively. Other configuration options create a new group and its first
+session. `POST /v1/groups` explicitly creates a new group. Group labels and
+`new_group` are rejected. Browser operations with an explicit saved `profile`
+can also select that Profile's oldest group and add a new session.
 
 Use `Session<ID>` for browser operations and `Group<ID>` for group configuration.
 `POST /v1/groups/{id}/reset` resets one group; `POST /v1/reset` with a Profile
@@ -1143,8 +1143,8 @@ A session resource identifies one tab and its owning group:
 Session resources do not contain `name`, `profile`, or filtering settings.
 Those belong to the shared tab group, available from `GET /v1/groups` or
 `GET /v1/groups/{group_id}`. Clients must decode the session resource itself
-rather than requiring group fields. Existing session IDs and browser storage
-are preserved.
+rather than requiring group fields. Listing or reusing a group preserves existing
+Session IDs and storage; reset replaces them as described above.
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` and `POST /v1/sessions/{id}/ping` return `data.session`.

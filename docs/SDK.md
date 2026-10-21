@@ -528,19 +528,16 @@ update.
 
 ## Session profiles
 
-The current runtime separates `Group<ID>` configuration resources from
-`Session<ID>` browser tabs. Explicit session creation joins an existing group
-through `group_id`, or creates a new group when omitted. Every created tab has
-a distinct Session ID, including when it joins an existing group. Use that ID
-unchanged for subsequent browser work. Profile selection during browser operations
-can reuse the Profile's oldest existing group without replacing its state.
+A `Session` contains its own `id`, owning `group_id`, and `created_at`. It is an
+individually addressed tab, not a shared configuration resource. A Profile-only
+creation request, optionally constrained by name, adds a session to its oldest
+matching group and preserves that group's live settings and data. Other creation
+options allocate a new group. Every newly created tab has a distinct Session ID.
 
-See [RPC identities and creation](RPC.md#profiles-groups-and-sessions) for the
-runtime contract. The typed request examples below describe the client version
-in this repository, which still needs a Group/Session contract update. Client
-versions exposing group labels or `new_group` require
-an update to support this contract; these fields do not force a new group in the
-current runtime.
+The [RPC contract](RPC.md#profiles-groups-and-sessions) also supports explicit
+`group_id` selection. Group labels and `new_group` are rejected by the runtime;
+leave those legacy request fields unset. Reset returns `ResetData` with fresh
+`reset_group_ids` and `replacements`; update stored IDs from the returned maps.
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent uses the
 configured **Default Profile**, or **Custom** when the preference is unset.
@@ -583,8 +580,8 @@ the default compatibility template, `Change::Clear` for native Chromium, and
 settings but generates a fresh seed whenever it creates a session from the
 profile. New configurations use Private; explicit native identity stays native.
 
-`Session::profile` exposes the source profile name and
-`Session::profile_data_id` identifies the custom browser-data template copied
+`Session::group_id` identifies the group that owns its shared configuration.
+The group resource exposes the source Profile name and browser-data template copied
 at creation, when any. `CaptureRequest`, `NavigateRequest`, and
 `PageAttachRequest` accept `profile` only when `session_id` is absent.
 `CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly

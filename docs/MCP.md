@@ -574,9 +574,10 @@ have effects on those sites. MCP hosts should show tool calls for user review.
 
 ### Session lifetime tools
 
-Older adapters expose `name`, `group`, `profile`, `new_group`, and `lifetime` on
-`rel_create_session`; group labels and `new_group` do not match the current
-runtime. Use a compatible adapter and the current RPC creation contract above.
+`rel_create_session` accepts `name`, `profile`, and `lifetime`. Leave its legacy
+`group` and `new_group` fields unset: the runtime rejects them. With only a saved
+Profile and optional name, it adds a session to the oldest matching group;
+other configuration options create a new group.
 New groups default to `{"type":"inactivity","timeout_seconds":120}`. Set a positive
 integer `timeout_seconds` for a different idle period, or use
 `{"type":"indefinite"}` to retain the session until explicitly closed.
@@ -590,8 +591,9 @@ lifetime.
 The current runtime creates a distinct `Session<ID>` for each tab. Creating a
 session in an existing `Group<ID>` uses its current configuration and storage;
 starting a new group copies Profile or Custom settings. See
-[RPC identities and creation](RPC.md#profiles-groups-and-sessions). Older adapters
-exposing group labels or `new_group` need a client update for the current runtime.
+[RPC identities and creation](RPC.md#profiles-groups-and-sessions). Use the RPC
+`group_id` field for explicit group selection; the adapter's legacy group label
+is not that selector.
 
 Sessions in one group share its lifecycle and browser state, while each session
 retains a distinct immutable ID.
