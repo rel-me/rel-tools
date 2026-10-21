@@ -1,5 +1,32 @@
 # REL MCP server
 
+## Profiles, groups, and sessions
+
+A **Profile** is a reusable configuration template, optionally with initial
+browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
+configuration (or standalone Custom settings). Each **Session** is a tab in one
+group and receives a separate `Session<ID>`, with its own URL, navigation history,
+browser view, and automation target.
+
+Sessions in a group share cookies, site storage, private HTTP cache, configuration,
+browser identity, and proxy routing. Different groups remain isolated even when
+created from the same Profile. Create a session in an existing group to use its
+current configuration and live browser state, or create a new group and its first
+session. Joining an existing group does not reread or reseed the Profile.
+
+Editing or deleting a Profile leaves existing groups unchanged until reset.
+**Reset Sessions** deletes and recreates the group and all its sessions with
+fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
+configuration when available; otherwise it copies configuration without data.
+It imports only explicitly configured Profile cookies, never saved passwords,
+cache, history, site storage, permissions, or previous chat state. Each session
+retains its last URL without loading it. Old IDs, page attachments, and
+observations expire. Responses provide new IDs and old-to-new identity mappings.
+
+See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
+the current wire identities and explicit creation behavior.
+
 REL includes a local Model Context Protocol server for agents that support MCP.
 Run `rel-mcp` as a stdio subprocess; the adapter exposes a focused set of
 browser tools and forwards every tool call through the public
@@ -547,7 +574,10 @@ have effects on those sites. MCP hosts should show tool calls for user review.
 
 ### Session lifetime tools
 
-`rel_create_session` accepts optional `name`, `group`, `profile`, `new_group`, and `lifetime`.
+`rel_create_session` accepts `name`, `profile`, and `lifetime`. Leave its legacy
+`group` and `new_group` fields unset: the runtime rejects them. With only a saved
+Profile and optional name, it adds a session to the oldest matching group;
+other configuration options create a new group.
 New groups default to `{"type":"inactivity","timeout_seconds":120}`. Set a positive
 integer `timeout_seconds` for a different idle period, or use
 `{"type":"indefinite"}` to retain the session until explicitly closed.
@@ -558,10 +588,12 @@ refreshes activity; `rel_list_sessions` does not. Implicitly created sessions
 also use the default timeout, so create an explicit session when selecting a
 lifetime.
 
-`rel_create_session` with a saved `profile` and no configuration overrides adds
-a tab to that profile's oldest existing group, preserving its current settings
-and storage even if the saved profile has changed. Explicit name, group label,
-and lifetime constraints still apply. Requests with configuration overrides or
-no saved profile open a tab in a compatible existing group by default.
-Set `new_group: true` to force a separate storage-isolated tab group.
-A reused group retains its lifetime and returns the same session ID.
+The current runtime creates a distinct `Session<ID>` for each tab. Creating a
+session in an existing `Group<ID>` uses its current configuration and storage;
+starting a new group copies Profile or Custom settings. See
+[RPC identities and creation](RPC.md#profiles-groups-and-sessions). Use the RPC
+`group_id` field for explicit group selection; the adapter's legacy group label
+is not that selector.
+
+Sessions in one group share its lifecycle and browser state, while each session
+retains a distinct immutable ID.

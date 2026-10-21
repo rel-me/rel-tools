@@ -1,5 +1,32 @@
 # REL Rust SDK
 
+## Profiles, groups, and sessions
+
+A **Profile** is a reusable configuration template, optionally with initial
+browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
+configuration (or standalone Custom settings). Each **Session** is a tab in one
+group and receives a separate `Session<ID>`, with its own URL, navigation history,
+browser view, and automation target.
+
+Sessions in a group share cookies, site storage, private HTTP cache, configuration,
+browser identity, and proxy routing. Different groups remain isolated even when
+created from the same Profile. Create a session in an existing group to use its
+current configuration and live browser state, or create a new group and its first
+session. Joining an existing group does not reread or reseed the Profile.
+
+Editing or deleting a Profile leaves existing groups unchanged until reset.
+**Reset Sessions** deletes and recreates the group and all its sessions with
+fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
+configuration when available; otherwise it copies configuration without data.
+It imports only explicitly configured Profile cookies, never saved passwords,
+cache, history, site storage, permissions, or previous chat state. Each session
+retains its last URL without loading it. Old IDs, page attachments, and
+observations expire. Responses provide new IDs and old-to-new identity mappings.
+
+See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
+the current wire identities and explicit creation behavior.
+
 `rel-client` is the typed Rust client for every public REL RPC v1 operation.
 The `rel` CLI uses this crate rather than maintaining a separate transport or
 request model.
@@ -79,6 +106,7 @@ without navigating.
 | `update_proxy(alias, &ProxyUpdateRequest)` | `PATCH /v1/proxies/{alias}` |
 | `delete_proxy(alias)` | `DELETE /v1/proxies/{alias}` |
 | `reset_profile(name)` | `POST /v1/reset` |
+| `reset_group(id)` | `POST /v1/groups/{id}/reset` |
 | `export_proxy_transfer(&ProxyTransferExportRequest)` | `POST /v1/proxy-transfers/export` |
 | `import_proxy_transfer(&ProxyTransferImportRequest)` | `POST /v1/proxy-transfers/import` |
 | `list_sessions()` | `GET /v1/sessions` |
@@ -500,22 +528,16 @@ update.
 
 ## Session profiles
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
+A `Session` contains its own `id`, owning `group_id`, and `created_at`. It is an
+individually addressed tab, not a shared configuration resource. A Profile-only
+creation request, optionally constrained by name, adds a session to its oldest
+matching group and preserves that group's live settings and data. Other creation
+options allocate a new group. Every newly created tab has a distinct Session ID.
 
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's session ID identifies the reused group, so repeated creation can
-return the same ID. `reused_group` reports whether a group was reused.
-Set `SessionCreateRequest::new_group` to `Some(true)` to force a separate group.
+The [RPC contract](RPC.md#profiles-groups-and-sessions) also supports explicit
+`group_id` selection. Group labels and `new_group` are rejected by the runtime;
+leave those legacy request fields unset. Reset returns `ResetData` with fresh
+`reset_group_ids` and `replacements`; update stored IDs from the returned maps.
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent uses the
 configured **Default Profile**, or **Custom** when the preference is unset.
@@ -558,8 +580,8 @@ the default compatibility template, `Change::Clear` for native Chromium, and
 settings but generates a fresh seed whenever it creates a session from the
 profile. New configurations use Private; explicit native identity stays native.
 
-`Session::profile` exposes the source profile name and
-`Session::profile_data_id` identifies the custom browser-data template copied
+`Session::group_id` identifies the group that owns its shared configuration.
+The group resource exposes the source Profile name and browser-data template copied
 at creation, when any. `CaptureRequest`, `NavigateRequest`, and
 `PageAttachRequest` accept `profile` only when `session_id` is absent.
 `CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
