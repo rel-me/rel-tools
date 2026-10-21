@@ -1130,7 +1130,7 @@ Transfers are limited to 12 MiB and never overwrite an existing alias.
 
 ## Sessions
 
-A session resource identifies one tab and its owning group:
+A session resource identifies one persistent browser tab and its owning group:
 
 ```json
 {
