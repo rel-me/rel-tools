@@ -15,14 +15,14 @@ current configuration and live browser state, or create a new group and its firs
 session. Joining an existing group does not reread or reseed the Profile.
 
 Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** applies to the whole group. Manual actions, HTTP reset rules,
-CLI, and RPC use the same app-owned reset: stop all sibling browsers, reapply the
-latest saved Profile when available (otherwise retain the copied configuration),
-rotate routing where supported, advance storage generation, retire old browser
-data, seed initial Profile data, and clear tab navigation history. Group and
-Session IDs and last URLs survive. Replacement browsers currently attempt to
-load saved URLs unless paused or blocked. Reset does not delete/reallocate those
-IDs, guarantee an unseeded cookie jar, or leave all saved URLs unloaded.
+**Reset Sessions** deletes and recreates the group and all its sessions with
+fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
+configuration when available; otherwise it copies configuration without data.
+It imports only explicitly configured Profile cookies, never saved passwords,
+cache, history, site storage, permissions, or previous chat state. Each session
+retains its last URL without loading it. Old IDs, page attachments, and
+observations expire. Responses provide new IDs and old-to-new identity mappings.
 
 See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
 the current wire identities and explicit creation behavior.
@@ -106,6 +106,7 @@ without navigating.
 | `update_proxy(alias, &ProxyUpdateRequest)` | `PATCH /v1/proxies/{alias}` |
 | `delete_proxy(alias)` | `DELETE /v1/proxies/{alias}` |
 | `reset_profile(name)` | `POST /v1/reset` |
+| `reset_group(id)` | `POST /v1/groups/{id}/reset` |
 | `export_proxy_transfer(&ProxyTransferExportRequest)` | `POST /v1/proxy-transfers/export` |
 | `import_proxy_transfer(&ProxyTransferImportRequest)` | `POST /v1/proxy-transfers/import` |
 | `list_sessions()` | `GET /v1/sessions` |

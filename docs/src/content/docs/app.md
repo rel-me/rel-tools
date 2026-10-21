@@ -46,14 +46,14 @@ current configuration and live browser state, or create a new group and its firs
 session. Joining an existing group does not reread or reseed the Profile.
 
 Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** applies to the whole group. Manual actions, HTTP reset rules,
-CLI, and RPC use the same app-owned reset: stop all sibling browsers, reapply the
-latest saved Profile when available (otherwise retain the copied configuration),
-rotate routing where supported, advance storage generation, retire old browser
-data, seed initial Profile data, and clear tab navigation history. Group and
-Session IDs and last URLs survive. Replacement browsers currently attempt to
-load saved URLs unless paused or blocked. Reset does not delete/reallocate those
-IDs, guarantee an unseeded cookie jar, or leave all saved URLs unloaded.
+**Reset Sessions** deletes and recreates the group and all its sessions with
+fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
+configuration when available; otherwise it copies configuration without data.
+It imports only explicitly configured Profile cookies, never saved passwords,
+cache, history, site storage, permissions, or previous chat state. Each session
+retains its last URL without loading it. Old IDs, page attachments, and
+observations expire. Responses provide new IDs and old-to-new identity mappings.
 
 The info popover beside a tab group shows its proxy's sticky session ID. For
 fixed-IP ISP pools it shows the detected exit IP and assigned port instead.
@@ -63,8 +63,8 @@ their assignments.
 
 Use **Reset Sessions** in the group's info popover or context menu to stop all its sessions,
 apply the latest saved Profile configuration, clear their shared browser state
-and navigation history, restore the Profile's initial browser data (including
-cookies), and reopen the tabs at their saved URLs. Profile changes saved with
+and navigation history, import only the Profile's explicitly configured cookies,
+and recreate sessions with fresh IDs and their saved URLs left unloaded. Profile changes saved with
 **Save Without Resetting** take effect on the next reset, including the proxy,
 identity, network filters, model, Session Viewport, and HTTP rules. If the Profile
 was deleted, the group keeps its copied configuration.
@@ -1826,8 +1826,8 @@ allowance, and select **Reset** as the action. Reset is the only action currentl
 available. Rules work with every proxy type and without a proxy. Matching
 responses from all tabs and resources share the group's counters. Zero repeats
 resets on the first response; N repeats resets on response N + 1. Reset clears
-browser state, restores initial Profile cookies and passwords, changes the proxy
-route where supported, and reopens the saved URLs. Counts clear after a reset
+browser state, recreates the group and sessions with fresh IDs, imports only
+configured Profile cookies, and retains saved URLs without loading them. Counts clear after a reset
 or restarting REL. Profile edits apply to newly created groups and to existing
 groups on their next manual or automatic reset, including when you choose
 **Save and Reset Sessions**.

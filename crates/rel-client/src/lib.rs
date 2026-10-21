@@ -491,7 +491,7 @@ impl RelClient {
         )
     }
 
-    /// Reset all existing tab groups created from a profile and restore its initial data.
+    /// Recreate every group from a Profile with fresh IDs, configured cookies, and dormant URLs.
     pub fn reset_profile(&self, profile: &str) -> Result<RpcResponse<ResetData>, ClientError> {
         self.request_with_timeout(
             "POST",
@@ -501,10 +501,10 @@ impl RelClient {
         )
     }
 
-    pub fn reset_session(&self, id: &str) -> Result<RpcResponse<ResetData>, ClientError> {
+    pub fn reset_group(&self, id: &str) -> Result<RpcResponse<ResetData>, ClientError> {
         self.request_with_timeout::<ResetData, Value>(
             "POST",
-            &format!("/sessions/{}/reset", encode_path_segment(id)),
+            &format!("/groups/{}/reset", encode_path_segment(id)),
             None,
             Duration::from_secs(90),
         )
@@ -3355,7 +3355,15 @@ pub struct SessionData {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ResetData {
-    pub reset_session_ids: Vec<String>,
+    pub reset_group_ids: Vec<String>,
+    pub replacements: Vec<GroupReplacement>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct GroupReplacement {
+    pub old_group_id: String,
+    pub group_id: String,
+    pub session_ids: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3587,6 +3595,22 @@ mod tests {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{TcpListener, TcpStream};
     use std::thread::{self, JoinHandle};
+
+    #[test]
+    fn reset_results_preserve_replacement_group_and_session_ids() {
+        let data: ResetData = serde_json::from_value(json!({
+            "reset_group_ids":["Group9"],
+            "replacements":[{"old_group_id":"Group1","group_id":"Group9",
+                "session_ids":{"Session1":"Session20","Session2":"Session21"}}]
+        }))
+        .unwrap();
+        assert_eq!(data.reset_group_ids, ["Group9"]);
+        assert_eq!(data.replacements[0].session_ids["Session2"], "Session21");
+        assert_eq!(
+            serde_json::to_value(&data).unwrap()["replacements"][0]["old_group_id"],
+            "Group1"
+        );
+    }
 
     #[test]
     fn navigate_serializes_optional_readiness_selector() {
@@ -5255,7 +5279,7 @@ mod tests {
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
                 | ("PATCH", "/v1/proxies/office") => json!({"proxy":proxy_json()}),
-                ("POST", "/v1/reset") => json!({"reset_session_ids":[]}),
+                ("POST", "/v1/reset") => json!({"reset_group_ids":[],"replacements":[]}),
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }

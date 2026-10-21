@@ -15,14 +15,14 @@ current configuration and live browser state, or create a new group and its firs
 session. Joining an existing group does not reread or reseed the Profile.
 
 Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** applies to the whole group. Manual actions, HTTP reset rules,
-CLI, and RPC use the same app-owned reset: stop all sibling browsers, reapply the
-latest saved Profile when available (otherwise retain the copied configuration),
-rotate routing where supported, advance storage generation, retire old browser
-data, seed initial Profile data, and clear tab navigation history. Group and
-Session IDs and last URLs survive. Replacement browsers currently attempt to
-load saved URLs unless paused or blocked. Reset does not delete/reallocate those
-IDs, guarantee an unseeded cookie jar, or leave all saved URLs unloaded.
+**Reset Sessions** deletes and recreates the group and all its sessions with
+fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
+configuration when available; otherwise it copies configuration without data.
+It imports only explicitly configured Profile cookies, never saved passwords,
+cache, history, site storage, permissions, or previous chat state. Each session
+retains its last URL without loading it. Old IDs, page attachments, and
+observations expire. Responses provide new IDs and old-to-new identity mappings.
 
 See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
 the current wire identities and explicit creation behavior.
@@ -913,11 +913,12 @@ already running, the command returns a structured error and exits with status 1.
 rel reset --profile=Research
 ```
 
-Reset every existing tab group created from the named Profile. REL closes the
-tabs, applies the latest saved Profile configuration, changes the proxy route
-where supported, clears browser state, restores initial Profile cookies and
-passwords, and reopens saved URLs. This works with
-any proxy or no proxy. Group and Session IDs survive; initial Profile data may
-be reseeded and saved URLs are currently loaded. The result contains
-`data.reset_group_ids`; no existing
+Reset every existing group created from the named Profile. REL stops its
+browsers and recreates the group and sessions with fresh IDs and clean storage,
+applies the current Profile configuration, and imports only explicitly configured
+cookies. Saved passwords and other browser state are discarded. Last URLs remain
+unloaded. Results contain new `data.reset_group_ids` and `data.replacements`, with
+`old_group_id`, `group_id`, and an old-to-new `session_ids` mapping. Update later
+commands to the returned IDs. This works with any proxy or no proxy. No existing
+
 groups returns an empty list. Unknown Profiles and reset failures return errors.
