@@ -1249,7 +1249,11 @@ A profile resource is:
   include it. Existing Profiles default to enabled with a 512 MiB limit.
   Read-only asset caches survive Group resets within the same Profile; cookies,
   site data and private browser state follow the normal reset path. Profiles
-  never share asset caches. See [Profile asset caches](APP.md#profile-asset-caches)
+  never share asset caches. Group responses include `asset_cache_profile_id`
+  (the saved Profile UUID, or null for a Custom Group) and effective `asset_cache`
+  settings. Renaming or deleting a Profile preserves its cache identity in
+  existing Groups; a new Profile with the same name gets a separate cache.
+  See [Profile asset caches](APP.md#profile-asset-caches)
   for eligibility, freshness and the per-Profile clearing controls.
 - `http_rules` defaults to `[]` (disabled). Each entry requires `action:"reset"`,
   a unique integer `status_code` (100–599), and integer `repeats` (0–1,000,000).
