@@ -58,6 +58,12 @@ class RelClientTests(unittest.TestCase):
         self.thread.join()
 
     def test_navigate_uses_rpc_v1_and_parses_page_operation(self) -> None:
+        self._assert_navigate_payload(None)
+
+    def test_navigate_forwards_readiness_selector(self) -> None:
+        self._assert_navigate_payload("#content")
+
+    def _assert_navigate_payload(self, wait_for: str | None) -> None:
         self.server.responses.append(
             (
                 200,
@@ -86,6 +92,7 @@ class RelClientTests(unittest.TestCase):
             output=Path("/tmp/page.html"),
             timeout=10,
             wait=0,
+            wait_for=wait_for,
         )
 
         self.assertEqual(result.page_id, "page_1")
@@ -93,6 +100,10 @@ class RelClientTests(unittest.TestCase):
         method, path, payload = self.server.requests[0]
         self.assertEqual((method, path), ("POST", "/v1/navigate"))
         self.assertEqual(payload["session_id"], "Session2")  # type: ignore[index]
+        if wait_for is None:
+            self.assertNotIn("wait_for", payload)
+        else:
+            self.assertEqual(payload["wait_for"], wait_for)
 
     def test_structured_http_error_is_preserved(self) -> None:
         self.server.responses.append(

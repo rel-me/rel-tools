@@ -880,6 +880,7 @@ fn parse_navigate(mut args: Arguments) -> Result<CliCommand, CliError> {
         match option.as_str() {
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
+            "--wait-for" => request.wait_for = Some(args.option_value(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
@@ -1901,12 +1902,15 @@ to stderr."
 
 fn navigate_help() -> String {
     "Usage:\n  \
-rel navigate [URL] [--session-id ID | --profile NAME] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n\n\
+rel navigate [URL] [--session-id ID | --profile NAME] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S] [--wait-for SELECTOR]\n\n\
 Navigates the current shorthand page. The first call reuses the newest existing\n\
 session, creating one only when none exists; later calls reuse that page and
 session. --session-id defaults to $REL_SESSION_ID when set, then the newest
 session; --profile creates a session from a named profile and suppresses that
-default. URL defaults to $REL_SESSION_URL when omitted; an explicit URL wins."
+default. URL defaults to $REL_SESSION_URL when omitted; an explicit URL wins.\n\n\
+--wait-for SELECTOR waits for readiness on the same page, allowing intermediate\n\
+HTTP errors to redirect. --timeout bounds navigation and readiness together;\n\
+the final HTTP status is checked after the selector matches."
         .to_string()
 }
 
@@ -2559,6 +2563,27 @@ mod tests {
         assert_eq!(request.url, "example.com");
         assert_eq!(request.proxy.as_deref(), Some("oxylabs"));
         assert_eq!(request.wait, Some(0.5));
+    }
+
+    #[test]
+    fn parses_navigation_readiness_selector() {
+        for options in [
+            vec!["--wait-for", "#content", "--timeout", "60"],
+            vec!["--wait-for=#content", "--timeout=60"],
+        ] {
+            let mut args = vec!["navigate", "example.com"];
+            args.extend(options);
+            let CliCommand::Navigate(request) = parse(&args).unwrap() else {
+                panic!("expected navigate");
+            };
+            assert_eq!(request.wait_for.as_deref(), Some("#content"));
+            assert_eq!(request.timeout, Some(60.0));
+        }
+        let CliCommand::Navigate(request) = parse(&["navigate", "example.com"]).unwrap() else {
+            panic!("expected navigate");
+        };
+        assert_eq!(request.wait_for, None);
+        assert!(parse(&["navigate", "example.com", "--wait-for"]).is_err());
     }
 
     #[test]

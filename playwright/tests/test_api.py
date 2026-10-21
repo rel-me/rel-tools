@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from rel_playwright._rpc import RelRpcClient
 from rel_playwright.async_api import async_playwright
 from rel_playwright.sync_api import Error, UnsupportedError, sync_playwright
 
@@ -200,6 +201,19 @@ class SyncApiTests(_RelServerMixin, unittest.TestCase):
 
     def tearDown(self) -> None:
         self.stop_server()
+
+    def test_navigation_readiness_selector_is_optional(self) -> None:
+        client = RelRpcClient(self.base_url)
+        for selector in [None, "#content"]:
+            client.navigate(url="https://example.com", session_id="Session42",
+                            timeout=60, wait=0, wait_for=selector)
+            method, path, payload = self.server.requests[-1]
+            self.assertEqual((method, path), ("POST", "/v1/navigate"))
+            if selector is None:
+                self.assertNotIn("wait_for", payload)
+            else:
+                self.assertEqual(payload["wait_for"], selector)
+            self.assertEqual(payload["timeout"], 60)
 
     def test_launch_omits_profile_to_use_the_configured_default(self) -> None:
         with sync_playwright() as playwright:
