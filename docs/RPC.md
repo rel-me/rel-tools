@@ -124,7 +124,7 @@ repeat.
 | `10007` | `OBSERVATION_TOO_LARGE` | no | A semantic snapshot or image exceeds its independent bound |
 | `10100` | `SESSION_NOT_FOUND` | no | Session ID does not exist |
 | `10101` | `PAGE_NOT_FOUND` | no | Ephemeral attached page does not exist |
-| `10102` | `PAGE_MISMATCH` | no | Attached page state no longer matches the request |
+| `10102` | `PAGE_MISMATCH` | yes | Attached page state no longer matches the request; refresh the page binding before retrying |
 | `10103` | `PROXY_NOT_FOUND` | no | Proxy does not exist |
 | `10104` | `ACTIVE_PAGE_NOT_FOUND` | no | The shorthand workflow has no current page |
 | `10200` | `CONFLICT` | no | Name/state/last-session conflict |
@@ -447,6 +447,15 @@ the previously tracked URL is stale.
 All three return the same page-operation envelope documented under attached
 pages. When `session_id` is supplied, `navigate` selects and updates that
 session's current shorthand page; `perform` and singular `capture` target it.
+For multiple independent crawls, create a session for each crawl and pass its
+returned `session.id` as `session_id` on every navigation, action, observation,
+and capture. Creation may reuse a compatible group, but each returned tab ID is
+distinct and remains bound to that tab when siblings are created or selected.
+Keep staged operations within one tab sequential so another request to that same
+tab cannot change its page between stages. Separate tabs may run independently.
+`PAGE_MISMATCH` is retryable: refresh the page binding with `POST /v1/capture`
+using that same `session_id`, or navigate to the intended URL, before retrying an
+idempotent operation. Inspect the result before replaying actions with side effects.
 Navigation becomes ready after the requested HTTP(S) main frame starts,
 finishes, and has nonempty rendered source. Subframe and page-initiated
 background loading does not delay completion. The `wait` delay begins after
@@ -1133,8 +1142,19 @@ fingerprint configuration, image/ad blocking, model, and viewport settings.
 The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
 An explicit name or group label must match to reuse a group; an explicit lifetime
 must also match. If no compatible group exists, REL creates one.
-The response's session ID identifies the reused group, so repeated creation can
-return the same ID. `reused_group` reports whether a group was reused.
+The response's `session.id` identifies the newly created tab, and
+`session.group_id` identifies its shared group. Repeated creation returns distinct
+tab IDs even when `reused_group` is true. Pass the complete tab ID unchanged to
+subsequent browser commands; it remains stable across selection changes and app
+restarts while the tab exists. IDs have the form `Session12-main` for a group's
+initial tab or `Session12-<UUID>` for an additional tab; clients should treat them
+as opaque strings. A missing or closed tab never falls back to a selected sibling.
+
+Deleting a tab ID closes that tab and leaves its siblings open. Group IDs such as
+`Session12` identify shared configuration/storage and retain group-level
+management behavior, including deleting the whole group. The session list returns
+group metadata; use the ID returned by creation to pin a browser workflow.
+Group reset and inactivity expiry cover all tabs sharing that group.
 Set `new_group: true` in `POST /v1/sessions` to force a separate group.
 
 When `name` is omitted, a session created from a saved profile uses the profile's
