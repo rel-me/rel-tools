@@ -604,7 +604,8 @@ observation instead of creating an HTML capture artifact.
 Set `navigation` to `back`, `forward`, or `reload` to operate on the active
 page's history and omit `url`, `profile`, and `proxy`. `navigation` defaults to
 `url`, where `url` is required. An optional `session_id` scopes history
-navigation to that session's active page.
+navigation to that session's active page. REL resolves the session's owning
+group internally; do not supply `group_id` for history navigation.
 
 `POST /v1/observe` observes the current shorthand page. The attached-page form
 is `POST /v1/pages/{page_id}/observe`:
@@ -1129,6 +1130,18 @@ decrypts the transfer in Rust and returns the newly created `data.proxy`.
 Transfers are limited to 12 MiB and never overwrite an existing alias.
 
 ## Sessions
+
+Session creation returns the tab ID and its owning group ID together in
+`data.session`, including when created from a saved profile:
+
+```json
+{"session":{"id":"Session12","group_id":"Group7","created_at":1785860000}}
+```
+
+Use `session.id` for navigation and history operations. `session.group_id`
+identifies the shared browser context and can be used to create sibling tabs.
+The normal `rel session create` JSON output includes both fields; `--id-only`
+prints only the session ID.
 
 A session resource identifies one persistent browser tab and its owning group:
 
