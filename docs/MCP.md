@@ -423,8 +423,8 @@ observation and, for hybrid/visual mode, standard MCP image content.
 ### `rel_list_sessions`
 
 Calls `GET /v1/sessions` and accepts an empty object. The result lists every
-persistent browser session with its canonical `Session<number>` ID, profile,
-group, assigned proxy alias, current page, and non-secret filtering state.
+persistent browser session as `{id, group_id, created_at}`. Names, profiles,
+proxy assignments, and filtering settings belong to the group resource.
 Listing sessions is passive and read-only.
 
 ### `rel_close_session_group`

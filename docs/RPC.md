@@ -1140,66 +1140,34 @@ A session resource identifies one tab and its owning group:
 }
 ```
 
-- `GET /v1/sessions` returns `data.sessions`; `GET /v1/sessions/{id}` returns
-  `data.session`.
-- `POST /v1/sessions` with only `group_id` joins an existing group. Omit it to
-  allocate a new group from Profile or Custom configuration and its first session.
-  The response contains `data.session` with its new Session ID and Group ID.
-- Group configuration and `storage_generation` belong to `/v1/groups/{id}`.
-  The storage generation advances on manual, HTTP-rule, and API resets, separating
-  fresh data from retired Chromium storage. Retired generations are cleaned up
-  asynchronously and reconciled at startup.
-- `POST /v1/sessions/{id}/ping` refreshes group inactivity and returns `data.session`.
-- `POST /v1/sessions/{id}/pause` and `/play` take no body and return
-  `data.session_id`, `data.group_id`, and `data.network_paused`. Pause cancels
-  active requests and blocks new network work. Play removes the network gate and
-  loads the page when necessary.
-- `DELETE /v1/sessions/{id}` returns `data.deleted_id`, `data.group_id`, and the
-  remaining `data.sessions`. Siblings retain shared group data. Closing the last
-  session through this API leaves a new blank session with a fresh Session ID.
-- `DELETE /v1/groups/{id}` removes the group, its sessions, and shared browser data.
+Session resources do not contain `name`, `profile`, or filtering settings.
+Those belong to the shared tab group, available from `GET /v1/groups` or
+`GET /v1/groups/{group_id}`. Clients must decode the session resource itself
+rather than requiring group fields. Existing session IDs and browser storage
+are preserved.
 
-Group display names and network filters remain editable. Proxy assignment and
-browser identity are fixed at group creation unless reset applies an updated
-saved Profile. Existing-session browser requests cannot change their assignment.
+- `GET /v1/sessions` returns `data.sessions`.
+- `GET /v1/sessions/{id}` and `POST /v1/sessions/{id}/ping` return `data.session`.
+- `POST /v1/sessions` returns `data.session` in the same shape. With only a saved
+  `profile` (and optionally `name`), creation adds a session to the oldest group
+  for that profile matching the supplied name, case-insensitively. Reuse preserves
+  current settings, storage, cookies, fingerprint seed, and lifetime, even if the
+  profile template has since changed. If no group matches, a new group is created.
+- `POST /v1/sessions` with `group_id` adds a session to that existing group;
+  `group_id` cannot be combined with other creation options.
+- Other creation options (`name`, `name_prefix`, `source_profile`, `profile`,
+  `proxy_alias`, `lifetime`, image/ad blocking, fingerprint, and model settings)
+  configure a new group. Explicit names must be unique.
+- `POST /v1/sessions/{id}/pause` and `/play` return `session_id`, `group_id`,
+  and `network_paused`.
+- `DELETE /v1/sessions/{id}` returns `deleted_id`, `group_id`, and remaining
+  `sessions`. Closing the final session leaves a fresh blank session in its group.
+  Delete `/v1/groups/{group_id}` to remove the group and its shared data.
 
-A proxy can be updated while tab groups use it. Updated routing and credentials
-apply to new connections; existing browser data and open pages remain unless
-the sessions are reset. The app offers **Save and Reset Sessions** and **Save
-Without Resetting** when editing an in-use proxy. Reset closes every affected
-group's browsers, clears their data, rotates session identity, and reloads open
-pages. A failed reset is reported separately from a successful proxy save.
-Deleting an in-use proxy still returns `VALIDATION_FAILED`; remove it from all
-groups before deleting it.
-
-`source_profile`, when supplied, names an existing saved Profile used to identify
-the tab group in the app. It is independent of `profile`, which selects browser
-data and creation defaults. The creation sheet supplies both explicitly, so a
-Profile group can start without copying saved browser data and still be reused.
-
-`image_blocking_mode` is `none`, `all`, or `over_limit`. `none` allows every
-image while leaving `adblock_enabled` independent. The legacy `block_images`
-alias is rejected. Size is 1 through 1,048,576 kB. The visible name is editable and
-case-insensitively unique; the canonical `id` is immutable. Session routes accept
-only that ID; numeric database IDs are neither accepted nor returned. The owning
-group has an independent immutable `Group<ID>`; its display name is editable.
-
-A session can join an existing group through `group_id`, or start in a new group
-when that field is omitted. See [Profiles, groups, and sessions](#profiles-groups-and-sessions)
-for creation, browser-operation Profile selection, reset, and deletion semantics.
-Each tab has its own immutable `Session<ID>`, and each group has a separate
-`Group<ID>`. Repeated creation returns distinct Session IDs even within one group.
-There is no `Session12-main`/UUID identity format, implicit selected-sibling
-fallback, caller-defined group label, or `new_group` switch in the current runtime.
-
-When `name` is omitted, a session created from a saved profile uses the profile's
-stored name followed by the global session number, for example `Reddit123` for
-`Session123`. Standalone Custom sessions use `Session123`. Existing names are
-unchanged. Case-insensitive collisions add ` (2)`, ` (3)`, and so on.
-`name_prefix` optionally overrides the naming prefix without changing the selected
-profile or browser-data source; it must be a non-empty string after trimming.
-Omission or null uses the selected profile's name, or `Session` for Custom.
-An explicit `name` takes priority over the generated name.
+Session IDs use `Session<number>`; group IDs use `Group<number>`. Treat IDs as
+opaque strings and pass the complete session ID to browser commands. A missing
+session returns `SESSION_NOT_FOUND` without falling back to another tab.
+Group reset and inactivity expiry apply to every tab in that group.
 
 ## Profiles
 

@@ -711,43 +711,21 @@ rel session play Session12
 rel session delete Session12
 ```
 
-Create a session:
+Session listing and creation return `{id, group_id, created_at}` for each tab.
+Names and profile settings belong to the group identified by `group_id`.
 
 ```sh
-rel session create \
-  --name Research \
-  --group pgm \
-  --profile BandwidthSaver \
-  --proxy office \
-  --adblock-enabled true \
-  --image-blocking-mode over_limit \
-  --image-size-limit-kb 100
+rel session create --profile RYM
+rel session create --profile RYM --name RYM
 ```
 
-The current runtime uses explicit `Group<ID>` and `Session<ID>` resources.
-`POST /v1/sessions` joins a group when given `group_id`, and otherwise creates a
-new group and its first session. Browser operations selecting a saved Profile can
-add a session to its oldest existing group without replacing shared state.
-Every created session has a distinct ID; selection changes never retarget a
-command pinned to that Session ID. A closed session reports `SESSION_NOT_FOUND`.
+With only a saved profile and optional name, creation adds a new session to the
+oldest matching profile group, preserving its current settings, storage, cookies,
+and lifetime. A name constrains the group selection case-insensitively. Without
+a matching group, REL creates one. Other configuration options create a new group.
+Creation preserves existing sessions. Use the returned `data.session.id` with
+`--session-id` to target that exact tab; a closed tab reports `SESSION_NOT_FOUND`.
 
-The CLI examples using `--group` labels belong to the older client contract.
-Group labels and `--new-group` do not describe current runtime behavior; use a
-compatible client or the [current RPC contract](RPC.md#profiles-groups-and-sessions).
-Deleting a Session closes its tab; deleting a Group removes its sessions and
-shared browser data.
-
-When a new group is needed and `--name` is omitted, sessions created from a saved profile use its name
-followed by the global session number, for example `Reddit123`. Custom sessions
-use `Session123`. The canonical session ID remains `Session123`; duplicate
-visible names receive ` (2)`, ` (3)`, and so on.
-
-Every create option is optional. `--profile` accepts the unique name shown in
-**REL → Settings… → Profiles**; omission uses the configured default (Custom when unset). Omitted proxy and
-filtering options use the selected profile. Use `--direct` to override it with
-a direct connection. `--image-blocking-mode` is `none`, `all`, or
-`over_limit`; `none` allows every image without changing AdBlock.
-The older `--group` batch label is not a current `Group<ID>` selector.
 `--id-only` changes successful output to the new canonical
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
