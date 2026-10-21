@@ -33,6 +33,28 @@ For provider setup and per-Session assignment, see [Configure proxies](/proxies/
 
 ## Tab groups
 
+A **Profile** is a reusable configuration template, optionally with initial
+browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
+configuration (or standalone Custom settings). Each **Session** is a tab in one
+group and receives a separate `Session<ID>`, with its own URL, navigation history,
+browser view, and automation target.
+
+Sessions in a group share cookies, site storage, private HTTP cache, configuration,
+browser identity, and proxy routing. Different groups remain isolated even when
+created from the same Profile. Create a session in an existing group to use its
+current configuration and live browser state, or create a new group and its first
+session. Joining an existing group does not reread or reseed the Profile.
+
+Editing or deleting a Profile leaves existing groups unchanged until reset.
+**Reset Sessions** applies to the whole group. Manual actions, HTTP reset rules,
+CLI, and RPC use the same app-owned reset: stop all sibling browsers, reapply the
+latest saved Profile when available (otherwise retain the copied configuration),
+rotate routing where supported, advance storage generation, retire old browser
+data, seed initial Profile data, and clear tab navigation history. Group and
+Session IDs and last URLs survive. Replacement browsers currently attempt to
+load saved URLs unless paused or blocked. Reset does not delete/reallocate those
+IDs, guarantee an unseeded cookie jar, or leave all saved URLs unloaded.
+
 The info popover beside a tab group shows its proxy's sticky session ID. For
 fixed-IP ISP pools it shows the detected exit IP and assigned port instead.
 It refreshes while open; loading and unavailable states are explicit. All tabs
@@ -52,25 +74,16 @@ without a proxy. Other groups keep their state. The button shows **Resetting…*
 until the reset finishes. If a step fails, REL reports the error and leaves the
 group stopped so you can retry the reset.
 
-The sidebar stays visible and lists tab groups. Each group is one persistent
-Session: its tabs share cookies, site storage, saved logins, proxy configuration,
-browser identity, and Session settings. Groups keep their browser data isolated
-from each other. Existing Sessions appear as one-tab groups with their existing
-data.
+The sidebar lists Groups. Each group owns shared cookies, site storage, saved
+logins, proxy configuration, identity, and settings. Its Sessions are individual
+tabs with separate IDs and navigation history. Groups display their source
+Profile name, or `REL` for Custom configuration. Session tabs use globally unique
+`Session<ID>` labels.
 
-A single-tab group is labeled `{Profile}/Session` using its source profile's
-name. When it contains multiple tabs, its label is just `{Profile}`. Page tabs
-keep their individual page titles.
-
-Use **New Tab Group** at the bottom of the sidebar to create a group. Press
-**⌘T** or use the tab strip's **+** button to add a tab to the selected group.
-Tabs have their own page and Back/Forward history, including after restarting
-REL. Links opened in a new tab stay
-in the same group.
-
-Use **Tab Placement** at the bottom of the sidebar and enable **Tabs in Sidebar**
-to nest tabs under their group names. Groups expand and collapse like folders.
-Turn it off to put tabs across the top. REL remembers this choice.
+Create a group for isolated browser state, or press **⌘T** or the tab strip's
+**+** button to add a session to the selected group. Links opened in a new tab
+stay in that group. Tabs appear both in the top strip and beneath their sidebar
+group; there is no tab-placement setting.
 
 The top tab strip uses REL's standard tabs, including selection, close controls,
 and drag reordering. Chat lives beside the browser content in the window and is
@@ -81,39 +94,42 @@ show or hide the bottom panel. These controls follow the selected group and stay
 outside the browser tab's address toolbar. Chat uses a softly shaded background
 in both light and dark appearance to separate it from the surrounding window.
 
-**⌘W** closes a tab without deleting group data. Closing a group's last tab
-leaves a blank tab. Use the group's **Delete Tab Group…** action to delete all
-its tabs and shared browser data. Quitting REL preserves groups, tab URLs, and
-selection.
+**⌘W** closes a session without deleting shared group data. Closing the last tab
+in the app requests group deletion through confirmation; cancellation preserves
+the tab and its data. Deleting a group closes all its sessions and removes shared
+browser data. Quitting REL preserves groups, saved URLs, and selection.
 
-CLI, SDK, and MCP browser operations still target a Session ID. That ID identifies
-the group, and browser commands operate on its selected tab. Session deletion
-deletes the entire group. Chat and actions remain associated with the group.
-The session resource's optional `group` label is separate: it organizes batch
-operations across Sessions and never joins their browser storage.
+CLI, SDK, and MCP browser operations target a specific `Session<ID>`, independent
+of the selected UI tab. `Group<ID>` identifies shared configuration and storage.
+Closing a session leaves siblings open; deleting a group closes all its sessions.
+Chat and Actions remain associated with the group, and each submitted chat turn
+captures its selected Session ID.
 
-## CAPTCHA attention alerts
+## Notifications
 
-When a CAPTCHA persists in a live Session, REL sends a time-sensitive macOS
-notification and shows a prominent red alert beside its menu bar label. Click
-the notification or choose **Go to CAPTCHA in [Session]** at the top of the
-REL menu bar menu. REL activates its window, selects the affected Session, and
-focuses its existing browser so you can complete the challenge without reloading
-or losing its state. Additional affected Sessions appear under **Other CAPTCHAs**.
+Open **REL → Settings… → Notifications** to enable or disable REL's macOS
+alerts. **Enable notifications** controls app alerts globally. The individual
+choices are preserved while the global switch is off:
 
-REL recognizes common reCAPTCHA, hCaptcha, Turnstile, Arkose, DataDome, GeeTest,
-and AWS WAF widgets, plus custom human-verification controls such as
-Zillow-style press-and-hold challenges. Recognition is heuristic: a site's new
-or unusual challenge can require you to open the Session manually. Loading a
-CAPTCHA library alone does not trigger an alert, and REL does not solve CAPTCHAs
-automatically. Existing client request deadlines still apply.
+- **Tab group reset** alerts after a successful reset, including resets triggered
+  by HTTP response rules. Failed resets report an error instead.
+- **User input required** alerts for detected reCAPTCHA, hCaptcha, Turnstile,
+  verification-code fields, and website permission requests. Open the affected
+  group to respond. REL waits briefly for automatic browser checks to resolve
+  and avoids repeated input alerts on the same page.
 
-macOS asks for notification permission when REL first needs to alert you. Enable
-REL under **System Settings > Notifications** and allow time-sensitive alerts
-if you want them delivered during Focus. The menu bar alert remains available
-when notifications are disabled. REL avoids repeated alerts for the same active
-challenge and clears the alert when the challenge disappears, the page changes,
-or the Session closes.
+Detection is heuristic. Loading a provider's script alone does not trigger an
+alert, and some custom or dynamically inserted prompts may go undetected. REL
+does not solve challenges automatically.
+
+macOS asks for notification permission when REL first needs to alert you. You can
+also choose **Allow macOS Notifications…** on this Settings page. If permission
+is blocked, open macOS Notification Settings and allow notifications for REL.
+macOS notification and Focus preferences also affect delivery.
+
+The **Website Notifications** section separately controls forwarding allowed
+website notifications to the agent. App reset and input alerts do not require
+website permission or agent forwarding.
 
 ## Session viewport presets
 

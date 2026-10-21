@@ -1,5 +1,32 @@
 # REL Rust SDK
 
+## Profiles, groups, and sessions
+
+A **Profile** is a reusable configuration template, optionally with initial
+browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
+configuration (or standalone Custom settings). Each **Session** is a tab in one
+group and receives a separate `Session<ID>`, with its own URL, navigation history,
+browser view, and automation target.
+
+Sessions in a group share cookies, site storage, private HTTP cache, configuration,
+browser identity, and proxy routing. Different groups remain isolated even when
+created from the same Profile. Create a session in an existing group to use its
+current configuration and live browser state, or create a new group and its first
+session. Joining an existing group does not reread or reseed the Profile.
+
+Editing or deleting a Profile leaves existing groups unchanged until reset.
+**Reset Sessions** applies to the whole group. Manual actions, HTTP reset rules,
+CLI, and RPC use the same app-owned reset: stop all sibling browsers, reapply the
+latest saved Profile when available (otherwise retain the copied configuration),
+rotate routing where supported, advance storage generation, retire old browser
+data, seed initial Profile data, and clear tab navigation history. Group and
+Session IDs and last URLs survive. Replacement browsers currently attempt to
+load saved URLs unless paused or blocked. Reset does not delete/reallocate those
+IDs, guarantee an unseeded cookie jar, or leave all saved URLs unloaded.
+
+See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
+the current wire identities and explicit creation behavior.
+
 `rel-client` is the typed Rust client for every public REL RPC v1 operation.
 The `rel` CLI uses this crate rather than maintaining a separate transport or
 request model.
@@ -500,22 +527,19 @@ update.
 
 ## Session profiles
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
+The current runtime separates `Group<ID>` configuration resources from
+`Session<ID>` browser tabs. Explicit session creation joins an existing group
+through `group_id`, or creates a new group when omitted. Every created tab has
+a distinct Session ID, including when it joins an existing group. Use that ID
+unchanged for subsequent browser work. Profile selection during browser operations
+can reuse the Profile's oldest existing group without replacing its state.
 
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's session ID identifies the reused group, so repeated creation can
-return the same ID. `reused_group` reports whether a group was reused.
-Set `SessionCreateRequest::new_group` to `Some(true)` to force a separate group.
+See [RPC identities and creation](RPC.md#profiles-groups-and-sessions) for the
+runtime contract. The typed request examples below describe the client version
+in this repository, which still needs a Group/Session contract update. Client
+versions exposing group labels or `new_group` require
+an update to support this contract; these fields do not force a new group in the
+current runtime.
 
 `SessionCreateRequest::default()` serializes to `{}`, so the agent uses the
 configured **Default Profile**, or **Custom** when the preference is unset.

@@ -1,5 +1,45 @@
 # REL RPC v1
 
+## Profiles, groups, and sessions
+
+A **Profile** is a reusable configuration template, optionally with initial
+browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
+configuration (or standalone Custom settings). Each **Session** is a tab in one
+group and receives a separate `Session<ID>`, with its own URL, navigation history,
+browser view, and automation target.
+
+Sessions in a group share cookies, site storage, private HTTP cache, configuration,
+browser identity, and proxy routing. Different groups remain isolated even when
+created from the same Profile. Create a session in an existing group to use its
+current configuration and live browser state, or create a new group and its first
+session. Joining an existing group does not reread or reseed the Profile.
+
+Editing or deleting a Profile leaves existing groups unchanged until reset.
+**Reset Sessions** applies to the whole group. Manual actions, HTTP reset rules,
+CLI, and RPC use the same app-owned reset: stop all sibling browsers, reapply the
+latest saved Profile when available (otherwise retain the copied configuration),
+rotate routing where supported, advance storage generation, retire old browser
+data, seed initial Profile data, and clear tab navigation history. Group and
+Session IDs and last URLs survive. Replacement browsers currently attempt to
+load saved URLs unless paused or blocked. Reset does not delete/reallocate those
+IDs, guarantee an unseeded cookie jar, or leave all saved URLs unloaded.
+
+`POST /v1/sessions` with `{"group_id":"Group1"}` creates a session in that
+existing group using its copied configuration. Without `group_id`, it creates a
+new group and its first session. `POST /v1/groups` creates a group resource.
+These explicit creation routes do not select compatible groups, accept custom
+group labels, or accept `new_group`. Browser capture/page/navigation operations
+with an explicit saved `profile` can select that Profile's oldest existing group
+and add a new session, creating the group when absent.
+
+Use `Session<ID>` for browser operations and `Group<ID>` for group configuration.
+`POST /v1/groups/{id}/reset` resets one group; `POST /v1/reset` with a Profile
+selection resets its existing groups and returns `data.reset_group_ids`.
+`DELETE /v1/sessions/{id}` closes one session; `DELETE /v1/groups/{id}` removes
+all its sessions and shared browser data. Reset preserves the resource IDs.
+Older client versions exposing group labels or `new_group` need client updates;
+those fields do not describe the current runtime creation contract.
+
 REL exposes a local, versioned JSON API for browser and app operations. This
 document is its supported wire contract. Native model inference is owned by Fritz.
 
@@ -228,12 +268,16 @@ available.
 | `POST` | `/v1/profile-transfers/export` | Export a versioned profile transfer |
 | `POST` | `/v1/profile-transfers/import` | Import a versioned profile transfer |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
-| `PATCH` | `/v1/sessions/{id}` | Partially update a browser session |
 | `POST` | `/v1/sessions/{id}/ping` | Refresh session inactivity without browser work |
 | `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
 | `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
-| `GET` | `/v1/sessions/{id}/proxy-status` | Read current proxy session ID and usage |
-| `POST` | `/v1/sessions/{id}/reset` | Reset this tab group and restore initial Profile data |
+| `GET` | `/v1/groups/{id}/proxy-status` | Read current proxy session ID and usage |
+| `POST` | `/v1/groups/{id}/reset` | Reset this group and restore initial Profile data |
+| `GET` | `/v1/groups` | List shared browser groups |
+| `POST` | `/v1/groups` | Create a group and its initial session |
+| `GET` | `/v1/groups/{id}` | Read one group |
+| `PATCH` | `/v1/groups/{id}` | Update mutable group configuration |
+| `DELETE` | `/v1/groups/{id}` | Delete the group and its sessions |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 
 There are deliberately no log read, clear, or ingestion routes.
@@ -923,13 +967,14 @@ cancels the document request and surfaces the error.
 
 `POST /v1/reset` accepts `{"profile":"Research"}` and resets every existing
 tab group created from that Profile. An unknown Profile is an error; a Profile
-with no existing groups returns an empty list. `POST /v1/sessions/{id}/reset`
-resets one tab group. Both return `data.reset_session_ids`.
+with no existing groups returns an empty list. `POST /v1/groups/{id}/reset`
+resets one group. Both return `data.reset_group_ids`.
 
 Reset works without a proxy and with every proxy type. REL closes all tabs in
 the group, changes the sticky ID or ISP IP where the provider supports it,
 clears browser state and navigation history, restores initial Profile cookies
-and passwords, and reopens the saved URLs. Tab IDs remain stable. Exit locale
+and passwords, and attempts to load saved URLs unless paused or blocked. Both
+Group and Session IDs remain stable; storage generation advances. Exit locale
 is invalidated and detected again before navigation when configured. Reset
 failures leave the affected group stopped and are returned to the caller.
 
@@ -937,12 +982,12 @@ Profiles accept `http_rules`, an array of up to 100 rules such as
 `[{"status_code":403,"repeats":0,"action":"reset"}]`. Status codes must be unique
 integers from 100 through 599; repeats must be integers from 0 through 1,000,000.
 The action is required and currently only `reset` is supported. Unknown actions
-and fields are rejected. Sessions copy rules when created, and Profile transfers
+and fields are rejected. Groups copy rules when created, and Profile transfers
 preserve them. Each group counts matching responses across all tabs/resources;
 zero repeats triggers immediately, N repeats triggers on match N + 1. Counts
 clear after reset or app restart. Rules work for direct and proxied sessions.
 
-`GET /v1/sessions/{id}/proxy-status` returns these fields under `data`:
+`GET /v1/groups/{id}/proxy-status` returns these fields under `data`:
 
 ```json
 {
@@ -1082,45 +1127,38 @@ Transfers are limited to 12 MiB and never overwrite an existing alias.
 
 ## Sessions
 
-A session resource is:
+A session resource identifies one tab and its owning group:
 
 ```json
 {
   "id": "Session12",
-  "name": "Session12",
-  "profile": "BandwidthSaver",
-  "profile_data_id": null,
-  "group": "pgm",
-  "proxy_alias": null,
-  "adblock_enabled": true,
-  "image_blocking_mode": "over_limit",
-  "image_size_limit_kb": 100,
+  "group_id": "Group4",
   "created_at": 1785860000
 }
 ```
 
-- `GET /v1/sessions` returns `data.sessions`.
-- `GET /v1/sessions/{id}` returns `data.session`.
-- `storage_generation` is a read-only counter in the session resource. It advances
-  when browser storage is reset, including manual and HTTP-triggered resets.
-  REL uses it to separate fresh browser storage from retired Chromium profiles
-  during reset and after app restart. Retired generations are cleaned up
-  asynchronously and reconciled at startup.
-- `POST /v1/sessions` accepts optional `new_group`, `name`, `name_prefix`, `source_profile`, `group`, `profile`, `proxy_alias`,
-  `adblock_enabled`, `image_blocking_mode`, and `image_size_limit_kb`; returns
+- `GET /v1/sessions` returns `data.sessions`; `GET /v1/sessions/{id}` returns
   `data.session`.
-- `PATCH /v1/sessions/{id}` is partial and returns `data.session`. Name and network filters remain mutable. Proxy assignment and browser identity are fixed at group creation; attempts to change them return `VALIDATION_FAILED` without applying any part of the update. To use a different proxy or identity, create a new group. Requests that reuse a session with a proxy must match its existing assignment.
-- `POST /v1/sessions/{id}/pause` and `/play` take no body and idempotently
-  return `data.session_id` and `data.network_paused`. Pause cancels active
-  requests and blocks new network work. Play resumes network activity and
-  reloads the current page when the pause interrupted or deferred navigation.
-  If pause cancels navigation before the new document commits, REL restores the
-  previous URL and live document; play then resumes without reloading that page.
-- `DELETE /v1/sessions/{id}` returns the canonical session ID as
-  `data.deleted_id`.
-- `POST /v1/sessions/close` accepts `{"group":"pgm"}` and returns the trimmed
-  group plus every closed canonical ID as `data.deleted_ids`. Group matching is
-  case-insensitive, and an empty group is an idempotent success.
+- `POST /v1/sessions` with only `group_id` joins an existing group. Omit it to
+  allocate a new group from Profile or Custom configuration and its first session.
+  The response contains `data.session` with its new Session ID and Group ID.
+- Group configuration and `storage_generation` belong to `/v1/groups/{id}`.
+  The storage generation advances on manual, HTTP-rule, and API resets, separating
+  fresh data from retired Chromium storage. Retired generations are cleaned up
+  asynchronously and reconciled at startup.
+- `POST /v1/sessions/{id}/ping` refreshes group inactivity and returns `data.session`.
+- `POST /v1/sessions/{id}/pause` and `/play` take no body and return
+  `data.session_id`, `data.group_id`, and `data.network_paused`. Pause cancels
+  active requests and blocks new network work. Play removes the network gate and
+  loads the page when necessary.
+- `DELETE /v1/sessions/{id}` returns `data.deleted_id`, `data.group_id`, and the
+  remaining `data.sessions`. Siblings retain shared group data. Closing the last
+  session through this API leaves a new blank session with a fresh Session ID.
+- `DELETE /v1/groups/{id}` removes the group, its sessions, and shared browser data.
+
+Group display names and network filters remain editable. Proxy assignment and
+browser identity are fixed at group creation unless reset applies an updated
+saved Profile. Existing-session browser requests cannot change their assignment.
 
 A proxy can be updated while tab groups use it. Updated routing and credentials
 apply to new connections; existing browser data and open pages remain unless
@@ -1140,37 +1178,16 @@ Profile group can start without copying saved browser data and still be reused.
 image while leaving `adblock_enabled` independent. The legacy `block_images`
 alias is rejected. Size is 1 through 1,048,576 kB. The visible name is editable and
 case-insensitively unique; the canonical `id` is immutable. Session routes accept
-only that ID; numeric database IDs are neither accepted nor returned. A group
-is immutable, contains 1–128 non-control characters after trimming, and may be
-shared by any number of sessions.
+only that ID; numeric database IDs are neither accepted nor returned. The owning
+group has an independent immutable `Group<ID>`; its display name is editable.
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
-
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's `session.id` identifies the newly created tab, and
-`session.group_id` identifies its shared group. Repeated creation returns distinct
-tab IDs even when `reused_group` is true. Pass the complete tab ID unchanged to
-subsequent browser commands; it remains stable across selection changes and app
-restarts while the tab exists. IDs have the form `Session12-main` for a group's
-initial tab or `Session12-<UUID>` for an additional tab; clients should treat them
-as opaque strings. A missing or closed tab never falls back to a selected sibling.
-
-Deleting a tab ID closes that tab and leaves its siblings open. Group IDs such as
-`Session12` identify shared configuration/storage and retain group-level
-management behavior, including deleting the whole group. The session list returns
-group metadata; use the ID returned by creation to pin a browser workflow.
-Group reset and inactivity expiry cover all tabs sharing that group.
-Set `new_group: true` in `POST /v1/sessions` to force a separate group.
+A session can join an existing group through `group_id`, or start in a new group
+when that field is omitted. See [Profiles, groups, and sessions](#profiles-groups-and-sessions)
+for creation, browser-operation Profile selection, reset, and deletion semantics.
+Each tab has its own immutable `Session<ID>`, and each group has a separate
+`Group<ID>`. Repeated creation returns distinct Session IDs even within one group.
+There is no `Session12-main`/UUID identity format, implicit selected-sibling
+fallback, caller-defined group label, or `new_group` switch in the current runtime.
 
 When `name` is omitted, a session created from a saved profile uses the profile's
 stored name followed by the global session number, for example `Reddit123` for
@@ -1266,8 +1283,8 @@ A profile resource is:
   passwords, changes the route where supported, and reopens saved tab URLs.
   Browser automation during reset returns retryable `BROWSER_BUSY`; retry after
   reset finishes. Failures leave the group stopped with a visible error so the
-  reset can be retried. New Sessions copy the rules; Profile edits apply to open
-  Sessions only through **Save and Reset Sessions**. On update, omission
+  reset can be retried. New Groups copy the rules; Profile edits apply to existing
+  Groups on the next reset, including **Save and Reset Sessions**. On update, omission
   preserves rules and `[]` disables them. Profile archives and settings-text
   transfers preserve rules. Configure them with **HTTP Rule** in the Profile editor.
 - `PATCH /v1/profiles/{id}` accepts any editable profile setting and returns
@@ -1661,10 +1678,9 @@ same history.
 ## Workspace restoration
 
 REL preserves each tab's root-page HTTP(S) Back/Forward history and current
-position across app restarts. Tabs in one Session (tab group) share storage and
-configuration, while their navigation entries stay separate. The session
-resource's optional `group` field remains a batch-management label; sharing that
-label does not share browser storage. Opening a saved
+position across app restarts. Sessions in one Group share storage and
+configuration, while their navigation entries stay separate. `group_id` identifies
+the owning group; it is not a caller-defined batch label. Opening a saved
 page restores its native history without fetching earlier or later entries.
 Visiting a new page after going Back discards that tab's forward branch.
 

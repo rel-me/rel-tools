@@ -1,5 +1,32 @@
 # REL CLI
 
+## Profiles, groups, and sessions
+
+A **Profile** is a reusable configuration template, optionally with initial
+browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
+configuration (or standalone Custom settings). Each **Session** is a tab in one
+group and receives a separate `Session<ID>`, with its own URL, navigation history,
+browser view, and automation target.
+
+Sessions in a group share cookies, site storage, private HTTP cache, configuration,
+browser identity, and proxy routing. Different groups remain isolated even when
+created from the same Profile. Create a session in an existing group to use its
+current configuration and live browser state, or create a new group and its first
+session. Joining an existing group does not reread or reseed the Profile.
+
+Editing or deleting a Profile leaves existing groups unchanged until reset.
+**Reset Sessions** applies to the whole group. Manual actions, HTTP reset rules,
+CLI, and RPC use the same app-owned reset: stop all sibling browsers, reapply the
+latest saved Profile when available (otherwise retain the copied configuration),
+rotate routing where supported, advance storage generation, retire old browser
+data, seed initial Profile data, and clear tab navigation history. Group and
+Session IDs and last URLs survive. Replacement browsers currently attempt to
+load saved URLs unless paused or blocked. Reset does not delete/reallocate those
+IDs, guarantee an unseeded cookie jar, or leave all saved URLs unloaded.
+
+See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
+the current wire identities and explicit creation behavior.
+
 The recommended CLI is the `rel` binary bundled in the installed REL app and
 linked from a writable directory already in `PATH`. Use **REL → Settings… →
 General → Install Command Line** to create the link. If no safe destination is
@@ -697,28 +724,18 @@ rel session create \
   --image-size-limit-kb 100
 ```
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
+The current runtime uses explicit `Group<ID>` and `Session<ID>` resources.
+`POST /v1/sessions` joins a group when given `group_id`, and otherwise creates a
+new group and its first session. Browser operations selecting a saved Profile can
+add a session to its oldest existing group without replacing shared state.
+Every created session has a distinct ID; selection changes never retarget a
+command pinned to that Session ID. A closed session reports `SESSION_NOT_FOUND`.
 
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's `data.session.id` identifies the newly created tab. Each creation
-returns a distinct tab ID even when `reused_group` is true; the group's
-configuration and storage remain shared. Pass that complete ID with
-`--session-id` for navigation, actions, observation, and capture. Later creations
-and tab selection changes cannot redirect an explicitly targeted command.
-A closed tab reports `SESSION_NOT_FOUND` instead of targeting another tab.
-`rel session delete TAB_ID` closes only that tab. Group IDs from `session list`
-retain group-level management behavior, including deleting every tab in the group.
-Use `rel session create --new-group` to force a separate group.
+The CLI examples using `--group` labels belong to the older client contract.
+Group labels and `--new-group` do not describe current runtime behavior; use a
+compatible client or the [current RPC contract](RPC.md#profiles-groups-and-sessions).
+Deleting a Session closes its tab; deleting a Group removes its sessions and
+shared browser data.
 
 When a new group is needed and `--name` is omitted, sessions created from a saved profile use its name
 followed by the global session number, for example `Reddit123`. Custom sessions
@@ -730,8 +747,7 @@ Every create option is optional. `--profile` accepts the unique name shown in
 filtering options use the selected profile. Use `--direct` to override it with
 a direct connection. `--image-blocking-mode` is `none`, `all`, or
 `over_limit`; `none` allows every image without changing AdBlock.
-`--group` labels the new session without changing its unique name or canonical
-ID. Group matching is case-insensitive.
+The older `--group` batch label is not a current `Group<ID>` selector.
 `--id-only` changes successful output to the new canonical
 session ID and a trailing newline instead of the JSON response envelope. Errors
 remain on standard error with the ordinary nonzero exit status.
@@ -901,5 +917,7 @@ Reset every existing tab group created from the named Profile. REL closes the
 tabs, applies the latest saved Profile configuration, changes the proxy route
 where supported, clears browser state, restores initial Profile cookies and
 passwords, and reopens saved URLs. This works with
-any proxy or no proxy. The result contains `data.reset_session_ids`; no existing
+any proxy or no proxy. Group and Session IDs survive; initial Profile data may
+be reseeded and saved URLs are currently loaded. The result contains
+`data.reset_group_ids`; no existing
 groups returns an empty list. Unknown Profiles and reset failures return errors.
