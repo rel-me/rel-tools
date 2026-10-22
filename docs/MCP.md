@@ -15,14 +15,14 @@ current configuration and live browser state, or create a new group and its firs
 session. Joining an existing group does not reread or reseed the Profile.
 
 Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+**Reset Sessions** recreates clean browser state for the group and all its
+sessions while preserving their Group and Session IDs. Manual actions, HTTP reset
 rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
 configuration when available; otherwise it copies configuration without data.
 It imports only explicitly configured Profile cookies, never saved passwords,
 cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
+retains its last URL without loading it. Page attachments and observations
+expire; use the same Group and Session IDs for subsequent operations.
 
 See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
 the current wire identities and explicit creation behavior.

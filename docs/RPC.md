@@ -15,14 +15,14 @@ current configuration and live browser state, or create a new group and its firs
 session. Joining an existing group does not reread or reseed the Profile.
 
 Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+**Reset Sessions** recreates clean browser state for the group and all its
+sessions while preserving their Group and Session IDs. Manual actions, HTTP reset
 rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
 configuration when available; otherwise it copies configuration without data.
 It imports only explicitly configured Profile cookies, never saved passwords,
 cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
+retains its last URL without loading it. Page attachments and observations
+expire; use the same Group and Session IDs for subsequent operations.
 
 `POST /v1/sessions` with `{"group_id":"Group1"}` joins that existing group.
 With only a saved `profile` and optional `name`, it selects the oldest matching
@@ -36,10 +36,10 @@ Use `Session<ID>` for browser operations and `Group<ID>` for group configuration
 `POST /v1/groups/{id}/reset` resets one group; `POST /v1/reset` with a Profile
 selection resets its existing groups and returns `data.reset_group_ids`.
 `DELETE /v1/sessions/{id}` closes one session; `DELETE /v1/groups/{id}` removes
-all its sessions and shared browser data. Reset also replaces resource IDs.
-`reset_group_ids` lists the new Groups; `replacements` contains each
-`{old_group_id, group_id, session_ids}` mapping. `session_ids` maps old Session IDs
-to replacement Session IDs. Clients must switch to the returned IDs.
+all its sessions and shared browser data. Reset preserves resource IDs.
+`reset_group_ids` lists the reset Groups; `replacements` contains each
+`{old_group_id, group_id, session_ids}` mapping. `old_group_id` equals `group_id`,
+and `session_ids` maps each Session ID to itself. Clients can keep stored IDs.
 Older client versions exposing group labels or `new_group` need client updates;
 those fields do not describe the current runtime creation contract.
 
@@ -974,13 +974,13 @@ tab group created from that Profile. An unknown Profile is an error; a Profile
 with no existing groups returns an empty list. `POST /v1/groups/{id}/reset`
 resets one group. Both return `data.reset_group_ids`.
 
-Reset works with every proxy type and without a proxy. It retires the old group
-and sessions, creates fresh IDs and storage, applies the current Profile, and
-imports only explicitly configured cookies. Last URLs remain unloaded. The
-response returns new `reset_group_ids` and `replacements`, mapping old Group
-and Session IDs to their replacements. Switch subsequent commands to those IDs.
-Old IDs return not-found errors. Database transaction failure preserves the old
-group; failure after commit leaves the replacement stopped for a retry.
+Reset works with every proxy type and without a proxy. It recreates clean
+storage for the existing group and sessions, preserves their IDs, applies the
+current Profile, and imports only explicitly configured cookies. Last URLs
+remain unloaded. The response returns the unchanged `reset_group_ids` and
+`replacements` with identity mappings for Group and Session IDs. Use the same IDs
+for subsequent commands. Database transaction failure preserves the original
+group state; failure after commit leaves the group stopped for a retry.
 
 Profiles accept `http_rules`, an array of up to 100 rules such as
 `[{"status_code":403,"repeats":0,"action":"reset"}]`. Status codes must be unique
@@ -1157,7 +1157,8 @@ Session resources do not contain `name`, `profile`, or filtering settings.
 Those belong to the shared tab group, available from `GET /v1/groups` or
 `GET /v1/groups/{group_id}`. Clients must decode the session resource itself
 rather than requiring group fields. Listing or reusing a group preserves existing
-Session IDs and storage; reset replaces them as described above.
+Session IDs and storage; reset preserves the IDs and clears storage as described
+above.
 
 - `GET /v1/sessions` returns `data.sessions`.
 - `GET /v1/sessions/{id}` and `POST /v1/sessions/{id}/ping` return `data.session`.
@@ -1277,7 +1278,7 @@ A profile resource is:
   responses from all tabs and subresources in the group, and are not cleared by
   other status codes. Canceled requests do not count. Reset and app restart
   clear the counts. Rules work with any proxy type and without a proxy.
-  Reset recreates the group and sessions with fresh IDs and clean state, imports
+  Reset preserves Group and Session IDs, recreates clean browser state, imports
   only configured Profile cookies, and retains last URLs without loading them.
   Browser automation during reset returns retryable `BROWSER_BUSY`; retry after
   reset finishes. Failures leave the group stopped with a visible error so the
