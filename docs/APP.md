@@ -19,6 +19,12 @@ it quits. The privacy layer does not enable automatic clearing on exit. This
 preserves website login state; it does not enable Chromium's password manager
 or guarantee that every sign-in flow is compatible.
 
+After restart, REL opens each saved Chromium profile on first use. Reading
+cookies, including **Copy Cookies from** in a Profile's settings, or requesting
+Session statistics opens that Session's existing storage and waits for Chromium
+to become ready. You do not need to visit a page first. An unopened Session is
+not an empty Session.
+
 The patch sets also remove Safe Browsing malware/download reputation checks,
 automatic extension updates, browser Google account synchronization, and
 Google-backed Web Push. Third-party cookie restrictions and disabled FedCM can
