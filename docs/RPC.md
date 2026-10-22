@@ -1732,7 +1732,7 @@ Each session value contains:
 | `pageTabs` | Ordered tabs, default `[]` for existing single-tab state. Each entry has a unique nonempty `id` (at most 128 UTF-8 bytes), optional HTTP(S) `url` without credentials, optional finite `lastOpenedAt`, Boolean `isNetworkPaused` (default false), and optional `navigationHistory`. |
 | `selectedPageTabID` | Tab ID or null; when present it must belong to this session's `pageTabs`. |
 | `isNetworkPaused` | Boolean, default false |
-| `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String, viewportPreset?: String}`; tool is `info`, `filters`, `schedules` (Actions), `logs`, or `terminal`; defaults are false, true, and `logs`. `viewportPreset` is `fitWindow`, `desktop` (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or `mobile` (320w); omit it or use `null` to inherit the app default. |
+| `workspace` | `{isBottomPanelPresented: Bool, isChatPresented: Bool, selectedTool: String, viewportPreset?: String}`; tool is `info`, `filters`, `siteData` (Site Data), `schedules` (Actions), `logs`, or `terminal`; defaults are false, true, and `logs`. `viewportPreset` is `fitWindow`, `desktop` (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or `mobile` (320w); omit it or use `null` to inherit the app default. |
 | `chatTokenUsageByModel` | Object of cumulative native Chat usage records keyed by model usage key; default `{}` |
 | `chats` | Conversation state described below; defaults to no conversations, null selection, and next sequence 2 |
 
