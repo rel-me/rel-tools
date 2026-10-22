@@ -84,8 +84,9 @@ across restarts and checks confirmed upstream requests conservatively for idle e
 inside an existing encrypted tunnel does not extend the local idle window, so
 REL may reset a group before Oxylabs would. Once the session expires or Oxylabs rejects its strict single-IP
 binding, REL automatically resets the whole tab group: it closes the old
-connections, assigns a fresh session ID, clears shared site data, and reopens
-the tabs. Website logins and other site state in that group are cleared.
+connections, assigns a fresh provider sticky session ID, clears shared site data,
+and preserves Group and Session IDs. Last tab URLs remain saved without loading.
+Website logins and other site state in that group are cleared.
 Old Residential sessions whose lifetime is unknown are reset once after upgrade.
 
 Dedicated ISP port assignments do not use this expiry policy. Authentication
