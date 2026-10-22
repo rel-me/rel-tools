@@ -397,11 +397,24 @@ one configured AI model provider, and one Proxy. Creating a third tab group or a
 REL Pro. Closing a Session or tab group frees its capacity. The same limits apply
 to sessions created through the CLI, MCP, RPC, and Rust SDK.
 
-REL Pro costs $3.99 per month. Register the license in **REL → Settings… → Plan** to
-remove the Free plan limits. If Pro registration expires or is
-removed, REL preserves existing Sessions and configuration instead of deleting
-them, including groups and Sessions already above the Free limits. Free prevents
-additional creation beyond its limits; close resources to make room.
+REL Pro costs $20/year or $3.99/month. The recurring subscription pays for app
+updates during each paid period. Register the license in **REL → Settings… → Plan**
+to remove the Free limits. After the subscription expires, keep using covered REL
+Pro builds with their Pro features. New app updates, including Chromium and
+security updates, stop until you renew and verify the license in Plan settings.
+
+REL saves verified build coverage in macOS Keychain. Previously verified,
+covered builds keep Pro access through temporary connection failures, including
+beyond the update verification grace period. An expired subscription does not
+cover a manually installed build created after its coverage cutoff. Renew and
+verify before using a newer build with Pro. A disabled or revoked license still
+removes Pro access. Historical saved licenses must be verified online by a build
+that supports this policy before they acquire permanent build coverage.
+
+Removing registration returns the app to Free and its normal updates. Existing
+Sessions and configuration remain, including resources above the Free limits;
+Free prevents additional creation beyond those limits. Trial and promo grants
+retain their separate expiry and verification rules below.
 
 You can also enter a `REL-PRO-...` promo code in the same Plan field when one
 has been provided to you. Codes grant one, two, or three calendar months of
