@@ -884,6 +884,9 @@ response acknowledges the request with `state: "requested"`, the selected
 is available or installed. Network errors and update availability appear in the
 native updater. If this build has no update feed/signing key, or an update is
 already running, the command returns a structured error and exits with status 1.
+For a stored paid Pro license, expired or unverified update coverage also returns
+a structured validation error. The covered app version retains its Pro features.
+Renew or verify the license in **Settings → Plan** before requesting newer updates.
 
 ## Reset
 
