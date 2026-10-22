@@ -1477,6 +1477,23 @@ its timer. Weekday schedules follow the Mac's current time zone; repeat interval
 measure elapsed minutes. Results and failures remain visible in the Action's
 status.
 
+## HTTP rules
+
+In the Profile editor, add an **HTTP Rule** with a status code, repeat allowance,
+and either **Reset** or **Notification** as its action. Rules count matching
+responses across all tabs in a Session, including page resources and background
+requests. Zero repeats triggers on the first match; two repeats triggers on the
+third. Other status codes do not clear the count.
+
+**Reset** clears the Session's browser storage and rotates its proxy assignment.
+**Notification** sends a macOS alert naming the Session and HTTP code while
+preserving browser storage and the current proxy route. After an alert, that
+rule starts counting again; other rules retain their counts. Alerts respect
+REL's global app notification switch and macOS notification permission.
+
+Profile and Session `http_rules` entries serialize the action as `"reset"` or
+`"notification"`, alongside integer `status_code` and `repeats` fields.
+
 ## Notifications
 
 Open **REL → Settings… → Notifications** in the Browser section to control
