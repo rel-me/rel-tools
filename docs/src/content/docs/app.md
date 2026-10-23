@@ -553,10 +553,15 @@ The toolbar **(+) → New Session in Group** submenu lists existing groups by na
 Selecting a group opens a session in that group’s shared browser state. The menu
 also offers **New Session in {group}** shortcuts for the group where the last
 session was created and the selected group. When both refer to the same group,
-only one shortcut appears. The last creation destination is remembered across
-app launches. Renamed groups use their current name, and deleted groups disappear
+only one shortcut appears. Default never gets a separate shortcut because
+**New Session** already opens there. The last creation destination is remembered
+across app launches. Renamed groups use their current name, and deleted groups disappear
 from the shortcuts. To create a session from a saved profile, use its **New
 Session** action in Profiles.
+
+Drag a group header up or down in the sidebar to change the group order. Its
+sessions move with it and stay in the same group. REL remembers this order across
+app launches, and **New Session in Group** lists destinations in the same order.
 
 Use **File → Create Session from Profile** (Option-Command-T) to choose settings
 before creation or copy a saved Profile’s browser data. This form starts with
