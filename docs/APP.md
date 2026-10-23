@@ -458,8 +458,9 @@ the profile draft. Saving selects the new proxy automatically. Cancelling return
 to the draft without changing its proxy selection. A saved proxy remains available
 in Proxies even if you later cancel the profile.
 
-**Create Session**, **New Session** (Command-T), and the session tab bar’s plus
-button open a tab in the matching default Profile group, creating the group when absent.
+**New Session** (Command-T) and the session tab bar’s plus button open a session
+in the built-in **Default** configuration’s group, creating that group when needed.
+Default is always first in Profiles and cannot be deleted.
 Tabs in a group share its settings, cookies, and logins. Proxy and Browser Identity
 are fixed when the group is created. Create a new group to use a different proxy or
 identity. AdBlock and image blocking remain editable for the group.
@@ -526,9 +527,14 @@ The upgrade preserves saved proxies, sessions, sticky IDs, and login data; it
 does not require recreating proxies or importing them again. Earlier app versions
 cannot open the upgraded database.
 
-The toolbar **(+) → New Session from Profile** submenu lists saved Profiles.
-Selecting a Profile opens a tab in its existing group, or creates the group with
-its settings and browser data when absent. The submenu appears only when saved Profiles exist.
+The toolbar **(+) → New Session in Group** submenu lists existing groups by name.
+Selecting a group opens a session in that group’s shared browser state. The menu
+also offers **New Session in {group}** shortcuts for the group where the last
+session was created and the selected group. When both refer to the same group,
+only one shortcut appears. The last creation destination is remembered across
+app launches. Renamed groups use their current name, and deleted groups disappear
+from the shortcuts. To create a session from a saved profile, use its **New
+Session** action in Profiles.
 
 Use **File → Create Session from Profile** (Option-Command-T) to choose settings
 before creation or copy a saved Profile’s browser data. This form starts with
@@ -547,8 +553,11 @@ uses the same dropdown style as the other settings.
 New Custom drafts start with **Allow all images**. **Proxy → New Proxy…** creates
 and selects a proxy without losing the draft. Cancelling keeps the current selection.
 
-**Settings → General → Default Profile** controls immediate session creation
-in the app and clients that omit a profile, including CLI, SDK, MCP, and Python. With no saved default, they use Custom:
+**Settings → General → Default Profile** controls clients that omit a profile,
+including CLI, SDK, MCP, and Python, and creation workflows that use the configured
+default. The app’s **New Session** command always uses the built-in Default
+configuration. With no saved default, clients use Custom (the historical storage
+name for the built-in Default configuration):
 direct networking, AdBlock on, all images allowed, and Private. The creation
 form uses its explicit settings and browser-data choice instead. **None** does
 not inherit another Profile’s browser data. Renaming a saved default preserves
