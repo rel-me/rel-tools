@@ -71,10 +71,19 @@ without a proxy. Other groups keep their state. The button shows **Resetting…*
 until the reset finishes. If a step fails, REL reports the error and leaves the
 group stopped so you can retry the reset.
 
-The sidebar lists Groups. Each group owns shared cookies, site storage, saved
+The sidebar has a **Profiles** header above Groups and an **Actions** section
+below them. Actions belong to the app and can work across sites and profiles.
+Create an action from the window's **+ → Add Action** menu without selecting a
+session. Click an action to edit it; its context menu offers **Run Now** and
+**Delete Action**. New actions run in the saved Default profile, reusing its open
+group and browser state. Existing session-owned actions move to Default while
+retaining their IDs, steps, triggers, budgets, and run history. Reusable library
+actions use Default unless an explicit profile or included configuration is selected.
+
+The Profiles section lists Groups. Each group owns shared cookies, site storage, saved
 logins, proxy configuration, identity, and settings. Its Sessions are individual
 tabs with separate IDs and navigation history. Groups display their source
-Profile name, or `REL` for Custom configuration. Session tabs use globally unique
+Profile name, or `Default` for Custom configuration. Session tabs use globally unique
 `Session<ID>` labels.
 
 Create a group for isolated browser state, or press **⌘T** or the tab strip's
@@ -143,8 +152,15 @@ Choose **Fit Window** to use the available space, or **App Default** to inherit
 the viewport configured in Settings. Background Sessions retain their selected
 width and last visible height.
 
+The group has one bottom panel shared by all of its sessions. Switching tabs
+preserves its visibility, expansion, selected tool, and log filters. Its tabs are
+**Overview**, **Site Data**, **Filters**, **Logs**, and **Terminal**. Actions are
+managed outside the bottom panel.
+
 The bottom panel floats over the page. Opening, resizing, and expanding it leave
-the page viewport unchanged.
+the page viewport unchanged. Changes in **Filters** apply immediately to all
+sessions in the group without resetting them. They affect subsequent requests;
+already loaded page content stays in place.
 
 ## Quitting REL
 
@@ -289,11 +305,8 @@ revision has changed, REL blocks further writes until you restart. The button
 cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
-Workspace saves support **Actions** as the selected bottom panel, including
-restoring that selection on the next launch. If an older build reports
-**Unknown workspace bottom tool** after selecting Actions, select **Logs** in
-each affected session and use **Save Current Workspace** before quitting. The
-rejected save leaves the previously saved workspace unchanged.
+Workspace saves retain the selected bottom-panel tool for each group. A saved
+selection of the removed **Actions** tab opens **Overview** instead.
 
 **Debug → Error Recovery** can trigger a session error, a workspace error, or
 both. These simulated errors appear in the same notices and Recent Issues
@@ -442,7 +455,10 @@ available window height. Each Session can change its viewport independently usin
 Resetting Sessions when saving also applies the Profile’s Session Viewport.
 Saving without resetting preserves each Session’s current viewport.
 
-Manage saved configurations in **Profiles**. There are no built-in Profiles.
+Manage saved configurations in **Profiles**. REL creates **Default** at startup
+if it is missing. An existing **REL** profile becomes Default with the same ID and
+settings. Edit Default's configuration in the profiles list; its name is fixed
+and it cannot be deleted. Default does not use the custom-profile allowance.
 Profiles can use a configured proxy and imported cookies or passwords. The Profiles
 list includes a **Browser Identity** column showing Private, Custom Privacy,
 or Native.
@@ -475,7 +491,10 @@ files keep changing during capture, REL asks you to retry the import.
 
 ### Cookie files
 
-Open a Session’s **Overview → Options → Site Data** to import or export cookies.
+Open the group's **Site Data** tab to import or export cookies. Cookies belong
+to the shared group storage. When cookies span more than one domain, use the
+domain selector to show one domain or **All Domains**. The cookie search applies
+within the selected domain.
 **Export…** saves all cookies in that Session, including cookies hidden by the
 search filter, with a suggested filename such as `Session123.cookies`.
 **Import…** reads a REL `.cookies` file and adds its cookies to the current Session,
@@ -555,13 +574,12 @@ and selects a proxy without losing the draft. Cancelling keeps the current selec
 
 **Settings → General → Default Profile** controls clients that omit a profile,
 including CLI, SDK, MCP, and Python, and creation workflows that use the configured
-default. The app’s **New Session** command always uses the built-in Default
-configuration. With no saved default, clients use Custom (the historical storage
-name for the built-in Default configuration):
-direct networking, AdBlock on, all images allowed, and Private. The creation
+default. The app’s **New Session** command always uses the built-in Default configuration.
+With no preference, clients also use the saved Default profile. The creation
 form uses its explicit settings and browser-data choice instead. **None** does
 not inherit another Profile’s browser data. Renaming a saved default preserves
-its selection; deleting it requires choosing another default or Custom.
+its selection; deleting a custom default requires choosing another profile.
+The saved Default profile cannot be deleted.
 Changing this preference restarts the local agent and preserves existing Sessions.
 
 Schedules that referenced former built-in Profiles keep their settings as explicit
@@ -850,9 +868,11 @@ automatically; new provider domains need to be added to that list.
 
 ## Session logs
 
-Open **Logs** in a Session's bottom panel to follow its activity. Logging runs
-while the Session is active, even when the panel is closed, and works with both
-direct and proxied connections.
+Open **Logs** in the group's bottom panel to follow all of its sessions in one
+chronological stream. Choose **All Sessions** or an individual Session ID to
+filter the stream. Switching browser tabs preserves that selection, the search,
+and category and level filters. Logging runs while each Session is active,
+even when the panel is closed, and works with direct and proxied connections.
 
 - **Network → Requests** shows Chromium HTTP and HTTPS request results for pages,
   scripts, stylesheets, images, frames, and fetch/XHR traffic. Entries include
@@ -871,8 +891,9 @@ visible with their values replaced by `REDACTED`. Proxy transport diagnostics
 remain separate from Chromium request results, so a proxied request can have
 both a transport entry and a browser result.
 
-Use the category menu to filter the stream. **Clear Logs** clears only the
-selected Session and live logging continues. Logs remain local to this app's
+Use the category menu to filter the stream. **Clear Logs** clears all sessions
+in the current group, including when the view is filtered to one session, and
+live logging continues. Logs remain local to this app's
 data directory.
 
 ### Log record schema
@@ -999,8 +1020,7 @@ Choose **Use Action**, edit inputs, and select a destination:
 - A new session uses the Action's chosen default profile, its included portable
   profile configuration, or REL's default profile, in that order. You can select
   another profile for this use. A missing selected profile is an error.
-- An existing session keeps its current browser configuration. Its Actions panel
-  also offers **Add Action from Library**.
+- An existing session keeps its current browser configuration.
 - Profiles selected under **Edit Action → Attached Profiles** receive the same
   definition in future app-created sessions, using that profile's configuration.
   Attachments reference one library definition; they do not duplicate it.
@@ -1399,22 +1419,23 @@ Session once per run, before executing its prompt steps. Later steps continue
 from the page reached by the preceding step. Navigation failures use the Action's
 **On Error** setting.
 
-Open the session's **Actions** panel to edit, run, or delete installed work.
-Each session Action owns its prompt steps, trigger, completion behavior, and run
-history. **Settings → Actions** manages reusable definitions and their profile
+Use the sidebar's **Actions** section to edit, run, or delete saved work.
+Each app Action owns its prompt steps, trigger, completion behavior, and run
+history and runs in Default. Session-installed work also remains available in
+the session's Actions panel. **Settings → Actions** manages reusable definitions and their profile
 attachments. See [reusable Actions](#case-studies-and-reusable-actions) for imports
 and destination selection.
 
 Schedules, incoming webhooks, and built-in browser events execute the same saved
-session Action. Editing it updates the work performed by its triggers. REL runs
-at most one execution per session Action at a time, including manual runs.
-Existing session Actions retain their IDs and webhook routing.
+app Action. Editing it updates the work performed by its triggers. REL runs
+at most one execution per Action at a time, including manual runs.
+Existing Actions retain their IDs and webhook routing.
 
-### Editing a session Action
+### Editing an Action
 
-Use **Add Action** in the selected Session's Actions panel to create work, or
-right-click an installed Action to edit, run, or delete it. The editor saves a
-complete Session-owned record; library definitions remain separate.
+Use **New → Add Action** to create work, including when no session is selected.
+The editor saves an app-owned record using Default; library definitions remain
+separate.
 
 Start with the prompt steps and use **Add Step** for additional prompts. Steps
 run in order in the same Session. Set the **Name** and **Enabled** state.
@@ -1433,7 +1454,7 @@ Cancellation and spending-budget limits still stop the run.
 
 ### Built-in events
 
-In the session Action editor, choose **When → Event**, then **Page Changed**,
+In the Action editor, choose **When → Event**, then **Page Changed**,
 **Notification Received**, or both. Switching a new Action to Event initially
 selects Page Changed. Events use the Action's own Session. Page Changed fires
 when its URL changes, including same-document URL changes. It does
@@ -1726,7 +1747,7 @@ replies. Choose a private group for sensitive tasks.
 | `/rel new-session` | Create a session using REL's defaults |
 | `/rel open SESSION_ID https://example.com` | Navigate an existing session |
 | `/rel close-session SESSION_ID` | Close that session |
-| `/rel actions` | List saved session Actions and their UUIDs |
+| `/rel actions` | List saved Actions and their UUIDs |
 | `/rel run ACTION_UUID` | Run an Action once and reply with its final result |
 | `/rel new` | Reset the remote AI conversation |
 | `/rel cancel` | Cancel current remote work and clear queued commands |

@@ -451,7 +451,7 @@ page and session IDs. Navigate it with `POST /v1/navigate`:
 ```
 
 Only `url` is required. The first request without `session_id` reuses the first
-persisted session, creating one from the configured default (Custom when unset) only when none exists. Later
+persisted session, creating one from the configured default (Default when unset) only when none exists. Later
 requests without it reuse the current page and session. An explicit `profile`
 instead creates a new session from that named template; it cannot be combined
 with `session_id`. An explicit session selects that session as the new current
@@ -721,7 +721,7 @@ semantic content remains readable. The process-local registry retains at most
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
-| `profile` | Optional saved profile name for the newly created session. It cannot be combined with `session_id`; omission uses the configured default or Custom. |
+| `profile` | Optional saved profile name for the newly created session. It cannot be combined with `session_id`; omission uses the configured default or Default. |
 | `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
@@ -783,7 +783,7 @@ code 1; it is not an API error.
 ```
 
 Omitting `session_id` creates a session from the named `profile`, or from
-the configured default (Custom when unset) when it is absent, and navigates it to `url`. `profile` and `group`
+the configured default (Default when unset) when it is absent, and navigates it to `url`. `profile` and `group`
 cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
@@ -1184,8 +1184,10 @@ Group reset and inactivity expiry apply to every tab in that group.
 
 ## Profiles
 
-Profiles are user-created session configurations. There are no generated
-built-ins, and the list is empty until a Profile is saved.
+Profiles are saved session configurations. REL ensures an editable **Default**
+profile at startup. If a saved **REL** profile exists and Default is missing, REL
+renames it in place, preserving its ID and configuration. Default cannot be
+renamed or deleted, and it does not count toward the custom-profile limit.
 
 Fingerprint `browser_version` and its matching `Chrome/` User-Agent token resolve
 to REL's bundled Chromium version when read or imported. An optional
@@ -1402,10 +1404,10 @@ original data-preserving rename behavior.
 
 Profile names contain 1–128 non-control characters after trimming and are the
 selector used during session creation. On `POST /v1/sessions`, omission selects
-the **Default Profile** configured in **Settings → General**, or direct **Custom** settings
-when no preference is set (AdBlock on, all images allowed, Private). This applies to clients that omit the field. Create Session in the app
-starts with Custom and sends explicit settings. `profile:null` explicitly selects Custom without inheriting any saved profile
-or browser data. An explicit saved profile always takes precedence. The preference
+the **Default Profile** configured in **Settings → General**, or the saved **Default**
+profile when no preference is set. This applies to clients that omit the field.
+Create Session in the app can send explicit settings. `profile:null` keeps
+standalone Custom configuration without inheriting a saved profile or browser data. An explicit saved profile always takes precedence. The preference
 uses the stable profile ID, so renaming a custom profile preserves its selection.
 If that profile is deleted, creation without an explicit profile reports an error
 until another default is selected. Explicit session settings override the selected profile. A present
