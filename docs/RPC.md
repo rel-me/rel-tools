@@ -1406,8 +1406,8 @@ Profile names contain 1–128 non-control characters after trimming and are the
 selector used during session creation. On `POST /v1/sessions`, omission selects
 the **Default Profile** configured in **Settings → General**, or the saved **Default**
 profile when no preference is set. This applies to clients that omit the field.
-Create Session in the app can send explicit settings. `profile:null` selects the
-saved Default profile. An explicit saved profile always takes precedence. The preference
+Create Session in the app can send explicit settings. `profile:null` keeps
+standalone Custom configuration without inheriting a saved profile or browser data. An explicit saved profile always takes precedence. The preference
 uses the stable profile ID, so renaming a custom profile preserves its selection.
 If that profile is deleted, creation without an explicit profile reports an error
 until another default is selected. Explicit session settings override the selected profile. A present
