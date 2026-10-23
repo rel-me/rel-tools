@@ -74,16 +74,20 @@ without a proxy. Other groups keep their state. The button shows **Resetting…*
 until the reset finishes. If a step fails, REL reports the error and leaves the
 group stopped so you can retry the reset.
 
-The sidebar has a **Profiles** header above Groups and an **Actions** section
-below them. Actions belong to the app and can work across sites and profiles.
-Create an action from the window's **+ → Add Action** menu without selecting a
-session. Click an action to edit it; its context menu offers **Run Now** and
-**Delete Action**. New actions run in the saved Default profile, reusing its open
-group and browser state. Existing session-owned actions move to Default while
-retaining their IDs, steps, triggers, budgets, and run history. Reusable library
-actions use Default unless an explicit profile or included configuration is selected.
+The sidebar lists **Projects**, each containing browser Groups and their Sessions.
+Projects use folder icons; reusable browser Profiles use profile icons. Use the
+folder-plus button to create a Project and its context menu to edit its name and
+model or add an Action. A Group's context menu can move it to another Project
+without resetting its browser data or changing its Group and Session IDs.
 
-The Profiles section lists Groups. Each group owns shared cookies, site storage, saved
+Each Project owns its scheduled and triggered Actions. Use **+ → Add Action** to
+add work to the selected Project, or **Add Action** on a Project's context menu.
+Click an Action to edit it; its context menu offers **Run Now** and **Delete Action**.
+Actions inherit the Project's model unless explicitly overridden and reuse a
+Default-profile Group within that Project. Browser event triggers match only
+Sessions in the owning Project. Existing work opens in an initial Default Project.
+
+Each Project lists its Groups. Each group owns shared cookies, site storage, saved
 logins, proxy configuration, identity, and settings. Its Sessions are individual
 tabs with separate IDs and navigation history. Groups display their source
 Profile name, or `Default` for Custom configuration. Session tabs use globally unique
@@ -112,8 +116,10 @@ removing an entire group. Quitting REL preserves groups, saved URLs, and selecti
 CLI, SDK, and MCP browser operations target a specific `Session<ID>`, independent
 of the selected UI tab. `Group<ID>` identifies shared configuration and storage.
 Closing a session leaves siblings open; deleting a group closes all its sessions.
-Chat and Actions remain associated with the group, and each submitted chat turn
-captures its selected Session ID.
+AI Chat in the right sidebar belongs to the Project. Switching between its Groups
+or Sessions keeps the same conversation; selecting another Project switches to
+that Project's chat. The chat's browser context lists only its Project's Sessions.
+Projects can also have a chat before their first browser Group is created.
 
 ## Notifications
 
@@ -1137,12 +1143,11 @@ weights in Ollama and refresh Models to discover them. Provider records and
 native model management are owned by Fritz; adding providers has no REL-specific
 provider limit.
 
-In the Profile editor, choose **Default model**, with reasoning effort and speed
-when supported by that model. New Sessions copy this preference for new chats.
-Existing conversations keep their current model. **Use Default Model** follows
-REL's current default-selection policy. A saved unavailable model requires an
-explicit replacement. Profile exports preserve the preference; a provider
-connection from another Mac may need to be configured again.
+In the Project editor, choose **Model**, with reasoning effort and speed when
+supported. This preference applies to new chats and Actions in that Project.
+Existing conversations keep their selected model. **App Default** follows REL's
+current default-selection policy. An unavailable saved model requires an explicit
+replacement. Browser Profiles no longer include a Default model control.
 
 Provider keys stay in macOS Keychain. REL's bundled Rust Models and chat helpers
 share the app's stable signing identity, so upgrades from versions before 0.1.99
@@ -1150,7 +1155,7 @@ retain access to existing app-created keys without asking you to approve each
 provider again. Keys created solely by the 0.1.99 Beta helper, or by another app,
 may still need explicit Keychain permission.
 
-For a new Chat, a session Profile's explicit model takes precedence. Otherwise
+For a new Chat, the Project's explicit model takes precedence. Otherwise
 REL uses the most recently selected available model, then the default provider's
 explicitly configured model. If the default OpenAI provider has no explicit
 model, REL prefers its newest available general-purpose GPT generation, using
@@ -1375,8 +1380,8 @@ unmodified defaults upgrade automatically; customized instructions are preserved
 For an Action installed from a setup, open its editor and choose **Review Setup**
 to review the imported setup and enable its Actions.
 
-In the Action editor, choose **Model** to override the session's model, or keep
-**Use Session Model** to inherit it. An unavailable saved model must be configured
+In the Action editor, choose **Model** to override the Project's model, or keep
+**Use Project Model** to inherit it. An unavailable saved model must be configured
 again or replaced before the Action can run.
 
 For models with usage costs, **Budget per run (USD)** limits spending across all
@@ -1400,9 +1405,9 @@ Session once per run, before executing its prompt steps. Later steps continue
 from the page reached by the preceding step. Navigation failures use the Action's
 **On Error** setting.
 
-Use the sidebar's **Actions** section to edit, run, or delete saved work.
-Each app Action owns its prompt steps, trigger, completion behavior, and run
-history and runs in Default. Session-installed work also remains available in
+Use the Project's Actions in the sidebar to edit, run, or delete saved work.
+Each Project Action owns its prompt steps, trigger, completion behavior, and run
+history and runs in its Project's Default browser Group. Session-installed work also remains available in
 the session's Actions panel. **Settings → Actions** manages reusable definitions and their profile
 attachments. See [reusable Actions](#case-studies-and-reusable-actions) for imports
 and destination selection.
