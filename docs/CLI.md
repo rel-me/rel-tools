@@ -15,14 +15,17 @@ current configuration and live browser state, or create a new group and its firs
 session. Joining an existing group does not reread or reseed the Profile.
 
 Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+**Reset Sessions** preserves Group and Session IDs while recreating clean
+browser storage for the group and all its sessions. Manual actions, HTTP reset
 rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
 configuration when available; otherwise it copies configuration without data.
 It imports only explicitly configured Profile cookies, never saved passwords,
 cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
+retains its last URL without loading it. Page attachments and observations
+expire. Responses include identity mappings whose Group and Session IDs remain
+unchanged. A reset rejected before committing preserves the original storage and
+leaves the group usable. If storage preparation fails after commit, the group
+stays stopped with **Reset Sessions** available to retry.
 
 See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
 the current wire identities and explicit creation behavior.
@@ -892,11 +895,12 @@ rel reset --profile=Research
 ```
 
 Reset every existing group created from the named Profile. REL stops its
-browsers and recreates the group and sessions with fresh IDs and clean storage,
+browsers and recreates clean storage while preserving Group and Session IDs,
 applies the current Profile configuration, and imports only explicitly configured
 cookies. Saved passwords and other browser state are discarded. Last URLs remain
-unloaded. Results contain new `data.reset_group_ids` and `data.replacements`, with
-`old_group_id`, `group_id`, and an old-to-new `session_ids` mapping. Update later
-commands to the returned IDs. This works with any proxy or no proxy. No existing
-
-groups returns an empty list. Unknown Profiles and reset failures return errors.
+unloaded. Results contain `data.reset_group_ids` and `data.replacements`, with
+`old_group_id`, `group_id`, and a `session_ids` mapping; all mapped IDs remain
+unchanged. This works with any proxy or no proxy. No existing groups returns an
+empty list. Unknown Profiles and reset failures return errors. A rejection before
+commit leaves the original group usable. A failure preparing storage after commit
+leaves the group stopped; retry the reset to finish preparation.
