@@ -1739,7 +1739,7 @@ replies. Choose a private group for sensitive tasks.
 | `/rel new-session` | Create a session using REL's defaults |
 | `/rel open SESSION_ID https://example.com` | Navigate an existing session |
 | `/rel close-session SESSION_ID` | Close that session |
-| `/rel actions` | List saved session Actions and their UUIDs |
+| `/rel actions` | List saved Actions and their UUIDs |
 | `/rel run ACTION_UUID` | Run an Action once and reply with its final result |
 | `/rel new` | Reset the remote AI conversation |
 | `/rel cancel` | Cancel current remote work and clear queued commands |
