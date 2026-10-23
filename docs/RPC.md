@@ -1256,20 +1256,17 @@ A profile resource is:
   selections take precedence, and later Profile changes leave existing sessions
   unchanged. Profile archive and settings-text transfers
   preserve this field.
-- `asset_cache` defaults to `{"is_enabled":true,"maximum_size_bytes":536870912}`.
-  Both fields are required when this object is supplied. `is_enabled` is boolean;
-  `maximum_size_bytes` must be 134217728, 268435456, 536870912, or 1073741824.
-  `POST /v1/profiles` and `PATCH /v1/profiles/{id}` accept the object; omission
-  on update preserves the existing setting. Profile responses and transfers
-  include it. Existing Profiles default to enabled with a 512 MiB limit.
-  Read-only asset caches survive Group resets within the same Profile; cookies,
-  site data and private browser state follow the normal reset path. Profiles
-  never share asset caches. Group responses include `asset_cache_profile_id`
-  (the saved Profile UUID, or null for a Custom Group) and effective `asset_cache`
-  settings. Renaming or deleting a Profile preserves its cache identity in
-  existing Groups; a new Profile with the same name gets a separate cache.
-  See [Profile asset caches](APP.md#profile-asset-caches)
-  for eligibility, freshness and the per-Profile clearing controls.
+- `asset_cache` defaults to `{"is_enabled":false,"maximum_size_bytes":536870912}`.
+  Cross-reset asset caching is currently disabled. `POST /v1/profiles` and
+  `PATCH /v1/profiles/{id}` reject `is_enabled:true` with a usage error.
+  Both fields remain required when this object is supplied; `is_enabled` must
+  be false, and `maximum_size_bytes` must be 134217728, 268435456, 536870912,
+  or 1073741824. Omission on update preserves size metadata. Profile and Group
+  responses report caching disabled, including for saved or imported settings
+  that previously enabled it. Existing transfer schemas and
+  `asset_cache_profile_id` remain readable. The app does not read or write the
+  cross-reset asset cache while disabled. See
+  [Profile asset caches](APP.md#profile-asset-caches).
 - `http_rules` defaults to `[]` (disabled). Each entry requires `action:"reset"`,
   a unique integer `status_code` (100–599), and integer `repeats` (0–1,000,000).
   Up to 100 rules are accepted. For example:
