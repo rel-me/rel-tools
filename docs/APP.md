@@ -478,7 +478,11 @@ in Proxies even if you later cancel the profile.
 button open a tab in the matching default Profile group, creating the group when absent.
 Tabs in a group share its settings, cookies, and logins. Proxy and Browser Identity
 are fixed when the group is created. Create a new group to use a different proxy or
-identity. AdBlock and image blocking remain editable for the group.
+identity. AdBlock and media filtering remain editable for the group. Changes apply
+immediately to subsequent requests in every session in the group. Existing pages
+stay as they are, without an automatic reload or group reset. Cookies, logins, session IDs, and browser
+storage are preserved. Paused and unopened sessions use the new filters when
+resumed or opened.
 Browser data is copied or imported rather than switched as a setting.
 
 Cookies and saved passwords can be imported while Chrome or another supported
