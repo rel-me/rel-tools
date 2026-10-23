@@ -15,14 +15,17 @@ current configuration and live browser state, or create a new group and its firs
 session. Joining an existing group does not reread or reseed the Profile.
 
 Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
+**Reset Sessions** preserves Group and Session IDs while recreating clean
+browser storage for the group and all its sessions. Manual actions, HTTP reset
 rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
 configuration when available; otherwise it copies configuration without data.
 It imports only explicitly configured Profile cookies, never saved passwords,
 cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
+retains its last URL without loading it. Page attachments and observations
+expire. Responses include identity mappings whose Group and Session IDs remain
+unchanged. A reset rejected before committing preserves the original storage and
+leaves the group usable. If storage preparation fails after commit, the group
+stays stopped with **Reset Sessions** available to retry.
 
 `POST /v1/sessions` with `{"group_id":"Group1"}` joins that existing group.
 With only a saved `profile` and optional `name`, it selects the oldest matching
@@ -36,10 +39,17 @@ Use `Session<ID>` for browser operations and `Group<ID>` for group configuration
 `POST /v1/groups/{id}/reset` resets one group; `POST /v1/reset` with a Profile
 selection resets its existing groups and returns `data.reset_group_ids`.
 `DELETE /v1/sessions/{id}` closes one session; `DELETE /v1/groups/{id}` removes
-all its sessions and shared browser data. Reset also replaces resource IDs.
-`reset_group_ids` lists the new Groups; `replacements` contains each
-`{old_group_id, group_id, session_ids}` mapping. `session_ids` maps old Session IDs
-to replacement Session IDs. Clients must switch to the returned IDs.
+all its sessions and shared browser data. Reset preserves resource IDs.
+`reset_group_ids` lists the reset Groups; `replacements` contains each
+`{old_group_id, group_id, session_ids}` mapping. `old_group_id` equals `group_id`,
+and each `session_ids` key equals its value.
+
+Group records include `storage_generation` and `session_revision`. Membership
+revision advances atomically with tab creation or closure within a storage
+generation. When reconciling asynchronous snapshots, compare storage generation
+first, then membership revision; older snapshots must not remove newly created
+tabs or restore deleted tabs. Reset reconciles the registered sessions while
+holding the group reservation before clearing storage.
 Older client versions exposing group labels or `new_group` need client updates;
 those fields do not describe the current runtime creation contract.
 
