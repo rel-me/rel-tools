@@ -735,31 +735,13 @@ expose this entry. Create a new tab group to use a different identity.
 
 ## Profile asset caches
 
-**Cache assets across resets** is enabled by default in every Profile, including
-existing Profiles. Edit a Profile in **REL → Settings… → Profiles** to disable it
-or change its **Maximum Asset Cache Size** (128 MiB, 256 MiB, 512 MiB, or 1 GiB;
-512 MiB by default).
+Caching assets across resets is currently disabled. Its controls and statistics
+are hidden in Profiles and Cache settings. Saved Profiles and imported archives
+still load, but an enabled cache setting has no effect.
 
-Each Profile has its own asset cache. Assets can be reused by its Groups and
-Sessions after a reset, while cookies, site storage, permissions, and private
-HTTP caches are reset normally. Assets are never reused across Profiles. Proxy
-aliases also have separate cache partitions within each Profile.
-
-Only read-only images, stylesheets, scripts, fonts, and favicons qualify.
-Documents and fetched data are excluded. Responses need an explicit fresh
-`max-age`, `s-maxage`, or `Expires` lifetime; `Cache-Control: public` is optional.
-REL respects `private`, `no-store`, and `no-cache`. Requests carrying cookies or
-authorization, responses setting cookies, partial responses, downloads with
-Content-Disposition, and decoded bodies larger than 32 MiB are excluded.
-Expired assets return to the network; this cache does not perform conditional
-ETag revalidation.
-
-Profiles settings lists Profiles alphabetically, with each cache's used space,
-maximum size, reused bytes, and request count. **Clear Cache** beside a Profile
-clears only its assets. **Clear All Cache** clears all Profile asset caches.
-**Clear Session Caches** clears private HTTP caches. These actions preserve
-cookies and site storage. Asset cache statistics and clearing are available even
-when no Sessions are open.
+Ordinary browser HTTP caches continue to work within a Group and are cleared
+when the Group is reset. **REL → Settings… → Cache → Clear Session Caches**
+clears these HTTP caches without deleting cookies or site storage.
 
 ## Navigation feedback, errors, and retry
 
