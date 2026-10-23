@@ -143,8 +143,15 @@ Choose **Fit Window** to use the available space, or **App Default** to inherit
 the viewport configured in Settings. Background Sessions retain their selected
 width and last visible height.
 
+The group has one bottom panel shared by all of its sessions. Switching tabs
+preserves its visibility, expansion, selected tool, and log filters. Its tabs are
+**Overview**, **Site Data**, **Filters**, **Logs**, and **Terminal**. Actions are
+managed outside the bottom panel.
+
 The bottom panel floats over the page. Opening, resizing, and expanding it leave
-the page viewport unchanged.
+the page viewport unchanged. Changes in **Filters** apply immediately to all
+sessions in the group without resetting them. They affect subsequent requests;
+already loaded page content stays in place.
 
 ## Quitting REL
 
@@ -289,11 +296,8 @@ revision has changed, REL blocks further writes until you restart. The button
 cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
-Workspace saves support **Actions** as the selected bottom panel, including
-restoring that selection on the next launch. If an older build reports
-**Unknown workspace bottom tool** after selecting Actions, select **Logs** in
-each affected session and use **Save Current Workspace** before quitting. The
-rejected save leaves the previously saved workspace unchanged.
+Workspace saves retain the selected bottom-panel tool for each group. A saved
+selection of the removed **Actions** tab opens **Overview** instead.
 
 **Debug → Error Recovery** can trigger a session error, a workspace error, or
 both. These simulated errors appear in the same notices and Recent Issues
@@ -474,7 +478,10 @@ files keep changing during capture, REL asks you to retry the import.
 
 ### Cookie files
 
-Open a Session’s **Overview → Options → Site Data** to import or export cookies.
+Open the group's **Site Data** tab to import or export cookies. Cookies belong
+to the shared group storage. When cookies span more than one domain, use the
+domain selector to show one domain or **All Domains**. The cookie search applies
+within the selected domain.
 **Export…** saves all cookies in that Session, including cookies hidden by the
 search filter, with a suggested filename such as `Session123.cookies`.
 **Import…** reads a REL `.cookies` file and adds its cookies to the current Session,
@@ -841,9 +848,11 @@ automatically; new provider domains need to be added to that list.
 
 ## Session logs
 
-Open **Logs** in a Session's bottom panel to follow its activity. Logging runs
-while the Session is active, even when the panel is closed, and works with both
-direct and proxied connections.
+Open **Logs** in the group's bottom panel to follow all of its sessions in one
+chronological stream. Choose **All Sessions** or an individual Session ID to
+filter the stream. Switching browser tabs preserves that selection, the search,
+and category and level filters. Logging runs while each Session is active,
+even when the panel is closed, and works with direct and proxied connections.
 
 - **Network → Requests** shows Chromium HTTP and HTTPS request results for pages,
   scripts, stylesheets, images, frames, and fetch/XHR traffic. Entries include
@@ -862,8 +871,9 @@ visible with their values replaced by `REDACTED`. Proxy transport diagnostics
 remain separate from Chromium request results, so a proxied request can have
 both a transport entry and a browser result.
 
-Use the category menu to filter the stream. **Clear Logs** clears only the
-selected Session and live logging continues. Logs remain local to this app's
+Use the category menu to filter the stream. **Clear Logs** clears all sessions
+in the current group, including when the view is filtered to one session, and
+live logging continues. Logs remain local to this app's
 data directory.
 
 ### Log record schema
@@ -990,8 +1000,7 @@ Choose **Use Action**, edit inputs, and select a destination:
 - A new session uses the Action's chosen default profile, its included portable
   profile configuration, or REL's default profile, in that order. You can select
   another profile for this use. A missing selected profile is an error.
-- An existing session keeps its current browser configuration. Its Actions panel
-  also offers **Add Action from Library**.
+- An existing session keeps its current browser configuration.
 - Profiles selected under **Edit Action → Attached Profiles** receive the same
   definition in future app-created sessions, using that profile's configuration.
   Attachments reference one library definition; they do not duplicate it.
@@ -1403,9 +1412,8 @@ Existing session Actions retain their IDs and webhook routing.
 
 ### Editing a session Action
 
-Use **Add Action** in the selected Session's Actions panel to create work, or
-right-click an installed Action to edit, run, or delete it. The editor saves a
-complete Session-owned record; library definitions remain separate.
+Use **New → Add Action** with a session selected to create work. The editor
+saves a complete Session-owned record; library definitions remain separate.
 
 Start with the prompt steps and use **Add Step** for additional prompts. Steps
 run in order in the same Session. Set the **Name** and **Enabled** state.
