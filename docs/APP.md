@@ -37,10 +37,12 @@ group and receives a separate `Session<ID>`, with its own URL, navigation histor
 browser view, and automation target.
 
 The project sidebar lists every session directly under its project, using
-`Session<ID> (Group<ID>)` labels. The group ID appears in a capsule colored by
-its source Profile. Choose **Color** in **New Profile** or **Edit Profile** to
-pick an opaque color. Existing Profiles receive a random color from a default
-100-color palette once; the saved color stays stable across launches.
+`Session<ID>` followed by a `Group<ID>` capsule, without parentheses. The
+capsule uses its source Profile's color. The sidebar uses native macOS selection
+and materials. Choose **Color** in **New Profile** or **Edit Profile** to pick an
+opaque color. Existing Profiles receive a random color from a default palette
+of 100 muted colors intended for dark mode once; the saved color stays stable
+across launches.
 Color-only edits update capsules immediately without resetting sessions.
 Standalone Custom groups use a neutral capsule. Session context menus retain
 group actions, including **New Session**, **Reset Sessions**, and moving the
@@ -99,17 +101,19 @@ Profile name, or `Default` for Custom configuration. Session tabs use globally u
 
 Create a group for isolated browser state, or press **⌘T** or the tab strip's
 **+** button to add a session to the selected group. Links opened in a new tab
-stay in that group. Tabs appear both in the top strip and beneath their sidebar
-group; there is no tab-placement setting.
+stay in that group. Sessions appear directly beneath their Project in the
+sidebar; there is no tab-placement setting.
 
 The top tab strip uses REL's standard tabs, including selection, close controls,
-and drag reordering. Chat lives beside the browser content in the window and is
-shared by all tabs in the selected group. Switching browser tabs keeps the same
-conversation and draft; selecting another group switches its chat content too.
-Use the window toolbar's chat bubble to show or hide chat, and its info icon to
-show or hide the bottom panel. These controls follow the selected group and stay
-outside the browser tab's address toolbar. Chat uses a softly shaded background
-in both light and dark appearance to separate it from the surrounding window.
+and drag reordering. Chat lives beside the browser content and belongs to the
+selected Project. Its panel visibility, conversations, and drafts stay with that
+Project when switching sessions or groups. Switching Projects restores the
+selected Project's chat state. Use **New Chat**, **Close Chat**, and
+**Conversations** in the native **Chat** menu; the chat panel has no separate
+Chat header. Use the window toolbar's chat bubble to show or hide chat, and its
+info icon to show or hide the group's bottom panel. Chat uses a softly shaded
+background in both light and dark appearance to separate it from the surrounding
+window.
 
 **⌘W**, the tab strip's close button, and the sidebar's close button close a
 session. Closing the last session in a group also removes the group and its
@@ -120,8 +124,8 @@ removing an entire group. Quitting REL preserves groups, saved URLs, and selecti
 CLI, SDK, and MCP browser operations target a specific `Session<ID>`, independent
 of the selected UI tab. `Group<ID>` identifies shared configuration and storage.
 Closing a session leaves siblings open; deleting a group closes all its sessions.
-Chat and Actions remain associated with the group, and each submitted chat turn
-captures its selected Session ID.
+Chat remains associated with the Project, Actions retain their configured
+execution context, and each submitted chat turn captures its selected Session ID.
 
 ## Notifications
 
@@ -1339,7 +1343,7 @@ conversation and includes it as context for follow-up prompts.
 
 ## Chat restoration
 
-REL saves each Session's open Chat tabs, their order and selection, conversation
+REL saves each Project's open Chat tabs, their order and selection, conversation
 messages, completed-work details, and unsent drafts in its local SQLite database.
 Drafts are saved periodically while you type, including during an active response.
 Quitting and reopening REL restores them. Completed question-and-answer exchanges
@@ -1357,7 +1361,8 @@ instead of the active workspace. Missing tab selections are cleared without disc
 healthy chats. The recovery report identifies affected records.
 
 Closing a Chat tab removes its saved conversation and draft. Clearing a conversation
-removes its saved messages. Deleting a Session removes its saved chats.
+removes its saved messages. Switching sessions or groups within a Project keeps
+its saved chats and drafts.
 
 ## Reading chat history
 
