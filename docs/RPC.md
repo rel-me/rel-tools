@@ -1705,12 +1705,14 @@ resolved by reloading the snapshot before another write. The native app serializ
 writes and requires a restart after a conflict or uncertain save result.
 
 A `VALIDATION_FAILED` rejection does not commit or advance the revision. If a
-workspace snapshot refers to a session that was deleted, the native app reads
-`GET /v1/sessions`, removes only confirmed missing sessions from the rejected
-snapshot, and automatically saves again at the same revision. Edits and sessions
-created during that read are preserved, and late browser or chat callbacks cannot
-restore deleted workspace entries. If session membership cannot be read or the
-validation failure persists, REL keeps the local state and shows the save error;
+workspace snapshot refers to a deleted group or a Session that no longer belongs
+to its group, the native app reads `GET /v1/groups` and checks each group’s
+registered Sessions. It removes only confirmed missing groups and stale page
+references from the rejected snapshot, then automatically saves again at the same
+revision. Group drafts and other workspace data survive removal of stale page
+references. Edits and Sessions created during that read are preserved, and late
+browser or chat callbacks cannot restore deleted group entries. If session
+membership cannot be read or the validation failure persists, REL keeps the local state and shows the save error;
 use **Save Current Workspace** to retry.
 
 The state uses these camelCase fields:

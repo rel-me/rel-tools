@@ -299,9 +299,11 @@ no session refresh or save is in progress.
 
 **Save Current Workspace** requests a save of the current tabs and layout for
 the next launch; it does not restore a previous layout. When the agent rejects a
-save as invalid, REL preserves the current draft and allows another save after
-the problem is corrected. If the save outcome is uncertain or the workspace
-revision has changed, REL blocks further writes until you restart. The button
+save because a group or Session was deleted, REL checks current group membership,
+removes confirmed stale references, and retries automatically. It preserves group
+drafts and edits made during that check. Other invalid saves remain available to
+retry after the problem is corrected. If the save outcome is uncertain or the
+workspace revision has changed, REL blocks further writes until you restart. The button
 cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
