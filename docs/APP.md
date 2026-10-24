@@ -36,6 +36,17 @@ configuration (or standalone Custom settings). Each **Session** is a tab in one
 group and receives a separate `Session<ID>`, with its own URL, navigation history,
 browser view, and automation target.
 
+The project sidebar lists every session directly under its project, using
+`Session<ID> (Group<ID>)` labels. The group ID appears in a capsule colored by
+its source Profile. Choose **Color** in **New Profile** or **Edit Profile** to
+pick an opaque color. Existing Profiles receive a random color from a default
+100-color palette once; the saved color stays stable across launches.
+Color-only edits update capsules immediately without resetting sessions.
+Standalone Custom groups use a neutral capsule. Session context menus retain
+group actions, including **New Session**, **Reset Sessions**, and moving the
+group to another project. Profile exports preserve the chosen color; older
+exports receive a random palette color on import.
+
 Sessions in a group share cookies, site storage, private HTTP cache, configuration,
 browser identity, and proxy routing. Different groups remain isolated even when
 created from the same Profile. Create a session in an existing group to use its
