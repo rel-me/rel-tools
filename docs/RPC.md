@@ -500,10 +500,14 @@ state and return `BROWSER_BUSY` with `retryable: true` and
 before the reset, including queued work, receive the same reset signal instead of
 being replayed.
 
-When handling that signal, retain the Session ID and rebuild the page explicitly:
-navigate to its URL, reapply filters or sorting, expand the required content, then
-retry the intended operation once. Do not replay clicks or Back navigation from
-the old action sequence. A failed reset returns `BROWSER_BUSY` with
+When handling that signal, rebuild the page explicitly: navigate to its URL,
+reapply filters or sorting, expand the required content, then retry the intended
+operation once. Clients that own a private group may instead close that group and
+create a fresh group from the same Profile. Do not replay clicks or Back navigation
+from the old action sequence. Group and session deletion wait through an active
+reset within their request deadline; a failed reset still permits closing the
+group. Use `DELETE /v1/groups/GroupN` to release an entire owned group: deleting its
+last Session alone creates a replacement blank tab. A failed reset returns `BROWSER_BUSY` with
 `retryable: false` and `details.reason: "session_reset_failed"`; successfully reset
 the group before continuing. A reset wait that exhausts the request timeout returns
 `TIMEOUT`, and a disconnected client does not continue waiting.
