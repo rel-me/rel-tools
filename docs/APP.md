@@ -35,7 +35,8 @@ control can explicitly create or join a shared group. The native sidebar lists
 sessions under Projects with plain Session labels and no Group capsules. Each
 Project lists its actions above its sessions. The tab bar shows every Session in
 the selected Project, including Sessions that share browser state; closing a tab
-closes only that Session. Tab order is saved per Project.
+closes only that Session. Tab order is saved per Project. Compressed tabs show
+tail-truncated text with tighter padding; hover a tab to reveal its close button.
 Each session keeps its own page history;
 shared members use the same cookies, site data, configuration, and proxy routing.
 Close a session and create another for clean state. Profiles configure future
