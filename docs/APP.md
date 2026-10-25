@@ -32,7 +32,10 @@ For provider setup and per-Session assignment, see [Configure proxies](PROXIES.m
 
 Sessions are independent by default. The New Session sheet's **Browser State**
 control can explicitly create or join a shared group. The native sidebar lists
-sessions under Projects; only explicitly shared sessions display a Group capsule.
+sessions under Projects with plain Session labels and no Group capsules. Each
+Project lists its actions above its sessions. The tab bar shows every Session in
+the selected Project, including Sessions that share browser state; closing a tab
+closes only that Session. Tab order is saved per Project.
 Each session keeps its own page history;
 shared members use the same cookies, site data, configuration, and proxy routing.
 Close a session and create another for clean state. Profiles configure future
@@ -40,9 +43,9 @@ sessions; saving a Profile never resets open sessions.
 
 Projects own their model preference, chat conversations, and actions. Moving a
 session or shared group to another Project preserves its browser state. Use
-**New → New Project** to create a Project. Profile colors are configurable with
-the square color picker beside the Profile name; shared Group capsules use that
-color. Existing Profiles receive a random muted color from a 100-color palette.
+**New → New Project** to create a Project. The initial Project is named
+**Default Project**. Profile colors remain configurable with the square color
+picker beside the Profile name. Existing Profiles receive a random muted color from a 100-color palette.
 
 ## Notifications
 
