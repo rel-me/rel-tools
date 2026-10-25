@@ -1,41 +1,19 @@
 # REL Rust SDK
 
-## Profiles, groups, and sessions
+## Profiles and Sessions
 
-A **Profile** is a reusable configuration template, optionally with initial
-browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
-configuration (or standalone Custom settings). Each **Session** is a tab in one
-group and receives a separate `Session<ID>`, with its own URL, navigation history,
-browser view, and automation target.
+A **Profile** is a reusable configuration template. Every new **Session**
+(`Session<ID>`) owns independent browser state by default, even when created
+from the same Profile. Use Session IDs for browser work, configuration, and
+closure. Editing a Profile affects future Sessions; existing state is retained.
+Every Session belongs to a Project. Creation requires `project_id`; browser
+requests that create a Session also require it. Existing Session/page IDs remain
+valid targets without a Project selector. Project targeting never follows app
+selection. Projects own conversations, model preferences, Actions, and tab order.
+There are no browser reset operations. Reapply copies current Profile configuration
+while preserving Session IDs, browser storage, cookies, history, and logins.
 
-Sessions in a group share cookies, site storage, private HTTP cache, configuration,
-browser identity, and proxy routing. Different groups remain isolated even when
-created from the same Profile. Create a session in an existing group to use its
-current configuration and live browser state, or create a new group and its first
-session. Joining an existing group does not reread or reseed the Profile.
-
-Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
-rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
-configuration when available; otherwise it copies configuration without data.
-It imports only explicitly configured Profile cookies, never saved passwords,
-cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
-
-See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
-the current wire identities and explicit creation behavior.
-
-`rel-client` is the typed Rust client for every public REL RPC v1 operation.
-The `rel` CLI uses this crate rather than maintaining a separate transport or
-request model.
-
-The SDK source is available under the MIT license in
-[`rel-me/rel-tools`](https://github.com/rel-me/rel-tools). REL's application
-source and internal runtime implementation are not publicly distributed.
-
-Related documents: [CLI](CLI.md), [MCP](MCP.md), and [RPC](RPC.md).
+For advanced explicit sharing, see [Session creation](RPC.md#advanced-shared-state).
 
 ## Connect
 
@@ -43,7 +21,7 @@ Until a crates.io release is announced, pin the public repository tag:
 
 ```toml
 [dependencies]
-rel-client = { git = "https://github.com/rel-me/rel-tools", tag = "v0.1.1" }
+rel-client = { git = "https://github.com/rel-me/rel-tools", rev = "21a16176cdb60c8d479a77da0d64fe1b06653da2" }
 ```
 
 ```rust
@@ -105,8 +83,6 @@ without navigating.
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
 | `update_proxy(alias, &ProxyUpdateRequest)` | `PATCH /v1/proxies/{alias}` |
 | `delete_proxy(alias)` | `DELETE /v1/proxies/{alias}` |
-| `reset_profile(name)` | `POST /v1/reset` |
-| `reset_group(id)` | `POST /v1/groups/{id}/reset` |
 | `export_proxy_transfer(&ProxyTransferExportRequest)` | `POST /v1/proxy-transfers/export` |
 | `import_proxy_transfer(&ProxyTransferImportRequest)` | `POST /v1/proxy-transfers/import` |
 | `list_sessions()` | `GET /v1/sessions` |
@@ -122,7 +98,6 @@ without navigating.
 | `pause_session(id)` | `POST /v1/sessions/{id}/pause` |
 | `play_session(id)` | `POST /v1/sessions/{id}/play` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
-| `close_session_group(group)` | `POST /v1/sessions/close` |
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
@@ -149,10 +124,10 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for all 23 tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
 `read_page`, `perform_page_action`, both screenshot methods, all observation methods,
-`list_sessions`, `close_session_group`, and `list_proxies`; it does not maintain
+`list_sessions`, `delete_session`, and `list_proxies`; it does not maintain
 alternate request types or bypass the RPC transport. For capture, it exhausts
 and validates `CaptureStream` before returning one aggregated MCP result.
 
@@ -528,36 +503,21 @@ update.
 
 ## Session profiles
 
-A `Session` contains its own `id`, owning `group_id`, and `created_at`. It is an
-individually addressed tab, not a shared configuration resource. A Profile-only
-creation request, optionally constrained by name, adds a session to its oldest
-matching group and preserves that group's live settings and data. Other creation
-options allocate a new group. Every newly created tab has a distinct Session ID.
-
-The [RPC contract](RPC.md#profiles-groups-and-sessions) also supports explicit
-`group_id` selection. Group labels and `new_group` are rejected by the runtime;
-leave those legacy request fields unset. Reset returns `ResetData` with fresh
-`reset_group_ids` and `replacements`; update stored IDs from the returned maps.
-
-`SessionCreateRequest::default()` serializes to `{}`, so the agent uses the
-configured **Default Profile**, or **Custom** when the preference is unset.
-Custom uses direct networking, AdBlock on, all images allowed, and Private.
-Set `profile` to a case-insensitively unique saved configuration name. Explicit proxy
-and filtering fields override the selected profile; use
-`Change::Set("alias".into())` for a proxy or `Change::Clear` for direct
-networking:
+`SessionCreateRequest` requires a nonempty `project_id`; the default empty value
+is rejected. Set `profile` to select a template. Ordinary creation is independent.
+The Rust client exposes `list_projects`, `create_project`, `get_project`,
+`update_project`, `delete_project`, `list_project_sessions`, `move_session`, and
+`reapply_session_config`. Project model updates use `Change` for preserve/set/clear.
 
 ```rust
-use rel_client::{Change, RelClient, SessionCreateRequest};
-
-let request = SessionCreateRequest {
-    group: Some("pgm".into()),
-    adblock_enabled: Some(true),
-    proxy_alias: Change::Clear,
+use rel_client::{RelClient, SessionCreateRequest};
+let client = RelClient::local();
+let created = client.create_session(&SessionCreateRequest {
+    project_id: "ProjectDefault".into(),
+    profile: Some("Research".into()),
     ..SessionCreateRequest::default()
-};
-RelClient::local().create_session(&request)?;
-RelClient::local().close_session_group("pgm")?;
+})?;
+client.delete_session(&created.data.session.id)?;
 # Ok::<(), rel_client::ClientError>(())
 ```
 
@@ -570,9 +530,9 @@ flags after REL.app stages an import; no cookie or password values cross RPC.
 Re-importing a selected category replaces that category in the template.
 There are no built-in profiles. `ImageBlockingMode::None` allows every
 image without disabling AdBlock. Existing sessions retain copied settings and
-data after their source profile is changed or deleted. REL Free can create up to
-two tab groups with two Sessions each (four Sessions total) and one custom Profile; REL Pro removes those plan limits. A third group
-or a third Session within a group is rejected. Close resources to free capacity.
+data after their source profile is changed or deleted. REL Free can create two
+independent Sessions and one custom Profile. Explicit sharing permits two groups
+of two Sessions each (four total). REL Pro removes those plan limits. Close resources to free capacity.
 
 `ProfileCreateRequest::fingerprint_profile` uses `Change::Unchanged` to select
 the default compatibility template, `Change::Clear` for native Chromium, and
@@ -580,17 +540,15 @@ the default compatibility template, `Change::Clear` for native Chromium, and
 settings but generates a fresh seed whenever it creates a session from the
 profile. New configurations use Private; explicit native identity stays native.
 
-`Session::group_id` identifies the group that owns its shared configuration.
-The group resource exposes the source Profile name and browser-data template copied
-at creation, when any. `CaptureRequest`, `NavigateRequest`, and
-`PageAttachRequest` accept `profile` only when `session_id` is absent.
-`CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
-created session can join a group. Group matching is case-insensitive; closing
-an empty group succeeds with an empty `deleted_ids` vector.
+`Session` currently retains only `id`, optional `group_id`, and `created_at`.
+The server returns additional Profile/configuration fields, but this SDK type
+does not yet expose them. Optional membership describes explicit sharing only.
+`CaptureRequest`, `NavigateRequest`, and `PageAttachRequest` accept `profile`
+only when `session_id` is absent; they do not implicitly join shared state.
 
 `ProxyCreateRequest.locale: Option<String>` configures an optional BCP-47 locale
 for the proxy. `ProxyUpdateRequest.locale: Change<String>` supports set, clear,
-and unchanged. `Proxy.locale` and `Session.proxy_locale` return it. This preference is independent of any
+and unchanged. `Proxy.locale` and the RPC Session field `proxy_locale` return it. This preference is independent of any
 country selection, and travels with proxy/profile exports.
 
 `FingerprintProfile.chrome_version` optionally adds a Chrome identity. Set
@@ -702,3 +660,30 @@ managed in the app. See the [CLI guide](CLI.md#license-activation) for stdin usa
 Use `RelClient::update_app()` to request the owning app's native update flow.
 The returned `AppUpdateData` acknowledges the request and reports the selected
 channel and required user interaction. It does not report installation completion.
+
+## Python and Ruby Project targeting
+
+Python Playwright `launch(project_id=...)`, `new_context(project_id=...)`, crawler
+and Crawlee constructors accept a Project ID. Their managed creation helpers
+resolve explicit argument, then `REL_PROJECT_ID`, then the fixed `ProjectDefault`.
+This convenience default never follows native window selection. Raw RPC and Rust
+creation still require explicit Project IDs. Existing externally owned Sessions
+are reused by their Session IDs and are not deleted by adapter shutdown.
+
+Ruby exposes Project CRUD, `list_sessions(project_id:)`, `move_session`, and
+`reapply_session_config`. Pass `project_id` in `create_session`'s payload.
+
+### Current-page Project scope
+
+Current-page read, observe, capture, screenshot and perform calls require a
+Session ID or Project ID. A Project selector resolves the first registered
+Session in that Project; an empty Project returns `ACTIVE_PAGE_NOT_FOUND`.
+Supplying both selectors validates membership. REL never chooses a globally
+active page or a globally recent Session. Use a Session ID for a precise target.
+Existing page IDs and observation references remain exact targets.
+
+The CLI accepts `--project-id` on `read`, `observe`, current `capture` and
+`perform`; `REL_PROJECT_ID` supplies scope for read/observe/capture. An explicit
+`--session-id` or caller-supplied `REL_SESSION_ID` targets that Session. Browser
+history navigation can also use Project scope. MCP `rel_read`, `rel_observe`
+and current-page `rel_take_screenshot` accept `project_id`.

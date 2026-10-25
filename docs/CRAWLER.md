@@ -12,6 +12,10 @@ adds no Playwright, Selenium, or direct-HTTP fallback.
 Related documents: [RPC v1](RPC.md), [browser actions](ACTIONS.md), and the
 [Codex plugin](CODEX_PLUGIN.md).
 
+Sessions created by this adapter are independent by default. The optional
+`group_id` creation option deliberately shares state: use `"new"` to create a
+shared owner or a returned `Group<ID>` to join existing state.
+
 ## Install
 
 Requirements:
@@ -201,7 +205,7 @@ entries resume only while budget remains, and exhausted links become terminal
 failures that later runs skip. Existing capture files are skipped and logged by
 default.
 
-New crawls create a dedicated persistent REL session and deterministic group.
+New crawls create an independent persistent REL session.
 The checkpoint reuses the session across Python process restarts. For a managed
 session failure, bounded recovery clears the stale ID, closes the old session
 when possible, creates a replacement from the same Profile, reloads the source,

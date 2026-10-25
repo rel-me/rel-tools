@@ -123,8 +123,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--capture-dir")
     run.add_argument("--rel-base-url")
     run.add_argument("--session-id")
+    run.add_argument("--project-id", help="REL Project ID; defaults to REL_PROJECT_ID or ProjectDefault")
     run.add_argument("--profile", help="REL profile name")
-    run.add_argument("--group")
+    run.add_argument("--group-id")
     run.add_argument("--timeout", type=float)
     run.add_argument("--wait", type=float)
     run.add_argument("--action-delay", type=float)
@@ -161,7 +162,8 @@ def _run_overrides(arguments: argparse.Namespace) -> dict[str, Any]:
         "rel_base_url",
         "session_id",
         "profile",
-        "group",
+        "project_id",
+        "group_id",
         "timeout",
         "wait",
         "action_delay",

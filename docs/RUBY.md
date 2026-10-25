@@ -83,7 +83,6 @@ The error also exposes `details`, `request_id`, and `http_status`.
 
 ```ruby
 session = client.create_session(
-  group: "research",
   lifetime: { type: "inactivity", timeout_seconds: 300 }
 )
 session_id = session.data.fetch("session").fetch("id")
@@ -145,8 +144,8 @@ The Ruby client covers every route in the public [RPC route table](RPC.md#routes
 | Capture stream | `capture` |
 | Attached pages | `attach_page`, `perform_page_action`, `take_page_screenshot`, `observe_page` |
 | Observations | `get_observation`, `perform_observation_action`, `find_in_observation` |
-| Proxies | `list_proxies`, `get_proxy`, `create_proxy`, `update_proxy`, `delete_proxy`, `reset_profile`, `export_proxy_transfer`, `import_proxy_transfer` |
-| Sessions | `list_sessions`, `get_session`, `create_session`, `update_session`, `ping_session`, `pause_session`, `play_session`, `delete_session`, `close_session_group` |
+| Proxies | `list_proxies`, `get_proxy`, `create_proxy`, `update_proxy`, `delete_proxy`, `export_proxy_transfer`, `import_proxy_transfer` |
+| Sessions | `list_sessions`, `get_session`, `create_session`, `update_session`, `ping_session`, `pause_session`, `play_session`, `delete_session` |
 | Profiles | `list_profiles`, `create_profile`, `update_profile_data`, `delete_profile`, `export_profile_transfer`, `import_profile_transfer` |
 
 Resource identifiers are percent-encoded as individual path segments. The REL

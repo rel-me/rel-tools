@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-import uuid
 from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, fields
@@ -91,9 +90,10 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         self,
         *,
         profile: str | None = None,
+        project_id: str | None = None,
         session_id: str | None = None,
         rel_base_url: str | None = None,
-        group: str | None = None,
+        group_id: str | None = None,
         persist: bool = False,
         session_pool_size: int | None = None,
         max_requests_per_session: int = 100,
@@ -160,10 +160,11 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         self._metrics = asdict(RelCrawlMetrics())
         self._rel_options = {
             "profile": profile,
+            "project_id": project_id,
             "session_id": session_id,
             "rel_base_url": rel_base_url
             or f"http://127.0.0.1:{os.environ.get('REL_AGENT_PORT', '17319')}/v1",
-            "group": group or f"rel-crawlee-{uuid.uuid4().hex}",
+            "group_id": group_id,
             "persist": persist,
         }
         self._navigation_timeout_ms = navigation_timeout.total_seconds() * 1000

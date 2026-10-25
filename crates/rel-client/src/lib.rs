@@ -44,6 +44,8 @@ pub mod rpc_error_codes {
     pub const PAGE_MISMATCH: u32 = 10_102;
     pub const PROXY_NOT_FOUND: u32 = 10_103;
     pub const ACTIVE_PAGE_NOT_FOUND: u32 = 10_104;
+    pub const PROJECT_NOT_FOUND: u32 = 10_105;
+    pub const PROFILE_NOT_FOUND: u32 = 10_106;
 
     pub const CONFLICT: u32 = 10_200;
     pub const BROWSER_BUSY: u32 = 10_201;
@@ -80,6 +82,8 @@ pub mod rpc_error_codes {
             "PAGE_MISMATCH" => PAGE_MISMATCH,
             "PROXY_NOT_FOUND" => PROXY_NOT_FOUND,
             "ACTIVE_PAGE_NOT_FOUND" => ACTIVE_PAGE_NOT_FOUND,
+            "PROJECT_NOT_FOUND" => PROJECT_NOT_FOUND,
+            "PROFILE_NOT_FOUND" => PROFILE_NOT_FOUND,
             "CONFLICT" => CONFLICT,
             "BROWSER_BUSY" => BROWSER_BUSY,
             "NETWORK_PAUSED" => NETWORK_PAUSED,
@@ -282,6 +286,7 @@ impl RelClient {
 
         let response = if let Some(url) = request.url.as_deref() {
             self.navigate_and_observe(&NavigateObservationRequest {
+                project_id: request.project_id.clone(),
                 url: Some(url.to_string()),
                 session_id: request.session_id.clone(),
                 profile: request.profile.clone(),
@@ -298,6 +303,7 @@ impl RelClient {
                 ));
             }
             self.observe_current_page(&ObservationRequest {
+                project_id: request.project_id.clone(),
                 session_id: request.session_id.clone(),
                 mode: Some(ObservationMode::Semantic),
                 timeout: request.timeout,
@@ -491,25 +497,6 @@ impl RelClient {
         )
     }
 
-    /// Recreate every group from a Profile with fresh IDs, configured cookies, and dormant URLs.
-    pub fn reset_profile(&self, profile: &str) -> Result<RpcResponse<ResetData>, ClientError> {
-        self.request_with_timeout(
-            "POST",
-            "/reset",
-            Some(&serde_json::json!({"profile":profile})),
-            Duration::from_secs(300),
-        )
-    }
-
-    pub fn reset_group(&self, id: &str) -> Result<RpcResponse<ResetData>, ClientError> {
-        self.request_with_timeout::<ResetData, Value>(
-            "POST",
-            &format!("/groups/{}/reset", encode_path_segment(id)),
-            None,
-            Duration::from_secs(90),
-        )
-    }
-
     pub fn export_proxy_transfer(
         &self,
         request: &ProxyTransferExportRequest,
@@ -522,6 +509,70 @@ impl RelClient {
         request: &ProxyTransferImportRequest,
     ) -> Result<RpcResponse<ProxyData>, ClientError> {
         self.request("POST", "/proxy-transfers/import", Some(request))
+    }
+
+    pub fn list_projects(&self) -> Result<RpcResponse<ProjectListData>, ClientError> {
+        self.request::<ProjectListData, Value>("GET", "/projects", None)
+    }
+    pub fn get_project(&self, id: &str) -> Result<RpcResponse<ProjectData>, ClientError> {
+        self.request::<ProjectData, Value>(
+            "GET",
+            &format!("/projects/{}", encode_path_segment(id)),
+            None,
+        )
+    }
+    pub fn create_project(
+        &self,
+        request: &ProjectCreateRequest,
+    ) -> Result<RpcResponse<ProjectData>, ClientError> {
+        self.request("POST", "/projects", Some(request))
+    }
+    pub fn update_project(
+        &self,
+        id: &str,
+        request: &ProjectUpdateRequest,
+    ) -> Result<RpcResponse<ProjectData>, ClientError> {
+        self.request(
+            "PATCH",
+            &format!("/projects/{}", encode_path_segment(id)),
+            Some(request),
+        )
+    }
+    pub fn delete_project(&self, id: &str) -> Result<RpcResponse<DeletedData>, ClientError> {
+        self.request::<DeletedData, Value>(
+            "DELETE",
+            &format!("/projects/{}", encode_path_segment(id)),
+            None,
+        )
+    }
+    pub fn list_project_sessions(
+        &self,
+        id: &str,
+    ) -> Result<RpcResponse<SessionListData>, ClientError> {
+        let query = format!("project_id={}", encode_path_segment(id));
+        self.request::<SessionListData, Value>("GET", &format!("/sessions?{query}"), None)
+    }
+    pub fn move_session(
+        &self,
+        id: &str,
+        request: &SessionMoveRequest,
+    ) -> Result<RpcResponse<SessionData>, ClientError> {
+        self.request(
+            "PUT",
+            &format!("/sessions/{}/project", encode_path_segment(id)),
+            Some(request),
+        )
+    }
+    pub fn reapply_session_config(
+        &self,
+        id: &str,
+        request: &SessionReapplyRequest,
+    ) -> Result<RpcResponse<SessionData>, ClientError> {
+        self.request(
+            "POST",
+            &format!("/sessions/{}/reapply", encode_path_segment(id)),
+            Some(request),
+        )
     }
 
     pub fn list_sessions(&self) -> Result<RpcResponse<SessionListData>, ClientError> {
@@ -638,17 +689,6 @@ impl RelClient {
             "DELETE",
             &format!("/sessions/{}", encode_path_segment(id)),
             None,
-        )
-    }
-
-    pub fn close_session_group(
-        &self,
-        group: &str,
-    ) -> Result<RpcResponse<ClosedSessionGroupData>, ClientError> {
-        self.request(
-            "POST",
-            "/sessions/close",
-            Some(&SessionGroupCloseRequest { group }),
         )
     }
 
@@ -1022,6 +1062,8 @@ pub struct CaptureEvent {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct CaptureRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
@@ -1035,8 +1077,6 @@ pub struct CaptureRequest {
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1056,6 +1096,8 @@ impl CaptureRequest {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct NavigateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -1153,13 +1195,13 @@ impl FuzzyLinkMatch {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct PageAttachRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1203,6 +1245,8 @@ impl PageActionRequest {
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct PerformRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     pub actions: Vec<Action>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -1218,6 +1262,7 @@ impl PerformRequest {
     pub fn new(actions: Vec<Action>) -> Self {
         Self {
             actions,
+            project_id: None,
             session_id: None,
             output: None,
             timeout: None,
@@ -1228,6 +1273,8 @@ impl PerformRequest {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct PageCaptureRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1269,6 +1316,8 @@ pub enum ScreenshotFormat {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct ScreenshotRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1333,6 +1382,8 @@ pub enum ObservationMode {
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct ObservationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ObservationMode>,
@@ -1344,6 +1395,8 @@ pub struct ObservationRequest {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct NavigateObservationRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1375,6 +1428,8 @@ impl NavigateObservationRequest {
 /// shorthand page.
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct PageReadRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3163,14 +3218,14 @@ pub enum SessionLifetime {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
+    pub project_id: String,
+    /// Omit for independent state; use "new" or a returned Group<number> ID to share.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub new_group: Option<bool>,
+    pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lifetime: Option<SessionLifetime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
@@ -3217,7 +3272,7 @@ pub enum ViewportPreset {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HttpRuleAction {
-    Reset,
+    Notification,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3349,21 +3404,6 @@ pub struct SessionListData {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionData {
     pub session: Session,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reused_group: Option<bool>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ResetData {
-    pub reset_group_ids: Vec<String>,
-    pub replacements: Vec<GroupReplacement>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct GroupReplacement {
-    pub old_group_id: String,
-    pub group_id: String,
-    pub session_ids: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3453,26 +3493,94 @@ fn is_false(value: &bool) -> bool {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    pub model: Option<ProjectModel>,
+    pub session_ids: Vec<String>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectModel {
+    pub model_id: String,
+    #[serde(default = "project_default_effort")]
+    pub effort: String,
+    #[serde(default = "project_default_speed")]
+    pub speed: String,
+}
+fn project_default_effort() -> String {
+    "medium".into()
+}
+fn project_default_speed() -> String {
+    "standard".into()
+}
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ProjectCreateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<ProjectModel>,
+}
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct ProjectUpdateRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Change::is_unchanged")]
+    pub model: Change<ProjectModel>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ProjectData {
+    pub project: Project,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ProjectListData {
+    pub projects: Vec<Project>,
+}
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct SessionMoveRequest {
+    pub project_id: String,
+    pub include_shared_sessions: bool,
+}
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct SessionReapplyRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
+    pub include_shared_sessions: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
     pub id: String,
-    pub group_id: String,
+    pub project_id: String,
+    pub name: String,
+    pub profile_id: Option<String>,
+    pub profile: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
     pub created_at: i64,
+    pub lifetime: SessionLifetime,
+    pub last_activity_at: i64,
+    pub proxy_alias: Option<String>,
+    pub proxy_locale: Option<String>,
+    pub proxy_detect_exit_locale: bool,
+    pub adblock_enabled: bool,
+    pub image_blocking_mode: ImageBlockingMode,
+    pub image_size_limit_kb: i64,
+    pub fingerprint_profile: Option<FingerprintProfile>,
+    pub http_rules: Vec<HttpRule>,
+    pub initial_viewport_preset: Option<ViewportPreset>,
+    pub asset_cache: SessionAssetCache,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SessionAssetCache {
+    pub is_enabled: bool,
+    pub maximum_size_bytes: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DeletedData {
     pub deleted_id: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ClosedSessionGroupData {
-    pub group: String,
-    pub deleted_ids: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct SessionGroupCloseRequest<'a> {
-    group: &'a str,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3584,19 +3692,12 @@ mod tests {
     use std::thread::{self, JoinHandle};
 
     #[test]
-    fn reset_results_preserve_replacement_group_and_session_ids() {
-        let data: ResetData = serde_json::from_value(json!({
-            "reset_group_ids":["Group9"],
-            "replacements":[{"old_group_id":"Group1","group_id":"Group9",
-                "session_ids":{"Session1":"Session20","Session2":"Session21"}}]
-        }))
-        .unwrap();
-        assert_eq!(data.reset_group_ids, ["Group9"]);
-        assert_eq!(data.replacements[0].session_ids["Session2"], "Session21");
+    fn notification_rules_have_no_reset_action() {
         assert_eq!(
-            serde_json::to_value(&data).unwrap()["replacements"][0]["old_group_id"],
-            "Group1"
+            serde_json::to_value(HttpRuleAction::Notification).unwrap(),
+            "notification"
         );
+        assert!(serde_json::from_value::<HttpRuleAction>(serde_json::json!("reset")).is_err());
     }
 
     #[test]
@@ -3821,12 +3922,11 @@ mod tests {
     }
 
     fn session_json() -> Value {
-        // Actual tab-session resource: settings and names belong to the group.
-        json!({
-            "id": "machine-a.Session1",
-            "group_id": "Group1",
-            "created_at": 1
-        })
+        json!({"id":"machine-a.Session1","project_id":"ProjectDefault","name":"Private1","profile_id":null,"profile":"Private",
+            "group_id":"Group1","created_at":1,"lifetime":{"type":"indefinite"},"last_activity_at":1,
+            "proxy_alias":null,"proxy_locale":null,"proxy_detect_exit_locale":false,"adblock_enabled":false,
+            "image_blocking_mode":"none","image_size_limit_kb":100,"fingerprint_profile":null,"http_rules":[],"initial_viewport_preset":null,
+            "asset_cache":{"is_enabled":false,"maximum_size_bytes":536870912}})
     }
 
     fn profile_json() -> Value {
@@ -4981,47 +5081,65 @@ mod tests {
     }
 
     #[test]
+    fn independent_sessions_omit_group_membership() {
+        let mut value = session_json();
+        value.as_object_mut().unwrap().remove("group_id");
+        let session: Session = serde_json::from_value(value).unwrap();
+        assert_eq!(session.group_id, None);
+        assert!(serde_json::to_value(session)
+            .unwrap()
+            .get("group_id")
+            .is_none());
+    }
+
+    #[test]
     fn session_create_serializes_explicit_group_creation() {
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
-                new_group: Some(true),
+                project_id: "ProjectDefault".into(),
+                group_id: Some("new".into()),
                 ..Default::default()
             })
             .unwrap(),
-            json!({"new_group":true})
+            json!({"project_id":"ProjectDefault","group_id":"new"})
         );
     }
 
     #[test]
     fn session_create_uses_default_profile_when_unchanged_and_accepts_named_profile() {
         assert_eq!(
-            serde_json::to_value(SessionCreateRequest::default()).unwrap(),
-            json!({})
+            serde_json::to_value(SessionCreateRequest {
+                project_id: "ProjectDefault".into(),
+                ..Default::default()
+            })
+            .unwrap(),
+            json!({"project_id":"ProjectDefault"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
-                group: Some("pgm".to_string()),
+                project_id: "ProjectDefault".into(),
+                group_id: Some("new".into()),
                 profile: Some("BandwidthSaver".to_string()),
                 proxy_alias: Change::Clear,
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"group":"pgm", "profile":"BandwidthSaver", "proxy_alias":null})
+            json!({"project_id":"ProjectDefault","group_id":"new", "profile":"BandwidthSaver", "proxy_alias":null})
         );
         let mut capture = CaptureRequest::new("https://example.com");
-        capture.group = Some("pgm".to_string());
         capture.profile = Some("AdBlock".to_string());
         assert_eq!(
             serde_json::to_value(capture).unwrap(),
-            json!({"url":"https://example.com", "profile":"AdBlock", "group":"pgm"})
+            json!({"url":"https://example.com", "profile":"AdBlock"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
+                project_id: "ProjectDefault".into(),
                 image_blocking_mode: Some(ImageBlockingMode::None),
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"image_blocking_mode":"none"})
+            json!({"project_id":"ProjectDefault","image_blocking_mode":"none"})
         );
     }
 
@@ -5181,8 +5299,107 @@ mod tests {
     }
 
     #[test]
+    fn project_lifecycle_and_session_scope_use_typed_wire_contracts() {
+        let (base_url, server) = start_test_server(9, |_, request| {
+            let body: Value = if request.body.is_empty() {
+                Value::Null
+            } else {
+                serde_json::from_str(&request.body).unwrap()
+            };
+            let project = json!({"id":"research","name":"Research","model":null,"session_ids":["machine-a.Session1"]});
+            let mut session = session_json();
+            session["project_id"] = json!("research");
+            let data = match (request.method.as_str(), request.path.as_str()) {
+                ("GET", "/v1/projects") => json!({"projects":[project]}),
+                ("GET", "/v1/projects/research")
+                | ("POST", "/v1/projects")
+                | ("PATCH", "/v1/projects/research") => json!({"project":project}),
+                ("GET", "/v1/sessions?project_id=research") => json!({"sessions":[session]}),
+                ("POST", "/v1/sessions") => {
+                    assert_eq!(body["project_id"], "research");
+                    json!({"session":session})
+                }
+                ("PUT", "/v1/sessions/machine-a.Session1/project") => {
+                    assert_eq!(
+                        body,
+                        json!({"project_id":"research","include_shared_sessions":true})
+                    );
+                    json!({"session":session})
+                }
+                ("POST", "/v1/sessions/machine-a.Session1/reapply") => {
+                    assert_eq!(body, json!({"include_shared_sessions":false}));
+                    json!({"session":session})
+                }
+                ("DELETE", "/v1/projects/research") => json!({"deleted_id":"research"}),
+                route => panic!("unexpected route {route:?}"),
+            };
+            http_json(
+                200,
+                "req_project",
+                json!({"status":"ok","request_id":"req_project","data":data}),
+            )
+        });
+        let client = RelClient::new(base_url);
+        assert_eq!(
+            client.list_projects().unwrap().data.projects[0].id,
+            "research"
+        );
+        client.get_project("research").unwrap();
+        client
+            .create_project(&ProjectCreateRequest {
+                name: "Research".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        client
+            .update_project(
+                "research",
+                &ProjectUpdateRequest {
+                    model: Change::Clear,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            client
+                .list_project_sessions("research")
+                .unwrap()
+                .data
+                .sessions[0]
+                .project_id,
+            "research"
+        );
+        let created = client
+            .create_session(&SessionCreateRequest {
+                project_id: "research".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        let mut expected = session_json();
+        expected["project_id"] = json!("research");
+        assert_eq!(
+            serde_json::to_value(created.data.session).unwrap(),
+            expected
+        );
+        client
+            .move_session(
+                "machine-a.Session1",
+                &SessionMoveRequest {
+                    project_id: "research".into(),
+                    include_shared_sessions: true,
+                },
+            )
+            .unwrap();
+        client
+            .reapply_session_config("machine-a.Session1", &SessionReapplyRequest::default())
+            .unwrap();
+        client.delete_project("research").unwrap();
+        server.join().unwrap();
+    }
+
+    #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(39, |index, request| {
+        let (base_url, server) = start_test_server(37, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -5260,7 +5477,6 @@ mod tests {
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
                 | ("PATCH", "/v1/proxies/office") => json!({"proxy":proxy_json()}),
-                ("POST", "/v1/reset") => json!({"reset_group_ids":[],"replacements":[]}),
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }
@@ -5276,9 +5492,6 @@ mod tests {
                 }
                 ("POST", "/v1/sessions/machine-a.Session1/play") => {
                     json!({"session_id":"machine-a.Session1", "network_paused":false})
-                }
-                ("POST", "/v1/sessions/close") => {
-                    json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
                 }
                 ("GET", "/v1/sessions") => json!({"sessions":[session_json()]}),
                 ("GET", "/v1/sessions/machine-a.Session1")
@@ -5331,12 +5544,14 @@ mod tests {
         client.perform(&perform).unwrap();
         client
             .capture_current_page(&PageCaptureRequest {
+                project_id: None,
                 session_id: Some("machine-a.Session1".to_string()),
                 ..PageCaptureRequest::default()
             })
             .unwrap();
         client
             .screenshot_current_page(&ScreenshotRequest {
+                project_id: None,
                 session_id: Some("machine-a.Session1".to_string()),
                 format: Some(ScreenshotFormat::Webp),
                 quality: Some(80),
@@ -5369,6 +5584,7 @@ mod tests {
             .unwrap();
         client
             .observe_current_page(&ObservationRequest {
+                project_id: None,
                 session_id: Some("machine-a.Session1".to_string()),
                 mode: Some(ObservationMode::Semantic),
                 timeout: None,
@@ -5417,7 +5633,6 @@ mod tests {
             )
             .unwrap();
         client.delete_proxy("office").unwrap();
-        client.reset_profile("Research").unwrap();
         client
             .export_proxy_transfer(&ProxyTransferExportRequest {
                 alias: "office".to_string(),
@@ -5434,7 +5649,10 @@ mod tests {
             .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
-        assert_eq!(sessions.data.sessions[0].group_id, "Group1");
+        assert_eq!(
+            sessions.data.sessions[0].group_id.as_deref(),
+            Some("Group1")
+        );
         client.get_session("machine-a.Session1").unwrap();
         client
             .create_session(&SessionCreateRequest::default())
@@ -5503,8 +5721,6 @@ mod tests {
         assert!(!playing.data.network_paused);
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
-        let closed = client.close_session_group("pgm").unwrap();
-        assert_eq!(closed.data.deleted_ids, ["machine-a.Session1"]);
         let models = client.model_providers().unwrap();
         assert_eq!(
             models.data.model_directories["local-model"],
@@ -5551,7 +5767,6 @@ mod tests {
                 ("POST", "/v1/proxies"),
                 ("PATCH", "/v1/proxies/office"),
                 ("DELETE", "/v1/proxies/office"),
-                ("POST", "/v1/reset"),
                 ("POST", "/v1/proxy-transfers/export"),
                 ("POST", "/v1/proxy-transfers/import"),
                 ("GET", "/v1/sessions"),
@@ -5568,13 +5783,8 @@ mod tests {
                 ("POST", "/v1/sessions/machine-a.Session1/pause"),
                 ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
-                ("POST", "/v1/sessions/close"),
                 ("GET", "/v1/model-providers"),
             ]
-        );
-        assert_eq!(
-            serde_json::from_str::<Value>(&requests[37].body).unwrap(),
-            json!({"group":"pgm"})
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[3].body).unwrap(),
@@ -5621,15 +5831,15 @@ mod tests {
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[21].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[20].body).unwrap(),
             json!({"alias":"office","include_credentials":false})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[21].body).unwrap(),
             json!({"contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==","alias":"backup"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[27].body).unwrap(),
             json!({
                 "name":"Research",
                 "viewport_preset":"desktop",
@@ -5641,11 +5851,11 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[29].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({"includes_cookies":true,"includes_passwords":true})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
             json!({
                 "name":"Research",
                 "include_cookies":false,
@@ -5654,14 +5864,14 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
             json!({
                 "contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==",
                 "name":"Research Copy"
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[33].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

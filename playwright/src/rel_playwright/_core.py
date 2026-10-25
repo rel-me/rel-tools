@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
 import time
-import uuid
 from http import HTTPStatus
 from math import isfinite
 from pathlib import Path
@@ -668,14 +668,16 @@ class BrowserContext:
         browser: Browser,
         *,
         profile: str | None,
+        project_id: str | None,
         session_id: str | None,
-        group: str,
+        group_id: str | None,
         persist: bool,
     ) -> None:
         self._browser = browser
         self._profile = profile
+        self._project_id = project_id or os.environ.get("REL_PROJECT_ID") or "ProjectDefault"
         self._session_id = session_id
-        self._group = group
+        self._group_id = group_id
         self._persist = persist
         self._existing_session_claimed = False
         self._closed = False
@@ -705,7 +707,7 @@ class BrowserContext:
         else:
             try:
                 session_id = self._browser._client.create_session(
-                    profile=self._profile, group=self._group
+                    project_id=self._project_id, profile=self._profile, group_id=self._group_id
                 )
             except RpcError as error:
                 _raise_public_error(error)
@@ -762,16 +764,18 @@ class Browser:
         client: RelRpcClient,
         *,
         profile: str | None,
+        project_id: str | None,
         session_id: str | None,
-        group: str,
+        group_id: str | None,
         persist: bool,
         slow_mo_ms: float,
         wait: float,
     ) -> None:
         self._client = client
         self._profile = profile
+        self._project_id = project_id or os.environ.get("REL_PROJECT_ID") or "ProjectDefault"
         self._session_id = session_id
-        self._group = group
+        self._group_id = group_id
         self._persist = persist
         self._slow_mo_ms = slow_mo_ms
         self._wait = wait
@@ -787,12 +791,13 @@ class Browser:
 
     def new_context(self, **kwargs: Any) -> BrowserContext:
         self._ensure_connected()
+        project_id = kwargs.pop("project_id", self._project_id)
         profile = kwargs.pop("profile", self._profile)
         session_id = kwargs.pop("session_id", self._session_id)
-        group = kwargs.pop("group", self._group)
+        group_id = kwargs.pop("group_id", self._group_id)
         persist = kwargs.pop("persist", self._persist)
         _reject_options("browser.new_context", kwargs)
-        _validate_rel_options(profile, session_id, group, persist)
+        _validate_rel_options(profile, session_id, group_id, persist)
         if self._session_id is not None and self._contexts:
             raise UnsupportedError(
                 "a Browser launched with session_id can create only one context"
@@ -800,8 +805,9 @@ class Browser:
         context = BrowserContext(
             self,
             profile=profile,
+            project_id=project_id,
             session_id=session_id,
-            group=group,
+            group_id=group_id,
             persist=persist,
         )
         self._contexts.append(context)
@@ -840,8 +846,9 @@ class BrowserType:
         slow_mo: float | None = None,
         timeout: float | None = None,
         profile: str | None = DEFAULT_PROFILE,
+        project_id: str | None = None,
         session_id: str | None = None,
-        group: str | None = None,
+        group_id: str | None = None,
         persist: bool = False,
         rel_base_url: str | None = None,
         wait: float = 0,
@@ -856,9 +863,8 @@ class BrowserType:
                 "REL owns a visible browser and cannot launch headless"
             )
         _reject_options("browser_type.launch", kwargs)
-        group = group or f"rel-playwright-{uuid.uuid4().hex}"
         slow_mo = 0.0 if slow_mo is None else slow_mo
-        _validate_rel_options(profile, session_id, group, persist)
+        _validate_rel_options(profile, session_id, group_id, persist)
         if (
             isinstance(slow_mo, bool)
             or not isinstance(slow_mo, (int, float))
@@ -887,8 +893,9 @@ class BrowserType:
         browser = Browser(
             client,
             profile=profile,
+            project_id=project_id,
             session_id=session_id,
-            group=group,
+            group_id=group_id,
             persist=persist,
             slow_mo_ms=float(slow_mo),
             wait=float(wait),
@@ -928,7 +935,7 @@ def _raise_public_error(error: RpcError) -> NoReturn:
 
 
 def _validate_rel_options(
-    profile: Any, session_id: Any, group: Any, persist: Any
+    profile: Any, session_id: Any, group_id: Any, persist: Any
 ) -> None:
     if profile is not None and (not isinstance(profile, str) or not profile.strip()):
         raise Error("profile must be a non-empty REL Profile name")
@@ -937,8 +944,8 @@ def _validate_rel_options(
         or re.fullmatch(r"Session[1-9][0-9]*", session_id, re.IGNORECASE) is None
     ):
         raise Error("session_id must use the Session<number> format")
-    if not isinstance(group, str) or not group.strip():
-        raise Error("group must be a non-empty REL session group")
+    if group_id is not None and (not isinstance(group_id, str) or re.fullmatch(r"new|Group[1-9][0-9]*", group_id) is None):
+        raise Error("group_id must be new or Group<number>")
     if not isinstance(persist, bool):
         raise Error("persist must be a boolean")
 

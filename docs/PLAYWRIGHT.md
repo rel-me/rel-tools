@@ -34,6 +34,10 @@ identity, persistent storage seed, proxy, AdBlock, and image-filter settings.
 Related documents: [browser actions](ACTIONS.md), [macOS app](APP.md), the
 [Python crawler](CRAWLER.md), and [RPC v1](RPC.md).
 
+Sessions created by this adapter are independent by default. The optional
+`group_id` creation option deliberately shares state: use `"new"` to create a
+shared owner or a returned `Group<ID>` to join existing state.
+
 ## Install
 
 Requirements:
@@ -120,7 +124,6 @@ Sessions concurrently.
 | --- | --- |
 | `profile="Private"` | Explicit existing REL Profile copied into every new page Session. Omitting it uses the configured Default Profile, or `Private` if unset. |
 | `session_id="Session12"` | Use one existing persistent Session instead of creating one. |
-| `group="crawler-run"` | Group assigned to Sessions created by this Browser. A unique group is generated when omitted. |
 | `persist=False` | Leave adapter-created Sessions open after close when true. Existing Sessions are never deleted. |
 | `rel_base_url=...` | Override the loopback RPC v1 root. |
 | `wait=0` | Extra REL settling delay in seconds after navigation and actions. |

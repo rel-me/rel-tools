@@ -627,15 +627,15 @@ fn tool_definitions() -> Vec<Value> {
         tool_definition(
             "rel_list_sessions",
             "REL List Browser Sessions",
-            "List persistent REL browser sessions and their canonical Session<number> IDs, groups, proxy assignments, and filtering settings.",
-            empty_object_schema(),
+            "List browser Sessions and their Project IDs, names, Profile provenance, and configuration. Optionally filter by project_id.",
+            json!({"type":"object","properties":{"project_id":{"type":"string"}},"additionalProperties":false}),
             read_annotations(),
         ),
         tool_definition(
-            "rel_close_session_group",
-            "REL Close Browser Session Group",
-            "Close every persistent REL browser session in a named group.",
-            session_group_schema(),
+            "rel_delete_session",
+            "REL Delete Browser Session",
+            "Close one session and remove its state when it is the last owner.",
+            session_id_schema(),
             json!({
                 "readOnlyHint": false,
                 "destructiveHint": true,
@@ -645,13 +645,13 @@ fn tool_definitions() -> Vec<Value> {
         ),
         tool_definition(
             "rel_create_session", "REL Create Browser Session",
-            "Open a tab in a compatible existing REL group, or create a group when none matches. Set new_group to force a separate group. New groups default to closing after 120 seconds of client inactivity. Use rel_ping_session to keep it alive, or explicitly select an indefinite lifetime.",
+            "Create an independent Session in the specified Project. Sessions default to closing after 120 seconds of client inactivity; ping or use an indefinite lifetime to retain them.",
             json!({"type":"object","properties":{
-                "name":{"type":"string"},"group":{"type":"string"},"profile":{"type":"string"},"new_group":{"type":"boolean"},
+                "project_id":{"type":"string"},"name":{"type":"string"},"group_id":{"type":"string","pattern":"^(new|Group[1-9][0-9]*)$","description":"Advanced: explicitly start or join shared browser state within this Project."},"profile":{"type":"string"},
                 "lifetime":{"oneOf":[
                     {"type":"object","properties":{"type":{"const":"inactivity"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":4294967295_u64}},"required":["type","timeout_seconds"],"additionalProperties":false},
                     {"type":"object","properties":{"type":{"const":"indefinite"}},"required":["type"],"additionalProperties":false}
-                ]}},"additionalProperties":false}),
+                ]}},"required":["project_id"],"additionalProperties":false}),
             json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":false}),
         ),
         tool_definition(
@@ -660,6 +660,24 @@ fn tool_definitions() -> Vec<Value> {
             json!({"type":"object","properties":{"session_id":{"type":"string"}},"required":["session_id"],"additionalProperties":false}),
             json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}),
         ),
+        tool_definition("rel_list_projects","REL List Projects","List Projects and their Session IDs.",empty_object_schema(),read_annotations()),
+        tool_definition("rel_get_project","REL Get Project","Read a Project's name, model preference, and Session IDs.",
+            json!({"type":"object","properties":{"project_id":{"type":"string"}},"required":["project_id"],"additionalProperties":false}),read_annotations()),
+        tool_definition("rel_create_project","REL Create Project","Create an empty Project.",
+            json!({"type":"object","properties":{"name":{"type":"string"},"id":{"type":"string"},"model":{"type":["object","null"]}},"required":["name"],"additionalProperties":false}),
+            json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":false})),
+        tool_definition("rel_update_project","REL Update Project","Update a Project name or model preference; clear_model clears the preference.",
+            json!({"type":"object","properties":{"project_id":{"type":"string"},"name":{"type":"string"},"model":{"type":"object"},"clear_model":{"type":"boolean"}},"required":["project_id"],"additionalProperties":false}),
+            json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false})),
+        tool_definition("rel_delete_project","REL Delete Project","Delete an empty, non-default Project and its workspace conversations.",
+            json!({"type":"object","properties":{"project_id":{"type":"string"}},"required":["project_id"],"additionalProperties":false}),
+            json!({"readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":false})),
+        tool_definition("rel_move_session","REL Move Session","Move a Session to a Project while preserving browser state. Shared members move together only with explicit inclusion.",
+            json!({"type":"object","properties":{"session_id":{"type":"string"},"project_id":{"type":"string"},"include_shared_sessions":{"type":"boolean"}},"required":["session_id","project_id"],"additionalProperties":false}),
+            json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false})),
+        tool_definition("rel_reapply_session_config","REL Reapply Session Configuration","Apply the current Profile configuration while preserving Session IDs, cookies, storage, and navigation. Shared members require explicit inclusion.",
+            json!({"type":"object","properties":{"session_id":{"type":"string"},"profile_id":{"type":"string"},"include_shared_sessions":{"type":"boolean"}},"required":["session_id"],"additionalProperties":false}),
+            json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false})),
         tool_definition(
             "rel_list_proxies",
             "REL List Proxies",
@@ -709,13 +727,13 @@ fn empty_object_schema() -> Value {
     json!({"type": "object", "additionalProperties": false})
 }
 
-fn session_group_schema() -> Value {
+fn session_id_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "group": {"type": "string", "minLength": 1, "maxLength": 128}
+            "session_id": {"type": "string", "pattern": "^Session[1-9][0-9]*$"}
         },
-        "required": ["group"],
+        "required": ["session_id"],
         "additionalProperties": false
     })
 }
@@ -854,8 +872,9 @@ fn capture_schema() -> Value {
             "wait": {"type": "number", "minimum": 0},
             "actions": {"type": "array", "items": action_schema()},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type":"string","description":"Required when creating or navigating without session_id."},
             "profile": {"type": "string", "minLength": 1, "maxLength": 128},
-            "group": {"type": "string", "minLength": 1, "maxLength": 128},
+            "session_id": {"type": "string", "pattern": "^Session[1-9][0-9]*$"},
             "proxy": {"type": "string", "minLength": 1},
             "retry": {"type": "integer", "minimum": 0, "maximum": 100},
             "retry_delay": {"type": "number", "minimum": 0, "maximum": 86400}
@@ -874,8 +893,9 @@ fn page_attach_schema() -> Value {
         "properties": {
             "url": {"type": "string", "minLength": 1},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type":"string","description":"Required when creating or navigating without session_id."},
             "profile": {"type": "string", "minLength": 1, "maxLength": 128},
-            "group": {"type": "string", "minLength": 1, "maxLength": 128},
+            "session_id": {"type": "string", "pattern": "^Session[1-9][0-9]*$"},
             "proxy": {"type": "string", "minLength": 1},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
@@ -906,6 +926,7 @@ fn screenshot_schema() -> Value {
         "type": "object",
         "properties": {
             "page_id": {"type": "string", "minLength": 1},
+            "project_id": {"type":"string","description":"Scope current-page capture to a Project."},
             "session_id": {"type": "string", "minLength": 1},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
             "format": {"type": "string", "enum": ["png", "jpeg", "webp"], "default": "png"},
@@ -923,6 +944,7 @@ fn observation_schema() -> Value {
         "type": "object",
         "properties": {
             "page_id": {"type": "string", "minLength": 1},
+            "project_id": {"type":"string", "description":"Project scope when Session ID is omitted; never use global app selection."},
             "session_id": {"type": "string", "minLength": 1},
             "mode": {"type": "string", "enum": ["semantic", "hybrid", "visual"], "default": "semantic"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
@@ -939,6 +961,7 @@ fn navigate_observation_schema() -> Value {
             "url": {"type": "string", "minLength": 1},
             "navigation": {"type": "string", "enum": ["url", "back", "forward", "reload"], "default": "url"},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type":"string","description":"Required when creating or navigating without session_id."},
             "profile": {"type": "string", "minLength": 1},
             "proxy": {"type": "string", "minLength": 1},
             "mode": {"type": "string", "enum": ["semantic", "hybrid", "visual"], "default": "semantic"},
@@ -959,6 +982,7 @@ fn page_read_schema() -> Value {
         "properties": {
             "url": {"type": "string", "minLength": 1},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type":"string","description":"Required when creating or navigating without session_id."},
             "profile": {"type": "string", "minLength": 1, "maxLength": 128},
             "proxy": {"type": "string", "minLength": 1},
             "query": {"type": "string", "minLength": 1, "maxLength": 1024},
@@ -1084,9 +1108,9 @@ fn handle_tool_call(
                 }
                 client
                     .create_session(&client::SessionCreateRequest {
+                        project_id: arguments.project_id,
                         name: arguments.name,
-                        new_group: arguments.new_group,
-                        group: arguments.group,
+                        group_id: arguments.group_id,
                         profile: arguments.profile,
                         lifetime: arguments.lifetime,
                         ..Default::default()
@@ -1102,15 +1126,109 @@ fn handle_tool_call(
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
-        "rel_list_sessions" => decode_empty_arguments(arguments)
-            .and_then(|()| ensure_runtime(ensure_agent_running))
-            .and_then(|()| client.list_sessions().map_err(client_error_value))
+        "rel_list_sessions" => decode_arguments::<ProjectListArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                match arguments.project_id {
+                    Some(id) => client.list_project_sessions(&id),
+                    None => client.list_sessions(),
+                }
+                .map_err(client_error_value)
+            })
             .and_then(to_json_value),
-        "rel_close_session_group" => decode_arguments::<CloseSessionGroupArguments>(arguments)
+        "rel_list_projects" => decode_empty_arguments(arguments)
+            .and_then(|()| {
+                ensure_runtime(ensure_agent_running)?;
+                client.list_projects().map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_get_project" => decode_arguments::<ProjectIDArguments>(arguments)
+            .and_then(|a| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .get_project(&a.project_id)
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_delete_project" => decode_arguments::<ProjectIDArguments>(arguments)
+            .and_then(|a| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .delete_project(&a.project_id)
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_create_project" => decode_arguments::<CreateProjectArguments>(arguments)
+            .and_then(|a| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .create_project(&client::ProjectCreateRequest {
+                        id: a.id,
+                        name: a.name,
+                        model: a.model,
+                    })
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_update_project" => decode_arguments::<UpdateProjectArguments>(arguments)
+            .and_then(|a| {
+                ensure_runtime(ensure_agent_running)?;
+                if a.clear_model && a.model.is_some() {
+                    return Err(
+                        json!({"code":-32602,"message":"model and clear_model cannot be combined"}),
+                    );
+                }
+                let model = if a.clear_model {
+                    client::Change::Clear
+                } else if let Some(model) = a.model {
+                    client::Change::Set(model)
+                } else {
+                    client::Change::Unchanged
+                };
+                client
+                    .update_project(
+                        &a.project_id,
+                        &client::ProjectUpdateRequest {
+                            name: a.name,
+                            model,
+                        },
+                    )
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_move_session" => decode_arguments::<MoveSessionArguments>(arguments)
+            .and_then(|a| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .move_session(
+                        &a.session_id,
+                        &client::SessionMoveRequest {
+                            project_id: a.project_id,
+                            include_shared_sessions: a.include_shared_sessions,
+                        },
+                    )
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_reapply_session_config" => decode_arguments::<ReapplySessionArguments>(arguments)
+            .and_then(|a| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .reapply_session_config(
+                        &a.session_id,
+                        &client::SessionReapplyRequest {
+                            profile_id: a.profile_id,
+                            include_shared_sessions: a.include_shared_sessions,
+                        },
+                    )
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_delete_session" => decode_arguments::<PingSessionArguments>(arguments)
             .and_then(|arguments| {
                 ensure_runtime(ensure_agent_running)?;
                 client
-                    .close_session_group(&arguments.group)
+                    .delete_session(&arguments.session_id)
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
@@ -1574,6 +1692,7 @@ struct EmptyArguments {}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CaptureArguments {
+    project_id: Option<String>,
     url: String,
     output_uri: Option<String>,
     timeout: Option<f64>,
@@ -1582,7 +1701,6 @@ struct CaptureArguments {
     actions: Vec<Action>,
     session_id: Option<String>,
     profile: Option<String>,
-    group: Option<String>,
     proxy: Option<String>,
     retry: Option<u32>,
     retry_delay: Option<f64>,
@@ -1592,10 +1710,10 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
     type Error = Value;
 
     fn try_from(value: CaptureArguments) -> Result<Self, Self::Error> {
-        if value.session_id.is_some() && (value.group.is_some() || value.profile.is_some()) {
+        if value.session_id.is_some() && value.profile.is_some() {
             return Err(tool_error_value(
                 "INVALID_ARGUMENTS",
-                "group and profile cannot be combined with session_id",
+                "profile cannot be combined with session_id",
             ));
         }
         Ok(Self {
@@ -1605,8 +1723,8 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
             wait: value.wait,
             actions: value.actions,
             session_id: value.session_id,
+            project_id: value.project_id,
             profile: value.profile,
-            group: value.group,
             proxy: value.proxy,
             retry: value.retry,
             retry_delay: value.retry_delay,
@@ -1617,10 +1735,10 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PageAttachArguments {
+    project_id: Option<String>,
     url: String,
     session_id: Option<String>,
     profile: Option<String>,
-    group: Option<String>,
     proxy: Option<String>,
     output_uri: Option<String>,
     timeout: Option<f64>,
@@ -1630,6 +1748,7 @@ struct PageAttachArguments {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct NavigateObservationArguments {
+    project_id: Option<String>,
     url: Option<String>,
     navigation: Option<ObservationNavigation>,
     session_id: Option<String>,
@@ -1646,6 +1765,7 @@ impl From<NavigateObservationArguments> for NavigateObservationRequest {
             url: value.url,
             navigation: value.navigation,
             session_id: value.session_id,
+            project_id: value.project_id,
             profile: value.profile,
             proxy: value.proxy,
             mode: value.mode,
@@ -1658,6 +1778,7 @@ impl From<NavigateObservationArguments> for NavigateObservationRequest {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PageReadArguments {
+    project_id: Option<String>,
     url: Option<String>,
     session_id: Option<String>,
     profile: Option<String>,
@@ -1688,6 +1809,7 @@ impl TryFrom<PageReadArguments> for PageReadRequest {
         Ok(Self {
             url: value.url,
             session_id: value.session_id,
+            project_id: value.project_id,
             profile: value.profile,
             proxy: value.proxy,
             query: value.query,
@@ -1703,29 +1825,23 @@ impl TryFrom<PageAttachArguments> for PageAttachRequest {
     type Error = Value;
 
     fn try_from(value: PageAttachArguments) -> Result<Self, Self::Error> {
-        if value.session_id.is_some() && (value.group.is_some() || value.profile.is_some()) {
+        if value.session_id.is_some() && value.profile.is_some() {
             return Err(tool_error_value(
                 "INVALID_ARGUMENTS",
-                "group and profile cannot be combined with session_id",
+                "profile cannot be combined with session_id",
             ));
         }
         Ok(Self {
             url: value.url,
             session_id: value.session_id,
+            project_id: value.project_id,
             profile: value.profile,
-            group: value.group,
             proxy: value.proxy,
             output: output_path_from_uri(value.output_uri)?,
             timeout: value.timeout,
             wait: value.wait,
         })
     }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CloseSessionGroupArguments {
-    group: String,
 }
 
 #[derive(Deserialize)]
@@ -1755,6 +1871,7 @@ impl PageActionArguments {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ScreenshotArguments {
+    project_id: Option<String>,
     page_id: Option<String>,
     session_id: Option<String>,
     output_uri: Option<String>,
@@ -1771,7 +1888,7 @@ impl ScreenshotArguments {
         let output = output_path_from_uri(self.output_uri)?;
         match self.page_id {
             Some(page_id) => {
-                if self.session_id.is_some() {
+                if self.session_id.is_some() || self.project_id.is_some() {
                     return Err(tool_error_value(
                         "INVALID_ARGUMENTS",
                         "session_id cannot be combined with page_id",
@@ -1790,6 +1907,7 @@ impl ScreenshotArguments {
                 })
             }
             None => Ok(ScreenshotExecution::Current(ScreenshotRequest {
+                project_id: self.project_id,
                 session_id: self.session_id,
                 output,
                 format: self.format,
@@ -1828,6 +1946,7 @@ impl ScreenshotExecution {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ObservationArguments {
+    project_id: Option<String>,
     page_id: Option<String>,
     session_id: Option<String>,
     mode: Option<ObservationMode>,
@@ -1839,7 +1958,7 @@ impl ObservationArguments {
     fn into_execution(self) -> Result<ObservationExecution, Value> {
         match self.page_id {
             Some(page_id) => {
-                if self.session_id.is_some() {
+                if self.session_id.is_some() || self.project_id.is_some() {
                     return Err(tool_error_value(
                         "INVALID_ARGUMENTS",
                         "session_id cannot be combined with page_id",
@@ -1855,6 +1974,7 @@ impl ObservationArguments {
                 })
             }
             None => Ok(ObservationExecution::Current(ObservationRequest {
+                project_id: self.project_id,
                 session_id: self.session_id,
                 mode: self.mode,
                 timeout: self.timeout,
@@ -2112,7 +2232,7 @@ mod tests {
             CURRENT_PROTOCOL_VERSION
         );
         let tools = output[1]["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 16);
+        assert_eq!(tools.len(), 23);
         assert_eq!(tools[0]["name"], "rel_status");
         assert_eq!(tools[1]["name"], "rel_notifications");
         assert_eq!(tools[4]["name"], "rel_navigate");
@@ -2121,14 +2241,14 @@ mod tests {
         assert_eq!(tools[8]["name"], "rel_observe");
         assert_eq!(tools[9]["name"], "rel_find");
         assert_eq!(tools[10]["name"], "rel_action");
-        assert_eq!(tools[12]["name"], "rel_close_session_group");
+        assert_eq!(tools[12]["name"], "rel_delete_session");
         assert_eq!(tools[13]["name"], "rel_create_session");
         assert_eq!(
-            tools[13]["inputSchema"]["properties"]["new_group"]["type"],
-            "boolean"
+            tools[13]["inputSchema"]["properties"]["group_id"]["type"],
+            "string"
         );
         assert_eq!(tools[14]["name"], "rel_ping_session");
-        assert_eq!(tools[15]["name"], "rel_list_proxies");
+        assert_eq!(tools[22]["name"], "rel_list_proxies");
         assert_eq!(output[1]["result"]["resultType"], "complete");
 
         let navigate = &tools[4]["inputSchema"];
@@ -2240,14 +2360,8 @@ mod tests {
             assert_eq!(tool["outputSchema"]["type"], "object");
         }
         let tools = tool_definitions();
-        assert_eq!(
-            tools[2]["inputSchema"]["properties"]["group"]["maxLength"],
-            128
-        );
-        assert_eq!(
-            tools[3]["inputSchema"]["properties"]["group"]["maxLength"],
-            128
-        );
+        assert!(tools[2]["inputSchema"]["properties"].get("group").is_none());
+        assert!(tools[3]["inputSchema"]["properties"].get("group").is_none());
         assert_eq!(
             tools[2]["inputSchema"]["properties"]["profile"]["maxLength"],
             128
@@ -2325,7 +2439,10 @@ mod tests {
 
     #[test]
     fn session_tools_accept_tab_resources_without_group_settings() {
-        let session = json!({"id":"Session12", "group_id":"Group4", "created_at":123});
+        let session = json!({"id":"Session12","project_id":"ProjectDefault","name":"RYM12","profile_id":null,"profile":"RYM","group_id":"Group4","created_at":123,
+            "lifetime":{"type":"indefinite"},"last_activity_at":123,"proxy_alias":null,"proxy_locale":null,"proxy_detect_exit_locale":false,
+            "adblock_enabled":false,"image_blocking_mode":"none","image_size_limit_kb":100,"fingerprint_profile":null,"http_rules":[],"initial_viewport_preset":null,
+            "asset_cache":{"is_enabled":false,"maximum_size_bytes":536870912}});
         for (tool, arguments, data, route) in [
             (
                 "rel_list_sessions",
@@ -2335,13 +2452,13 @@ mod tests {
             ),
             (
                 "rel_create_session",
-                json!({"profile":"RYM"}),
+                json!({"project_id":"ProjectDefault","profile":"RYM"}),
                 json!({"session":session.clone()}),
                 "POST /v1/sessions HTTP/1.1",
             ),
             (
                 "rel_create_session",
-                json!({"profile":"RYM", "name":"RYM"}),
+                json!({"project_id":"ProjectDefault","profile":"RYM", "name":"RYM"}),
                 json!({"session":session.clone()}),
                 "POST /v1/sessions HTTP/1.1",
             ),
@@ -2419,45 +2536,6 @@ mod tests {
                     "checks": []
                 }
             })
-        );
-    }
-
-    #[test]
-    fn close_session_group_tool_forwards_group_and_deleted_ids() {
-        let body = json!({
-            "status": "ok",
-            "request_id": "req_close_group",
-            "data": {
-                "group": "pgm",
-                "deleted_ids": ["Session1", "Session2"]
-            }
-        })
-        .to_string();
-        let (base_url, server) =
-            start_test_server(http_response("application/json", "req_close_group", &body));
-        let output = run_messages_with_client(
-            &[json!({
-                "jsonrpc": "2.0",
-                "id": 8,
-                "method": "tools/call",
-                "params": {
-                    "_meta": modern_metadata(),
-                    "name": "rel_close_session_group",
-                    "arguments": {"group": "pgm"}
-                }
-            })],
-            RelClient::new(base_url),
-        );
-        let request = server.join().unwrap();
-
-        assert!(request.starts_with("POST /v1/sessions/close HTTP/1.1"));
-        let request_body: Value =
-            serde_json::from_str(request.split_once("\r\n").unwrap().1).unwrap();
-        assert_eq!(request_body, json!({"group":"pgm"}));
-        assert_eq!(output[0]["result"]["isError"], false);
-        assert_eq!(
-            output[0]["result"]["structuredContent"]["data"]["deleted_ids"],
-            json!(["Session1", "Session2"])
         );
     }
 
@@ -3047,9 +3125,9 @@ mod tests {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CreateSessionArguments {
-    new_group: Option<bool>,
+    project_id: String,
+    group_id: Option<String>,
     name: Option<String>,
-    group: Option<String>,
     profile: Option<String>,
     lifetime: Option<client::SessionLifetime>,
 }
@@ -3057,4 +3135,47 @@ struct CreateSessionArguments {
 #[serde(deny_unknown_fields)]
 struct PingSessionArguments {
     session_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProjectListArguments {
+    project_id: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProjectIDArguments {
+    project_id: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateProjectArguments {
+    id: Option<String>,
+    name: String,
+    model: Option<client::ProjectModel>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UpdateProjectArguments {
+    project_id: String,
+    name: Option<String>,
+    model: Option<client::ProjectModel>,
+    #[serde(default)]
+    clear_model: bool,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MoveSessionArguments {
+    session_id: String,
+    project_id: String,
+    #[serde(default)]
+    include_shared_sessions: bool,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReapplySessionArguments {
+    session_id: String,
+    profile_id: Option<String>,
+    #[serde(default)]
+    include_shared_sessions: bool,
 }
