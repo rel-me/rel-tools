@@ -1155,6 +1155,10 @@ A profile resource is:
   the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
   the Private template. Set it to `null` for native Chromium identity.
+- `color` is an opaque `#RRGGBB` Profile color. Creation assigns a random color
+  from REL's 100-color muted palette when omitted; omission on update preserves
+  the current color. Color changes update explicit Group capsules immediately
+  without changing any browser state.
 - `viewport_preset` is optional: `null` (App Default), `fitWindow`, `desktop`
   (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or `mobile`
   (320w). `POST /v1/profiles` stores the default for new sessions. On
@@ -1169,7 +1173,7 @@ A profile resource is:
   `PATCH /v1/profiles/{id}` reject `is_enabled:true` with a usage error.
   Both fields remain required when this object is supplied; `is_enabled` must
   be false, and `maximum_size_bytes` must be 134217728, 268435456, 536870912,
-  or 1073741824. Omission on update preserves size metadata. Profile and Group
+  or 1073741824. Omission on update preserves size metadata. Profile and Session
   responses report caching disabled, including for saved or imported settings
   that previously enabled it. Existing transfer schemas and
   `asset_cache_profile_id` remain readable. The app does not read or write the

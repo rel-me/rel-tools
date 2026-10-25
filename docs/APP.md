@@ -31,11 +31,18 @@ For provider setup and per-Session assignment, see [Configure proxies](PROXIES.m
 ## Sessions and shared browser state
 
 Sessions are independent by default. The New Session sheet's **Browser State**
-control can explicitly create or join a shared group. Only shared groups have a
-group heading in the native sidebar. Each session keeps its own page history;
+control can explicitly create or join a shared group. The native sidebar lists
+sessions under Projects; only explicitly shared sessions display a Group capsule.
+Each session keeps its own page history;
 shared members use the same cookies, site data, configuration, and proxy routing.
 Close a session and create another for clean state. Profiles configure future
 sessions; saving a Profile never resets open sessions.
+
+Projects own their model preference, chat conversations, and actions. Moving a
+session or shared group to another Project preserves its browser state. Use
+**New → New Project** to create a Project. Profile colors are configurable with
+the square color picker beside the Profile name; shared Group capsules use that
+color. Existing Profiles receive a random muted color from a 100-color palette.
 
 ## Notifications
 
@@ -262,7 +269,7 @@ Concurrent workspace and Session operations use SQLite-managed connections so
 opening another connection preserves the database's existing file locks.
 
 REL validates its local database before starting normal service. Supported
-schema versions 3 through 15 are supported, with older schemas upgraded to schema 15. Before any upgrade or
+schemas are upgraded to the current schema. Before any upgrade or
 repair, REL creates a consistent SQLite snapshot including committed WAL data
 under `Data/Recovery/<run-id>/original.sqlite3` in its Application Support
 folder. Debug builds use their isolated worktree Application Support folder.
@@ -284,7 +291,7 @@ writer causes recovery to stop so its changes are not overwritten. Restarting
 retries from the current data. A successful recovery is not repeated on every
 launch.
 
-When records or fields need review, REL displays a recovery notice. Choose
+When records or fields need review, REL records a dismissible warning in its existing issue system. Choose
 **Show Report**, or **Settings → Service → Show Recovery Report**, to locate
 `report.json`. It lists retained counts and affected tables, record IDs, fields,
 and reasons. Original values remain in the snapshot. The database's recovery
@@ -388,15 +395,15 @@ the profile draft. Saving selects the new proxy automatically. Cancelling return
 to the draft without changing its proxy selection. A saved proxy remains available
 in Proxies even if you later cancel the profile.
 
-**Create Session**, **New Session** (Command-T), and the session tab bar’s plus
-button open a tab in the matching default Profile group, creating the group when absent.
-Tabs in a group share its settings, cookies, and logins. Proxy and Browser Identity
-are fixed when the group is created. Create a new group to use a different proxy or
-identity. AdBlock and media filtering remain editable for the group. Changes apply
-immediately to subsequent requests in every session in the group. Existing pages
-stay as they are, without an automatic reload or group reset. Cookies, logins, session IDs, and browser
-storage are preserved. Paused and unopened sessions use the new filters when
-resumed or opened.
+**Create Session** and **New Session** (Command-T) create independent browser
+state from the chosen Profile. To share cookies, logins, configuration, and proxy
+routing, explicitly choose an existing or new shared group during creation.
+Proxy and Browser Identity are fixed when state is created. Create another
+session to use a different proxy or identity. AdBlock and media filtering remain
+editable; changes apply to subsequent requests in the session and any explicitly
+shared members. Existing pages stay as they are, without an automatic reload.
+Cookies, logins, session IDs, and browser storage are preserved. Paused and
+unopened shared members use the new filters when resumed or opened.
 Browser data is copied or imported rather than switched as a setting.
 
 Cookies and saved passwords can be imported while Chrome or another supported
