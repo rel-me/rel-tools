@@ -46,7 +46,7 @@ class RelCrawler(
         rel_base_url: str | None = None,
         session_id: str | None = None,
         profile: str | None = None,
-        group: str | None = None,
+        group_id: str | None = None,
         timeout: float = 90.0,
         wait: float = 1.0,
         action_delay: float = 2.0,
@@ -121,9 +121,7 @@ class RelCrawler(
         self.client = client if client is not None else RelClient(rel_base_url)
         self.requested_session_id = session_id
         self.profile = profile.strip() if profile is not None else None
-        self.group = group.strip() if group is not None else self._default_group()
-        if not self.group:
-            raise CrawlConfigurationError("group must not be empty")
+        self.group_id = group_id
         self.timeout = float(timeout)
         self.wait = float(wait)
         self.action_delay = float(action_delay)

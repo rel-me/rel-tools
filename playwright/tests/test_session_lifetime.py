@@ -9,8 +9,8 @@ class SessionLifetimeTests(unittest.TestCase):
         self.addCleanup(getattr(client, "close", lambda: None))
         with patch.object(client, "_request", return_value={"session": {"id": "Session1"}}) as request:
             lifetime = {"type": "inactivity", "timeout_seconds": 30}
-            self.assertEqual(client.create_session(profile=None, group="test", lifetime=lifetime), "Session1")
+            self.assertEqual(client.create_session(profile=None, lifetime=lifetime), "Session1")
             self.assertEqual(request.call_args.args[2]["lifetime"], lifetime)
-            self.assertIs(request.call_args.args[2]["new_group"], True)
+            self.assertNotIn("group_id", request.call_args.args[2])
             client.ping_session("Session1")
             request.assert_called_with("POST", "/sessions/Session1/ping", {}, timeout=5.0)

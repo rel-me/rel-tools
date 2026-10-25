@@ -226,10 +226,6 @@ module REL
       request_json(:delete, "/proxies/#{segment(alias_name)}")
     end
 
-    def reset_profile(name)
-      request_json(:post, "/reset", body: { profile: name })
-    end
-
     def export_proxy_transfer(payload)
       request_json(:post, "/proxy-transfers/export", body: payload)
     end
@@ -268,10 +264,6 @@ module REL
 
     def delete_session(session_id)
       request_json(:delete, "/sessions/#{segment(session_id)}")
-    end
-
-    def close_session_group(group)
-      request_json(:post, "/sessions/close", body: { group: group })
     end
 
     def list_profiles

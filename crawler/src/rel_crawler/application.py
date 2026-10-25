@@ -22,7 +22,7 @@ class CrawlApplication:
     rel_base_url: str | None = None
     session_id: str | None = None
     profile: str | None = None
-    group: str | None = None
+    group_id: str | None = None
     timeout: float = 90.0
     wait: float = 1.0
     action_delay: float = 2.0

@@ -102,7 +102,7 @@ class FakeRelClient:
             "profile": self.profile,
         }
 
-    def create_session(self, *, profile: str | None, group: str) -> str:
+    def create_session(self, *, profile: str | None, group_id: str | None) -> str:
         self.create_count += 1
         failure = self.create_failures.get(self.create_count)
         if failure is not None:

@@ -14,7 +14,6 @@ import statistics
 import subprocess
 import sys
 import time
-import uuid
 from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
@@ -44,11 +43,9 @@ async def crawl(args) -> None:
     profile = next((p for p in profiles if p["name"] == args.profile), None)
     if profile is None:
         raise ValueError(f"Saved REL Profile not found: {args.profile}")
-    group = "crawlee-benchmark-" + uuid.uuid4().hex[:12]
     crawler = RelCrawler(
         profile=args.profile,
         rel_base_url=args.rel_base_url,
-        group=group,
         session_pool_size=2 if args.mode == "pooled" else None,
         max_requests_per_crawl=10,
         max_request_retries=1,
@@ -104,7 +101,8 @@ async def crawl(args) -> None:
     stats = await crawler.run(["https://books.toscrape.com/"])
     elapsed = time.perf_counter() - start
     remaining = (await asyncio.to_thread(rpc_get, "/sessions"))["sessions"]
-    leftover = [s["id"] for s in remaining if s.get("group") == group]
+    session_ids = {page["session_id"] for page in pages}
+    leftover = [s["id"] for s in remaining if s["id"] in session_ids]
     report = {
         "mode": args.mode,
         "profile": args.profile,

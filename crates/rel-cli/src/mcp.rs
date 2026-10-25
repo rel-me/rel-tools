@@ -632,10 +632,10 @@ fn tool_definitions() -> Vec<Value> {
             read_annotations(),
         ),
         tool_definition(
-            "rel_close_session_group",
-            "REL Close Browser Session Group",
-            "Close every persistent REL browser session in a named group.",
-            session_group_schema(),
+            "rel_delete_session",
+            "REL Delete Browser Session",
+            "Close one session and remove its state when it is the last owner.",
+            session_id_schema(),
             json!({
                 "readOnlyHint": false,
                 "destructiveHint": true,
@@ -645,9 +645,9 @@ fn tool_definitions() -> Vec<Value> {
         ),
         tool_definition(
             "rel_create_session", "REL Create Browser Session",
-            "Open a tab in a compatible existing REL group, or create a group when none matches. Set new_group to force a separate group. New groups default to closing after 120 seconds of client inactivity. Use rel_ping_session to keep it alive, or explicitly select an indefinite lifetime.",
+            "Create an independent session by default, even when using the same Profile. Set group_id to new to explicitly start shared state, or to a returned Group<number> ID to join it. Sessions default to closing after 120 seconds of client inactivity; use rel_ping_session or an indefinite lifetime to retain them.",
             json!({"type":"object","properties":{
-                "name":{"type":"string"},"group":{"type":"string"},"profile":{"type":"string"},"new_group":{"type":"boolean"},
+                "name":{"type":"string"},"group_id":{"type":"string","pattern":"^(new|Group[1-9][0-9]*)$"},"profile":{"type":"string"},
                 "lifetime":{"oneOf":[
                     {"type":"object","properties":{"type":{"const":"inactivity"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":4294967295_u64}},"required":["type","timeout_seconds"],"additionalProperties":false},
                     {"type":"object","properties":{"type":{"const":"indefinite"}},"required":["type"],"additionalProperties":false}
@@ -709,13 +709,13 @@ fn empty_object_schema() -> Value {
     json!({"type": "object", "additionalProperties": false})
 }
 
-fn session_group_schema() -> Value {
+fn session_id_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "group": {"type": "string", "minLength": 1, "maxLength": 128}
+            "session_id": {"type": "string", "pattern": "^Session[1-9][0-9]*$"}
         },
-        "required": ["group"],
+        "required": ["session_id"],
         "additionalProperties": false
     })
 }
@@ -855,7 +855,7 @@ fn capture_schema() -> Value {
             "actions": {"type": "array", "items": action_schema()},
             "session_id": {"type": "string", "minLength": 1},
             "profile": {"type": "string", "minLength": 1, "maxLength": 128},
-            "group": {"type": "string", "minLength": 1, "maxLength": 128},
+            "session_id": {"type": "string", "pattern": "^Session[1-9][0-9]*$"},
             "proxy": {"type": "string", "minLength": 1},
             "retry": {"type": "integer", "minimum": 0, "maximum": 100},
             "retry_delay": {"type": "number", "minimum": 0, "maximum": 86400}
@@ -875,7 +875,7 @@ fn page_attach_schema() -> Value {
             "url": {"type": "string", "minLength": 1},
             "session_id": {"type": "string", "minLength": 1},
             "profile": {"type": "string", "minLength": 1, "maxLength": 128},
-            "group": {"type": "string", "minLength": 1, "maxLength": 128},
+            "session_id": {"type": "string", "pattern": "^Session[1-9][0-9]*$"},
             "proxy": {"type": "string", "minLength": 1},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
@@ -1085,8 +1085,7 @@ fn handle_tool_call(
                 client
                     .create_session(&client::SessionCreateRequest {
                         name: arguments.name,
-                        new_group: arguments.new_group,
-                        group: arguments.group,
+                        group_id: arguments.group_id,
                         profile: arguments.profile,
                         lifetime: arguments.lifetime,
                         ..Default::default()
@@ -1106,11 +1105,11 @@ fn handle_tool_call(
             .and_then(|()| ensure_runtime(ensure_agent_running))
             .and_then(|()| client.list_sessions().map_err(client_error_value))
             .and_then(to_json_value),
-        "rel_close_session_group" => decode_arguments::<CloseSessionGroupArguments>(arguments)
+        "rel_delete_session" => decode_arguments::<PingSessionArguments>(arguments)
             .and_then(|arguments| {
                 ensure_runtime(ensure_agent_running)?;
                 client
-                    .close_session_group(&arguments.group)
+                    .delete_session(&arguments.session_id)
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
@@ -1582,7 +1581,6 @@ struct CaptureArguments {
     actions: Vec<Action>,
     session_id: Option<String>,
     profile: Option<String>,
-    group: Option<String>,
     proxy: Option<String>,
     retry: Option<u32>,
     retry_delay: Option<f64>,
@@ -1592,10 +1590,10 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
     type Error = Value;
 
     fn try_from(value: CaptureArguments) -> Result<Self, Self::Error> {
-        if value.session_id.is_some() && (value.group.is_some() || value.profile.is_some()) {
+        if value.session_id.is_some() && value.profile.is_some() {
             return Err(tool_error_value(
                 "INVALID_ARGUMENTS",
-                "group and profile cannot be combined with session_id",
+                "profile cannot be combined with session_id",
             ));
         }
         Ok(Self {
@@ -1606,7 +1604,6 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
             actions: value.actions,
             session_id: value.session_id,
             profile: value.profile,
-            group: value.group,
             proxy: value.proxy,
             retry: value.retry,
             retry_delay: value.retry_delay,
@@ -1620,7 +1617,6 @@ struct PageAttachArguments {
     url: String,
     session_id: Option<String>,
     profile: Option<String>,
-    group: Option<String>,
     proxy: Option<String>,
     output_uri: Option<String>,
     timeout: Option<f64>,
@@ -1703,29 +1699,22 @@ impl TryFrom<PageAttachArguments> for PageAttachRequest {
     type Error = Value;
 
     fn try_from(value: PageAttachArguments) -> Result<Self, Self::Error> {
-        if value.session_id.is_some() && (value.group.is_some() || value.profile.is_some()) {
+        if value.session_id.is_some() && value.profile.is_some() {
             return Err(tool_error_value(
                 "INVALID_ARGUMENTS",
-                "group and profile cannot be combined with session_id",
+                "profile cannot be combined with session_id",
             ));
         }
         Ok(Self {
             url: value.url,
             session_id: value.session_id,
             profile: value.profile,
-            group: value.group,
             proxy: value.proxy,
             output: output_path_from_uri(value.output_uri)?,
             timeout: value.timeout,
             wait: value.wait,
         })
     }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CloseSessionGroupArguments {
-    group: String,
 }
 
 #[derive(Deserialize)]
@@ -2121,11 +2110,11 @@ mod tests {
         assert_eq!(tools[8]["name"], "rel_observe");
         assert_eq!(tools[9]["name"], "rel_find");
         assert_eq!(tools[10]["name"], "rel_action");
-        assert_eq!(tools[12]["name"], "rel_close_session_group");
+        assert_eq!(tools[12]["name"], "rel_delete_session");
         assert_eq!(tools[13]["name"], "rel_create_session");
         assert_eq!(
-            tools[13]["inputSchema"]["properties"]["new_group"]["type"],
-            "boolean"
+            tools[13]["inputSchema"]["properties"]["group_id"]["type"],
+            "string"
         );
         assert_eq!(tools[14]["name"], "rel_ping_session");
         assert_eq!(tools[15]["name"], "rel_list_proxies");
@@ -2240,14 +2229,8 @@ mod tests {
             assert_eq!(tool["outputSchema"]["type"], "object");
         }
         let tools = tool_definitions();
-        assert_eq!(
-            tools[2]["inputSchema"]["properties"]["group"]["maxLength"],
-            128
-        );
-        assert_eq!(
-            tools[3]["inputSchema"]["properties"]["group"]["maxLength"],
-            128
-        );
+        assert!(tools[2]["inputSchema"]["properties"].get("group").is_none());
+        assert!(tools[3]["inputSchema"]["properties"].get("group").is_none());
         assert_eq!(
             tools[2]["inputSchema"]["properties"]["profile"]["maxLength"],
             128
@@ -2419,45 +2402,6 @@ mod tests {
                     "checks": []
                 }
             })
-        );
-    }
-
-    #[test]
-    fn close_session_group_tool_forwards_group_and_deleted_ids() {
-        let body = json!({
-            "status": "ok",
-            "request_id": "req_close_group",
-            "data": {
-                "group": "pgm",
-                "deleted_ids": ["Session1", "Session2"]
-            }
-        })
-        .to_string();
-        let (base_url, server) =
-            start_test_server(http_response("application/json", "req_close_group", &body));
-        let output = run_messages_with_client(
-            &[json!({
-                "jsonrpc": "2.0",
-                "id": 8,
-                "method": "tools/call",
-                "params": {
-                    "_meta": modern_metadata(),
-                    "name": "rel_close_session_group",
-                    "arguments": {"group": "pgm"}
-                }
-            })],
-            RelClient::new(base_url),
-        );
-        let request = server.join().unwrap();
-
-        assert!(request.starts_with("POST /v1/sessions/close HTTP/1.1"));
-        let request_body: Value =
-            serde_json::from_str(request.split_once("\r\n").unwrap().1).unwrap();
-        assert_eq!(request_body, json!({"group":"pgm"}));
-        assert_eq!(output[0]["result"]["isError"], false);
-        assert_eq!(
-            output[0]["result"]["structuredContent"]["data"]["deleted_ids"],
-            json!(["Session1", "Session2"])
         );
     }
 
@@ -3047,9 +2991,8 @@ mod tests {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CreateSessionArguments {
-    new_group: Option<bool>,
+    group_id: Option<String>,
     name: Option<String>,
-    group: Option<String>,
     profile: Option<String>,
     lifetime: Option<client::SessionLifetime>,
 }

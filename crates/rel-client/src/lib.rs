@@ -491,25 +491,6 @@ impl RelClient {
         )
     }
 
-    /// Recreate every group from a Profile with fresh IDs, configured cookies, and dormant URLs.
-    pub fn reset_profile(&self, profile: &str) -> Result<RpcResponse<ResetData>, ClientError> {
-        self.request_with_timeout(
-            "POST",
-            "/reset",
-            Some(&serde_json::json!({"profile":profile})),
-            Duration::from_secs(300),
-        )
-    }
-
-    pub fn reset_group(&self, id: &str) -> Result<RpcResponse<ResetData>, ClientError> {
-        self.request_with_timeout::<ResetData, Value>(
-            "POST",
-            &format!("/groups/{}/reset", encode_path_segment(id)),
-            None,
-            Duration::from_secs(90),
-        )
-    }
-
     pub fn export_proxy_transfer(
         &self,
         request: &ProxyTransferExportRequest,
@@ -638,17 +619,6 @@ impl RelClient {
             "DELETE",
             &format!("/sessions/{}", encode_path_segment(id)),
             None,
-        )
-    }
-
-    pub fn close_session_group(
-        &self,
-        group: &str,
-    ) -> Result<RpcResponse<ClosedSessionGroupData>, ClientError> {
-        self.request(
-            "POST",
-            "/sessions/close",
-            Some(&SessionGroupCloseRequest { group }),
         )
     }
 
@@ -1036,8 +1006,6 @@ pub struct CaptureRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<u32>,
@@ -1158,8 +1126,6 @@ pub struct PageAttachRequest {
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3163,14 +3129,13 @@ pub enum SessionLifetime {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
+    /// Omit for independent state; use "new" or a returned Group<number> ID to share.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub new_group: Option<bool>,
+    pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lifetime: Option<SessionLifetime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
@@ -3217,7 +3182,7 @@ pub enum ViewportPreset {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HttpRuleAction {
-    Reset,
+    Notification,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3349,21 +3314,6 @@ pub struct SessionListData {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionData {
     pub session: Session,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reused_group: Option<bool>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ResetData {
-    pub reset_group_ids: Vec<String>,
-    pub replacements: Vec<GroupReplacement>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct GroupReplacement {
-    pub old_group_id: String,
-    pub group_id: String,
-    pub session_ids: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3455,24 +3405,14 @@ fn is_false(value: &bool) -> bool {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
     pub id: String,
-    pub group_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
     pub created_at: i64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DeletedData {
     pub deleted_id: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ClosedSessionGroupData {
-    pub group: String,
-    pub deleted_ids: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct SessionGroupCloseRequest<'a> {
-    group: &'a str,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3584,19 +3524,12 @@ mod tests {
     use std::thread::{self, JoinHandle};
 
     #[test]
-    fn reset_results_preserve_replacement_group_and_session_ids() {
-        let data: ResetData = serde_json::from_value(json!({
-            "reset_group_ids":["Group9"],
-            "replacements":[{"old_group_id":"Group1","group_id":"Group9",
-                "session_ids":{"Session1":"Session20","Session2":"Session21"}}]
-        }))
-        .unwrap();
-        assert_eq!(data.reset_group_ids, ["Group9"]);
-        assert_eq!(data.replacements[0].session_ids["Session2"], "Session21");
+    fn notification_rules_have_no_reset_action() {
         assert_eq!(
-            serde_json::to_value(&data).unwrap()["replacements"][0]["old_group_id"],
-            "Group1"
+            serde_json::to_value(HttpRuleAction::Notification).unwrap(),
+            "notification"
         );
+        assert!(serde_json::from_value::<HttpRuleAction>(serde_json::json!("reset")).is_err());
     }
 
     #[test]
@@ -4981,14 +4914,25 @@ mod tests {
     }
 
     #[test]
+    fn independent_sessions_omit_group_membership() {
+        let session: Session =
+            serde_json::from_value(json!({"id":"Session1", "created_at":1})).unwrap();
+        assert_eq!(session.group_id, None);
+        assert!(serde_json::to_value(session)
+            .unwrap()
+            .get("group_id")
+            .is_none());
+    }
+
+    #[test]
     fn session_create_serializes_explicit_group_creation() {
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
-                new_group: Some(true),
+                group_id: Some("new".into()),
                 ..Default::default()
             })
             .unwrap(),
-            json!({"new_group":true})
+            json!({"group_id":"new"})
         );
     }
 
@@ -5000,20 +4944,19 @@ mod tests {
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
-                group: Some("pgm".to_string()),
+                group_id: Some("new".into()),
                 profile: Some("BandwidthSaver".to_string()),
                 proxy_alias: Change::Clear,
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"group":"pgm", "profile":"BandwidthSaver", "proxy_alias":null})
+            json!({"group_id":"new", "profile":"BandwidthSaver", "proxy_alias":null})
         );
         let mut capture = CaptureRequest::new("https://example.com");
-        capture.group = Some("pgm".to_string());
         capture.profile = Some("AdBlock".to_string());
         assert_eq!(
             serde_json::to_value(capture).unwrap(),
-            json!({"url":"https://example.com", "profile":"AdBlock", "group":"pgm"})
+            json!({"url":"https://example.com", "profile":"AdBlock"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
@@ -5182,7 +5125,7 @@ mod tests {
 
     #[test]
     fn every_ordinary_rpc_method_uses_the_v1_route_and_typed_envelope() {
-        let (base_url, server) = start_test_server(39, |index, request| {
+        let (base_url, server) = start_test_server(37, |index, request| {
             let request_id = format!("req_{index}");
             let data = match (request.method.as_str(), request.path.as_str()) {
                 ("GET", "/v1/health") => json!({
@@ -5260,7 +5203,6 @@ mod tests {
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
                 | ("PATCH", "/v1/proxies/office") => json!({"proxy":proxy_json()}),
-                ("POST", "/v1/reset") => json!({"reset_group_ids":[],"replacements":[]}),
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }
@@ -5276,9 +5218,6 @@ mod tests {
                 }
                 ("POST", "/v1/sessions/machine-a.Session1/play") => {
                     json!({"session_id":"machine-a.Session1", "network_paused":false})
-                }
-                ("POST", "/v1/sessions/close") => {
-                    json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
                 }
                 ("GET", "/v1/sessions") => json!({"sessions":[session_json()]}),
                 ("GET", "/v1/sessions/machine-a.Session1")
@@ -5417,7 +5356,6 @@ mod tests {
             )
             .unwrap();
         client.delete_proxy("office").unwrap();
-        client.reset_profile("Research").unwrap();
         client
             .export_proxy_transfer(&ProxyTransferExportRequest {
                 alias: "office".to_string(),
@@ -5434,7 +5372,10 @@ mod tests {
             .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
-        assert_eq!(sessions.data.sessions[0].group_id, "Group1");
+        assert_eq!(
+            sessions.data.sessions[0].group_id.as_deref(),
+            Some("Group1")
+        );
         client.get_session("machine-a.Session1").unwrap();
         client
             .create_session(&SessionCreateRequest::default())
@@ -5503,8 +5444,6 @@ mod tests {
         assert!(!playing.data.network_paused);
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
-        let closed = client.close_session_group("pgm").unwrap();
-        assert_eq!(closed.data.deleted_ids, ["machine-a.Session1"]);
         let models = client.model_providers().unwrap();
         assert_eq!(
             models.data.model_directories["local-model"],
@@ -5551,7 +5490,6 @@ mod tests {
                 ("POST", "/v1/proxies"),
                 ("PATCH", "/v1/proxies/office"),
                 ("DELETE", "/v1/proxies/office"),
-                ("POST", "/v1/reset"),
                 ("POST", "/v1/proxy-transfers/export"),
                 ("POST", "/v1/proxy-transfers/import"),
                 ("GET", "/v1/sessions"),
@@ -5568,13 +5506,8 @@ mod tests {
                 ("POST", "/v1/sessions/machine-a.Session1/pause"),
                 ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
-                ("POST", "/v1/sessions/close"),
                 ("GET", "/v1/model-providers"),
             ]
-        );
-        assert_eq!(
-            serde_json::from_str::<Value>(&requests[37].body).unwrap(),
-            json!({"group":"pgm"})
         );
         assert_eq!(
             serde_json::from_str::<Value>(&requests[3].body).unwrap(),
@@ -5621,15 +5554,15 @@ mod tests {
             json!({"username":null})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[21].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[20].body).unwrap(),
             json!({"alias":"office","include_credentials":false})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[22].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[21].body).unwrap(),
             json!({"contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==","alias":"backup"})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[27].body).unwrap(),
             json!({
                 "name":"Research",
                 "viewport_preset":"desktop",
@@ -5641,11 +5574,11 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[29].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[28].body).unwrap(),
             json!({"includes_cookies":true,"includes_passwords":true})
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[30].body).unwrap(),
             json!({
                 "name":"Research",
                 "include_cookies":false,
@@ -5654,14 +5587,14 @@ mod tests {
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[31].body).unwrap(),
             json!({
                 "contents_base64":"U1FMaXRlIGZvcm1hdCAzAA==",
                 "name":"Research Copy"
             })
         );
         assert_eq!(
-            serde_json::from_str::<Value>(&requests[33].body).unwrap(),
+            serde_json::from_str::<Value>(&requests[32].body).unwrap(),
             json!({"proxy_alias":null})
         );
     }

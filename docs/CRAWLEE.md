@@ -11,6 +11,10 @@ JavaScript, cookie, and network APIs outside REL's supported surface. Changing
 its browser plugin alone does not make it compatible. See
 [Crawlee's extension guide](https://crawlee.dev/python/docs/guides/extending-crawlee).
 
+Sessions created by this adapter are independent by default. The optional
+`group_id` creation option deliberately shares state: use `"new"` to create a
+shared owner or a returned `Group<ID>` to join existing state.
+
 ## Install
 
 Requirements: macOS with REL running, Python 3.11 or newer, and a saved REL
@@ -116,7 +120,6 @@ unawaited background tasks that retain `context.page` after a handler returns.
 In fresh-session mode, adapter-created sessions are deleted after each attempt,
 including its error handlers.
 `persist=True` retains them for inspection, including sessions from failed
-attempts. `group="my-crawl"` makes those retained sessions easy to find and close.
 REL Profile snapshots do not synchronize storage between newly created sessions.
 
 ## Optional session pool
@@ -215,7 +218,7 @@ under sustained load.
 Crawlee owns request retries. Retryable REL errors and handler failures consume
 `max_request_retries`. Nonretryable REL errors and unsupported operations fail
 without retrying. HTTP 4xx statuses fail without retries; HTTP 5xx statuses use
-the request retry budget. Automatic block detection, session reset, and
+the request retry budget. Automatic block detection, session replacement, and
 `Retry-After` behavior are not provided.
 
 `navigation_timeout` accepts a positive `datetime.timedelta` and defaults to
@@ -277,7 +280,7 @@ accessing an installed app.
 For maintainers, the explicit runtime verifier creates local HTML and proxy
 fixtures. First build/open the worktree's RELDebug and verify its staged build ID.
 Pass its bundled CLI and its assigned endpoint; the verifier requires Debug
-health and the exact build ID before creating uniquely grouped test resources:
+health and the exact build ID before creating uniquely named test resources:
 
 ```sh
 .venv/bin/python crawlee/tests/verify_runtime.py \

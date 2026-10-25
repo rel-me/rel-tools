@@ -2,56 +2,23 @@
 
 ## Profiles, groups, and sessions
 
-A **Profile** is a reusable configuration template, optionally with initial
-browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
-configuration (or standalone Custom settings). Each **Session** is a tab in one
-group and receives a separate `Session<ID>`, with its own URL, navigation history,
-browser view, and automation target.
+A **Profile** is a reusable configuration template. Every new **Session**
+(`Session<ID>`) owns independent browser state by default, including cookies,
+site storage, cache, browser identity, and proxy routing. Sessions created from
+the same Profile remain isolated. Editing a Profile affects future sessions.
 
-Sessions in a group share cookies, site storage, private HTTP cache, configuration,
-browser identity, and proxy routing. Different groups remain isolated even when
-created from the same Profile. Create a session in an existing group to use its
-current configuration and live browser state, or create a new group and its first
-session. Joining an existing group does not reread or reseed the Profile.
+For deliberate state sharing, create a session with `group_id: "new"`, then
+create additional sessions with its returned `group_id` (`Group<ID>`).
+Joining an existing group accepts only `group_id` and uses its current state
+and configuration. Each member retains its own URL and navigation history.
 
-Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
-rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
-configuration when available; otherwise it copies configuration without data.
-It imports only explicitly configured Profile cookies, never saved passwords,
-cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
+Use Session IDs for all browser, configuration, and deletion operations.
+Configuration changes through a shared member affect its shared state owner.
+A session response includes `group_id` only for explicit sharing. Delete members
+individually; deleting the final member removes the shared browser state.
+There are no reset operations. Close a session and create another when clean
+state or updated Profile configuration is needed.
 
-See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
-the current wire identities and explicit creation behavior.
-
-The recommended CLI is the `rel` binary bundled in the installed REL app and
-linked from a writable directory already in `PATH`. Use **REL → Settings… →
-General → Install Command Line** to create the link. If no safe destination is
-available, REL leaves the filesystem unchanged so you can create the link
-manually. The matching public client can also be installed from source:
-
-```sh
-cargo install --git https://github.com/rel-me/rel-tools \
-  --tag v0.1.1 \
-  --package rel-cli
-```
-
-The CLI is a thin client built on the typed [`rel-client`](SDK.md)
-Rust crate. Ordinary user-facing commands map to [RPC v1](RPC.md) operations;
-`rel read` and the profile/proxy transfer commands are bounded client-side
-compositions of those operations. The standalone `rel-mcp` binary adapts a
-focused subset of the same operations to stdio MCP; neither client implements
-another browser or reads application data directly.
-
-Related documents: [Actions](ACTIONS.md), [MCP](MCP.md), [SDK](SDK.md), and
-[RPC](RPC.md).
-
-When session creation omits a profile, REL uses **Settings → General → Default
-Profile**, or **Custom** if the preference is unset. Explicit profile choices
-always take precedence.
 
 ## App discovery
 
@@ -85,7 +52,6 @@ rel proxy get ALIAS
 rel proxy create --alias ALIAS --upstream-host HOST --upstream-port PORT [options]
 rel proxy update ALIAS [options]
 rel proxy delete ALIAS
-rel reset --profile NAME
 rel proxy export ALIAS [--output PATH]
 rel proxy import FILE [--alias ALIAS]
 rel profile list
@@ -99,7 +65,6 @@ rel session update SESSION_ID [options]
 rel session pause SESSION_ID
 rel session play SESSION_ID
 rel session delete SESSION_ID
-rel session close --group GROUP
 rel-mcp
 rel --help | -h
 rel --version
@@ -483,7 +448,6 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
 | `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set, then the newest existing session. Create a persistent session only when none exists. |
 | `--profile NAME` | `profile` | Create the session from this saved profile. Conflicts with `--session-id` and suppresses both implicit defaults. |
-| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses both implicit defaults. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
@@ -492,7 +456,7 @@ Exactly one URL is required before the options. Scheme-less localhost
 addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
-When `--session-id`, `--profile`, and `--group` are omitted, the CLI uses
+When `--session-id` and `--profile` are omitted, the CLI uses
 `REL_SESSION_ID` if it is set, then the newest existing session. The environment
 variable is exported automatically by each embedded session terminal. An
 explicit option always wins. If neither the environment variable nor an
@@ -555,7 +519,7 @@ rel page attach https://example.com \
 ```
 
 `page attach` accepts `--session-id`, `--profile`, `--proxy`, `--output`,
-`--timeout`, and `--wait`. It also accepts `--group` when creating a session.
+`--timeout`, and `--wait`.
 `--profile` conflicts with `--session-id`; either creation option suppresses
 both implicit defaults. Otherwise the CLI uses `REL_SESSION_ID` when set, then
 the newest existing session. Its positional URL defaults to `REL_SESSION_URL`
@@ -615,11 +579,6 @@ rel proxy update office --clear-oxylabs-location
 An update requires at least one mutable option. The clear options send explicit
 JSON `null` values instead of omitting their fields.
 
-Reset all existing tab groups created from a Profile:
-
-```sh
-rel reset --profile Research
-```
 
 Export or import a proxy transfer file:
 
@@ -701,133 +660,21 @@ They are limited to 12 MiB. Legacy JSON transfer files are not accepted.
 
 ## Sessions
 
-Read, control, and delete persistent browser sessions by their canonical IDs:
-
 ```sh
 rel session list
+rel session create --profile Research --lifetime indefinite --id-only
 rel session get Session12
+rel session update Session12 --name Research-2 --adblock-enabled false
+rel session ping Session12
 rel session pause Session12
 rel session play Session12
 rel session delete Session12
 ```
 
-Session listing and creation return `{id, group_id, created_at}` for each tab.
-Names and profile settings belong to the group identified by `group_id`.
-
-```sh
-rel session create --profile RYM
-rel session create --profile RYM --name RYM
-```
-
-With only a saved profile and optional name, creation adds a new session to the
-oldest matching profile group, preserving its current settings, storage, cookies,
-and lifetime. A name constrains the group selection case-insensitively. Without
-a matching group, REL creates one. Other configuration options create a new group.
-Creation preserves existing sessions. Use the returned `data.session.id` with
-`--session-id` to target that exact tab; a closed tab reports `SESSION_NOT_FOUND`.
-
-`--id-only` changes successful output to the new canonical
-session ID and a trailing newline instead of the JSON response envelope. Errors
-remain on standard error with the ordinary nonzero exit status.
-
-An unsuccessful create response without a session ID does not prove that no
-session was created. REL can commit the session before Chromium synchronization
-times out. Stop the workflow, retain the error, and use `rel session list` to
-inspect the exact name and group owned by your workflow before deciding how to
-recover. Do not blindly retry creation. In automated evals, record this setup
-failure separately from model answer correctness and efficiency.
-
-After a successful create, that session is the newest session and therefore the
-default for later CLI commands. Creating or deleting sessions in another shell
-can change this default; use `REL_SESSION_ID` or `--session-id` to pin concurrent
-workflows.
-
-New sessions close after 120 seconds of client inactivity by default. Use
-`--lifetime` at creation to select another timeout or `indefinite`, and
-`rel session ping SESSION_ID` to keep an idle session alive.
-
-`pause` idempotently cancels active requests and blocks new network work for
-the session. `play` idempotently resumes network activity and reloads the
-current page when the pause interrupted or deferred navigation. Both commands
-return the RPC envelope with `data.session_id` and `data.network_paused`.
-
-When a new URL is submitted, REL covers the existing page until the new document
-finishes loading. Cancelling before the new document commits restores the previous
-URL and its live page state without reloading. Pausing during this interval also
-restores that page, and playing resumes networking without reloading it. Once the
-new document commits, the previous document can no longer be restored this way.
-
-Close every session in a group. Repeating the command after the group is empty
-succeeds and returns an empty `data.deleted_ids` array:
-
-```sh
-rel session close --group pgm
-```
-
-If session deletion returns a nonzero exit status, treat cleanup as unconfirmed
-and retain the error. A later list showing no session does not establish that
-its browser storage and active operations were cleaned up. In automated evals,
-record cleanup failures separately from answer correctness and efficiency.
-
-Partially update a session:
-
-```sh
-rel session update Session12 --name Research-2 --adblock-enabled false
-```
-
-`--direct` sends `proxy_alias:null`, selecting direct networking during creation.
-A group's proxy assignment and browser identity are fixed at creation. An update
-that attempts to switch the proxy fails without applying other fields. Create a
-new group to use different proxy or identity settings. Session name and filtering
-policy remain mutable; the canonical session ID is immutable.
-
-A proxy can be updated while tab groups use it. Updated settings apply to new
-connections without clearing browser data or reloading pages. The app's proxy
-editor offers saving with or without resetting affected sessions. Deleting an
-in-use proxy remains blocked until no group uses it.
-
-### Proxy TLS certificates
-
-```sh
-rel proxy update bright-data --upstream-host brd.superproxy.io --upstream-port 44445 --tls bright-data
-rel proxy update office --ca-cert ./company-root-ca.pem
-rel proxy update office --tls system
-```
-
-`proxy create` and `proxy update` accept `--locale BCP47`, for example
-`--locale fr-CA`, to configure the language/locale used by Automatic privacy
-settings for that proxy. `proxy update ALIAS --clear-locale` removes it; omission
-preserves it. Country settings alone never select a language. Private uses
-Automatic: an explicit Custom identity locale wins, then the proxy locale, then
-the macOS user's preferred/default locale. A value matching native Chromium
-requires no override.
-
-Both `proxy create` and `proxy update` accept either `--tls system|bright-data` or `--ca-cert PATH`. These options are mutually exclusive. The CLI reads a PEM CA bundle locally and sends its contents, not its path. The agent validates CA certificates and limits bundles to 1–16 certificates and 64 KiB. Omission on create uses system trust; omission on update preserves the current setting. Additional roots apply only to sessions assigned to that proxy. A TLS setting change applies automatically in empty browsers; affected browsers with page state show a banner. The user chooses Reload to apply it; storage and logins remain intact.
-
-### Database recovery reports
-
-`rel health` includes `data.database_recovery` when the agent has a committed
-upgrade or recovery report. Its local `report_path` identifies the detailed
-report and `backup_path` identifies the original SQLite snapshot. See
-[database recovery](APP.md#database-migration-and-recovery) before repairing
-quarantined data.
-
-### Session inactivity and ping
-
-Sessions close after 120 seconds of client inactivity by default. Set the
-inactivity timeout when creating a session, or explicitly choose an indefinite
-lifetime:
-
-```sh
-rel session create --lifetime 300 --id-only
-rel session create --lifetime indefinite --id-only
-rel session ping Session1
-```
-
-`--lifetime` accepts positive integer seconds or `indefinite`. Session commands
-and browser work refresh activity; session listing does not. Send `session ping`
-periodically while a client is idle (for example every 30 seconds for the default
-lifetime). Ping performs no browser action and cannot reopen a closed session.
+Creation defaults to independent browser state. `--group-id new` explicitly
+creates shared state; `--group-id Group1` creates a member using that group's
+current state and accepts no configuration overrides. Profile edits affect
+future sessions. Close and create a session when fresh state is required.
 
 ## License activation
 
@@ -884,19 +731,3 @@ response acknowledges the request with `state: "requested"`, the selected
 is available or installed. Network errors and update availability appear in the
 native updater. If this build has no update feed/signing key, or an update is
 already running, the command returns a structured error and exits with status 1.
-
-## Reset
-
-```sh
-rel reset --profile=Research
-```
-
-Reset every existing group created from the named Profile. REL stops its
-browsers and recreates the group and sessions with fresh IDs and clean storage,
-applies the current Profile configuration, and imports only explicitly configured
-cookies. Saved passwords and other browser state are discarded. Last URLs remain
-unloaded. Results contain new `data.reset_group_ids` and `data.replacements`, with
-`old_group_id`, `group_id`, and an old-to-new `session_ids` mapping. Update later
-commands to the returned IDs. This works with any proxy or no proxy. No existing
-
-groups returns an empty list. Unknown Profiles and reset failures return errors.
