@@ -1,24 +1,18 @@
 # REL RPC v1
 
-## Profiles, groups, and sessions
+## Profiles and Sessions
 
 A **Profile** is a reusable configuration template. Every new **Session**
-(`Session<ID>`) owns independent browser state by default, including cookies,
-site storage, cache, browser identity, and proxy routing. Sessions created from
-the same Profile remain isolated. Editing a Profile affects future sessions.
+(`Session<ID>`) owns independent browser state by default, even when created
+from the same Profile. Use Session IDs for browser work, configuration, and
+closure. Editing a Profile affects future Sessions; existing state is retained.
+There are no browser reset operations. Reapplying a Profile's complete current
+configuration to existing state is not yet supported; Session updates cover only
+the fields documented for that operation.
+Projects currently have no dedicated RPC resources or creation selector;
+manage them in the native app.
 
-For deliberate state sharing, create a session with `group_id: "new"`, then
-create additional sessions with its returned `group_id` (`Group<ID>`).
-Joining an existing group accepts only `group_id` and uses its current state
-and configuration. Each member retains its own URL and navigation history.
-
-Use Session IDs for all browser, configuration, and deletion operations.
-Configuration changes through a shared member affect its shared state owner.
-A session response includes `group_id` only for explicit sharing. Delete members
-individually; deleting the final member removes the shared browser state.
-There are no reset operations. Close a session and create another when clean
-state or updated Profile configuration is needed.
-
+Advanced explicit sharing is described in [Session creation](#advanced-shared-state).
 
 ## Transport
 
@@ -188,10 +182,9 @@ available; the original Chromium error still remains in the message.
 ### Free and Pro access
 
 The running app selects the agent's access plan; RPC callers cannot override it.
-REL Free permits up to two tab groups with two Sessions each (four Sessions
-total), one custom Profile, and one Proxy. Creating a third tab group returns
-`PRO_REQUIRED`; adding a third Session to an existing group also returns
-`PRO_REQUIRED` from the app bridge. These limits apply to both native and
+REL Free permits two independent Sessions, one custom Profile, and one Proxy.
+Explicit sharing permits two groups of two Sessions each (four total). Creating
+a third independent Session or a third shared member returns `PRO_REQUIRED`. These limits apply to both native and
 automated creation. Closing resources frees capacity; existing groups and
 Sessions are preserved after a downgrade. Additional custom Profiles or Proxies
 return `PRO_REQUIRED`; existing Proxy use, update, rotation, and assignment remain
@@ -233,7 +226,6 @@ available.
 | `POST` | `/v1/proxy-transfers/import` | Import a versioned proxy transfer |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
-| `POST` | `/v1/sessions/close` | Close every browser session in a group |
 | `GET` | `/v1/profiles` | List saved session configurations |
 | `POST` | `/v1/profiles` | Create a custom session profile |
 | `PATCH` | `/v1/profiles/{id}` | Update custom-profile browser-data availability |
@@ -241,6 +233,7 @@ available.
 | `POST` | `/v1/profile-transfers/export` | Export a versioned profile transfer |
 | `POST` | `/v1/profile-transfers/import` | Import a versioned profile transfer |
 | `GET` | `/v1/sessions/{id}` | Read one browser session |
+| `PATCH` | `/v1/sessions/{id}` | Update supported live Session settings |
 | `POST` | `/v1/sessions/{id}/ping` | Refresh session inactivity without browser work |
 | `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
 | `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
@@ -257,7 +250,7 @@ direct database or log-file command path.
 The bundled `rel-mcp` adapter also calls this API only through `rel-client`. It
 maps fourteen MCP tools to status, opt-in website notifications, bounded
 semantic reading, HTML and image
-capture, page attachment and actions, observations, session-group closing, and
+capture, page attachment and actions, observations, Session closure, and
 session and proxy listing.
 MCP does not add an HTTP `/mcp` route or another response shape to RPC v1. See
 [MCP](MCP.md) for its stdio lifecycle and result wrapping.
@@ -475,8 +468,8 @@ pages. When `session_id` is supplied, `navigate` selects and updates that
 session's current shorthand page; `perform` and singular `capture` target it.
 For multiple independent crawls, create a session for each crawl and pass its
 returned `session.id` as `session_id` on every navigation, action, observation,
-and capture. Creation may reuse a compatible group, but each returned tab ID is
-distinct and remains bound to that tab when siblings are created or selected.
+and capture. Creation allocates independent state; each returned tab ID remains
+bound to that tab when other Sessions are created or selected.
 Keep staged operations within one tab sequential so another request to that same
 tab cannot change its page between stages. Separate tabs may run independently.
 `PAGE_MISMATCH` is retryable: refresh the page binding with `POST /v1/capture`
@@ -686,7 +679,6 @@ semantic content remains readable. The process-local registry retains at most
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
 | `profile` | Optional saved profile name for the newly created session. It cannot be combined with `session_id`; omission uses the configured default or Default. |
-| `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
 | `retry_delay` | Finite seconds 0 through 86400; default 3. |
@@ -747,8 +739,7 @@ code 1; it is not an API error.
 ```
 
 Omitting `session_id` creates a session from the named `profile`, or from
-the configured default (Default when unset) when it is absent, and navigates it to `url`. `profile` and `group`
-cannot be combined with `session_id`. Providing an
+the configured default (Default when unset) when it is absent, and navigates it to `url`. `profile` cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
 
@@ -1084,16 +1075,22 @@ independent state, even when `profile` and `name` match an existing session.
 {"profile":"Research","lifetime":{"type":"indefinite"}}
 ```
 
-For explicit shared state, create with `{"profile":"Research","group_id":"new"}`.
-Then join using only `{"group_id":"Group1"}`. The returned session's `group_id`
-identifies that shared state. Other configuration fields cannot accompany a join.
-
 `GET /v1/sessions/Session1` reads a session; `PATCH` updates mutable settings,
 which apply to all explicit group members. `PUT /v1/sessions/Session1/fingerprint`
 changes its browser identity. `POST` to `/pause` or `/play` controls networking;
 `POST` to `/ping` refreshes inactivity. `DELETE /v1/sessions/Session1` closes that
 session and returns `deleted_id` plus remaining members in `sessions`.
 Deleting the final member removes its state; no replacement session is created.
+
+### Advanced shared state
+
+For explicit shared state, create with `{"profile":"Research","group_id":"new"}`.
+Then join using only `{"group_id":"Group1"}`. The returned session's `group_id`
+identifies that shared state. Other configuration fields cannot accompany a join.
+
+Sharing is optional. Each member keeps its own navigation and Session ID, while
+configuration and browser storage are shared. Keep normal browser calls addressed
+to Session IDs; there is no group-management resource or reset endpoint.
 
 ## Profiles
 
@@ -1162,8 +1159,8 @@ A profile resource is:
   the Private template. Set it to `null` for native Chromium identity.
 - `color` is an opaque `#RRGGBB` Profile color. Creation assigns a random color
   from REL's 100-color muted palette when omitted; omission on update preserves
-  the current color. Color changes update explicit Group capsules immediately
-  without changing any browser state.
+  the current color. The app shows the color square beside the Profile name;
+  editing it does not change browser state.
 - `viewport_preset` is optional: `null` (App Default), `fitWindow`, `desktop`
   (1440w), `wideLaptop` (1280w), `laptop` (1024w), `tablet` (768w), or `mobile`
   (320w). `POST /v1/profiles` stores the default for new sessions. On
@@ -1588,9 +1585,9 @@ Visiting a new page after going Back discards that tab's forward branch.
 
 The bridge captures URL-only entries from Chromium's navigation controller and
 saves them with the tab in the workspace. Each record contains at most 1,000
-entries and includes its current position. Existing single-tab Sessions retain
-their stored history when first opened as a group. Clearing a group's browsing
-data clears history for all its tabs. Popup history, form values, POST bodies,
+entries and includes its current position. Explicitly shared Sessions still keep
+separate navigation histories; clearing their shared browser data affects all
+members. Popup history, form values, POST bodies,
 and scroll positions are not restored across restarts. Saved URLs never include
 embedded credentials.
 

@@ -60,7 +60,7 @@ choices are preserved while the global switch is off:
 
 - **User input required** alerts for detected reCAPTCHA, hCaptcha, Turnstile,
   verification-code fields, and website permission requests. Open the affected
-  group to respond. REL waits briefly for automatic browser checks to resolve
+  Session to respond. REL waits briefly for automatic browser checks to resolve
   and avoids repeated input alerts on the same page.
 
 Detection is heuristic. Loading a provider's script alone does not trigger an
@@ -90,14 +90,14 @@ Choose **Fit Window** to use the available space, or **App Default** to inherit
 the viewport configured in Settings. Background Sessions retain their selected
 width and last visible height.
 
-The group has one bottom panel shared by all of its sessions. Switching tabs
+Each Session has a bottom panel; explicitly shared Sessions share its state. Switching tabs
 preserves its visibility, expansion, selected tool, and log filters. Its tabs are
 **Overview**, **Site Data**, **Filters**, **Logs**, and **Terminal**. Actions are
 managed outside the bottom panel.
 
 The bottom panel floats over the page. Opening, resizing, and expanding it leave
 the page viewport unchanged. Changes in **Filters** apply immediately to all
-sessions in the group without resetting them. They affect subsequent requests;
+explicitly shared members while preserving their browser state. They affect subsequent requests;
 already loaded page content stays in place.
 
 ## Quitting REL
@@ -342,10 +342,10 @@ events are not stored for retry.
 
 ## Free and Pro
 
-REL Free does not require registration. It includes up to two tab groups with
-two Sessions each (four Sessions total), one scheduled prompt, one custom Profile,
-one configured AI model provider, and one Proxy. Creating a third tab group or a third Session within a group requires
-REL Pro. Closing a Session or tab group frees its capacity. The same limits apply
+REL Free does not require registration. It includes two independent Sessions,
+one scheduled prompt, one custom Profile, one configured AI model provider, and
+one Proxy. Explicit sharing permits two groups of two Sessions each (four total).
+Creating beyond those limits requires REL Pro. Closing a Session frees capacity. The same limits apply
 to sessions created through the CLI, MCP, RPC, and Rust SDK.
 
 REL Pro costs $3.99 per month. Register the license in **REL → Settings… → Plan** to
@@ -426,8 +426,8 @@ files keep changing during capture, REL asks you to retry the import.
 
 ### Cookie files
 
-Open the group's **Site Data** tab to import or export cookies. Cookies belong
-to the shared group storage. When cookies span more than one domain, use the
+Open the Session's **Site Data** tab to import or export cookies. Explicitly
+shared Sessions use the same cookie storage. When cookies span more than one domain, use the
 domain selector to show one domain or **All Domains**. The cookie search applies
 within the selected domain.
 **Export…** saves all cookies in that Session, including cookies hidden by the
@@ -481,16 +481,14 @@ does not require recreating proxies or importing them again. Earlier app version
 cannot open the upgraded database.
 
 The toolbar **(+) → New Session from Profile** submenu lists saved Profiles.
-Selecting a Profile opens a tab in its existing group, or creates the group with
-its settings and browser data when absent. The submenu appears only when saved Profiles exist.
+Selecting a Profile creates a Session with independent browser state copied
+from that Profile. The submenu appears only when saved Profiles exist.
 
 Use **File → Create Session from Profile** (Option-Command-T) to choose settings
 before creation or copy a saved Profile’s browser data. This form starts with
-**Custom** and shows the Profile picker only
-when saved Profiles exist. Selecting a Profile with an existing group shows
-**Open Tab** and explains that its current settings, cookies, and logins will be reused.
-New-group settings and setup inputs are hidden for that selection. When no matching
-group exists, its configuration loads into the form and can be edited before creation. AdBlock,
+**Custom** and shows the Profile picker when saved Profiles exist. Selecting a
+Profile loads its configuration into the draft; it does not join an existing
+Session. Sharing requires an explicit Browser State choice. AdBlock,
 Browser Identity, Proxy, Image Blocking, and Browser Data share one section
 with equal-height setting rows. Choosing **Custom Privacy** in Create Session
 opens a separate editor; **Use Identity** applies it to the draft and **Cancel**
@@ -1518,23 +1516,18 @@ RPC `payload` option. See Meta's
 
 ## Browser configuration changes
 
-A tab group's proxy assignment and browser identity are fixed at creation.
-Every tab in that group shares them. In the sidebar, each group header shows its
-tab count and a **Group Info** button. Its popover displays the proxy, Browser
-Identity, and shared cookies/login behavior, with a **New Tab** action for that
-group. **Group Info** is also available in the group's context menu. Proxy and
-identity displays are absent from the page toolbar. Overview's User-Agent is
-read-only and retains its copy action. Existing saved overrides still restore.
-To use a different proxy or
-identity, create a new Custom group with the desired settings.
+A Session copies its Profile's configuration at creation. Ordinary Profile edits
+apply to future Sessions. AdBlock and media filtering can be updated for an open
+Session; explicitly shared members receive the same configuration changes.
+Proxy changes are currently rejected, and the app does not offer full Profile
+configuration reapply. Reapply should preserve existing browser state; closing
+and recreating a Session is not equivalent. There are no browser reset actions.
 
-Editing a saved Profile changes the template for future groups. It does not
-replace an existing group's identity or proxy assignment.
-
-A saved proxy cannot be edited or deleted while a group uses it. Create a new
-proxy for different routing, credentials, provider targeting, or certificate
-trust settings. Deleting a proxy never switches an existing group to direct
-networking. After deleting all groups that use a proxy, you can edit or delete it.
+Inspect the Session's configuration in **Overview**. Its User-Agent is read-only
+and retains its copy action. A saved proxy cannot be edited or deleted while
+in use; create another proxy for different routing, credentials, targeting, or
+trust settings. Removing a proxy never silently switches a Session to direct
+networking.
 
 ## Proxy certificate trust
 
@@ -1544,7 +1537,7 @@ In **Settings → Proxies**, create or edit a proxy and choose **HTTPS Certifica
 - **Bright Data certificate** adds REL's bundled Bright Data root CA for `brd.superproxy.io:44445`. Creating a proxy with the Bright Data type preselects this option; an existing proxy requires an explicit change.
 - **Custom certificate** imports a PEM bundle or DER CRT file. REL saves the certificate contents with the proxy, so the original file is no longer needed. PEM bundles may contain 1–16 CA certificates, up to 64 KiB; private keys and website leaf certificates are rejected.
 
-Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Certificate settings cannot be changed while a group uses that proxy. Create a new proxy and group to use different trust settings.
+Additional CAs are trusted only in REL sessions using that proxy. They permit the proxy provider to inspect those sessions' HTTPS traffic. Hostnames, expiry dates, and certificate chains remain checked for pages and subresources. REL never installs these roots in Keychain or disables TLS verification. Certificate settings cannot be changed while a Session uses that proxy. Create a new proxy and Session to use different trust settings.
 
 CLI/RPC proxy and profile archives preserve certificate settings. Settings curl transfers omit custom certificates. The import sheet identifies transfers that add a trusted proxy CA. Older transfer versions import with system trust.
 

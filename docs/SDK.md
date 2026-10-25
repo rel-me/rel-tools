@@ -1,24 +1,18 @@
 # REL Rust SDK
 
-## Profiles, groups, and sessions
+## Profiles and Sessions
 
 A **Profile** is a reusable configuration template. Every new **Session**
-(`Session<ID>`) owns independent browser state by default, including cookies,
-site storage, cache, browser identity, and proxy routing. Sessions created from
-the same Profile remain isolated. Editing a Profile affects future sessions.
+(`Session<ID>`) owns independent browser state by default, even when created
+from the same Profile. Use Session IDs for browser work, configuration, and
+closure. Editing a Profile affects future Sessions; existing state is retained.
+There are no browser reset operations. Reapplying a Profile's complete current
+configuration to existing state is not yet supported; Session updates cover only
+the fields documented for that operation.
+Projects currently have no dedicated client operations or creation selector;
+manage them in the native app.
 
-For deliberate state sharing, create a session with `group_id: "new"`, then
-create additional sessions with its returned `group_id` (`Group<ID>`).
-Joining an existing group accepts only `group_id` and uses its current state
-and configuration. Each member retains its own URL and navigation history.
-
-Use Session IDs for all browser, configuration, and deletion operations.
-Configuration changes through a shared member affect its shared state owner.
-A session response includes `group_id` only for explicit sharing. Delete members
-individually; deleting the final member removes the shared browser state.
-There are no reset operations. Close a session and create another when clean
-state or updated Profile configuration is needed.
-
+For advanced explicit sharing, see [Session creation](RPC.md#advanced-shared-state).
 
 ## Connect
 
@@ -533,9 +527,9 @@ flags after REL.app stages an import; no cookie or password values cross RPC.
 Re-importing a selected category replaces that category in the template.
 There are no built-in profiles. `ImageBlockingMode::None` allows every
 image without disabling AdBlock. Existing sessions retain copied settings and
-data after their source profile is changed or deleted. REL Free can create up to
-two tab groups with two Sessions each (four Sessions total) and one custom Profile; REL Pro removes those plan limits. A third group
-or a third Session within a group is rejected. Close resources to free capacity.
+data after their source profile is changed or deleted. REL Free can create two
+independent Sessions and one custom Profile. Explicit sharing permits two groups
+of two Sessions each (four total). REL Pro removes those plan limits. Close resources to free capacity.
 
 `ProfileCreateRequest::fingerprint_profile` uses `Change::Unchanged` to select
 the default compatibility template, `Change::Clear` for native Chromium, and
@@ -543,17 +537,15 @@ the default compatibility template, `Change::Clear` for native Chromium, and
 settings but generates a fresh seed whenever it creates a session from the
 profile. New configurations use Private; explicit native identity stays native.
 
-`Session::group_id` identifies the group that owns its shared configuration.
-The group resource exposes the source Profile name and browser-data template copied
-at creation, when any. `CaptureRequest`, `NavigateRequest`, and
-`PageAttachRequest` accept `profile` only when `session_id` is absent.
-`CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
-created session can join a group. Group matching is case-insensitive; closing
-an empty group succeeds with an empty `deleted_ids` vector.
+`Session` currently retains only `id`, optional `group_id`, and `created_at`.
+The server returns additional Profile/configuration fields, but this SDK type
+does not yet expose them. Optional membership describes explicit sharing only.
+`CaptureRequest`, `NavigateRequest`, and `PageAttachRequest` accept `profile`
+only when `session_id` is absent; they do not implicitly join shared state.
 
 `ProxyCreateRequest.locale: Option<String>` configures an optional BCP-47 locale
 for the proxy. `ProxyUpdateRequest.locale: Change<String>` supports set, clear,
-and unchanged. `Proxy.locale` and `Session.proxy_locale` return it. This preference is independent of any
+and unchanged. `Proxy.locale` and the RPC Session field `proxy_locale` return it. This preference is independent of any
 country selection, and travels with proxy/profile exports.
 
 `FingerprintProfile.chrome_version` optionally adds a Chrome identity. Set

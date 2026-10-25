@@ -1,24 +1,18 @@
 # REL MCP server
 
-## Profiles, groups, and sessions
+## Profiles and Sessions
 
 A **Profile** is a reusable configuration template. Every new **Session**
-(`Session<ID>`) owns independent browser state by default, including cookies,
-site storage, cache, browser identity, and proxy routing. Sessions created from
-the same Profile remain isolated. Editing a Profile affects future sessions.
+(`Session<ID>`) owns independent browser state by default, even when created
+from the same Profile. Use Session IDs for browser work, configuration, and
+closure. Editing a Profile affects future Sessions; existing state is retained.
+There are no browser reset operations. Reapplying a Profile's complete current
+configuration to existing state is not yet supported; Session updates cover only
+the fields documented for that operation.
+Projects currently have no dedicated client operations or creation selector;
+manage them in the native app.
 
-For deliberate state sharing, create a session with `group_id: "new"`, then
-create additional sessions with its returned `group_id` (`Group<ID>`).
-Joining an existing group accepts only `group_id` and uses its current state
-and configuration. Each member retains its own URL and navigation history.
-
-Use Session IDs for all browser, configuration, and deletion operations.
-Configuration changes through a shared member affect its shared state owner.
-A session response includes `group_id` only for explicit sharing. Delete members
-individually; deleting the final member removes the shared browser state.
-There are no reset operations. Close a session and create another when clean
-state or updated Profile configuration is needed.
-
+For advanced explicit sharing, see [Session creation](RPC.md#advanced-shared-state).
 
 ## Tool quick reference
 
@@ -398,8 +392,10 @@ observation and, for hybrid/visual mode, standard MCP image content.
 ### `rel_list_sessions`
 
 Calls `GET /v1/sessions` and accepts an empty object. The result lists every
-persistent browser session as `{id, group_id, created_at}`. Names, profiles,
-proxy assignments, and filtering settings belong to the group resource.
+persistent browser Session as `id`, optional `group_id`, and `created_at`.
+Independent Sessions omit membership. The underlying RPC also returns Profile
+and configuration fields, which the current typed adapter omits. There is no
+group resource.
 Listing sessions is passive and read-only.
 
 ### `rel_delete_session`

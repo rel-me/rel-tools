@@ -1,24 +1,18 @@
 # REL CLI
 
-## Profiles, groups, and sessions
+## Profiles and Sessions
 
 A **Profile** is a reusable configuration template. Every new **Session**
-(`Session<ID>`) owns independent browser state by default, including cookies,
-site storage, cache, browser identity, and proxy routing. Sessions created from
-the same Profile remain isolated. Editing a Profile affects future sessions.
+(`Session<ID>`) owns independent browser state by default, even when created
+from the same Profile. Use Session IDs for browser work, configuration, and
+closure. Editing a Profile affects future Sessions; existing state is retained.
+There are no browser reset operations. Reapplying a Profile's complete current
+configuration to existing state is not yet supported; Session updates cover only
+the fields documented for that operation.
+Projects currently have no dedicated client operations or creation selector;
+manage them in the native app.
 
-For deliberate state sharing, create a session with `group_id: "new"`, then
-create additional sessions with its returned `group_id` (`Group<ID>`).
-Joining an existing group accepts only `group_id` and uses its current state
-and configuration. Each member retains its own URL and navigation history.
-
-Use Session IDs for all browser, configuration, and deletion operations.
-Configuration changes through a shared member affect its shared state owner.
-A session response includes `group_id` only for explicit sharing. Delete members
-individually; deleting the final member removes the shared browser state.
-There are no reset operations. Close a session and create another when clean
-state or updated Profile configuration is needed.
-
+For advanced explicit sharing, see [Session creation](RPC.md#advanced-shared-state).
 
 ## App discovery
 
@@ -92,9 +86,9 @@ selected instead.
 Internal session synchronization and read-only resource commands do not change
 the selection.
 
-REL Free supports up to two tab groups with two Sessions each (four Sessions
-total), one custom Profile, and one Proxy. A third tab group or a third Session
-in a group requires Pro. Close a Session or group to free its capacity.
+REL Free supports two independent Sessions, one custom Profile, and one Proxy.
+Explicit sharing permits two groups of two Sessions each (four total). Creating
+beyond those limits requires Pro; close Sessions to free capacity.
 Mutations that require
 REL Pro fail with the non-retryable `PRO_REQUIRED` RPC error. Register Pro in
 **REL → Settings… → Plan** to remove these limits. Read and delete operations
@@ -312,11 +306,11 @@ The adapter accepts no MCP options; `--help` and `--version` are available for
 direct inspection. MCP clients normally launch it and own its
 stdin/stdout pipes rather than running it in an interactive terminal. It
 supports current `2026-07-28` discovery and legacy initialization through
-`2025-11-25`, and exposes exactly fourteen tools: `rel_status`,
+`2025-11-25`, and exposes sixteen tools: `rel_status`,
 `rel_notifications`, `rel_capture`,
 `rel_page_attach`, `rel_navigate`, `rel_read`, `rel_page_action`, `rel_take_screenshot`,
 `rel_observe`, `rel_find`, `rel_action`, `rel_list_sessions`,
-`rel_close_session_group`, and `rel_list_proxies`.
+`rel_delete_session`, `rel_create_session`, `rel_ping_session`, and `rel_list_proxies`.
 
 Every tool forwards through `rel-client` and RPC v1. Capture aggregates its
 validated NDJSON stream into `{request_id, exit_code, events}`. Tool results
