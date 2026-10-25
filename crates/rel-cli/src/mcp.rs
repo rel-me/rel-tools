@@ -1097,28 +1097,39 @@ fn handle_tool_call(
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
-        "rel_session_trace" | "rel_debug_state" | "rel_debug_bundle" => {
-            decode_arguments::<DiagnosticArguments>(arguments)
-                .and_then(|arguments| {
-                    ensure_runtime(ensure_agent_running)?;
-                    match name {
-                        "rel_session_trace" => client.session_trace(
-                            &arguments.session_id,
-                            arguments.after.as_deref(),
-                            arguments.limit.unwrap_or(200),
-                        ),
-                        "rel_debug_state" => client.debug_state(&arguments.session_id),
-                        _ => client.debug_bundle(
-                            &arguments.session_id,
-                            arguments.since_request_id.as_deref(),
-                            arguments.include_html.unwrap_or(false),
-                            arguments.include_screenshot.unwrap_or(false),
-                        ),
-                    }
+        "rel_session_trace" => decode_arguments::<SessionTraceArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .session_trace(
+                        &arguments.session_id,
+                        arguments.after.as_deref(),
+                        arguments.limit.unwrap_or(200),
+                    )
                     .map_err(client_error_value)
-                })
-                .and_then(to_json_value)
-        }
+            })
+            .and_then(to_json_value),
+        "rel_debug_state" => decode_arguments::<PingSessionArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .debug_state(&arguments.session_id)
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_debug_bundle" => decode_arguments::<DebugBundleArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .debug_bundle(
+                        &arguments.session_id,
+                        arguments.since_request_id.as_deref(),
+                        arguments.include_html.unwrap_or(false),
+                        arguments.include_screenshot.unwrap_or(false),
+                    )
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
         "rel_ping_session" => decode_arguments::<PingSessionArguments>(arguments)
             .and_then(|arguments| {
                 ensure_runtime(ensure_agent_running)?;
@@ -2137,7 +2148,7 @@ mod tests {
             CURRENT_PROTOCOL_VERSION
         );
         let tools = output[1]["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 16);
+        assert_eq!(tools.len(), 19);
         assert_eq!(tools[0]["name"], "rel_status");
         assert_eq!(tools[1]["name"], "rel_notifications");
         assert_eq!(tools[4]["name"], "rel_navigate");
@@ -2154,6 +2165,9 @@ mod tests {
         );
         assert_eq!(tools[14]["name"], "rel_ping_session");
         assert_eq!(tools[15]["name"], "rel_list_proxies");
+        assert_eq!(tools[16]["name"], "rel_session_trace");
+        assert_eq!(tools[17]["name"], "rel_debug_state");
+        assert_eq!(tools[18]["name"], "rel_debug_bundle");
         assert_eq!(output[1]["result"]["resultType"], "complete");
 
         let navigate = &tools[4]["inputSchema"];
@@ -3086,10 +3100,15 @@ struct PingSessionArguments {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct DiagnosticArguments {
+struct SessionTraceArguments {
     session_id: String,
     after: Option<String>,
     limit: Option<usize>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DebugBundleArguments {
+    session_id: String,
     since_request_id: Option<String>,
     include_html: Option<bool>,
     include_screenshot: Option<bool>,

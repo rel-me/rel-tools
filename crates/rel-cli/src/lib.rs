@@ -2124,6 +2124,26 @@ mod tests {
         parse_command(args.iter().map(|value| value.to_string()).collect())
     }
 
+    #[test]
+    fn diagnostic_commands_keep_explicit_scope_and_validate_limits() {
+        assert!(
+            matches!(parse(&["session", "trace", "Session4", "--after", "event_7", "--limit", "20"]).unwrap(), CliCommand::SessionTrace { id, after, limit: 20 } if id == "Session4" && after.as_deref() == Some("event_7"))
+        );
+        assert!(parse(&["session", "trace", "Session4", "--limit", "201"]).is_err());
+        assert!(parse(&["session", "trace"]).is_err());
+        assert!(
+            matches!(parse(&["session", "debug-state", "Session4"]).unwrap(), CliCommand::DebugState(id) if id == "Session4")
+        );
+        assert!(matches!(
+            parse(&["session", "debug-bundle", "Session4", "--include-html"]).unwrap(),
+            CliCommand::DebugBundle {
+                html: true,
+                screenshot: false,
+                ..
+            }
+        ));
+    }
+
     fn parse_with_session_default(
         args: &[&str],
         session_id: Option<&str>,
