@@ -22,6 +22,8 @@ module REL
     "PAGE_MISMATCH" => 10_102,
     "PROXY_NOT_FOUND" => 10_103,
     "ACTIVE_PAGE_NOT_FOUND" => 10_104,
+    "PROJECT_NOT_FOUND" => 10_105,
+    "PROFILE_NOT_FOUND" => 10_106,
     "CONFLICT" => 10_200,
     "BROWSER_BUSY" => 10_201,
     "NETWORK_PAUSED" => 10_202,
@@ -234,8 +236,39 @@ module REL
       request_json(:post, "/proxy-transfers/import", body: payload)
     end
 
-    def list_sessions
-      request_json(:get, "/sessions")
+    def list_projects
+      request_json(:get, "/projects")
+    end
+
+    def get_project(project_id)
+      request_json(:get, "/projects/#{segment(project_id)}")
+    end
+
+    def create_project(payload)
+      request_json(:post, "/projects", body: payload)
+    end
+
+    def update_project(project_id, payload)
+      request_json(:patch, "/projects/#{segment(project_id)}", body: payload)
+    end
+
+    def delete_project(project_id)
+      request_json(:delete, "/projects/#{segment(project_id)}")
+    end
+
+    def list_sessions(project_id: nil)
+      path = project_id ? "/sessions?project_id=#{segment(project_id)}" : "/sessions"
+      request_json(:get, path)
+    end
+
+    def move_session(session_id, project_id:, include_shared_sessions: false)
+      request_json(:put, "/sessions/#{segment(session_id)}/project", body: { project_id: project_id, include_shared_sessions: include_shared_sessions })
+    end
+
+    def reapply_session_config(session_id, profile_id: nil, include_shared_sessions: false)
+      payload = { include_shared_sessions: include_shared_sessions }
+      payload[:profile_id] = profile_id if profile_id
+      request_json(:post, "/sessions/#{segment(session_id)}/reapply", body: payload)
     end
 
     def get_session(session_id)
@@ -295,6 +328,7 @@ module REL
     REQUEST_CLASSES = {
       get: Net::HTTP::Get,
       post: Net::HTTP::Post,
+      put: Net::HTTP::Put,
       patch: Net::HTTP::Patch,
       delete: Net::HTTP::Delete
     }.freeze

@@ -1519,9 +1519,11 @@ RPC `payload` option. See Meta's
 A Session copies its Profile's configuration at creation. Ordinary Profile edits
 apply to future Sessions. AdBlock and media filtering can be updated for an open
 Session; explicitly shared members receive the same configuration changes.
-Proxy changes are currently rejected, and the app does not offer full Profile
-configuration reapply. Reapply should preserve existing browser state; closing
-and recreating a Session is not equivalent. There are no browser reset actions.
+Use **Reapply Profile Configuration** in the Session context menu to copy its
+current source Profile, including routing and fingerprint controls, while keeping
+cookies, history and logins. Shared-state Sessions expose an explicitly shared
+reapply action. Reapply does not reinstall setup or import browser data. There
+are no browser reset actions.
 
 Inspect the Session's configuration in **Overview**. Its User-Agent is read-only
 and retains its copy action. A saved proxy cannot be edited or deleted while

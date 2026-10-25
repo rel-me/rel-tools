@@ -14,3 +14,12 @@ class SessionLifetimeTests(unittest.TestCase):
             self.assertNotIn("group_id", request.call_args.args[2])
             client.ping_session("Session1")
             request.assert_called_with("POST", "/sessions/Session1/ping", {}, timeout=5.0)
+
+    def test_explicit_project_wins_over_environment(self):
+        client = RelRpcClient("http://127.0.0.1:17319/v1")
+        self.addCleanup(getattr(client, "close", lambda: None))
+        with patch.dict("os.environ", {"REL_PROJECT_ID": "ProjectEnvironment"}), patch.object(client, "_request", return_value={"session": {"id": "Session1"}}) as request:
+            client.create_session(profile=None, project_id="ProjectResearch")
+            self.assertEqual(request.call_args.args[2]["project_id"], "ProjectResearch")
+            client.create_session(profile=None)
+            self.assertEqual(request.call_args.args[2]["project_id"], "ProjectEnvironment")

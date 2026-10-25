@@ -6,11 +6,10 @@ A **Profile** is a reusable configuration template. Every new **Session**
 (`Session<ID>`) owns independent browser state by default, even when created
 from the same Profile. Use Session IDs for browser work, configuration, and
 closure. Editing a Profile affects future Sessions; existing state is retained.
-There are no browser reset operations. Reapplying a Profile's complete current
-configuration to existing state is not yet supported; Session updates cover only
-the fields documented for that operation.
-Projects currently have no dedicated RPC resources or creation selector;
-manage them in the native app.
+Every Session has an authoritative `project_id`. Creation and implicit browser
+creation require an explicit Project ID. Use the focused [Project resources](#projects)
+for metadata and membership; native window selection never supplies an API default.
+Reapply Profile configuration preserves browser state. There are no reset operations.
 
 Advanced explicit sharing is described in [Session creation](#advanced-shared-state).
 
@@ -1059,38 +1058,67 @@ override, and the passphrase when credentials are included. It validates and
 decrypts the transfer in Rust and returns the newly created `data.proxy`.
 Transfers are limited to 12 MiB and never overwrite an existing alias.
 
+## Projects
+
+| Method | Route | Body/result |
+| --- | --- | --- |
+| GET | `/v1/projects` | `data.projects` |
+| POST | `/v1/projects` | `{name, id?, model?}`; `data.project` |
+| GET | `/v1/projects/{id}` | `data.project` |
+| PATCH | `/v1/projects/{id}` | `{name?, model?}`; `data.project` |
+| DELETE | `/v1/projects/{id}` | Empty non-default Projects only; `data.deleted_id` |
+
+A Project has `id`, `name`, `model` (nullable), and `session_ids`. `ProjectDefault`
+is the stable built-in Project ID; its initial name is **Default Project**.
+A model is `{model_id, effort, speed}`; defaults are `medium` and `standard`.
+PATCH omission preserves a value; `model:null` clears the preference.
+Project IDs contain 1–128 ASCII letters, digits, hyphens, or underscores.
+Unknown IDs return `PROJECT_NOT_FOUND`; duplicate IDs and nonempty deletion
+return `CONFLICT`. Renaming does not change identity or browser storage.
+
 ## Sessions
 
-Session `id` values address `/v1/sessions/SessionN`. `context_id` is opaque browser-state
-identity, and `storage_id` identifies its storage directory; these can differ for
-recovered state. Neither field is a Group selector. Only optional `group_id`
-identifies deliberately shared state and can be supplied when creating a session.
+Session IDs address `/v1/sessions/SessionN`. Public Session records include
+`id`, `project_id`, `name`, `profile_id`, `profile`, `created_at`, lifetime and
+configuration. They exclude private context/storage identities and owner-member
+snapshots. Names default to `{Profile}{SessionID number}`, for example `Reddit14`.
+`profile_id` is the stable source-template identity; `profile` is the copied name.
 
-`GET /v1/sessions` returns `data.sessions`, each with a Session ID, configuration,
-and member session records. An independent session omits `group_id`.
-`POST /v1/sessions` returns `data.session`; every ordinary creation allocates
-independent state, even when `profile` and `name` match an existing session.
+`GET /v1/sessions` lists all Sessions. Add `?project_id=ProjectDefault` to filter.
+`POST /v1/sessions` requires an explicit Project:
 
 ```json
-{"profile":"Research","lifetime":{"type":"indefinite"}}
+{"project_id":"ProjectDefault","profile":"Research","lifetime":{"type":"indefinite"}}
 ```
 
-`GET /v1/sessions/Session1` reads a session; `PATCH` updates mutable settings,
-which apply to all explicit group members. `PUT /v1/sessions/Session1/fingerprint`
-changes its browser identity. `POST` to `/pause` or `/play` controls networking;
-`POST` to `/ping` refreshes inactivity. `DELETE /v1/sessions/Session1` closes that
-session and returns `deleted_id` plus remaining members in `sessions`.
-Deleting the final member removes its state; no replacement session is created.
+Ordinary creation always allocates independent state. `GET /v1/sessions/Session1`
+reads a Session. PATCH changes its name or mutable filtering settings; the name
+belongs to that Session, while browser configuration belongs to its state owner.
+POST `/pause` or `/play` controls networking; POST `/ping` refreshes inactivity.
+DELETE closes the exact Session and removes its state when the final member
+closes; no replacement Session is created.
+
+PUT `/v1/sessions/Session1/project` with `{"project_id":"ProjectOther"}` moves
+the Session. Explicitly shared members must move together; multi-member moves
+require `include_shared_sessions:true`.
+
+POST `/v1/sessions/Session1/reapply` with `{}` copies its current source Profile.
+Supply `profile_id` to choose another template. Multi-member shared state requires
+`include_shared_sessions:true`. Reapply updates routing, fingerprint controls,
+filtering, request rules, viewport and cache policy. It retains the fingerprint
+seed, Session/owner/storage IDs, cookies, history, logins, conversations and Actions.
+It does not rerun imports, setup installation or startup navigation. The browser
+may be recreated against retained storage. On failure, REL restores the old
+configuration and reconciles the browser; reconciliation failures are explicit.
+Concurrent configuration mutations return retryable `CONFLICT`. No reset route exists.
 
 ### Advanced shared state
 
-For explicit shared state, create with `{"profile":"Research","group_id":"new"}`.
-Then join using only `{"group_id":"Group1"}`. The returned session's `group_id`
-identifies that shared state. Other configuration fields cannot accompany a join.
-
-Sharing is optional. Each member keeps its own navigation and Session ID, while
-configuration and browser storage are shared. Keep normal browser calls addressed
-to Session IDs; there is no group-management resource or reset endpoint.
+Create with `{"project_id":"ProjectDefault","profile":"Research","group_id":"new"}`.
+Join with only `{"project_id":"ProjectDefault","group_id":"Group1"}`. Both
+must target the same Project. Only explicitly shared Sessions return `group_id`.
+Each member retains its own navigation, Session ID and name. Browser work remains
+Session-addressed; there is no group resource or reset endpoint.
 
 ## Profiles
 

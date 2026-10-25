@@ -90,6 +90,7 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         self,
         *,
         profile: str | None = None,
+        project_id: str | None = None,
         session_id: str | None = None,
         rel_base_url: str | None = None,
         group_id: str | None = None,
@@ -159,6 +160,7 @@ class RelCrawler(BasicCrawler[RelCrawlingContext]):
         self._metrics = asdict(RelCrawlMetrics())
         self._rel_options = {
             "profile": profile,
+            "project_id": project_id,
             "session_id": session_id,
             "rel_base_url": rel_base_url
             or f"http://127.0.0.1:{os.environ.get('REL_AGENT_PORT', '17319')}/v1",

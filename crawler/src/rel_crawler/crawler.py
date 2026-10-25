@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,7 @@ class RelCrawler(
         rel_base_url: str | None = None,
         session_id: str | None = None,
         profile: str | None = None,
+        project_id: str | None = None,
         group_id: str | None = None,
         timeout: float = 90.0,
         wait: float = 1.0,
@@ -120,6 +122,7 @@ class RelCrawler(
         self.capture_dir = Path(capture_dir).expanduser().resolve()
         self.client = client if client is not None else RelClient(rel_base_url)
         self.requested_session_id = session_id
+        self.project_id = project_id or os.environ.get("REL_PROJECT_ID") or "ProjectDefault"
         self.profile = profile.strip() if profile is not None else None
         self.group_id = group_id
         self.timeout = float(timeout)

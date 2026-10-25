@@ -6,11 +6,12 @@ A **Profile** is a reusable configuration template. Every new **Session**
 (`Session<ID>`) owns independent browser state by default, even when created
 from the same Profile. Use Session IDs for browser work, configuration, and
 closure. Editing a Profile affects future Sessions; existing state is retained.
-There are no browser reset operations. Reapplying a Profile's complete current
-configuration to existing state is not yet supported; Session updates cover only
-the fields documented for that operation.
-Projects currently have no dedicated client operations or creation selector;
-manage them in the native app.
+Every Session belongs to a Project. Creation requires `project_id`; browser
+requests that create a Session also require it. Existing Session/page IDs remain
+valid targets without a Project selector. Project targeting never follows app
+selection. Projects own conversations, model preferences, Actions, and tab order.
+There are no browser reset operations. Reapply copies current Profile configuration
+while preserving Session IDs, browser storage, cookies, history, and logins.
 
 For advanced explicit sharing, see [Session creation](RPC.md#advanced-shared-state).
 
@@ -123,7 +124,7 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for all 23 tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
 `read_page`, `perform_page_action`, both screenshot methods, all observation methods,
 `list_sessions`, `delete_session`, and `list_proxies`; it does not maintain
@@ -502,15 +503,17 @@ update.
 
 ## Session profiles
 
-`SessionCreateRequest::default()` serializes to `{}` and creates independent
-state from the configured Default Profile or Custom. Set `profile` to select a
-template. For explicit sharing, set `group_id` to `Some("new".into())`, then
-create members using only `group_id: Some("Group1".into())`.
+`SessionCreateRequest` requires a nonempty `project_id`; the default empty value
+is rejected. Set `profile` to select a template. Ordinary creation is independent.
+The Rust client exposes `list_projects`, `create_project`, `get_project`,
+`update_project`, `delete_project`, `list_project_sessions`, `move_session`, and
+`reapply_session_config`. Project model updates use `Change` for preserve/set/clear.
 
 ```rust
 use rel_client::{RelClient, SessionCreateRequest};
 let client = RelClient::local();
 let created = client.create_session(&SessionCreateRequest {
+    project_id: "ProjectDefault".into(),
     profile: Some("Research".into()),
     ..SessionCreateRequest::default()
 })?;
@@ -657,3 +660,15 @@ managed in the app. See the [CLI guide](CLI.md#license-activation) for stdin usa
 Use `RelClient::update_app()` to request the owning app's native update flow.
 The returned `AppUpdateData` acknowledges the request and reports the selected
 channel and required user interaction. It does not report installation completion.
+
+## Python and Ruby Project targeting
+
+Python Playwright `launch(project_id=...)`, `new_context(project_id=...)`, crawler
+and Crawlee constructors accept a Project ID. Their managed creation helpers
+resolve explicit argument, then `REL_PROJECT_ID`, then the fixed `ProjectDefault`.
+This convenience default never follows native window selection. Raw RPC and Rust
+creation still require explicit Project IDs. Existing externally owned Sessions
+are reused by their Session IDs and are not deleted by adapter shutdown.
+
+Ruby exposes Project CRUD, `list_sessions(project_id:)`, `move_session`, and
+`reapply_session_config`. Pass `project_id` in `create_session`'s payload.

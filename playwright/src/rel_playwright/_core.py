@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import time
 from http import HTTPStatus
@@ -667,12 +668,14 @@ class BrowserContext:
         browser: Browser,
         *,
         profile: str | None,
+        project_id: str | None,
         session_id: str | None,
         group_id: str | None,
         persist: bool,
     ) -> None:
         self._browser = browser
         self._profile = profile
+        self._project_id = project_id or os.environ.get("REL_PROJECT_ID") or "ProjectDefault"
         self._session_id = session_id
         self._group_id = group_id
         self._persist = persist
@@ -704,7 +707,7 @@ class BrowserContext:
         else:
             try:
                 session_id = self._browser._client.create_session(
-                    profile=self._profile, group_id=self._group_id
+                    project_id=self._project_id, profile=self._profile, group_id=self._group_id
                 )
             except RpcError as error:
                 _raise_public_error(error)
@@ -761,6 +764,7 @@ class Browser:
         client: RelRpcClient,
         *,
         profile: str | None,
+        project_id: str | None,
         session_id: str | None,
         group_id: str | None,
         persist: bool,
@@ -769,6 +773,7 @@ class Browser:
     ) -> None:
         self._client = client
         self._profile = profile
+        self._project_id = project_id or os.environ.get("REL_PROJECT_ID") or "ProjectDefault"
         self._session_id = session_id
         self._group_id = group_id
         self._persist = persist
@@ -786,6 +791,7 @@ class Browser:
 
     def new_context(self, **kwargs: Any) -> BrowserContext:
         self._ensure_connected()
+        project_id = kwargs.pop("project_id", self._project_id)
         profile = kwargs.pop("profile", self._profile)
         session_id = kwargs.pop("session_id", self._session_id)
         group_id = kwargs.pop("group_id", self._group_id)
@@ -799,6 +805,7 @@ class Browser:
         context = BrowserContext(
             self,
             profile=profile,
+            project_id=project_id,
             session_id=session_id,
             group_id=group_id,
             persist=persist,
@@ -839,6 +846,7 @@ class BrowserType:
         slow_mo: float | None = None,
         timeout: float | None = None,
         profile: str | None = DEFAULT_PROFILE,
+        project_id: str | None = None,
         session_id: str | None = None,
         group_id: str | None = None,
         persist: bool = False,
@@ -885,6 +893,7 @@ class BrowserType:
         browser = Browser(
             client,
             profile=profile,
+            project_id=project_id,
             session_id=session_id,
             group_id=group_id,
             persist=persist,

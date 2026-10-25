@@ -282,7 +282,7 @@ class SessionMixin:
             self.profile,
             self.group_id,
         )
-        session_id = self.client.create_session(profile=self.profile, group_id=self.group_id)
+        session_id = self.client.create_session(project_id=self.project_id, profile=self.profile, group_id=self.group_id)
         _LOGGER.info("created REL session %s", session_id)
         self._state["session_id"] = session_id
         self._state["managed_session"] = True

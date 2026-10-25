@@ -96,11 +96,11 @@ class RelRpcClient:
             raise RpcProtocolError("REL session response is missing data.session")
         return session
 
-    def create_session(self, *, profile: str | None = None, group_id: str | None = None, lifetime: dict[str, Any] | None = None) -> str:
+    def create_session(self, *, project_id: str | None = None, profile: str | None = None, group_id: str | None = None, lifetime: dict[str, Any] | None = None) -> str:
         data = self._request(
             "POST",
             "/sessions",
-            {**({"group_id": group_id} if group_id is not None else {}), **({"profile": profile} if profile is not None and (group_id is None or group_id == "new") else {}), **({"lifetime": lifetime} if lifetime is not None and (group_id is None or group_id == "new") else {})},
+            {"project_id": project_id or os.environ.get("REL_PROJECT_ID") or "ProjectDefault", **({"group_id": group_id} if group_id is not None else {}), **({"profile": profile} if profile is not None and (group_id is None or group_id == "new") else {}), **({"lifetime": lifetime} if lifetime is not None and (group_id is None or group_id == "new") else {})},
             timeout=10.0,
         )
         session = data.get("session")

@@ -6,13 +6,34 @@ A **Profile** is a reusable configuration template. Every new **Session**
 (`Session<ID>`) owns independent browser state by default, even when created
 from the same Profile. Use Session IDs for browser work, configuration, and
 closure. Editing a Profile affects future Sessions; existing state is retained.
-There are no browser reset operations. Reapplying a Profile's complete current
-configuration to existing state is not yet supported; Session updates cover only
-the fields documented for that operation.
-Projects currently have no dedicated client operations or creation selector;
-manage them in the native app.
+Every Session belongs to a Project. Creation requires `project_id`; browser
+requests that create a Session also require it. Existing Session/page IDs remain
+valid targets without a Project selector. Project targeting never follows app
+selection. Projects own conversations, model preferences, Actions, and tab order.
+There are no browser reset operations. Reapply copies current Profile configuration
+while preserving Session IDs, browser storage, cookies, history, and logins.
 
 For advanced explicit sharing, see [Session creation](RPC.md#advanced-shared-state).
+
+## Project targeting
+
+```sh
+rel project list
+rel project create Research --id ProjectResearch
+export REL_PROJECT_ID=ProjectResearch
+rel session create --profile Research --id-only
+rel session list --project-id ProjectResearch
+rel session move Session14 --project-id ProjectDefault
+rel session reapply Session14
+rel project update ProjectResearch --name Work
+rel project delete ProjectResearch
+```
+
+`--project-id` overrides `REL_PROJECT_ID`. Set either for Session creation and
+URL operations that create a Session. Existing Session/page targets need no
+Project selector. `rel project get ID` reads metadata; create/update also accept
+`--model`, `--effort`, and `--speed`; update accepts `--clear-model`.
+Advanced shared moves/reapply require `--include-shared-sessions`.
 
 ## App discovery
 
@@ -54,7 +75,7 @@ rel profile export NAME [--output PATH]
 rel profile import FILE [--name NAME]
 rel session list
 rel session get SESSION_ID
-rel session create [options]
+rel session create --project-id PROJECT_ID [options]
 rel session update SESSION_ID [options]
 rel session pause SESSION_ID
 rel session play SESSION_ID
@@ -202,7 +223,7 @@ Create a session, then let later CLI calls select that newest session for the
 complete stateful workflow:
 
 ```sh
-rel session create --name Research --id-only
+rel session create --project-id ProjectDefault --name Research --id-only
 # Session12
 
 rel navigate https://rel.me
@@ -232,7 +253,7 @@ To pin a sequence while another shell or process may create sessions, export an
 ID and optional default URL under REL's standard environment variables:
 
 ```sh
-session_id="$(rel session create --name Research --id-only)"
+session_id="$(rel session create --project-id ProjectDefault --name Research --id-only)"
 export REL_SESSION_ID="$session_id"
 export REL_SESSION_URL="https://example.com"
 
@@ -656,7 +677,7 @@ They are limited to 12 MiB. Legacy JSON transfer files are not accepted.
 
 ```sh
 rel session list
-rel session create --profile Research --lifetime indefinite --id-only
+rel session create --project-id ProjectDefault --profile Research --lifetime indefinite --id-only
 rel session get Session12
 rel session update Session12 --name Research-2 --adblock-enabled false
 rel session ping Session12

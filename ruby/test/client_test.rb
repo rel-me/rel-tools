@@ -67,6 +67,20 @@ class RELClientTest < Minitest::Test
     @server&.close
   end
 
+  def test_project_scoped_session_operations
+    @server = FakeServer.new(*Array.new(4) { json_response(200, "req-project", data: {}) })
+    client.create_project(name: "Research")
+    client.list_sessions(project_id: "ProjectResearch")
+    client.move_session("Session14", project_id: "ProjectResearch")
+    client.reapply_session_config("Session14", profile_id: "profile-id")
+    requests = Array.new(4) { @server.pop_request }
+    assert_equal ["POST", "GET", "PUT", "POST"], requests.map(&:method)
+    assert_equal "/v1/sessions?project_id=ProjectResearch", requests[1].path
+    assert_equal "ProjectResearch", JSON.parse(requests[2].body)["project_id"]
+    assert_equal "/v1/sessions/Session14/reapply", requests[3].path
+    assert_equal "profile-id", JSON.parse(requests[3].body)["profile_id"]
+  end
+
   def test_local_honors_valid_agent_port_and_rejects_invalid_one
     original = ENV["REL_AGENT_PORT"]
     ENV["REL_AGENT_PORT"] = "43123"

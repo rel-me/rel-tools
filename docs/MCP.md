@@ -6,17 +6,18 @@ A **Profile** is a reusable configuration template. Every new **Session**
 (`Session<ID>`) owns independent browser state by default, even when created
 from the same Profile. Use Session IDs for browser work, configuration, and
 closure. Editing a Profile affects future Sessions; existing state is retained.
-There are no browser reset operations. Reapplying a Profile's complete current
-configuration to existing state is not yet supported; Session updates cover only
-the fields documented for that operation.
-Projects currently have no dedicated client operations or creation selector;
-manage them in the native app.
+Every Session belongs to a Project. Creation requires `project_id`; browser
+requests that create a Session also require it. Existing Session/page IDs remain
+valid targets without a Project selector. Project targeting never follows app
+selection. Projects own conversations, model preferences, Actions, and tab order.
+There are no browser reset operations. Reapply copies current Profile configuration
+while preserving Session IDs, browser storage, cookies, history, and logins.
 
 For advanced explicit sharing, see [Session creation](RPC.md#advanced-shared-state).
 
 ## Tool quick reference
 
-REL MCP exposes exactly fourteen tools. This is the complete discovery list;
+REL MCP exposes exactly 23 tools. This is the complete discovery list;
 each tool has a detailed contract later in this guide.
 
 | Tool | Description |
@@ -37,6 +38,19 @@ each tool has a detailed contract later in this guide.
 | `rel_list_sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
 | `rel_delete_session` | Close one persistent session. |
 | `rel_list_proxies` | List configured proxy aliases and non-secret configuration. |
+| `rel_list_projects` | List Project IDs, names, models and Session membership. |
+| `rel_get_project` | Read one Project. |
+| `rel_create_project` | Create a Project with optional model preference. |
+| `rel_update_project` | Update name/model; `clear_model` clears the preference. |
+| `rel_delete_project` | Delete an empty non-default Project. |
+| `rel_move_session` | Move a Session to an explicit Project. |
+| `rel_reapply_session_config` | Reapply current Profile configuration with retained state. |
+
+`rel_create_session` requires `project_id`. `rel_list_sessions` accepts a Project
+filter. URL-based browser tools accept `project_id` and require it when they
+create a Session. Existing Session/page targets remain explicit. Shared moves
+and reapply require `include_shared_sessions:true`; do not expose this as the
+ordinary workflow. `model` and `clear_model` cannot be combined on update.
 
 ## Configure an MCP client
 
@@ -126,7 +140,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the fourteen tools listed below, and `rel_status` should report
+Codex should discover the 23 tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
