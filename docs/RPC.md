@@ -490,6 +490,28 @@ Perform one or more canonical actions with `POST /v1/perform`:
 
 `actions` must be a non-empty array. REL runs the actions in array order.
 
+A group reset clears DOM, history, cookies, and other browser state while keeping
+the Group and Session IDs. New requests arriving during an active reset wait on
+the session queue, within the request timeout and cancellation boundary. After a
+successful reset, fresh URL navigation and session creation acquire the replacement
+browser. Current-page actions and history navigation cannot resume against cleared
+state and return `BROWSER_BUSY` with `retryable: true` and
+`details: {"reason": "session_reset", "state_cleared": true}`. Requests admitted
+before the reset, including queued work, receive the same reset signal instead of
+being replayed.
+
+When handling that signal, rebuild the page explicitly: navigate to its URL,
+reapply filters or sorting, expand the required content, then retry the intended
+operation once. Clients that own a private group may instead close that group and
+create a fresh group from the same Profile. Do not replay clicks or Back navigation
+from the old action sequence. Group and session deletion wait through an active
+reset within their request deadline; a failed reset still permits closing the
+group. Use `DELETE /v1/groups/GroupN` to release an entire owned group: deleting its
+last Session alone creates a replacement blank tab. A failed reset returns `BROWSER_BUSY` with
+`retryable: false` and `details.reason: "session_reset_failed"`; successfully reset
+the group before continuing. A reset wait that exhausts the request timeout returns
+`TIMEOUT`, and a disconnected client does not continue waiting.
+
 Capture HTML without another action with `POST /v1/capture`:
 
 ```json
