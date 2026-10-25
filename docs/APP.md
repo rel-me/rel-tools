@@ -44,7 +44,9 @@ shared members use the same cookies, site data, configuration, and proxy routing
 Close a session and create another for clean state. Profiles configure future
 sessions; saving a Profile never resets open sessions.
 
-Projects own their model preference, chat conversations, and actions. Moving a
+Projects own their model preference, chat conversations, and actions. Empty
+Projects keep the same resizable chat panel, spacing, and rounded surface as
+Projects with open Sessions. Moving a
 session or shared group to another Project preserves its browser state. Use
 **New → New Project** to create a Project. The initial Project is named
 **Default Project**. Profile colors remain configurable with the square color
