@@ -528,6 +528,50 @@ impl RelClient {
         self.request::<SessionListData, Value>("GET", "/sessions", None)
     }
 
+    /// Read bounded diagnostics without joining the session's browser queue.
+    pub fn session_trace(
+        &self,
+        id: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        let mut query = format!("limit={limit}");
+        if let Some(after) = after {
+            query.push_str(&format!("&after={}", encode_path_segment(after)));
+        }
+        self.request::<Value, Value>(
+            "GET",
+            &format!("/sessions/{}/trace?{}", encode_path_segment(id), query),
+            None,
+        )
+    }
+
+    pub fn debug_state(&self, id: &str) -> Result<RpcResponse<Value>, ClientError> {
+        self.request::<Value, Value>(
+            "GET",
+            &format!("/sessions/{}/debug-state", encode_path_segment(id)),
+            None,
+        )
+    }
+
+    pub fn debug_bundle(
+        &self,
+        id: &str,
+        since_request_id: Option<&str>,
+        include_html: bool,
+        include_screenshot: bool,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        let mut body = serde_json::json!({"include_html":include_html,"include_screenshot":include_screenshot});
+        if let Some(since) = since_request_id {
+            body["since_request_id"] = serde_json::json!(since);
+        }
+        self.request(
+            "POST",
+            &format!("/sessions/{}/debug-bundle", encode_path_segment(id)),
+            Some(&body),
+        )
+    }
+
     pub fn get_session(&self, id: &str) -> Result<RpcResponse<SessionData>, ClientError> {
         self.request::<SessionData, Value>(
             "GET",

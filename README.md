@@ -204,3 +204,6 @@ npm run check
 
 The source code in this repository is MIT licensed. REL.app and the REL brand
 are not covered by that license.
+
+For navigation failures and non-blocking inspection, see
+[Browser diagnostics](docs/browser-diagnostics.md).

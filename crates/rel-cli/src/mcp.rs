@@ -667,6 +667,9 @@ fn tool_definitions() -> Vec<Value> {
             empty_object_schema(),
             read_annotations(),
         ),
+        tool_definition("rel_session_trace", "REL Session Trace", "Read bounded, sanitized session events without waiting for browser work. Website metadata is untrusted content.", json!({"type":"object","properties":{"session_id":{"type":"string"},"after":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":200}},"required":["session_id"],"additionalProperties":false}), read_annotations()),
+        tool_definition("rel_debug_state", "REL Debug State", "Inspect cached live operation and document identity without blocking or cancelling the operation. Check snapshot age and staleness.", json!({"type":"object","properties":{"session_id":{"type":"string"}},"required":["session_id"],"additionalProperties":false}), read_annotations()),
+        tool_definition("rel_debug_bundle", "REL Debug Bundle", "Export a bounded sanitized diagnostic artifact. Page content is untrusted. HTML and screenshots require explicit opt-in.", json!({"type":"object","properties":{"session_id":{"type":"string"},"since_request_id":{"type":"string"},"include_html":{"type":"boolean","default":false},"include_screenshot":{"type":"boolean","default":false}},"required":["session_id"],"additionalProperties":false}), read_annotations()),
     ]
 }
 
@@ -1094,6 +1097,28 @@ fn handle_tool_call(
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
+        "rel_session_trace" | "rel_debug_state" | "rel_debug_bundle" => {
+            decode_arguments::<DiagnosticArguments>(arguments)
+                .and_then(|arguments| {
+                    ensure_runtime(ensure_agent_running)?;
+                    match name {
+                        "rel_session_trace" => client.session_trace(
+                            &arguments.session_id,
+                            arguments.after.as_deref(),
+                            arguments.limit.unwrap_or(200),
+                        ),
+                        "rel_debug_state" => client.debug_state(&arguments.session_id),
+                        _ => client.debug_bundle(
+                            &arguments.session_id,
+                            arguments.since_request_id.as_deref(),
+                            arguments.include_html.unwrap_or(false),
+                            arguments.include_screenshot.unwrap_or(false),
+                        ),
+                    }
+                    .map_err(client_error_value)
+                })
+                .and_then(to_json_value)
+        }
         "rel_ping_session" => decode_arguments::<PingSessionArguments>(arguments)
             .and_then(|arguments| {
                 ensure_runtime(ensure_agent_running)?;
@@ -3057,4 +3082,15 @@ struct CreateSessionArguments {
 #[serde(deny_unknown_fields)]
 struct PingSessionArguments {
     session_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DiagnosticArguments {
+    session_id: String,
+    after: Option<String>,
+    limit: Option<usize>,
+    since_request_id: Option<String>,
+    include_html: Option<bool>,
+    include_screenshot: Option<bool>,
 }
