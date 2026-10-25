@@ -926,6 +926,7 @@ fn screenshot_schema() -> Value {
         "type": "object",
         "properties": {
             "page_id": {"type": "string", "minLength": 1},
+            "project_id": {"type":"string","description":"Scope current-page capture to a Project."},
             "session_id": {"type": "string", "minLength": 1},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
             "format": {"type": "string", "enum": ["png", "jpeg", "webp"], "default": "png"},
@@ -943,6 +944,7 @@ fn observation_schema() -> Value {
         "type": "object",
         "properties": {
             "page_id": {"type": "string", "minLength": 1},
+            "project_id": {"type":"string", "description":"Project scope when Session ID is omitted; never use global app selection."},
             "session_id": {"type": "string", "minLength": 1},
             "mode": {"type": "string", "enum": ["semantic", "hybrid", "visual"], "default": "semantic"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
@@ -1869,6 +1871,7 @@ impl PageActionArguments {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ScreenshotArguments {
+    project_id: Option<String>,
     page_id: Option<String>,
     session_id: Option<String>,
     output_uri: Option<String>,
@@ -1885,7 +1888,7 @@ impl ScreenshotArguments {
         let output = output_path_from_uri(self.output_uri)?;
         match self.page_id {
             Some(page_id) => {
-                if self.session_id.is_some() {
+                if self.session_id.is_some() || self.project_id.is_some() {
                     return Err(tool_error_value(
                         "INVALID_ARGUMENTS",
                         "session_id cannot be combined with page_id",
@@ -1904,6 +1907,7 @@ impl ScreenshotArguments {
                 })
             }
             None => Ok(ScreenshotExecution::Current(ScreenshotRequest {
+                project_id: self.project_id,
                 session_id: self.session_id,
                 output,
                 format: self.format,
@@ -1942,6 +1946,7 @@ impl ScreenshotExecution {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ObservationArguments {
+    project_id: Option<String>,
     page_id: Option<String>,
     session_id: Option<String>,
     mode: Option<ObservationMode>,
@@ -1953,7 +1958,7 @@ impl ObservationArguments {
     fn into_execution(self) -> Result<ObservationExecution, Value> {
         match self.page_id {
             Some(page_id) => {
-                if self.session_id.is_some() {
+                if self.session_id.is_some() || self.project_id.is_some() {
                     return Err(tool_error_value(
                         "INVALID_ARGUMENTS",
                         "session_id cannot be combined with page_id",
@@ -1969,6 +1974,7 @@ impl ObservationArguments {
                 })
             }
             None => Ok(ObservationExecution::Current(ObservationRequest {
+                project_id: self.project_id,
                 session_id: self.session_id,
                 mode: self.mode,
                 timeout: self.timeout,

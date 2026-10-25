@@ -672,3 +672,18 @@ are reused by their Session IDs and are not deleted by adapter shutdown.
 
 Ruby exposes Project CRUD, `list_sessions(project_id:)`, `move_session`, and
 `reapply_session_config`. Pass `project_id` in `create_session`'s payload.
+
+### Current-page Project scope
+
+Current-page read, observe, capture, screenshot and perform calls require a
+Session ID or Project ID. A Project selector resolves the first registered
+Session in that Project; an empty Project returns `ACTIVE_PAGE_NOT_FOUND`.
+Supplying both selectors validates membership. REL never chooses a globally
+active page or a globally recent Session. Use a Session ID for a precise target.
+Existing page IDs and observation references remain exact targets.
+
+The CLI accepts `--project-id` on `read`, `observe`, current `capture` and
+`perform`; `REL_PROJECT_ID` supplies scope for read/observe/capture. An explicit
+`--session-id` or caller-supplied `REL_SESSION_ID` targets that Session. Browser
+history navigation can also use Project scope. MCP `rel_read`, `rel_observe`
+and current-page `rel_take_screenshot` accept `project_id`.

@@ -303,6 +303,7 @@ impl RelClient {
                 ));
             }
             self.observe_current_page(&ObservationRequest {
+                project_id: request.project_id.clone(),
                 session_id: request.session_id.clone(),
                 mode: Some(ObservationMode::Semantic),
                 timeout: request.timeout,
@@ -1244,6 +1245,8 @@ impl PageActionRequest {
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct PerformRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     pub actions: Vec<Action>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -1259,6 +1262,7 @@ impl PerformRequest {
     pub fn new(actions: Vec<Action>) -> Self {
         Self {
             actions,
+            project_id: None,
             session_id: None,
             output: None,
             timeout: None,
@@ -1269,6 +1273,8 @@ impl PerformRequest {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct PageCaptureRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1310,6 +1316,8 @@ pub enum ScreenshotFormat {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct ScreenshotRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1373,6 +1381,8 @@ pub enum ObservationMode {
 
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct ObservationRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -5534,12 +5544,14 @@ mod tests {
         client.perform(&perform).unwrap();
         client
             .capture_current_page(&PageCaptureRequest {
+                project_id: None,
                 session_id: Some("machine-a.Session1".to_string()),
                 ..PageCaptureRequest::default()
             })
             .unwrap();
         client
             .screenshot_current_page(&ScreenshotRequest {
+                project_id: None,
                 session_id: Some("machine-a.Session1".to_string()),
                 format: Some(ScreenshotFormat::Webp),
                 quality: Some(80),
@@ -5572,6 +5584,7 @@ mod tests {
             .unwrap();
         client
             .observe_current_page(&ObservationRequest {
+                project_id: None,
                 session_id: Some("machine-a.Session1".to_string()),
                 mode: Some(ObservationMode::Semantic),
                 timeout: None,

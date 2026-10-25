@@ -134,6 +134,8 @@ repeat.
 | `10102` | `PAGE_MISMATCH` | yes | Attached page state no longer matches the request; refresh the page binding before retrying |
 | `10103` | `PROXY_NOT_FOUND` | no | Proxy does not exist |
 | `10104` | `ACTIVE_PAGE_NOT_FOUND` | no | The shorthand workflow has no current page |
+| `10105` | `PROJECT_NOT_FOUND` | no | The Project ID does not exist |
+| `10106` | `PROFILE_NOT_FOUND` | no | The source Profile no longer exists |
 | `10200` | `CONFLICT` | no | Name/state/last-session conflict |
 | `10201` | `BROWSER_BUSY` | yes | Chromium is servicing incompatible work |
 | `10202` | `NETWORK_PAUSED` | no | Session networking is paused |
@@ -1880,3 +1882,18 @@ and up to 20 seconds for sending. Success data contains `message_id` and
 Failures use the standard error envelope. REL does not automatically retry;
 a send timeout leaves delivery uncertain. Settings changes serialize with
 sending, so disabling cannot recall an in-flight message.
+
+### Current-page Project scope
+
+Current-page read, observe, capture, screenshot and perform calls require a
+Session ID or Project ID. A Project selector resolves the first registered
+Session in that Project; an empty Project returns `ACTIVE_PAGE_NOT_FOUND`.
+Supplying both selectors validates membership. REL never chooses a globally
+active page or a globally recent Session. Use a Session ID for a precise target.
+Existing page IDs and observation references remain exact targets.
+
+The CLI accepts `--project-id` on `read`, `observe`, current `capture` and
+`perform`; `REL_PROJECT_ID` supplies scope for read/observe/capture. An explicit
+`--session-id` or caller-supplied `REL_SESSION_ID` targets that Session. Browser
+history navigation can also use Project scope. MCP `rel_read`, `rel_observe`
+and current-page `rel_take_screenshot` accept `project_id`.

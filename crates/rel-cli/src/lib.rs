@@ -71,6 +71,9 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
     {
         return print_cli_error(error);
     }
+    let explicit_project_scope = args
+        .iter()
+        .any(|arg| arg == "--project-id" || arg.starts_with("--project-id="));
     if let Some(project_id) = std::env::var_os("REL_PROJECT_ID") {
         let scoped = matches!(
             args.first().map(String::as_str),
@@ -79,6 +82,11 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
             && args.get(1).is_some_and(|arg| arg == "attach")
             || args.first().is_some_and(|arg| arg == "session")
                 && args.get(1).is_some_and(|arg| arg == "create");
+        let scoped = scoped
+            || (args.first().is_some_and(|arg| arg == "observe")
+                && !args
+                    .iter()
+                    .any(|arg| arg == "--page-id" || arg.starts_with("--page-id=")));
         if scoped
             && !args
                 .iter()
@@ -105,10 +113,12 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
         }
         Err(error) => return print_cli_error(error),
     };
-    if let Err(error) =
-        apply_session_id_environment_default(&mut command, std::env::var_os("REL_SESSION_ID"))
-    {
-        return print_cli_error(error);
+    if !explicit_project_scope {
+        if let Err(error) =
+            apply_session_id_environment_default(&mut command, std::env::var_os("REL_SESSION_ID"))
+        {
+            return print_cli_error(error);
+        }
     }
 
     if command.starts_app() {
@@ -118,9 +128,6 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
     }
 
     let client = RelClient::local();
-    if let Err(error) = apply_latest_session_default(&client, &mut command) {
-        return print_cli_error(error);
-    }
 
     match run_command(client, command) {
         Ok(exit_code) => exit_code,
@@ -758,47 +765,6 @@ fn apply_session_id_environment_default(
     Ok(())
 }
 
-fn apply_latest_session_default(
-    client: &RelClient,
-    command: &mut CliCommand,
-) -> Result<(), CliError> {
-    if !needs_session_id_default(command) {
-        return Ok(());
-    }
-    let project_id = match command {
-        CliCommand::Capture(request) => request.project_id.as_deref(),
-        CliCommand::Navigate(request) => request.project_id.as_deref(),
-        CliCommand::Read(request) => request.project_id.as_deref(),
-        CliCommand::PageAttach(request) => request.project_id.as_deref(),
-        _ => None,
-    };
-    let sessions = if let Some(id) = project_id {
-        client.list_project_sessions(id)?
-    } else {
-        client.list_sessions()?
-    }
-    .data
-    .sessions;
-    apply_latest_session_id(command, sessions.iter().map(|session| session.id.as_str()));
-    Ok(())
-}
-
-fn needs_session_id_default(command: &mut CliCommand) -> bool {
-    session_id_default_target(command).is_some_and(|session_id| session_id.is_none())
-}
-
-fn apply_latest_session_id<'a>(
-    command: &mut CliCommand,
-    session_ids: impl IntoIterator<Item = &'a str>,
-) {
-    let Some(session_id) = session_id_default_target(command) else {
-        return;
-    };
-    if session_id.is_none() {
-        *session_id = latest_session_id(session_ids).map(str::to_string);
-    }
-}
-
 fn session_id_default_target(command: &mut CliCommand) -> Option<&mut Option<String>> {
     match command {
         CliCommand::Navigate(request) if request.profile.is_none() => Some(&mut request.session_id),
@@ -815,16 +781,6 @@ fn session_id_default_target(command: &mut CliCommand) -> Option<&mut Option<Str
         } => Some(&mut request.session_id),
         _ => None,
     }
-}
-
-fn latest_session_id<'a>(session_ids: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
-    session_ids
-        .into_iter()
-        .max_by_key(|session_id| canonical_session_number(session_id))
-}
-
-fn canonical_session_number(session_id: &str) -> Option<u64> {
-    session_id.strip_prefix("Session")?.parse().ok()
 }
 
 fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -887,6 +843,7 @@ fn parse_current_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
     let mut request = PageCaptureRequest::default();
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
@@ -986,6 +943,7 @@ fn parse_perform(mut args: Arguments) -> Result<CliCommand, CliError> {
     let mut request = PerformRequest::new(actions);
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
@@ -1083,6 +1041,7 @@ fn parse_observe(mut args: Arguments) -> Result<CliCommand, CliError> {
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
             "--page-id" => page_id = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
             "--mode" => {
                 request.mode = Some(parse_observation_mode(
@@ -1095,7 +1054,7 @@ fn parse_observe(mut args: Arguments) -> Result<CliCommand, CliError> {
             _ => return Err(args.unknown_option(&option, "observe")),
         }
     }
-    if page_id.is_some() && request.session_id.is_some() {
+    if page_id.is_some() && (request.session_id.is_some() || request.project_id.is_some()) {
         return Err(CliError::Message(
             "observe --page-id cannot be combined with --session-id".to_string(),
         ));
@@ -2108,7 +2067,6 @@ mod tests {
         }
         let mut command = parse(&["--profile=RYM", url]).unwrap();
         apply_session_id_environment_default(&mut command, Some("Session42".into())).unwrap();
-        apply_latest_session_id(&mut command, ["Session43"]);
         let CliCommand::Capture(request) = command else {
             panic!("expected URL capture");
         };
@@ -2312,37 +2270,6 @@ mod tests {
             panic!("expected current-page capture");
         };
         assert_eq!(capture.session_id.as_deref(), expected);
-    }
-
-    #[test]
-    fn latest_session_defaults_commands_to_the_highest_assigned_id() {
-        let mut command = parse(&["navigate", "https://example.com"]).unwrap();
-        apply_latest_session_id(&mut command, ["Session2", "Session10", "Session9"]);
-        let CliCommand::Navigate(navigate) = command else {
-            panic!("expected navigate");
-        };
-        assert_eq!(navigate.session_id.as_deref(), Some("Session10"));
-
-        assert_eq!(latest_session_id(std::iter::empty::<&str>()), None);
-    }
-
-    #[test]
-    fn latest_session_default_does_not_override_explicit_or_creation_options() {
-        let mut explicit =
-            parse(&["capture", "https://example.com", "--session-id", "Session4"]).unwrap();
-        apply_latest_session_id(&mut explicit, ["Session5"]);
-        let CliCommand::Capture(explicit) = explicit else {
-            panic!("expected capture");
-        };
-        assert_eq!(explicit.session_id.as_deref(), Some("Session4"));
-
-        let mut profile =
-            parse(&["capture", "https://example.com", "--profile", "Research"]).unwrap();
-        apply_latest_session_id(&mut profile, ["Session5"]);
-        let CliCommand::Capture(profile) = profile else {
-            panic!("expected capture");
-        };
-        assert_eq!(profile.session_id, None);
     }
 
     #[test]
@@ -2647,6 +2574,7 @@ mod tests {
         assert_eq!(
             parse(&["capture", "--output", "page.html"]).unwrap(),
             CliCommand::CaptureCurrent(PageCaptureRequest {
+                project_id: None,
                 session_id: None,
                 output: Some("page.html".to_string()),
                 timeout: None,
