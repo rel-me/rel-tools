@@ -32,7 +32,9 @@ For provider setup and per-Session assignment, see [Configure proxies](PROXIES.m
 
 Sessions are independent by default. The New Session sheet's **Browser State**
 control can explicitly create or join a shared group. The native sidebar lists
-sessions under Projects with plain Session labels and no Group capsules. Each
+sessions under Projects with Profile-based names and no Group capsules. Default
+names combine the Profile name and Session number, such as `Reddit14`. API and
+saved-state identifiers remain stable, such as `Session14`. Each
 Project lists its actions above its sessions. The tab bar shows every Session in
 the selected Project, including Sessions that share browser state; closing a tab
 closes only that Session. Tab order is saved per Project. Compressed tabs show
