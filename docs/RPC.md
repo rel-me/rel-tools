@@ -1265,6 +1265,13 @@ A profile resource is:
 ```
 
 - `GET /v1/profiles` returns saved profiles sorted by name in `data.profiles`.
+  Each Profile includes `color`, an opaque sRGB value in `#RRGGBB` form.
+  `POST /v1/profiles` and `PATCH /v1/profiles/{id}` accept this field; lowercase
+  hex digits are normalized to uppercase. On creation, omission assigns one of
+  100 default colors at random. On update, omission preserves the saved color;
+  `null`, alpha channels, and named colors are rejected. Existing Profiles receive
+  a random palette color once during the database upgrade. This presentation
+  setting colors group capsules in the project sidebar and requires no reset.
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
   the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
