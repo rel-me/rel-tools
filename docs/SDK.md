@@ -21,7 +21,7 @@ Until a crates.io release is announced, pin the public repository tag:
 
 ```toml
 [dependencies]
-rel-client = { git = "https://github.com/rel-me/rel-tools", tag = "v0.1.1" }
+rel-client = { git = "https://github.com/rel-me/rel-tools", rev = "21a16176cdb60c8d479a77da0d64fe1b06653da2" }
 ```
 
 ```rust

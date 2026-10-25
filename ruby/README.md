@@ -59,6 +59,7 @@ Requests and responses use plain Ruby hashes with the same field names as the
 
 ```ruby
 session = client.create_session(
+  project_id: "ProjectDefault",
   lifetime: { type: "inactivity", timeout_seconds: 300 }
 )
 session_id = session.data.fetch("session").fetch("id")
@@ -150,8 +151,9 @@ route table:
 - Proxies: `list_proxies`, `get_proxy`, `create_proxy`, `update_proxy`,
   `delete_proxy`, `export_proxy_transfer`,
   `import_proxy_transfer`
+- Projects: `list_projects`, `get_project`, `create_project`, `update_project`, `delete_project`
 - Sessions: `list_sessions`, `get_session`, `create_session`, `update_session`,
-  `ping_session`, `pause_session`, `play_session`, `delete_session`
+  `ping_session`, `pause_session`, `play_session`, `delete_session`, `move_session`, `reapply_session_config`
 - Profiles: `list_profiles`, `create_profile`, `update_profile_data`,
   `delete_profile`, `export_profile_transfer`, `import_profile_transfer`
 
