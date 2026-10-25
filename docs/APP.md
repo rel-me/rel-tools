@@ -1286,6 +1286,19 @@ and [cache accounting](https://developers.openai.com/api/docs/guides/prompt-cach
 Provider-reported cost takes precedence. Restored logs containing only aggregate
 usage cannot resolve per-call thresholds and show no GPT-6 estimate.
 
+## Choosing a browser Profile in chat
+
+In Project chat, name the browser Profile when asking REL to open a site. For
+example: “Use Reddit profile to tell me the latest fresh albums in
+/r/indieheads.” REL passes `Reddit` as the Profile selector when starting the
+browser task, creating an independent Session from that template. It preserves
+the requested Profile instead of substituting Default. A missing Profile is an
+error; it does not fall back to Default.
+
+A Profile selector applies to a new Session. It cannot be combined with an
+existing Session ID or used to change the Profile of a Session-pinned chat.
+Continue in Project chat to create a Session with another Profile.
+
 ## Streaming responses and tool activity
 
 Chat displays answer text as the model generates it. Self-contained requests,
