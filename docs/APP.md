@@ -1550,7 +1550,8 @@ It supports viewing and creating Sessions, deleting Sessions, navigation,
 screenshots, creating Profiles, renaming custom Profiles, and adding prompt
 Actions to custom Profiles. Profile Actions are saved as setup templates; adding
 one does not run a prompt immediately. There is no live browser video or remote
-macOS desktop.
+macOS desktop. Choose a Project in the Session creation form; the dashboard sends
+its explicit Project ID and displays each Session’s Project ID.
 
 1. Keep REL running on the Mac and arrange connectivity through your private
    network or VPN.
