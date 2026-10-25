@@ -24,8 +24,11 @@ API observation/page handles.
 Cookie summaries contain counts, domains, session-cookie counts and earliest
 expiry, never values. They are refreshed after document completion. Configuration
 includes profile/group identity, selected proxy alias, effective browser settings
-and cache configuration. Unobserved exit identity, seed history and other
-unavailable facts are null. No continuity or verification diagnosis is implied.
+and cache configuration. Unobserved exit identity, seed history and other unavailable facts are null.
+Successful existing proxy-location lookups can emit opaque exit observations
+and change events; their scope is that lookup, not a guarantee about every
+browser request. Cookie seed events are recorded only when the import flow
+observes them. No continuity or verification diagnosis is implied.
 
 ## Follow the bounded trace
 

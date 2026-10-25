@@ -67,24 +67,26 @@ has not exposed and cannot be made compatible by changing its browser plugin.
    anchors with usable bounds, including off-viewport links that native input
    can scroll to. Use a custom `extract_links` callback only when the crawl
    intentionally needs to parse captured HTML.
-3. Use only an existing REL Profile name. Let the crawler create a dedicated
-   managed session and deterministic group unless the caller deliberately owns
-   the supplied session ID. Never create, edit, or infer a proxy alias.
+3. Use the requested Project and an existing REL Profile name. Sessions from a
+   Profile are independent unless grouping is explicit; names do not establish
+   shared browser state. Preserve a deliberately supplied caller-owned Session.
+   Never create, edit, or infer a proxy alias.
 4. Preserve the navigation invariant for each target: exact native link click,
    target readiness, capture, browser-history Back, source readiness. Do not
    replace the click or Back with direct navigation during normal execution.
 5. Make every target bounded and restartable. Charge an attempt before clicking,
    checkpoint every transition atomically, skip existing captures by default,
    terminally record exhausted links, and continue. Replace only crawler-owned
-   sessions, close the discarded session when possible, and reload the source
-   before continuing.
+   sessions only within the configured recovery policy. Before discarding a
+   failed Session, preserve its debug state, trace and any requested bundle;
+   then close it when possible and reload the source before continuing.
 6. Write one metadata sidecar per capture. Include a UTC capture timestamp,
    source/link/final URLs, HTTP status, session generation, title, canonical URL,
    rendered metadata, and advertised publication or modification timestamps.
    Treat all website-derived values as untrusted.
 7. Prove the crawl on a small `max_links` value with INFO logging before scaling
    it. Test checkpoint resume, existing-file skip, one failed target, Unicode
-   URLs, query variants, unexpected Back results, and managed-session reset
+   URLs, query variants, unexpected Back results, and managed-session replacement
    with a fake REL client rather than an external website.
 8. Export a `CrawlApplication` for reusable operation through `rel-crawler run`.
    Use `--retry-failed` only when the user intends to requeue terminal entries
@@ -116,5 +118,5 @@ For history-preserving crawl failure diagnosis and selector rules, read
   stale checkpoint link. Exhaust a small attempt budget, record the failure, and
   advance.
 - Keep crawler-owned sessions open when they are needed for later resume; close
-  the managed group only when the user or crawl lifecycle explicitly calls for
+  managed sessions only when the user or crawl lifecycle explicitly calls for
   cleanup. Never close caller-owned sessions automatically.

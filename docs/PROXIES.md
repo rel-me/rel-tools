@@ -70,27 +70,19 @@ Sessions receive their own persistent provider session IDs.
 Credentials stay in REL's secure credential storage. MCP's proxy-list tool
 returns aliases and non-secret metadata, not stored passwords.
 
-## Oxylabs Residential session expiry
+## Proxy session continuity
 
-Oxylabs Residential session IDs are temporary IP assignments. By default, they
-last up to 10 minutes or 60 seconds without requests. An explicit `sesstime`
-parameter can extend the maximum to 24 hours. Restarting REL does not renew
-Oxylabs' timer or reserve the IP permanently. See
-[Oxylabs session control](https://developers.oxylabs.io/products/proxies/residential-proxies/session-control).
+A provider session ID requests routing behavior; it does not prove that an exit
+IP stayed the same or that a destination will accept a request. Provider expiry,
+network errors and destination HTTP responses are separate observations.
 
-REL uses `sessid_oneip` on `pr.oxylabs.io` so an unavailable exit returns an
-error instead of silently switching the group's IP. REL saves session timing
-across restarts and checks confirmed upstream requests conservatively for idle expiry. Traffic
-inside an existing encrypted tunnel does not extend the local idle window, so
-REL may reset a group before Oxylabs would. Once the session expires or Oxylabs rejects its strict single-IP
-binding, REL automatically resets the whole tab group: it closes the old
-connections, assigns a fresh session ID, clears shared site data, and reopens
-the tabs. Website logins and other site state in that group are cleared.
-Old Residential sessions whose lifetime is unknown are reset once after upgrade.
-
-Dedicated ISP port assignments do not use this expiry policy. Authentication
-failures and errors returned by destination websites do not invalidate the
-proxy session.
+Use [browser diagnostics](BROWSER_DIAGNOSTICS.md) to correlate a selected
+Session's requests with its proxy alias and any observed opaque exit identity.
+Exit observations have timestamps and a limited observation scope. Unknown
+continuity remains unknown; a destination 403 or 503 alone does not establish a
+proxy failure. Preserve evidence before changing configuration or replacing a
+workflow-owned Session. Configuration reapply preserves browser data; there is
+no public group reset API.
 
 ## Test a saved proxy
 
@@ -316,8 +308,8 @@ for HTTP/3; REL reports transport errors when it is blocked.
 Each browser session connects to its own trusted loopback HTTP/3 relay. Rust
 verifies Oxylabs TLS, adds Proxy-Authorization, and forwards datagrams and
 RFC 9297 capsules. CEF receives only the loopback address and session CA,
-never provider credentials. Reset and deletion close the
-session's QUIC tunnels. Target names are passed to Oxylabs without local DNS
+never provider credentials. Closing a Session tears down its owned transport
+when its state owner is removed. Target names are passed to Oxylabs without local DNS
 resolution. WebRTC's non-proxied UDP remains disabled.
 
 Origin HTTP/3 still depends on the site's advertised support. HTTPS sites

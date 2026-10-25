@@ -30,87 +30,29 @@ For provider setup and per-Session assignment, see [Configure proxies](PROXIES.m
 
 ## Tab groups
 
-A **Profile** is a reusable configuration template, optionally with initial
-browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
-configuration (or standalone Custom settings). Each **Session** is a tab in one
-group and receives a separate `Session<ID>`, with its own URL, navigation history,
-browser view, and automation target.
+A Project owns its Sessions, chat, actions, model preference and tab order.
+Each new Session is independent by default, including Sessions created from the
+same Profile. Shared cookies, site data, browser identity, configuration and
+routing require an explicit group choice. Browser state cannot span Projects.
+See [Projects, Profiles and Sessions](SESSIONS.md).
 
-Sessions in a group share cookies, site storage, private HTTP cache, configuration,
-browser identity, and proxy routing. Different groups remain isolated even when
-created from the same Profile. Create a session in an existing group to use its
-current configuration and live browser state, or create a new group and its first
-session. Joining an existing group does not reread or reseed the Profile.
+Profile edits affect future Sessions. Use **Reapply Profile Configuration**, or
+**Reapply Profile to Shared Sessions** for an explicit shared set, to update an
+existing Session. Reapply preserves Session IDs, navigation and browser data;
+it does not clear cookies or copy new startup cookies into the running Session.
+Closing the final Session removes its state owner and does not open a blank tab.
 
-Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
-rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
-configuration when available; otherwise it copies configuration without data.
-It imports only explicitly configured Profile cookies, never saved passwords,
-cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
+Proxy observations do not guarantee exit continuity. The current alias, observed
+exit identity and snapshot age are available through the supported
+[browser diagnostics](BROWSER_DIAGNOSTICS.md) API when observed; credentials are
+never part of a diagnostic export.
 
-The info popover beside a tab group shows its proxy's sticky session ID. For
-fixed-IP ISP pools it shows the detected exit IP and assigned port instead.
-It refreshes while open; loading and unavailable states are explicit. All tabs
-in a group share the proxy assignment and reset together. Other groups keep
-their assignments.
-
-Use **Reset Sessions** in the group's info popover or context menu to stop all its sessions,
-apply the latest saved Profile configuration, clear their shared browser state
-and navigation history, import only the Profile's explicitly configured cookies,
-and recreate sessions with fresh IDs and their saved URLs left unloaded. Profile changes saved with
-**Save Without Resetting** take effect on the next reset, including the proxy,
-identity, network filters, model, Session Viewport, and HTTP rules. If the Profile
-was deleted, the group keeps its copied configuration.
-For supported proxies, reset also rotates the sticky session ID or advances the
-ISP pool port; a new exit IP depends on the provider and pool. Reset also works
-without a proxy. Other groups keep their state. The button shows **Resetting…**
-until the reset finishes. If a step fails, REL reports the error and leaves the
-group stopped so you can retry the reset.
-
-The sidebar has a **Profiles** header above Groups and an **Actions** section
-below them. Actions belong to the app and can work across sites and profiles.
-Create an action from the window's **+ → Add Action** menu without selecting a
-session. Click an action to edit it; its context menu offers **Run Now** and
-**Delete Action**. New actions run in the saved Default profile, reusing its open
-group and browser state. Existing session-owned actions move to Default while
-retaining their IDs, steps, triggers, budgets, and run history. Reusable library
-actions use Default unless an explicit profile or included configuration is selected.
-
-The Profiles section lists Groups. Each group owns shared cookies, site storage, saved
-logins, proxy configuration, identity, and settings. Its Sessions are individual
-tabs with separate IDs and navigation history. Groups display their source
-Profile name, or `Default` for Custom configuration. Session tabs use globally unique
-`Session<ID>` labels.
-
-Create a group for isolated browser state, or press **⌘T** or the tab strip's
-**+** button to add a session to the selected group. Links opened in a new tab
-stay in that group. Tabs appear both in the top strip and beneath their sidebar
-group; there is no tab-placement setting.
-
-The top tab strip uses REL's standard tabs, including selection, close controls,
-and drag reordering. Chat lives beside the browser content in the window and is
-shared by all tabs in the selected group. Switching browser tabs keeps the same
-conversation and draft; selecting another group switches its chat content too.
-Use the window toolbar's chat bubble to show or hide chat, and its info icon to
-show or hide the bottom panel. These controls follow the selected group and stay
-outside the browser tab's address toolbar. Chat uses a softly shaded background
-in both light and dark appearance to separate it from the surrounding window.
-
-**⌘W**, the tab strip's close button, and the sidebar's close button close a
-session. Closing the last session in a group also removes the group and its
-shared browser data. Closing a session with siblings leaves those sessions and
-their shared data intact. **Delete Tab Group…** requests confirmation before
-removing an entire group. Quitting REL preserves groups, saved URLs, and selection.
-
-CLI, SDK, and MCP browser operations target a specific `Session<ID>`, independent
-of the selected UI tab. `Group<ID>` identifies shared configuration and storage.
-Closing a session leaves siblings open; deleting a group closes all its sessions.
-Chat and Actions remain associated with the group, and each submitted chat turn
-captures its selected Session ID.
+Select the intended Project before creating or operating on its resources.
+Project chat and Actions belong to that Project. API calls continue to require
+explicit Project/Session scope regardless of the selected native window or tab.
+Closing one member of a shared set leaves its siblings and their data intact;
+closing the final member removes the shared state owner. Quitting REL preserves
+its supported persistent workspace state.
 
 ## Notifications
 
@@ -118,8 +60,7 @@ Open **REL → Settings… → Notifications** to enable or disable REL's macOS
 alerts. **Enable notifications** controls app alerts globally. The individual
 choices are preserved while the global switch is off:
 
-- **Tab group reset** alerts after a successful reset, including resets triggered
-  by HTTP response rules. Failed resets report an error instead.
+- Matching HTTP response rules can notify; they do not reset Sessions.
 - **User input required** alerts for detected reCAPTCHA, hCaptcha, Turnstile,
   verification-code fields, and website permission requests. Open the affected
   group to respond. REL waits briefly for automatic browser checks to resolve
@@ -135,7 +76,7 @@ is blocked, open macOS Notification Settings and allow notifications for REL.
 macOS notification and Focus preferences also affect delivery.
 
 The **Website Notifications** section separately controls forwarding allowed
-website notifications to the agent. App reset and input alerts do not require
+website notifications to the agent. HTTP-rule and input alerts do not require
 website permission or agent forwarding.
 
 ## Session viewport presets
@@ -439,21 +380,17 @@ and configuration under the Free plan limits described above.
 A **Profile** is a reusable template for a new Session. Profiles select the
 connection, Session Viewport, network filters, and any browser data that should be copied when a
 Session is created. A **Session** is the persistent browser created from that
-template. When saving Profile changes with open Sessions, REL asks how to apply
-them. **Save and Reset Sessions** is the default: it applies the new configuration,
-clears and restores browser data from the Profile, and reloads the open pages.
-Session IDs and tab URLs are preserved. Choose **Save Without Resetting** to keep
-open Sessions on their current configuration until their next reset, or
-**Cancel** to keep editing.
-Profiles without open Sessions save immediately.
+template. Saving edits updates the template for future Sessions. Explicitly
+reapply configuration to existing Sessions when needed; reapply preserves their
+IDs, navigation and browser data. Profile edits do not reseed running Sessions.
 
 In the profile editor, **Session Viewport** selects the initial viewport for a new
 Session: **App Default**, **Fit Window**, **Desktop 1440w**, **Wide Laptop 1280w**,
 **Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Fixed widths follow the
 available window height. Each Session can change its viewport independently using
 **Session Viewport**, immediately to the right of **Browser Identity** in its toolbar.
-Resetting Sessions when saving also applies the Profile’s Session Viewport.
-Saving without resetting preserves each Session’s current viewport.
+Profile edits affect the initial viewport of future Sessions. Explicit
+configuration reapply updates existing Sessions without resetting browser data.
 
 Manage saved configurations in **Profiles**. REL creates **Default** at startup
 if it is missing. An existing **REL** profile becomes Default with the same ID and
@@ -465,25 +402,19 @@ or Native.
 
 In the Profile editor, **Starting URL** optionally names the HTTP or HTTPS page
 to open when REL creates a Session from that Profile. Leave it empty to create
-without navigation. Reusing an existing Profile tab group opens a tab in that
-group rather than replacing its settings. When editing a Profile with open
-Sessions, choose whether to [save and reset them](#profiles-and-sessions).
+without navigation. Reusing a Profile does not join its existing browser state.
+For existing Sessions, use explicit [configuration reapply](#profiles-and-sessions).
 
 In **New Profile**, choose **Proxy → New Proxy…** to add a proxy without leaving
 the profile draft. Saving selects the new proxy automatically. Cancelling returns
 to the draft without changing its proxy selection. A saved proxy remains available
 in Proxies even if you later cancel the profile.
 
-**Create Session**, **New Session** (Command-T), and the session tab bar’s plus
-button open a tab in the matching default Profile group, creating the group when absent.
-Tabs in a group share its settings, cookies, and logins. Proxy and Browser Identity
-are fixed when the group is created. Create a new group to use a different proxy or
-identity. AdBlock and media filtering remain editable for the group. Changes apply
-immediately to subsequent requests in every session in the group. Existing pages
-stay as they are, without an automatic reload or group reset. Cookies, logins, session IDs, and browser
-storage are preserved. Paused and unopened sessions use the new filters when
-resumed or opened.
-Browser data is copied or imported rather than switched as a setting.
+Creating a Session copies the chosen Profile configuration into independent
+browser state by default. Sharing requires an explicit group choice; matching
+Profile names do not join state. Configuration reapply preserves existing IDs,
+navigation and browser data. Browser data is copied or imported during supported
+creation/import flows, not switched or reset by changing a template.
 
 Cookies and saved passwords can be imported while Chrome or another supported
 Chromium browser is running. REL reads temporary copies of the database and its
@@ -515,15 +446,14 @@ An invalid or unreadable file stops creation with an error.
 **Advanced**. Saving imports a snapshot of the file into the Profile’s encrypted browser storage. Each new
 Session created from that Profile starts with those cookies; you can move or
 delete the original file afterward. Choosing a new file when editing replaces the
-Profile’s startup cookies and preserves saved passwords. Open Sessions receive
-the new startup data if you choose **Save and Reset Sessions**; saving without
-resetting leaves their browser data unchanged. In a new Profile, the cookie file
+Profile’s startup cookies and preserves saved passwords. Existing Sessions retain their browser data. Startup cookie changes apply to
+new Sessions, not configuration reapply. In a new Profile, the cookie file
 takes the place of another browser data source. Removing a selected file before saving cancels that selection.
 
 When editing a Profile with active Sessions, **Copy Cookies from** appears below
 **Starting cookies**. Choose one of that Profile’s Sessions to save all its cookies
-as the Profile’s starting cookies when saving. REL captures them before resetting
-Sessions. Choosing a Session clears the file selection, and choosing a file clears
+as the Profile’s starting cookies when saving. REL captures a snapshot for future Sessions without resetting the source
+Session. Choosing a Session clears the file selection, and choosing a file clears
 the Session selection. A Session that closes before saving produces an error.
 Both sources are copied into REL’s Application Support data directory as encrypted
 Chromium profile storage, using the runtime’s Keychain safe-storage key. REL keeps
@@ -654,7 +584,7 @@ off, the saved timezone applies; with the control disabled, Chromium stays nativ
 For Automatic language or an enabled Timezone control, REL requests
 `https://ipwho.is/` through the browser session's agent-owned proxy before preparing
 the browser. IPWHOIS.io sees the proxy's exit IP. Successful results are cached for up to 30 minutes per session and upstream
-route; a a reset changes that route. A failed lookup reports an
+route. A route change invalidates that observation. A failed lookup reports an
 error rather than using a different locale or timezone. The option is preserved
 in proxy and profile transfers; older transfers import with detection off.
 Existing saved proxies keep their current setting, including an explicit off choice.
@@ -739,8 +669,8 @@ Caching assets across resets is currently disabled. Its controls and statistics
 are hidden in Profiles and Cache settings. Saved Profiles and imported archives
 still load, but an enabled cache setting has no effect.
 
-Ordinary browser HTTP caches continue to work within a Group and are cleared
-when the Group is reset. **REL → Settings… → Cache → Clear Session Caches**
+Ordinary Chromium HTTP caches remain scoped to the owning independent Session
+or explicit shared set. **REL → Settings… → Cache → Clear Session Caches**
 clears these HTTP caches without deleting cookies or site storage.
 
 ## Navigation feedback, errors, and retry
@@ -1835,15 +1765,12 @@ read, observation fails explicitly rather than substituting initial HTML attribu
 Semantic scroll offsets and document dimensions use CSS pixels, including on
 Retina displays. Native input continues to use observation-scoped references.
 
-## HTTP rules and automatic reset
+## HTTP rules
 
-In the Profile editor, add an **HTTP Rule**, choose a status code and repeat
-allowance, and select **Reset** as the action. Reset is the only action currently
-available. Rules work with every proxy type and without a proxy. Matching
-responses from all tabs and resources share the group's counters. Zero repeats
-resets on the first response; N repeats resets on response N + 1. Reset clears
-browser state, recreates the group and sessions with fresh IDs, imports only
-configured Profile cookies, and retains saved URLs without loading them. Counts clear after a reset
-or restarting REL. Profile edits apply to newly created groups and to existing
-groups on their next manual or automatic reset, including when you choose
-**Save and Reset Sessions**.
+In the Profile editor, add an **HTTP Rule**, choose its status code and repeat
+allowance, and use **Notify**. Matching response counters can trigger a
+notification; they do not clear site data, rotate proxies or replace Sessions.
+Zero repeats triggers on the first match; N repeats on match N + 1. Profile edits
+apply to future Sessions; explicitly reapply configuration to update existing
+Sessions. Use [browser diagnostics](BROWSER_DIAGNOSTICS.md) to investigate a
+failure before deciding whether recovery is needed.
