@@ -1070,6 +1070,11 @@ Transfers are limited to 12 MiB and never overwrite an existing alias.
 
 ## Sessions
 
+Session `id` values address `/v1/sessions/SessionN`. `context_id` is opaque browser-state
+identity, and `storage_id` identifies its storage directory; these can differ for
+recovered state. Neither field is a Group selector. Only optional `group_id`
+identifies deliberately shared state and can be supplied when creating a session.
+
 `GET /v1/sessions` returns `data.sessions`, each with a Session ID, configuration,
 and member session records. An independent session omits `group_id`.
 `POST /v1/sessions` returns `data.session`; every ordinary creation allocates
