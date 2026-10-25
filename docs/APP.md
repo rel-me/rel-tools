@@ -291,7 +291,10 @@ writer causes recovery to stop so its changes are not overwritten. Restarting
 retries from the current data. A successful recovery is not repeated on every
 launch.
 
-When records or fields need review, REL records a dismissible warning in its existing issue system. Choose
+When records or fields need review, REL records a dismissible warning in its existing issue system.
+Dismissing it acknowledges that report permanently, including after restarting REL.
+A different recovery report can still show a new warning. Acknowledgment does not
+delete the report or its backup. Choose
 **Show Report**, or **Settings → Service → Show Recovery Report**, to locate
 `report.json`. It lists retained counts and affected tables, record IDs, fields,
 and reasons. Original values remain in the snapshot. The database's recovery
