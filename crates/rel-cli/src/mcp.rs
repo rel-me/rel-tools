@@ -28,7 +28,12 @@ type EnsureAgentRunning = Arc<dyn Fn() -> Result<(), String> + Send + Sync>;
 pub(crate) fn serve_stdio(client: RelClient, server_version: &str) -> Result<(), String> {
     let stdin = io::stdin();
     let stdout = io::stdout();
-    let ensure_agent_running: EnsureAgentRunning = Arc::new(app::ensure_agent_running);
+    let runtime_client = client.clone();
+    let ensure_agent_running: EnsureAgentRunning = Arc::new(move || {
+        app::ensure_agent_running()?;
+        let health = runtime_client.health().map_err(|error| error.to_string())?;
+        require_supported_runtime(&health.data.version)
+    });
     serve(
         BufReader::new(stdin),
         stdout,
@@ -36,6 +41,19 @@ pub(crate) fn serve_stdio(client: RelClient, server_version: &str) -> Result<(),
         server_version,
         ensure_agent_running,
     )
+}
+
+fn require_supported_runtime(version: &str) -> Result<(), String> {
+    let parts = version
+        .split('.')
+        .map(str::parse::<u32>)
+        .collect::<Result<Vec<_>, _>>();
+    if let Ok(parts) = parts {
+        if parts.len() == 3 && (parts[0], parts[1], parts[2]) >= (0, 1, 156) {
+            return Ok(());
+        }
+    }
+    Err(format!("REL 0.1.156 or later is required; local runtime reports {version}. Update REL and restart the MCP connection."))
 }
 
 fn serve<R: BufRead, W: Write + Send + 'static>(
@@ -624,18 +642,19 @@ fn tool_definitions() -> Vec<Value> {
                 "openWorldHint": true
             }),
         ),
+        tool_definition("rel_list_projects", "REL List Projects", "List Projects and their Session IDs before choosing explicit browser scope.", empty_object_schema(), read_annotations()),
         tool_definition(
             "rel_list_sessions",
             "REL List Browser Sessions",
-            "List persistent REL browser sessions and their canonical Session<number> IDs, groups, proxy assignments, and filtering settings.",
-            empty_object_schema(),
+            "List Sessions with Project ownership, optional shared group IDs, Profile and configuration. Optionally filter by project_id.",
+            json!({"type":"object","properties":{"project_id":{"type":"string","minLength":1}},"additionalProperties":false}),
             read_annotations(),
         ),
         tool_definition(
-            "rel_close_session_group",
-            "REL Close Browser Session Group",
-            "Close every persistent REL browser session in a named group.",
-            session_group_schema(),
+            "rel_close_session",
+            "REL Close Browser Session",
+            "Close the explicitly selected Session. Closing its last tab removes its browser state.",
+            session_close_schema(),
             json!({
                 "readOnlyHint": false,
                 "destructiveHint": true,
@@ -645,13 +664,13 @@ fn tool_definitions() -> Vec<Value> {
         ),
         tool_definition(
             "rel_create_session", "REL Create Browser Session",
-            "Open a tab in a compatible existing REL group, or create a group when none matches. Set new_group to force a separate group. New groups default to closing after 120 seconds of client inactivity. Use rel_ping_session to keep it alive, or explicitly select an indefinite lifetime.",
+            "Create an independent Session in the required Project using an optional Profile template. Share state only with explicit group_id (new or an existing Group ID in that Project). Default lifetime is 120 seconds of client inactivity.",
             json!({"type":"object","properties":{
-                "name":{"type":"string"},"group":{"type":"string"},"profile":{"type":"string"},"new_group":{"type":"boolean"},
+                "project_id":{"type":"string","minLength":1},"name":{"type":"string"},"group_id":{"type":"string"},"profile":{"type":"string"},
                 "lifetime":{"oneOf":[
                     {"type":"object","properties":{"type":{"const":"inactivity"},"timeout_seconds":{"type":"integer","minimum":1,"maximum":4294967295_u64}},"required":["type","timeout_seconds"],"additionalProperties":false},
                     {"type":"object","properties":{"type":{"const":"indefinite"}},"required":["type"],"additionalProperties":false}
-                ]}},"additionalProperties":false}),
+                ] }},"required":["project_id"],"additionalProperties":false}),
             json!({"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":false}),
         ),
         tool_definition(
@@ -714,13 +733,13 @@ fn empty_object_schema() -> Value {
     json!({"type": "object", "additionalProperties": false})
 }
 
-fn session_group_schema() -> Value {
+fn session_close_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "group": {"type": "string", "minLength": 1, "maxLength": 128}
+            "session_id": {"type": "string", "minLength": 1}
         },
-        "required": ["group"],
+        "required": ["session_id"],
         "additionalProperties": false
     })
 }
@@ -853,22 +872,18 @@ fn capture_schema() -> Value {
         "type": "object",
         "properties": {
             "url": {"type": "string", "minLength": 1},
-            "navigation": {"type": "string", "enum": ["url", "back", "forward", "reload"], "default": "url"},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
             "wait": {"type": "number", "minimum": 0},
             "actions": {"type": "array", "items": action_schema()},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type": "string", "minLength": 1},
             "profile": {"type": "string", "minLength": 1, "maxLength": 128},
-            "group": {"type": "string", "minLength": 1, "maxLength": 128},
             "proxy": {"type": "string", "minLength": 1},
             "retry": {"type": "integer", "minimum": 0, "maximum": 100},
             "retry_delay": {"type": "number", "minimum": 0, "maximum": 86400}
         },
-        "anyOf": [
-            {"required": ["url"]},
-            {"properties": {"navigation": {"enum": ["back", "forward", "reload"]}}, "required": ["navigation"]}
-        ],
+        "required": ["url"],
         "additionalProperties": false
     })
 }
@@ -879,8 +894,8 @@ fn page_attach_schema() -> Value {
         "properties": {
             "url": {"type": "string", "minLength": 1},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type": "string", "minLength": 1},
             "profile": {"type": "string", "minLength": 1, "maxLength": 128},
-            "group": {"type": "string", "minLength": 1, "maxLength": 128},
             "proxy": {"type": "string", "minLength": 1},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
@@ -912,6 +927,7 @@ fn screenshot_schema() -> Value {
         "properties": {
             "page_id": {"type": "string", "minLength": 1},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type": "string", "minLength": 1},
             "output_uri": {"type": "string", "format": "uri", "pattern": "^file:///"},
             "format": {"type": "string", "enum": ["png", "jpeg", "webp"], "default": "png"},
             "quality": {"type": "integer", "minimum": 0, "maximum": 100},
@@ -929,6 +945,7 @@ fn observation_schema() -> Value {
         "properties": {
             "page_id": {"type": "string", "minLength": 1},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type": "string", "minLength": 1},
             "mode": {"type": "string", "enum": ["semantic", "hybrid", "visual"], "default": "semantic"},
             "timeout": {"type": "number", "exclusiveMinimum": 0},
             "wait": {"type": "number", "minimum": 0}
@@ -944,6 +961,7 @@ fn navigate_observation_schema() -> Value {
             "url": {"type": "string", "minLength": 1},
             "navigation": {"type": "string", "enum": ["url", "back", "forward", "reload"], "default": "url"},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type": "string", "minLength": 1},
             "profile": {"type": "string", "minLength": 1},
             "proxy": {"type": "string", "minLength": 1},
             "mode": {"type": "string", "enum": ["semantic", "hybrid", "visual"], "default": "semantic"},
@@ -964,6 +982,7 @@ fn page_read_schema() -> Value {
         "properties": {
             "url": {"type": "string", "minLength": 1},
             "session_id": {"type": "string", "minLength": 1},
+            "project_id": {"type": "string", "minLength": 1},
             "profile": {"type": "string", "minLength": 1, "maxLength": 128},
             "proxy": {"type": "string", "minLength": 1},
             "query": {"type": "string", "minLength": 1, "maxLength": 1024},
@@ -1090,8 +1109,8 @@ fn handle_tool_call(
                 client
                     .create_session(&client::SessionCreateRequest {
                         name: arguments.name,
-                        new_group: arguments.new_group,
-                        group: arguments.group,
+                        project_id: Some(arguments.project_id),
+                        group_id: arguments.group_id,
                         profile: arguments.profile,
                         lifetime: arguments.lifetime,
                         ..Default::default()
@@ -1159,15 +1178,23 @@ fn handle_tool_call(
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
-        "rel_list_sessions" => decode_empty_arguments(arguments)
+        "rel_list_projects" => decode_empty_arguments(arguments)
             .and_then(|()| ensure_runtime(ensure_agent_running))
-            .and_then(|()| client.list_sessions().map_err(client_error_value))
+            .and_then(|()| client.list_projects().map_err(client_error_value))
             .and_then(to_json_value),
-        "rel_close_session_group" => decode_arguments::<CloseSessionGroupArguments>(arguments)
+        "rel_list_sessions" => decode_arguments::<ListSessionsArguments>(arguments)
             .and_then(|arguments| {
                 ensure_runtime(ensure_agent_running)?;
                 client
-                    .close_session_group(&arguments.group)
+                    .list_sessions_in_project(arguments.project_id.as_deref())
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_close_session" => decode_arguments::<PingSessionArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .delete_session(&arguments.session_id)
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
@@ -1638,8 +1665,8 @@ struct CaptureArguments {
     #[serde(default)]
     actions: Vec<Action>,
     session_id: Option<String>,
+    project_id: Option<String>,
     profile: Option<String>,
-    group: Option<String>,
     proxy: Option<String>,
     retry: Option<u32>,
     retry_delay: Option<f64>,
@@ -1649,10 +1676,10 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
     type Error = Value;
 
     fn try_from(value: CaptureArguments) -> Result<Self, Self::Error> {
-        if value.session_id.is_some() && (value.group.is_some() || value.profile.is_some()) {
+        if value.session_id.is_some() && value.profile.is_some() {
             return Err(tool_error_value(
                 "INVALID_ARGUMENTS",
-                "group and profile cannot be combined with session_id",
+                "profile cannot be combined with session_id",
             ));
         }
         Ok(Self {
@@ -1662,8 +1689,8 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
             wait: value.wait,
             actions: value.actions,
             session_id: value.session_id,
+            project_id: value.project_id,
             profile: value.profile,
-            group: value.group,
             proxy: value.proxy,
             retry: value.retry,
             retry_delay: value.retry_delay,
@@ -1676,8 +1703,8 @@ impl TryFrom<CaptureArguments> for CaptureRequest {
 struct PageAttachArguments {
     url: String,
     session_id: Option<String>,
+    project_id: Option<String>,
     profile: Option<String>,
-    group: Option<String>,
     proxy: Option<String>,
     output_uri: Option<String>,
     timeout: Option<f64>,
@@ -1690,6 +1717,7 @@ struct NavigateObservationArguments {
     url: Option<String>,
     navigation: Option<ObservationNavigation>,
     session_id: Option<String>,
+    project_id: Option<String>,
     profile: Option<String>,
     proxy: Option<String>,
     mode: Option<ObservationMode>,
@@ -1703,6 +1731,7 @@ impl From<NavigateObservationArguments> for NavigateObservationRequest {
             url: value.url,
             navigation: value.navigation,
             session_id: value.session_id,
+            project_id: value.project_id,
             profile: value.profile,
             proxy: value.proxy,
             mode: value.mode,
@@ -1717,6 +1746,7 @@ impl From<NavigateObservationArguments> for NavigateObservationRequest {
 struct PageReadArguments {
     url: Option<String>,
     session_id: Option<String>,
+    project_id: Option<String>,
     profile: Option<String>,
     proxy: Option<String>,
     query: Option<String>,
@@ -1745,6 +1775,7 @@ impl TryFrom<PageReadArguments> for PageReadRequest {
         Ok(Self {
             url: value.url,
             session_id: value.session_id,
+            project_id: value.project_id,
             profile: value.profile,
             proxy: value.proxy,
             query: value.query,
@@ -1760,29 +1791,23 @@ impl TryFrom<PageAttachArguments> for PageAttachRequest {
     type Error = Value;
 
     fn try_from(value: PageAttachArguments) -> Result<Self, Self::Error> {
-        if value.session_id.is_some() && (value.group.is_some() || value.profile.is_some()) {
+        if value.session_id.is_some() && value.profile.is_some() {
             return Err(tool_error_value(
                 "INVALID_ARGUMENTS",
-                "group and profile cannot be combined with session_id",
+                "profile cannot be combined with session_id",
             ));
         }
         Ok(Self {
             url: value.url,
             session_id: value.session_id,
+            project_id: value.project_id,
             profile: value.profile,
-            group: value.group,
             proxy: value.proxy,
             output: output_path_from_uri(value.output_uri)?,
             timeout: value.timeout,
             wait: value.wait,
         })
     }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CloseSessionGroupArguments {
-    group: String,
 }
 
 #[derive(Deserialize)]
@@ -1814,6 +1839,7 @@ impl PageActionArguments {
 struct ScreenshotArguments {
     page_id: Option<String>,
     session_id: Option<String>,
+    project_id: Option<String>,
     output_uri: Option<String>,
     format: Option<ScreenshotFormat>,
     quality: Option<u8>,
@@ -1828,10 +1854,10 @@ impl ScreenshotArguments {
         let output = output_path_from_uri(self.output_uri)?;
         match self.page_id {
             Some(page_id) => {
-                if self.session_id.is_some() {
+                if self.session_id.is_some() || self.project_id.is_some() {
                     return Err(tool_error_value(
                         "INVALID_ARGUMENTS",
-                        "session_id cannot be combined with page_id",
+                        "session_id and project_id cannot be combined with page_id",
                     ));
                 }
                 Ok(ScreenshotExecution::Page {
@@ -1848,6 +1874,7 @@ impl ScreenshotArguments {
             }
             None => Ok(ScreenshotExecution::Current(ScreenshotRequest {
                 session_id: self.session_id,
+                project_id: self.project_id,
                 output,
                 format: self.format,
                 quality: self.quality,
@@ -1887,6 +1914,7 @@ impl ScreenshotExecution {
 struct ObservationArguments {
     page_id: Option<String>,
     session_id: Option<String>,
+    project_id: Option<String>,
     mode: Option<ObservationMode>,
     timeout: Option<f64>,
     wait: Option<f64>,
@@ -1896,10 +1924,10 @@ impl ObservationArguments {
     fn into_execution(self) -> Result<ObservationExecution, Value> {
         match self.page_id {
             Some(page_id) => {
-                if self.session_id.is_some() {
+                if self.session_id.is_some() || self.project_id.is_some() {
                     return Err(tool_error_value(
                         "INVALID_ARGUMENTS",
-                        "session_id cannot be combined with page_id",
+                        "session_id and project_id cannot be combined with page_id",
                     ));
                 }
                 Ok(ObservationExecution::Page {
@@ -1913,6 +1941,7 @@ impl ObservationArguments {
             }
             None => Ok(ObservationExecution::Current(ObservationRequest {
                 session_id: self.session_id,
+                project_id: self.project_id,
                 mode: self.mode,
                 timeout: self.timeout,
                 wait: self.wait,
@@ -2169,9 +2198,9 @@ mod tests {
             CURRENT_PROTOCOL_VERSION
         );
         let tools = output[1]["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 21);
-        assert_eq!(tools[19]["name"], "rel_network_request");
-        assert_eq!(tools[20]["name"], "rel_network_capture_configure");
+        assert_eq!(tools.len(), 22);
+        assert_eq!(tools[20]["name"], "rel_network_request");
+        assert_eq!(tools[21]["name"], "rel_network_capture_configure");
         assert_eq!(tools[0]["name"], "rel_status");
         assert_eq!(tools[1]["name"], "rel_notifications");
         assert_eq!(tools[4]["name"], "rel_navigate");
@@ -2180,17 +2209,17 @@ mod tests {
         assert_eq!(tools[8]["name"], "rel_observe");
         assert_eq!(tools[9]["name"], "rel_find");
         assert_eq!(tools[10]["name"], "rel_action");
-        assert_eq!(tools[12]["name"], "rel_close_session_group");
-        assert_eq!(tools[13]["name"], "rel_create_session");
+        assert_eq!(tools[13]["name"], "rel_close_session");
+        assert_eq!(tools[14]["name"], "rel_create_session");
         assert_eq!(
-            tools[13]["inputSchema"]["properties"]["new_group"]["type"],
-            "boolean"
+            tools[14]["inputSchema"]["properties"]["project_id"]["type"],
+            "string"
         );
-        assert_eq!(tools[14]["name"], "rel_ping_session");
-        assert_eq!(tools[15]["name"], "rel_list_proxies");
-        assert_eq!(tools[16]["name"], "rel_session_trace");
-        assert_eq!(tools[17]["name"], "rel_debug_state");
-        assert_eq!(tools[18]["name"], "rel_debug_bundle");
+        assert_eq!(tools[15]["name"], "rel_ping_session");
+        assert_eq!(tools[16]["name"], "rel_list_proxies");
+        assert_eq!(tools[17]["name"], "rel_session_trace");
+        assert_eq!(tools[18]["name"], "rel_debug_state");
+        assert_eq!(tools[19]["name"], "rel_debug_bundle");
         assert_eq!(output[1]["result"]["resultType"], "complete");
 
         let navigate = &tools[4]["inputSchema"];
@@ -2303,12 +2332,12 @@ mod tests {
         }
         let tools = tool_definitions();
         assert_eq!(
-            tools[2]["inputSchema"]["properties"]["group"]["maxLength"],
-            128
+            tools[2]["inputSchema"]["properties"]["project_id"]["minLength"],
+            1
         );
         assert_eq!(
-            tools[3]["inputSchema"]["properties"]["group"]["maxLength"],
-            128
+            tools[3]["inputSchema"]["properties"]["project_id"]["minLength"],
+            1
         );
         assert_eq!(
             tools[2]["inputSchema"]["properties"]["profile"]["maxLength"],
@@ -2386,9 +2415,59 @@ mod tests {
     }
 
     #[test]
+    fn current_contract_rejects_obsolete_creation_and_requires_project_scope() {
+        assert!(
+            serde_json::from_value::<CreateSessionArguments>(json!({"profile":"Reddit"})).is_err()
+        );
+        for legacy in [
+            json!({"project_id":"Research","group":"old"}),
+            json!({"project_id":"Research","new_group":true}),
+        ] {
+            assert!(serde_json::from_value::<CreateSessionArguments>(legacy).is_err());
+        }
+        let tools = tool_definitions();
+        assert!(!tools
+            .iter()
+            .any(|tool| tool["name"] == "rel_close_session_group"));
+        for name in [
+            "rel_capture",
+            "rel_page_attach",
+            "rel_navigate",
+            "rel_read",
+            "rel_observe",
+            "rel_take_screenshot",
+        ] {
+            let tool = tools.iter().find(|tool| tool["name"] == name).unwrap();
+            assert_eq!(
+                tool["inputSchema"]["properties"]["project_id"]["type"], "string",
+                "{name}"
+            );
+            assert!(tool["inputSchema"]["properties"].get("group").is_none());
+        }
+        for version in ["0.1.156", "0.1.158", "0.2.0", "1.0.0"] {
+            assert!(require_supported_runtime(version).is_ok());
+        }
+        for version in ["0.1.155", "0.0.999", "0.1", "0.1.156-beta", "unknown"] {
+            assert!(require_supported_runtime(version).is_err());
+        }
+    }
+
+    #[test]
     fn session_tools_accept_tab_resources_without_group_settings() {
-        let session = json!({"id":"Session12", "group_id":"Group4", "created_at":123});
+        let session = json!({"id":"Session12", "project_id":"Research", "name":"Reddit12", "profile":"Reddit", "profile_id":null, "created_at":123, "adblock_enabled":true});
         for (tool, arguments, data, route) in [
+            (
+                "rel_list_projects",
+                json!({}),
+                json!({"projects":[{"id":"Research","name":"Research","model":null,"session_ids":["Session12"]}]}),
+                "GET /v1/projects HTTP/1.1",
+            ),
+            (
+                "rel_list_sessions",
+                json!({"project_id":"Research"}),
+                json!({"sessions":[session.clone()]}),
+                "GET /v1/sessions?project_id=Research HTTP/1.1",
+            ),
             (
                 "rel_list_sessions",
                 json!({}),
@@ -2397,13 +2476,13 @@ mod tests {
             ),
             (
                 "rel_create_session",
-                json!({"profile":"RYM"}),
+                json!({"project_id":"Research", "profile":"RYM"}),
                 json!({"session":session.clone()}),
                 "POST /v1/sessions HTTP/1.1",
             ),
             (
                 "rel_create_session",
-                json!({"profile":"RYM", "name":"RYM"}),
+                json!({"project_id":"Research", "profile":"RYM", "name":"RYM"}),
                 json!({"session":session.clone()}),
                 "POST /v1/sessions HTTP/1.1",
             ),
@@ -2485,13 +2564,12 @@ mod tests {
     }
 
     #[test]
-    fn close_session_group_tool_forwards_group_and_deleted_ids() {
+    fn close_session_tool_deletes_only_the_selected_session() {
         let body = json!({
             "status": "ok",
             "request_id": "req_close_group",
             "data": {
-                "group": "pgm",
-                "deleted_ids": ["Session1", "Session2"]
+                "deleted_id": "Session1"
             }
         })
         .to_string();
@@ -2504,22 +2582,19 @@ mod tests {
                 "method": "tools/call",
                 "params": {
                     "_meta": modern_metadata(),
-                    "name": "rel_close_session_group",
-                    "arguments": {"group": "pgm"}
+                    "name": "rel_close_session",
+                    "arguments": {"session_id": "Session1"}
                 }
             })],
             RelClient::new(base_url),
         );
         let request = server.join().unwrap();
 
-        assert!(request.starts_with("POST /v1/sessions/close HTTP/1.1"));
-        let request_body: Value =
-            serde_json::from_str(request.split_once("\r\n").unwrap().1).unwrap();
-        assert_eq!(request_body, json!({"group":"pgm"}));
+        assert!(request.starts_with("DELETE /v1/sessions/Session1 HTTP/1.1"));
         assert_eq!(output[0]["result"]["isError"], false);
         assert_eq!(
-            output[0]["result"]["structuredContent"]["data"]["deleted_ids"],
-            json!(["Session1", "Session2"])
+            output[0]["result"]["structuredContent"]["data"]["deleted_id"],
+            json!("Session1")
         );
     }
 
@@ -3109,9 +3184,9 @@ mod tests {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CreateSessionArguments {
-    new_group: Option<bool>,
+    project_id: String,
     name: Option<String>,
-    group: Option<String>,
+    group_id: Option<String>,
     profile: Option<String>,
     lifetime: Option<client::SessionLifetime>,
 }
@@ -3153,4 +3228,10 @@ struct NetworkCaptureArguments {
     status_codes: Option<Vec<u16>>,
     max_bytes_per_response: Option<u64>,
     max_total_bytes: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ListSessionsArguments {
+    project_id: Option<String>,
 }

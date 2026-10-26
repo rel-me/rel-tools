@@ -1,6 +1,6 @@
 # REL CLI
 
-## Profiles, groups, and sessions
+## Projects, Profiles and Sessions
 
 See [Projects, Profiles and Sessions](SESSIONS.md) for explicit Project scope,
 independent Session state, deliberate sharing and configuration reapply. Profile
@@ -216,12 +216,10 @@ rel https://rel.me > rel.html 2> capture.ndjson
 
 ### Navigate, perform, and capture in one session
 
-Create a session, then let later CLI calls select that newest session for the
-complete stateful workflow:
+Create a Session in the chosen Project and preserve its exact ID for the workflow:
 
 ```sh
-rel session create --name Research --id-only
-# Session12
+export REL_SESSION_ID="$(rel session create --project-id ProjectDefault --name Research --id-only)"
 
 rel navigate https://rel.me
 rel perform '[{"action":"wait","seconds":0.5}]'
@@ -229,8 +227,7 @@ rel capture > rel.html
 ```
 
 The final argument-free `rel capture` reads the page selected by `rel navigate`
-after `rel perform` finishes. Each CLI process asks REL for the newest existing
-session, so this sequence needs no shell variable or CLI state file.
+after `rel perform` finishes. `REL_SESSION_ID` selects the same Session in each process.
 
 For dynamically loaded content, add `--wait-for` to navigation so the next
 command runs only after the chosen CSS selector appears:
@@ -259,8 +256,7 @@ rel perform '[{"action":"wait","seconds":0.5}]'
 rel capture > example.html
 ```
 
-An explicit `--session-id` takes precedence over `REL_SESSION_ID`, which takes
-precedence over the newest existing session. An explicit URL takes precedence
+An explicit `--session-id` takes precedence over `REL_SESSION_ID`. An explicit URL takes precedence
 over `REL_SESSION_URL`. REL's embedded terminal exports both variables for its
 browser session when the shell starts or restarts.
 
@@ -362,11 +358,9 @@ rel capture > final.html
 ```
 
 `navigate` calls `POST /v1/navigate`, navigates the current shorthand page, and
-prints the ordinary JSON response envelope. Its first call reuses the newest
-existing session unless `--session-id` or `REL_SESSION_ID` supplies one,
-creating a session only when none exists. Later calls without a session ID
-resolve the newest session again and reuse its current page. Supplying
-`--profile NAME` intentionally creates a new session from that profile and
+prints the ordinary JSON response envelope. Supply `--session-id` or
+`REL_SESSION_ID` to reuse a Session, or `--project-id` for Project scope.
+`--profile NAME` creates an independent Session in that Project and
 conflicts with `--session-id`. It also accepts `--proxy`, `--output`,
 `--timeout`, `--wait`, and `--wait-for`. The positional URL may be omitted when
 `REL_SESSION_URL` is set; an explicit URL always wins.
@@ -431,7 +425,7 @@ options such as `--action`, `--proxy`, or `--retry`. It also accepts
 `--session-id`.
 
 For `navigate`, `perform`, and argument-free `capture`, `--session-id` defaults
-to `REL_SESSION_ID` when set, then the newest existing session. The agent keeps
+to `REL_SESSION_ID` when set. Otherwise supply `--project-id`. The agent keeps
 a distinct current shorthand page for each session, so embedded terminals can
 use these commands concurrently. An explicit option always wins. The shorthand
 registry is process-local and a session's entry disappears when the agent
@@ -456,9 +450,9 @@ actions, and writes the rendered HTML to stdout or an explicit output file.
 | `--wait SECONDS` | `wait` | Nonnegative finite settling delay after the final main-frame readiness; default `1`. Background loading does not restart it. |
 | `--action JSON` | `actions[]` | One canonical action object; repeat the option for multiple actions. |
 | `--actions JSON` | `actions` | A JSON array of canonical action objects, executed in order. |
-| `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set, then the newest existing session. Create a persistent session only when none exists. |
+| `--session-id ID` | `session_id` | Reuse an existing immutable `Session<number>` ID. When omitted, use `REL_SESSION_ID` if set; new creation requires `--project-id`. |
 | `--profile NAME` | `profile` | Create the session from this saved profile. Conflicts with `--session-id` and suppresses both implicit defaults. |
-| `--group GROUP` | `group` | Label a newly created URL-capture session. Conflicts with `--session-id` and suppresses both implicit defaults. |
+| `--project-id ID` | `project_id` | Select the owning Project for a new Session. |
 | `--proxy ALIAS` | `proxy` | Select a proxy by its unique alias for the created or reused session. |
 | `--retry COUNT` | `retry` | Retry count from 0 through 100; default `1`. |
 | `--retry-delay SECONDS` | `retry_delay` | Finite delay from 0 through 86400 seconds; default `3`. |
@@ -467,16 +461,10 @@ Exactly one URL is required before the options. Scheme-less localhost
 addresses use HTTP; other scheme-less hosts use HTTPS. Only HTTP and HTTPS are
 accepted.
 
-When `--session-id`, `--profile`, and `--group` are omitted, the CLI uses
-`REL_SESSION_ID` if it is set, then the newest existing session. The environment
-variable is exported automatically by each embedded session terminal. An
-explicit option always wins. If neither the environment variable nor an
-existing session is present, capture creates a persistent browser session. Its
-default label is `Session<ID>` and its immutable identifier is:
-
-```text
-Session<ID>
-```
+Use `--session-id` for an existing Session or `--project-id` for explicit Project
+scope. `REL_SESSION_ID` supplies the Session selector when no creation option
+was supplied. The CLI does not choose a Session from another Project implicitly.
+A new Session requires `--project-id`; its returned ID is `Session<number>`.
 
 For a new session, `--proxy oxylabs` is shorthand for creating a persistent
 session assigned to `oxylabs`, then capturing with it. Its canonical ID is
@@ -530,10 +518,9 @@ rel page attach https://example.com \
 ```
 
 `page attach` accepts `--session-id`, `--profile`, `--proxy`, `--output`,
-`--timeout`, and `--wait`. It also accepts `--group` when creating a session.
+`--timeout`, and `--wait`. New-session creation requires `--project-id`.
 `--profile` conflicts with `--session-id`; either creation option suppresses
-both implicit defaults. Otherwise the CLI uses `REL_SESSION_ID` when set, then
-the newest existing session. Its positional URL defaults to `REL_SESSION_URL`
+the environment default. Otherwise the CLI uses `REL_SESSION_ID` when set. Its positional URL defaults to `REL_SESSION_URL`
 when omitted. Its result contains a process-local `page.id`.
 
 Perform one canonical [browser action](ACTIONS.md) on that attachment:
@@ -681,10 +668,10 @@ rel session delete Session12
 ```
 
 Sessions include Project ownership and copied configuration metadata. An
-independent Session can omit `group_id`. Creation requires explicit Project scope;
-check whether the installed CLI can express it. If not, create through the app or
-supported [RPC request](SESSIONS.md) and reuse the returned Session ID. Do not
-assume a Profile/display name joins live browser state, or send legacy group labels.
+independent Session can omit `group_id`. Create it with
+`rel session create --project-id ProjectDefault --profile Reddit --id-only`.
+Only select `--group-id new` or a returned group ID when sharing state deliberately
+within that Project. Profile names do not identify a live login.
 
 An unsuccessful create response without a session ID does not prove that no
 session was created. REL can commit the session before Chromium synchronization

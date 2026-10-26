@@ -29,10 +29,10 @@ class MCPLauncherTests(unittest.TestCase):
             "/Applications/REL.app", shlex.quote(str(self.system_app)), 2
         ).replace("/usr/bin/osascript", shlex.quote(str(self.lookup)))
 
-    def install(self, app, marker):
+    def install(self, app, marker, version="0.1.156", contract="rel-project-sessions-v1"):
         adapter = app / "Contents/Resources/rel-mcp"
         adapter.parent.mkdir(parents=True)
-        adapter.write_text('#!/bin/sh\nprintf "%s\\n" ' + shlex.quote(marker) + '\nexit 7\n')
+        adapter.write_text('#!/bin/sh\nif [ "${1:-}" = --version ]; then printf "rel-mcp %s\\n" ' + shlex.quote(version) + '; exit 0; fi\nif [ "${1:-}" = --api-contract ]; then printf "%s\\n" ' + shlex.quote(contract) + '; exit 0; fi\nprintf "%s\\n" ' + shlex.quote(marker) + '\nexit 7\n')
         adapter.chmod(0o755)
 
     def run_launcher(self):
@@ -46,6 +46,42 @@ class MCPLauncherTests(unittest.TestCase):
         self.assertEqual(result.returncode, 7, result.stderr)
         self.assertEqual(result.stdout, marker + "\n")
         self.assertEqual(result.stderr, "")
+
+    def test_old_adapter_is_rejected_before_stdio(self):
+        self.install(self.custom_app, "must not start", "0.1.155")
+        self.env["REL_APP_PATH"] = str(self.custom_app)
+        result = self.run_launcher()
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("REL 0.1.156 or later is required", result.stderr)
+
+    def test_stale_schema_is_rejected_even_with_supported_version(self):
+        self.install(self.custom_app, "must not start", contract="")
+        self.env["REL_APP_PATH"] = str(self.custom_app)
+        result = self.run_launcher()
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("does not support the current Project/Session API", result.stderr)
+
+    def test_newer_adapter_is_accepted(self):
+        self.install(self.custom_app, "newer", "0.1.158")
+        self.env["REL_APP_PATH"] = str(self.custom_app)
+        self.assert_adapter("newer")
+
+    def test_invalid_adapter_version_is_rejected(self):
+        for version in ["", "0.1", "0.1.156-beta", "garbage", "0.1.156\n0.1.155"]:
+            with self.subTest(version=version):
+                adapter = self.custom_app / "Contents/Resources/rel-mcp"
+                if adapter.exists():
+                    adapter.unlink()
+                self.custom_app.mkdir(parents=True, exist_ok=True)
+                adapter.parent.mkdir(parents=True, exist_ok=True)
+                adapter.write_text('#!/bin/sh\nif [ "${1:-}" = --version ]; then printf "%s\\n" ' + shlex.quote(version) + '; exit 0; fi\necho "must not start"\n')
+                adapter.chmod(0o755)
+                self.env["REL_APP_PATH"] = str(self.custom_app)
+                result = self.run_launcher()
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, "")
 
     def test_system_install_wins(self):
         self.install(self.system_app, "system")
