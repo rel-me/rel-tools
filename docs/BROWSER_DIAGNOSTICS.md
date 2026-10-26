@@ -198,3 +198,21 @@ alone does not verify this. Restart/reconnect existing MCP clients after updatin
 REL so their adapter process and cached tool list refresh; updating plugin skill
 files alone cannot update a running adapter. The deterministic REL fixture starts
 the app-bundled `rel-mcp`, initializes it, lists tools, and invokes diagnostics.
+
+TCP proxy traces also record `proxy.connection.opened/closed`,
+`proxy.attempt.started/connected/failed`, `proxy.connection.reused`,
+`proxy.connect.response`, `proxy.http.response` and `proxy.response.generated`.
+Opaque connection/attempt IDs correlate attempts and reconnects within the local
+browser connection. These events explicitly use
+`observation_scope: browser_state_owner_connection`, and have null CEF request
+and operation IDs. Group members may observe the same connection event; this does
+not prove a particular Session or document used that connection.
+
+A provider's CONNECT 503 is directly observed proxy-protocol evidence; REL's
+own generated CONNECT 502 is labeled `rel_proxy`. Both differ from a document
+503 received inside an encrypted tunnel. HTTP relay status is observed but its
+generator stays unknown. Provider diagnostic messages use the Rust proxy
+credential sanitizer. There are no added retries: TCP attempt events report zero
+internal retries, while separate attempts show reconnects. MASQUE streams and
+request-level joins remain unobservable in this TCP context. Location probes run
+outside this context and cannot establish exit continuity.
