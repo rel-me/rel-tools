@@ -978,6 +978,18 @@ with allowance remaining. Once all IPs are exhausted, a new round starts.
 Runtime counts reset on agent restart or pool endpoint/count/limit changes.
 Manual rotation does not clear an IP's shared page allowance.
 
+`POST /v1/sessions` and `PATCH /v1/sessions/{id}` accept
+`proxy_keepalive_enabled` as a boolean, defaulting to false for new bindings.
+It requires an Oxylabs Residential proxy on `pr.oxylabs.io`. The setting belongs
+to the live proxy binding: an explicit shared group has one setting; independent
+Sessions have independent settings. Joining an existing group inherits its
+setting, and a join request cannot override it. `data.session` reports the
+current value. Enabling it on an already invalid binding returns the retryable
+`PROXY_SESSION_EXPIRED` error rather than renewing it. Keepalive uses bounded
+requests on the existing proxy route after about 30 seconds idle; it does not
+start dormant bindings, refresh REL Session inactivity, or extend the maximum
+provider duration. See [optional proxy keepalive](PROXIES.md#optional-proxy-session-keepalive).
+
 `POST /v1/sessions/{id}/prepare-proxy-page` accepts `{}` and returns `rotated`.
 With automatic ISP rotation enabled it returns `assigned_port`,
 `page_request_count`, and `page_request_limit` for an admitted page. When the

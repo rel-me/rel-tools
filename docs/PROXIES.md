@@ -89,8 +89,8 @@ rel proxy update research-us --username customer-YOUR_USERNAME-sesstime-60
 Preserve any existing provider targeting parameters in your username. REL adds
 its own generated `sessid_oneip` value; do not supply a session ID yourself.
 The configured duration extends the maximum age, but does not disable the
-60-second idle limit. REL does not send keepalive requests. Configure the
-username before creating the Sessions that will use it; changing it does not
+60-second idle limit. Keepalive is off by default; the optional setting below
+can reduce idle expiry. Configure the username before creating the Sessions that will use it; changing it does not
 revive an already expired Session.
 
 REL uses `sessid_oneip` on `pr.oxylabs.io` so an unavailable exit returns an
@@ -112,6 +112,43 @@ workflow state. Do not blindly replay actions with uncertain side effects.
 
 REL preserves the expired Session's browser data until you close it. It does
 not automatically reset the proxy binding, clear site data, or replay actions.
+
+### Optional proxy session keepalive
+
+When creating a Session with an Oxylabs Residential proxy, enable **Keep Proxy
+Session Alive** to send a small HTTPS request to `https://rel.me/proxy-test`
+through its existing binding after about 30 seconds without confirmed upstream
+activity. The option is **off by default**, including for existing saved Sessions.
+It is a choice for this live proxy binding, not a setting on the saved proxy or
+Profile. Independent Sessions can choose differently. Tabs explicitly sharing
+one binding share its setting and send only one keepalive request per interval.
+Joining an existing group inherits its current setting.
+
+Keepalive starts only after browsing has started the provider clock. It does
+not open a dormant Session, change IP, clear browser state, renew an expired
+binding, or extend the configured maximum duration. It pauses when all tabs
+using the binding have networking paused, and stops after the binding expires,
+keepalive is disabled, or its last Session closes. Requests use the existing
+proxy credentials and count toward proxy request/traffic usage, but do not count
+as browser page loads. They do not refresh REL's separate Session inactivity
+lifetime.
+
+For scripts, set `proxy_keepalive_enabled:true` on `POST /v1/sessions`, or on
+`PATCH /v1/sessions/{id}` for an existing Session. Setting it through any member
+of a shared group changes that binding's setting for all members. The Session
+response reports `proxy_keepalive_enabled`. For example:
+
+```json
+{
+  "project_id": "ProjectDefault",
+  "proxy_alias": "research-us",
+  "proxy_keepalive_enabled": true,
+  "lifetime": {"type": "indefinite"}
+}
+```
+
+Keepalive cannot guarantee a residential exit remains available. Expiry still
+uses the retryable new-Session recovery contract above.
 
 Dedicated ISP port assignments do not use this expiry policy. Authentication
 failures and errors returned by destination websites do not invalidate the
