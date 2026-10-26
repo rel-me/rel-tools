@@ -78,15 +78,39 @@ parameter can extend the maximum to 24 hours. Restarting REL does not renew
 Oxylabs' timer or reserve the IP permanently. See
 [Oxylabs session control](https://developers.oxylabs.io/products/proxies/residential-proxies/session-control).
 
+To request a longer duration, append `-sesstime-60` (one hour) or
+`-sesstime-1440` (24 hours) to the proxy's **Username** in Settings. You can also
+configure it through the CLI:
+
+```sh
+rel proxy update research-us --username customer-YOUR_USERNAME-sesstime-60
+```
+
+Preserve any existing provider targeting parameters in your username. REL adds
+its own generated `sessid_oneip` value; do not supply a session ID yourself.
+The configured duration extends the maximum age, but does not disable the
+60-second idle limit. REL does not send keepalive requests. Configure the
+username before creating the Sessions that will use it; changing it does not
+revive an already expired Session.
+
 REL uses `sessid_oneip` on `pr.oxylabs.io` so an unavailable exit returns an
 error instead of silently switching the group's IP. REL saves session timing
-across restarts and checks confirmed upstream requests conservatively for idle expiry. Traffic
-inside an existing encrypted tunnel does not extend the local idle window, so
-REL may reset a group before Oxylabs would. Once the session expires or Oxylabs rejects its strict single-IP
-binding, REL automatically resets the whole tab group: it closes the old
-connections, assigns a fresh session ID, clears shared site data, and reopens
-the tabs. Website logins and other site state in that group are cleared.
-Old Residential sessions whose lifetime is unknown are reset once after upgrade.
+across restarts and checks confirmed upstream requests conservatively for idle
+expiry. Traffic inside an existing encrypted tunnel does not extend the local
+idle window, so REL may expire a session before Oxylabs would.
+
+When the binding expires, becomes unavailable, or has an unknown lifetime after
+an upgrade, browser automation returns `PROXY_SESSION_EXPIRED` with HTTP 409 and
+`retryable: true`. Error `details` include `session_id`, `proxy_alias`, `reason`,
+and `recovery: "create_session"`. A retry requires a **new Session**: close the
+expired Session, create another in the same Project with the same proxy or
+Profile, and retry the workflow there with a bounded retry count. Repeating the
+request against the expired Session cannot recover it. Rebuild page IDs and
+observations for the replacement Session, and restore any required login or
+workflow state. Do not blindly replay actions with uncertain side effects.
+
+REL preserves the expired Session's browser data until you close it. It does
+not automatically reset the proxy binding, clear site data, or replay actions.
 
 Dedicated ISP port assignments do not use this expiry policy. Authentication
 failures and errors returned by destination websites do not invalidate the

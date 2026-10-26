@@ -149,9 +149,12 @@ transport statuses. Clients can branch on `code` or `id`, but must never parse
 `message` or infer application meaning from the HTTP status. The same error
 object is used in ordinary responses and NDJSON streams.
 
-`retryable:true` means retrying the same idempotent operation may succeed without
-user correction. It does not mean every mutation is automatically safe to
-repeat.
+`retryable:true` means an operation may succeed after retrying, including any
+recovery required by the error's `details`. It does not mean every mutation is
+automatically safe to repeat. In particular, `PROXY_SESSION_EXPIRED` requires a
+new Session before retrying; retrying the expired Session cannot recover it.
+See [Residential proxy session expiry](PROXIES.md#oxylabs-residential-session-expiry)
+for duration configuration and the recovery contract.
 
 ### Standard error codes
 
