@@ -263,3 +263,11 @@ outside this context and cannot establish exit continuity.
 | Inspection during waits | Both cached state and individual request inspection are timed during a selector wait. |
 | Late failure correlation | Outer-timeout events retain operation/HTTP request IDs. CEF load-error request identity is explicitly unavailable. |
 | MCP discovery | A fresh app-bundled adapter lists and calls all diagnostic tools separately from CLI verification. |
+
+Structured redaction preserves acceptance booleans even under sensitive parent
+fields such as `challenge` or `auth`. It also retains a fixed set of outcome words
+(e.g. `reason: expired` or `status: rejected`). Arbitrary strings and numeric
+challenge responses in those sensitive contexts remain redacted. Thus an agent
+can inspect an application-level rejection without exposing the proof token.
+Network operation context is snapshotted at native request start; queued callback
+delivery cannot assign a request to whichever operation happens to run later.
