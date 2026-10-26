@@ -100,8 +100,9 @@ expiry. Traffic inside an existing encrypted tunnel does not extend the local
 idle window, so REL may expire a session before Oxylabs would.
 
 When the binding expires, becomes unavailable, or has an unknown lifetime after
-an upgrade, browser automation returns `PROXY_SESSION_EXPIRED` with HTTP 409 and
-`retryable: true`. Error `details` include `session_id`, `proxy_alias`, `reason`,
+an upgrade, browser automation returns `PROXY_SESSION_EXPIRED` with
+`retryable: true` (HTTP 409 for ordinary JSON responses; the same error object
+appears in a streamed capture's failure event). Error `details` include `session_id`, `proxy_alias`, `reason`,
 and `recovery: "create_session"`. A retry requires a **new Session**: close the
 expired Session, create another in the same Project with the same proxy or
 Profile, and retry the workflow there with a bounded retry count. Repeating the

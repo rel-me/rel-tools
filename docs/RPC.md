@@ -988,9 +988,10 @@ This independent admission lane never waits on browser automation or the app
 bridge. Embedders should not call it again for a navigation already handled by
 REL, because that would consume an extra allowance. Other proxy types return
 `rotated:false` without changing routing or counters. For an expired or invalid
-Oxylabs Residential session on `pr.oxylabs.io`, the response instead includes
-`reset_required:true` and an `invalid_reason`. REL cancels that navigation and
-automatically resets the shared tab group before allowing further requests.
+Oxylabs Residential session on `pr.oxylabs.io`, preparation fails with HTTP 409
+and `PROXY_SESSION_EXPIRED`, `retryable:true`, and recovery details requiring a
+new Session. REL cancels that navigation without resetting browser state. See
+[Residential proxy session expiry](PROXIES.md#oxylabs-residential-session-expiry).
 A preparation failure
 cancels the document request and surfaces the error.
 
