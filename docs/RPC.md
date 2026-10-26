@@ -1153,6 +1153,9 @@ A profile resource is:
 ```
 
 - `GET /v1/profiles` returns saved profiles sorted by name in `data.profiles`.
+  Profiles do not expose a `color` field. Creation and updates reject `color`;
+  the app no longer assigns or edits profile colors. Reserved database and
+  archive columns remain for schema compatibility.
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
   the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
