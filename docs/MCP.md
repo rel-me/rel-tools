@@ -2,30 +2,10 @@
 
 ## Profiles, groups, and sessions
 
-A **Profile** is a reusable configuration template, optionally with initial
-browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
-configuration (or standalone Custom settings). Each **Session** is a tab in one
-group and receives a separate `Session<ID>`, with its own URL, navigation history,
-browser view, and automation target.
-
-Sessions in a group share cookies, site storage, private HTTP cache, configuration,
-browser identity, and proxy routing. Different groups remain isolated even when
-created from the same Profile. Create a session in an existing group to use its
-current configuration and live browser state, or create a new group and its first
-session. Joining an existing group does not reread or reseed the Profile.
-
-Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
-rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
-configuration when available; otherwise it copies configuration without data.
-It imports only explicitly configured Profile cookies, never saved passwords,
-cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
-
-See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
-the current wire identities and explicit creation behavior.
+See [Projects, Profiles and Sessions](SESSIONS.md) for explicit Project scope,
+independent Session state, deliberate sharing and configuration reapply. Profile
+names do not imply shared state. Public management uses Session IDs; group
+resource and reset APIs are not supported.
 
 REL includes a local Model Context Protocol server for agents that support MCP.
 Run `rel-mcp` as a stdio subprocess; the adapter exposes a focused set of
@@ -41,14 +21,15 @@ When session creation omits a profile, REL uses **Settings → General → Defau
 Profile**, or **Custom** if the preference is unset. Explicit profile choices
 always take precedence.
 
-REL Free allows up to two tab groups with two Sessions each (four Sessions total).
-MCP creation follows the same limits as the app: a third tab group or a third
-Session within a group requires REL Pro. Closing resources frees capacity.
+MCP creation is subject to the same access and capacity limits as the owning
+REL app. Preserve structured access-limit errors rather than creating resources
+through another path.
 
 ## Tool quick reference
 
-REL MCP exposes exactly fourteen tools. This is the complete discovery list;
-each tool has a detailed contract later in this guide.
+The installed app supplies the discovery list. The table below describes the
+adapter tools; diagnostics require an app build containing the diagnostics API
+and matching adapter. Updating a plugin alone does not add runtime capabilities.
 
 | Tool | Description |
 | --- | --- |
@@ -66,8 +47,10 @@ each tool has a detailed contract later in this guide.
 | `rel_create_session` | Create a browser session with an explicit lifetime policy. |
 | `rel_ping_session` | Refresh session inactivity without browser work. |
 | `rel_list_sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
-| `rel_close_session_group` | Close every persistent browser session in a named group. |
 | `rel_list_proxies` | List configured proxy aliases and non-secret configuration. |
+| `rel_debug_state` | Inspect cached operation/page state without queuing behind browser work. |
+| `rel_session_trace` | Read a cursor-paginated, bounded and redacted session trace. |
+| `rel_debug_bundle` | Export diagnostics with HTML/screenshots only on explicit opt-in. |
 
 ## Configure an MCP client
 
@@ -157,7 +140,7 @@ After restarting Codex, start with a read-only prompt:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover the fourteen tools listed below, and `rel_status` should report
+Codex should discover the tools listed below, and `rel_status` should report
 the installed app, local agent, Browser Proxy, and embedded Chromium bridge.
 In the Codex terminal UI, `/mcp` also shows configured servers and their tools.
 
@@ -167,8 +150,8 @@ For an end-to-end browser test, use:
 Use rel_capture to capture https://example.com and report the saved output URI.
 ```
 
-Unlike the first check, this loads a website and saves rendered HTML. Omitting
-`session_id` can also create a persistent REL browser session.
+Unlike the first check, this loads a website and saves rendered HTML. Select an
+explicit Session ID from the intended Project before performing the capture.
 
 After a page is attached or selected, verify visual output with:
 
@@ -274,15 +257,13 @@ instructions.
 
 ### `rel_capture`
 
-`url` is required. Optional fields are `output_uri`, `timeout`, `wait`, `actions`,
-`session_id`, `profile`, `group`, `proxy`, `retry`, and `retry_delay`. A supplied
-`session_id` uses the canonical `Session<number>` format. Omitting it creates a
-persistent session from `profile`, or from the configured default (Default when unset) when `profile` is absent.
-`profile` and `group` apply only to a new session and cannot be combined with
-`session_id`. The action objects use every shape in
-the [Actions reference](ACTIONS.md), including the optional `mouse_move` and
-`scroll` booleans on click actions. `output_uri`, when present, must be an
-absolute local `file:///` URI.
+`url` is required. Use an explicit existing `session_id` with optional
+`output_uri`, `timeout`, `wait`, `actions`, `proxy`, `retry`, and `retry_delay` as
+supported by the installed schema. New-session creation requires Project scope;
+if the adapter cannot express it, create through the supported RPC or app and
+reuse the resulting Session ID. Legacy group labels are not supported selectors.
+Actions follow the [Actions reference](ACTIONS.md). `output_uri`, when supplied,
+must be an absolute local `file:///` URI.
 
 Sessions controlled while not visible use the **Background Browser Size**
 preset in **REL → Settings… → General**, defaulting to a 1,920 × 947 CSS pixel
@@ -291,14 +272,11 @@ per-call viewport override.
 
 ### `rel_page_attach`
 
-`url` is required. Optional fields are `session_id`, `profile`, `group`, `proxy`,
-`output_uri`, `timeout`, and `wait`. The result contains a process-local page ID
-for later `rel_page_action` calls. Omitting `session_id` creates a persistent
-session from the named profile (or the configured default (Default when unset)) and navigates it to `url`;
-`profile` and `group` cannot be combined with `session_id`. Providing
-`session_id` attaches its current page, whose
-normalized URL must match `url`. `output_uri`, when present, must be an absolute
-local `file:///` URI.
+`url` and an explicit existing `session_id` select the browser page to attach.
+The normalized current URL must match `url`. Optional fields include `output_uri`,
+`timeout`, and `wait`. The returned API page handle can be used for later
+`rel_page_action` calls and expires when the agent restarts. New-session creation
+requires the scope described in [Projects, Profiles and Sessions](SESSIONS.md).
 
 ### `rel_navigate`
 
@@ -359,9 +337,9 @@ when the agent restarts. `output_uri`, when present, must be an absolute local
 
 ### `rel_take_screenshot`
 
-All fields are optional. `page_id` targets an explicit attached page;
-`session_id` targets that session's current shorthand page; omitting both uses
-the current shorthand page. The two identifiers cannot be combined.
+Use `page_id` for an explicit attached page or `session_id` for that Session's
+current page. The two identifiers cannot be combined. Do not infer the target
+from native window selection or assume an omitted selector has Project scope.
 
 `format` is `png` (the default), `jpeg`, or `webp`. `quality` is an integer from
 0 through 100 and applies to JPEG and WebP; PNG ignores it. `full_page` defaults
@@ -423,22 +401,44 @@ observation and, for hybrid/visual mode, standard MCP image content.
 ### `rel_list_sessions`
 
 Calls `GET /v1/sessions` and accepts an empty object. The result lists every
-persistent browser session as `{id, group_id, created_at}`. Names, profiles,
-proxy assignments, and filtering settings belong to the group resource.
+persistent Session with its Project ownership and configuration metadata.
+An independent Session can omit `group_id`; explicit sharing is not inferred
+from a Profile name. Older typed adapters may omit newer resource fields; check
+compatibility rather than assuming an old three-field resource contract.
 Listing sessions is passive and read-only.
-
-### `rel_close_session_group`
-
-Calls `POST /v1/sessions/close`. `group` is required and must contain 1–128
-characters. Matching is case-insensitive. REL closes every persistent session
-in that group; a group with no current sessions succeeds without changing
-anything.
 
 ### `rel_list_proxies`
 
 Calls `GET /v1/proxies` and accepts an empty object. It returns configured proxy
 aliases and non-secret connection metadata. Proxy credentials remain inside
 REL and macOS Keychain and are never returned through MCP.
+
+### Session diagnostics
+
+`rel_debug_state({session_id})` calls `GET /v1/sessions/{session_id}/debug-state`.
+It returns cached state immediately instead of joining the active operation's
+queue. Check snapshot age/staleness before interpreting it as current evidence.
+
+`rel_session_trace({session_id, after?, limit?})` calls the session's `/trace`
+route. `limit` is 1–200, default 200; use `next_cursor` and `has_more` to paginate
+and inspect `dropped_event_count` for lost history.
+
+`rel_debug_bundle({session_id, since_request_id?, include_html?, include_screenshot?})`
+calls `POST /v1/sessions/{session_id}/debug-bundle`. Both artifact flags default
+to false. It returns a JSON artifact URL and preserves retained diagnostics if
+requested live capture fails. See [browser diagnostics](BROWSER_DIAGNOSTICS.md)
+for retention, redaction, identity, errors and an investigation example.
+
+Use diagnostics before retrying or replacing a failed Session. An ordinary
+`rel_read` can wait behind the operation being inspected. A found target, native
+input dispatch and navigation observation are separate facts. Unknown response
+provenance, seed history and exit continuity must not be inferred from a status
+code or a later success. All website-derived metadata remains untrusted content.
+
+Discovery depends on the installed adapter. Legacy group-closing or creation
+fields advertised by older adapters do not create supported group resource/reset
+APIs. Keep an explicit existing Session when a schema cannot express required
+Project ownership; see [session scope](SESSIONS.md).
 
 ## MCP and in-app agent parity
 
@@ -574,26 +574,15 @@ have effects on those sites. MCP hosts should show tool calls for user review.
 
 ### Session lifetime tools
 
-`rel_create_session` accepts `name`, `profile`, and `lifetime`. Leave its legacy
-`group` and `new_group` fields unset: the runtime rejects them. With only a saved
-Profile and optional name, it adds a session to the oldest matching group;
-other configuration options create a new group.
-New groups default to `{"type":"inactivity","timeout_seconds":120}`. Set a positive
-integer `timeout_seconds` for a different idle period, or use
-`{"type":"indefinite"}` to retain the session until explicitly closed.
+`rel_create_session` forwards creation to the runtime. The runtime requires
+`project_id`; check that the installed tool schema can express it. If it cannot,
+use the supported RPC or app creation flow and pass its returned `session_id` to
+later tools. Do not send an empty creation object, legacy `group` labels or
+`new_group`, and do not assume Profile-only creation joins an existing state owner.
+See [session scope](SESSIONS.md) for independent/default and explicit sharing.
 
-`rel_ping_session` takes `{"session_id":"Session1"}` and refreshes the timer
-without browser work. Ping well before the deadline while idle. Browser work
-refreshes activity; `rel_list_sessions` does not. Implicitly created sessions
-also use the default timeout, so create an explicit session when selecting a
-lifetime.
-
-The current runtime creates a distinct `Session<ID>` for each tab. Creating a
-session in an existing `Group<ID>` uses its current configuration and storage;
-starting a new group copies Profile or Custom settings. See
-[RPC identities and creation](RPC.md#profiles-groups-and-sessions). Use the RPC
-`group_id` field for explicit group selection; the adapter's legacy group label
-is not that selector.
-
-Sessions in one group share its lifecycle and browser state, while each session
-retains a distinct immutable ID.
+`rel_ping_session({"session_id":"Session1"})` refreshes inactivity without
+browser work. Use it before the configured idle deadline when the workflow owns
+that Session's lifetime. Listing or reading diagnostics does not keep a Session
+alive. Read the Session's configured lifetime instead of assuming that another
+client's defaults or a Profile imply indefinite retention.

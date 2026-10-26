@@ -70,7 +70,21 @@ Sessions receive their own persistent provider session IDs.
 Credentials stay in REL's secure credential storage. MCP's proxy-list tool
 returns aliases and non-secret metadata, not stored passwords.
 
-## Oxylabs Residential session expiry
+## Proxy session continuity
+
+A provider session ID requests routing behavior; it does not prove that an exit
+IP stayed the same or that a destination will accept a request. Provider expiry,
+network errors and destination HTTP responses are separate observations.
+
+Use [browser diagnostics](BROWSER_DIAGNOSTICS.md) to correlate a selected
+Session's requests with its proxy alias and any observed opaque exit identity.
+Exit observations have timestamps and a limited observation scope. Unknown
+continuity remains unknown; a destination 403 or 503 alone does not establish a
+proxy failure. Preserve evidence before changing configuration or replacing a
+workflow-owned Session. Configuration reapply preserves browser data; there is
+no public group reset API.
+
+### Oxylabs Residential session expiry
 
 Oxylabs Residential session IDs are temporary IP assignments. By default, they
 last up to 10 minutes or 60 seconds without requests. An explicit `sesstime`
@@ -90,8 +104,8 @@ Preserve any existing provider targeting parameters in your username. REL adds
 its own generated `sessid_oneip` value; do not supply a session ID yourself.
 The configured duration extends the maximum age, but does not disable the
 60-second idle limit. Keepalive is off by default; the optional setting below
-can reduce idle expiry. Configure the username before creating the Sessions that will use it; changing it does not
-revive an already expired Session.
+can reduce idle expiry. Configure the username before creating the Sessions
+that will use it; changing it does not revive an already expired Session.
 
 REL uses `sessid_oneip` on `pr.oxylabs.io` so an unavailable exit returns an
 error instead of silently switching the group's IP. REL saves session timing
@@ -102,7 +116,8 @@ idle window, so REL may expire a session before Oxylabs would.
 When the binding expires, becomes unavailable, or has an unknown lifetime after
 an upgrade, browser automation returns `PROXY_SESSION_EXPIRED` with
 `retryable: true` (HTTP 409 for ordinary JSON responses; the same error object
-appears in a streamed capture's failure event). Error `details` include `session_id`, `proxy_alias`, `reason`,
+appears in a streamed capture's failure event). Error `details` include
+`session_id`, `proxy_alias`, `reason`,
 and `recovery: "create_session"`. A retry requires a **new Session**: close the
 expired Session, create another in the same Project with the same proxy or
 Profile, and retry the workflow there with a bounded retry count. Repeating the
@@ -113,7 +128,7 @@ workflow state. Do not blindly replay actions with uncertain side effects.
 REL preserves the expired Session's browser data until you close it. It does
 not automatically reset the proxy binding, clear site data, or replay actions.
 
-### Optional proxy session keepalive
+#### Optional proxy session keepalive
 
 When creating a Session with an Oxylabs Residential proxy, enable **Keep Proxy
 Session Alive** to send a small HTTPS request to `https://rel.me/proxy-test`
@@ -378,8 +393,8 @@ for HTTP/3; REL reports transport errors when it is blocked.
 Each browser session connects to its own trusted loopback HTTP/3 relay. Rust
 verifies Oxylabs TLS, adds Proxy-Authorization, and forwards datagrams and
 RFC 9297 capsules. CEF receives only the loopback address and session CA,
-never provider credentials. Reset and deletion close the
-session's QUIC tunnels. Target names are passed to Oxylabs without local DNS
+never provider credentials. Closing a Session tears down its owned transport
+when its state owner is removed. Target names are passed to Oxylabs without local DNS
 resolution. WebRTC's non-proxied UDP remains disabled.
 
 Origin HTTP/3 still depends on the site's advertised support. HTTPS sites

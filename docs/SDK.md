@@ -2,30 +2,10 @@
 
 ## Profiles, groups, and sessions
 
-A **Profile** is a reusable configuration template, optionally with initial
-browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
-configuration (or standalone Custom settings). Each **Session** is a tab in one
-group and receives a separate `Session<ID>`, with its own URL, navigation history,
-browser view, and automation target.
-
-Sessions in a group share cookies, site storage, private HTTP cache, configuration,
-browser identity, and proxy routing. Different groups remain isolated even when
-created from the same Profile. Create a session in an existing group to use its
-current configuration and live browser state, or create a new group and its first
-session. Joining an existing group does not reread or reseed the Profile.
-
-Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
-rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
-configuration when available; otherwise it copies configuration without data.
-It imports only explicitly configured Profile cookies, never saved passwords,
-cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
-
-See [RPC group and session resources](RPC.md#profiles-groups-and-sessions) for
-the current wire identities and explicit creation behavior.
+See [Projects, Profiles and Sessions](SESSIONS.md) for explicit Project scope,
+independent Session state, deliberate sharing and configuration reapply. Profile
+names do not imply shared state. Public management uses Session IDs; group
+resource and reset APIs are not supported.
 
 `rel-client` is the typed Rust client for every public REL RPC v1 operation.
 The `rel` CLI uses this crate rather than maintaining a separate transport or
@@ -105,12 +85,13 @@ without navigating.
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
 | `update_proxy(alias, &ProxyUpdateRequest)` | `PATCH /v1/proxies/{alias}` |
 | `delete_proxy(alias)` | `DELETE /v1/proxies/{alias}` |
-| `reset_profile(name)` | `POST /v1/reset` |
-| `reset_group(id)` | `POST /v1/groups/{id}/reset` |
 | `export_proxy_transfer(&ProxyTransferExportRequest)` | `POST /v1/proxy-transfers/export` |
 | `import_proxy_transfer(&ProxyTransferImportRequest)` | `POST /v1/proxy-transfers/import` |
 | `list_sessions()` | `GET /v1/sessions` |
 | `get_session(id)` | `GET /v1/sessions/{id}` |
+| `debug_state(id)` | `GET /v1/sessions/{id}/debug-state` |
+| `session_trace(id, after, limit)` | `GET /v1/sessions/{id}/trace` |
+| `debug_bundle(id, since_request_id, include_html, include_screenshot)` | `POST /v1/sessions/{id}/debug-bundle` |
 | `create_session(&SessionCreateRequest)` | `POST /v1/sessions` |
 | `list_profiles()` | `GET /v1/profiles` |
 | `create_profile(&ProfileCreateRequest)` | `POST /v1/profiles` |
@@ -122,7 +103,6 @@ without navigating.
 | `pause_session(id)` | `POST /v1/sessions/{id}/pause` |
 | `play_session(id)` | `POST /v1/sessions/{id}/play` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
-| `close_session_group(group)` | `POST /v1/sessions/close` |
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
@@ -149,10 +129,10 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for its discovered tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
 `read_page`, `perform_page_action`, both screenshot methods, all observation methods,
-`list_sessions`, `close_session_group`, and `list_proxies`; it does not maintain
+`list_sessions`, `list_proxies`, and the diagnostics methods; it does not maintain
 alternate request types or bypass the RPC transport. For capture, it exhausts
 and validates `CaptureStream` before returning one aggregated MCP result.
 
@@ -528,38 +508,18 @@ update.
 
 ## Session profiles
 
-A `Session` contains its own `id`, owning `group_id`, and `created_at`. It is an
-individually addressed tab, not a shared configuration resource. A Profile-only
-creation request, optionally constrained by name, adds a session to its oldest
-matching group and preserves that group's live settings and data. Other creation
-options allocate a new group. Every newly created tab has a distinct Session ID.
+Session ownership and configuration follow the [current runtime contract](SESSIONS.md):
+creation requires a Project and each new Session is independent unless sharing
+was explicitly selected. Do not rely on legacy group labels, implicit Profile
+reuse or reset helpers. When an installed SDK request type cannot express the
+required Project/group selector, use an existing Session ID or the supported
+RPC request rather than sending an empty creation object.
 
-The [RPC contract](RPC.md#profiles-groups-and-sessions) also supports explicit
-`group_id` selection. Group labels and `new_group` are rejected by the runtime;
-leave those legacy request fields unset. Reset returns `ResetData` with fresh
-`reset_group_ids` and `replacements`; update stored IDs from the returned maps.
-
-`SessionCreateRequest::default()` serializes to `{}`, so the agent uses the
-configured **Default Profile**, or **Custom** when the preference is unset.
-Custom uses direct networking, AdBlock on, all images allowed, and Private.
-Set `profile` to a case-insensitively unique saved configuration name. Explicit proxy
-and filtering fields override the selected profile; use
-`Change::Set("alias".into())` for a proxy or `Change::Clear` for direct
-networking:
-
-```rust
-use rel_client::{Change, RelClient, SessionCreateRequest};
-
-let request = SessionCreateRequest {
-    group: Some("pgm".into()),
-    adblock_enabled: Some(true),
-    proxy_alias: Change::Clear,
-    ..SessionCreateRequest::default()
-};
-RelClient::local().create_session(&request)?;
-RelClient::local().close_session_group("pgm")?;
-# Ok::<(), rel_client::ClientError>(())
-```
+Diagnostic methods return `RpcResponse<serde_json::Value>` so additive metadata
+is preserved. `debug_state` reads cached state during long operations;
+`session_trace` takes an optional cursor and bounded limit; `debug_bundle` defaults
+artifacts off when its two flags are false. See [browser diagnostics](BROWSER_DIAGNOSTICS.md)
+for example workflows and interpretation.
 
 `Profile` contains its public `id`, unique `name`, proxy and filtering policy,
 browser-data inclusion flags, optional fingerprint identity template, built-in
