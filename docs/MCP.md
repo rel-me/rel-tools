@@ -586,3 +586,5 @@ browser work. Use it before the configured idle deadline when the workflow owns
 that Session's lifetime. Listing or reading diagnostics does not keep a Session
 alive. Read the Session's configured lifetime instead of assuming that another
 client's defaults or a Profile imply indefinite retention.
+
+`rel_network_request({session_id, network_request_id})` inspects retained network evidence. `rel_network_capture_configure({session_id, enabled, resource_types?, url_prefixes?, status_codes?, max_bytes_per_response?, max_total_bytes?})` configures capture before reproduction. See [limits and discovery/reconnection](BROWSER_DIAGNOSTICS.md#inspect-original-network-responses).

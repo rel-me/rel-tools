@@ -135,3 +135,6 @@ different target when an action fails.
 
 Tool discovery is authoritative for the installed adapter. If diagnostics are
 missing, report the capability gap; updating this skill alone cannot upgrade REL.
+
+- `rel_network_request`: inspect a retained request and opted-in network body.
+- `rel_network_capture_configure`: enable bounded text capture before reproduction; default off.

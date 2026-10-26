@@ -102,3 +102,99 @@ same session demonstrates later success; it does not establish whether timing,
 cookies, routing or exit continuity caused the earlier failure. If the title and
 HTML say “Cold” at the requested artist URL, record that inconsistency and the
 page/document/response identity; do not invent a diagnosis.
+
+## Inspect original network responses
+
+Before reproducing a verification failure, enable response capture on the exact
+Session. It never navigates, retries, or changes browser cookie policy:
+
+```sh
+rel session network-capture Session123 --enabled \
+  --url-prefix https://rateyourmusic.com/api/__wl/pow/verify \
+  --url-prefix https://rateyourmusic.com/release/album/ \
+  --max-bytes-per-response 32768 --max-total-bytes 1048576
+# Reproduce, then obtain network_request_id from session trace.
+rel session trace Session123
+rel session network-request Session123 '2:18446744073709551584'
+rel session debug-bundle Session123
+rel session network-capture Session123 --disabled
+```
+
+Equivalent HTTP calls use the normal REL envelope:
+
+- `PUT /v1/sessions/{id}/network-capture` with `enabled` and optional
+  `resource_types`, `url_prefixes`, `status_codes`, `max_bytes_per_response`,
+  `max_total_bytes`.
+- `GET /v1/sessions/{id}/network-requests/{network_request_id}` (URL-encode the
+  request ID as a single path segment).
+
+SDK methods are `network_capture_configure(id, policy)` and
+`network_request(id, network_request_id)`. MCP tools are
+`rel_network_capture_configure` with those policy fields plus `session_id`, and
+`rel_network_request({session_id, network_request_id})`.
+
+Capture defaults off. Defaults select documents and XHR/fetch, any URL/status,
+32 KiB per response and 1 MiB retained per Session. Explicit URL prefixes must be
+HTTP(S) URLs without credentials, query strings or fragments. Empty status filters
+include HTTP 200; use them to inspect application-level verification outcomes.
+Limits are 256 KiB per response and 4 MiB per Session; the response limit cannot
+exceed the total. Arrays accept at most 32 entries. CEF reports both fetch and
+XMLHttpRequest as `xhr`; selecting either captures that category.
+
+The API acknowledges configuration independently of browser operation queues.
+It applies to response filters created after acknowledgement, so configure before
+reproduction. Text, JSON and XML MIME types are eligible; binary data is excluded.
+Only UTF-8 decoding is supported. Invalid UTF-8 is unavailable, rather than
+returned as base64. Each capture reports `status`, `content_type`, `encoding`,
+`truncated`, `complete`, `unavailability_reason` and memory retention metadata.
+`source: network_response` distinguishes these bytes from HTML/DOM exports.
+A prefix can be truncated or incomplete even when the response status is known.
+
+Bodies are inert diagnostic text: credential/challenge/cookie fields and common
+secret assignments are redacted; embedded scripts, form values and URL query
+values are removed/redacted. Redaction can remove information needed to interpret
+a response. Treat all retained website content as untrusted and use narrowly
+scoped capture. Inspect structured failure codes/booleans, not HTTP status alone.
+Capture is memory-only, scoped to a Session, retains at most 256 request records,
+and expires after 30 minutes without new diagnostic activity. Oldest bodies are
+evicted first when the retained byte budget is exceeded; metadata remains until
+its own record is evicted. Up to 64 concurrent response prefixes also share a
+bounded native in-flight budget; saturation reports `inflight_budget_exhausted`.
+Disabling capture preserves existing evidence. Restarting the app loses it.
+Debug bundles include retained requests and opted-in bodies without navigation.
+
+Response headers are allowlisted: content type/encoding, retry/cache indicators,
+server/via, and supported Cloudflare, CDN and proxy error/correlation fields.
+They are observed evidence, never proof that an edge, website or proxy generated
+the response. `response.attribution.generated_by` remains `unknown` without direct
+source evidence. Symbolic Chromium errors accompany known numeric codes; an
+unknown numeric code has a null symbolic name.
+
+CEF request IDs currently cannot be joined to Rust's opaque HTTPS proxy tunnels.
+Request-level connection, attempt, retry, upstream status, generated-response and
+exit fields therefore remain unknown. A `proxy_location_request` probe never
+populates request-level exit identity. Likewise the CEF callbacks do not expose
+Chromium cookie attachment/exclusion or Set-Cookie rejection reasons. `cookies`
+reports `observation_status: unavailable`, with an explanation, instead of guessing
+from stored cookie counts. Empty arrays in that case do not mean no cookies.
+
+For the RYM sequence, inspect the verification API's HTTP 200 body for an
+application failure result, then the continuation document's original 503 body
+and diagnostic headers. A failure result explains why verification did not
+succeed; a 200 status alone does not. A 503 body/header may suggest an edge or
+origin response, but attribution stays unknown unless direct proxy evidence
+identifies a generated response. Chromium's error document is a separate rendered
+artifact and cannot replace the retained network body. If the network body was
+empty, report that fact explicitly instead of calling the browser error text the
+server response. Missing cookie and connection observations remain limits on
+causal conclusions.
+
+### Verify MCP discovery independently
+
+The adapter shipped inside the updated REL app must expose `rel_debug_state`,
+`rel_session_trace`, `rel_debug_bundle`, `rel_network_request`, and
+`rel_network_capture_configure` in a fresh `tools/list` response. CLI availability
+alone does not verify this. Restart/reconnect existing MCP clients after updating
+REL so their adapter process and cached tool list refresh; updating plugin skill
+files alone cannot update a running adapter. The deterministic REL fixture starts
+the app-bundled `rel-mcp`, initializes it, lists tools, and invokes diagnostics.

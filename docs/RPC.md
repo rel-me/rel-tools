@@ -1851,3 +1851,5 @@ and up to 20 seconds for sending. Success data contains `message_id` and
 Failures use the standard error envelope. REL does not automatically retry;
 a send timeout leaves delivery uncertain. Settings changes serialize with
 sending, so disabling cannot recall an in-flight message.
+
+Request inspection: `GET /v1/sessions/{id}/network-requests/{request_id}`. Opt-in capture: `PUT /v1/sessions/{id}/network-capture`. Both use the normal response envelope. See [capture policy, retention, redaction and attribution](BROWSER_DIAGNOSTICS.md#inspect-original-network-responses).

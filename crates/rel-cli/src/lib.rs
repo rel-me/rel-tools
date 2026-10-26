@@ -349,6 +349,14 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.session_trace(&id, after.as_deref(), limit)?)?;
             Ok(0)
         }
+        CliCommand::NetworkRequest { id, request } => {
+            print_json(&client.network_request(&id, &request)?)?;
+            Ok(0)
+        }
+        CliCommand::NetworkCapture { id, policy } => {
+            print_json(&client.network_capture_configure(&id, &policy)?)?;
+            Ok(0)
+        }
         CliCommand::DebugState(id) => {
             print_json(&client.debug_state(&id)?)?;
             Ok(0)
@@ -587,6 +595,14 @@ enum CliCommand {
         limit: usize,
     },
     DebugState(String),
+    NetworkRequest {
+        id: String,
+        request: String,
+    },
+    NetworkCapture {
+        id: String,
+        policy: serde_json::Value,
+    },
     DebugBundle {
         id: String,
         since: Option<String>,
@@ -1513,6 +1529,61 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
             Ok(CliCommand::SessionList)
         }
         "get" => Ok(CliCommand::SessionGet(parse_session_id(&mut args)?)),
+        "network-request" => {
+            let id = args.required_positional("session ID")?;
+            let request = args.required_positional("network request ID")?;
+            parse_no_options(&mut args, "session network-request", session_help())?;
+            Ok(CliCommand::NetworkRequest { id, request })
+        }
+        "network-capture" => {
+            let id = args.required_positional("session ID")?;
+            let mut policy = serde_json::json!({});
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--enabled" | "--disabled" => {
+                        args.flag(&option, inline)?;
+                        policy["enabled"] = serde_json::json!(option == "--enabled");
+                    }
+                    "--url-prefix" | "--resource-type" | "--status-code" => {
+                        let value = args.option_value(&option, inline)?;
+                        let (key, value) = match option.as_str() {
+                            "--url-prefix" => ("url_prefixes", serde_json::json!(value)),
+                            "--resource-type" => ("resource_types", serde_json::json!(value)),
+                            _ => (
+                                "status_codes",
+                                serde_json::json!(value.parse::<u16>().map_err(|_| {
+                                    CliError::Message("Invalid status code".into())
+                                })?),
+                            ),
+                        };
+                        if policy.get(key).is_none() {
+                            policy[key] = serde_json::json!([]);
+                        }
+                        policy[key].as_array_mut().unwrap().push(value);
+                    }
+                    "--max-bytes-per-response" | "--max-total-bytes" => {
+                        let number =
+                            args.option_value(&option, inline)?
+                                .parse::<u64>()
+                                .map_err(|_| {
+                                    CliError::Message(
+                                        "Capture limit must be a positive integer".into(),
+                                    )
+                                })?;
+                        policy[if option == "--max-total-bytes" {
+                            "max_total_bytes"
+                        } else {
+                            "max_bytes_per_response"
+                        }] = serde_json::json!(number);
+                    }
+                    _ => return Err(CliError::Message(format!("Unknown option {option}"))),
+                }
+            }
+            if policy.get("enabled").is_none() {
+                return Err(CliError::Message("Specify --enabled or --disabled".into()));
+            }
+            Ok(CliCommand::NetworkCapture { id, policy })
+        }
         "debug-state" => Ok(CliCommand::DebugState(parse_session_id(&mut args)?)),
         "trace" => {
             let id = args.required_positional("session ID")?;
@@ -2098,7 +2169,7 @@ app for passphrase-protected private-data transfers."
 fn session_help() -> String {
     "Usage:\n  \
 rel session list\n  \
-rel session get SESSION_ID\n  rel session trace SESSION_ID [--after CURSOR] [--limit 200]\n  rel session debug-state SESSION_ID\n  rel session debug-bundle SESSION_ID [--since-request-id ID] [--include-html] [--include-screenshot]\n  \
+rel session get SESSION_ID\n  rel session trace SESSION_ID [--after CURSOR] [--limit 200]\n  rel session debug-state SESSION_ID\n  rel session network-request SESSION_ID REQUEST_ID\n  rel session network-capture SESSION_ID (--enabled|--disabled) [--resource-type TYPE] [--url-prefix URL] [--status-code CODE] [--max-bytes-per-response N] [--max-total-bytes N]\n  rel session debug-bundle SESSION_ID [--since-request-id ID] [--include-html] [--include-screenshot]\n  \
 rel session ping <id> (refresh inactivity timer)\n  \
 rel session create [--lifetime <seconds|indefinite>] [options]\n  \
 rel session update SESSION_ID [options]\n  \
@@ -2142,6 +2213,13 @@ mod tests {
                 ..
             }
         ));
+        assert!(
+            matches!(parse(&["session", "network-request", "Session4", "2:42"]).unwrap(), CliCommand::NetworkRequest { id, request } if id == "Session4" && request == "2:42")
+        );
+        assert!(
+            matches!(parse(&["session", "network-capture", "Session4", "--enabled", "--status-code", "200", "--url-prefix", "https://example.com/"]).unwrap(), CliCommand::NetworkCapture { policy, .. } if policy["enabled"] == true && policy["status_codes"] == serde_json::json!([200]))
+        );
+        assert!(parse(&["session", "network-capture", "Session4"]).is_err());
     }
 
     fn parse_with_session_default(
