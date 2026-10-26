@@ -1,7 +1,7 @@
 {
   "name": "rel",
   "displayName": "REL",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "description": "Browse, diagnose navigation failures, and build restartable crawlers with REL's persistent embedded Chromium sessions.",
   "author": {
     "name": "REL",

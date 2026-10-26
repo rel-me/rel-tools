@@ -9,6 +9,8 @@ Always write the product name as `REL` in user-facing text, never `Rel` or `rel`
 
 Use the MCP server bundled with the installed REL app. The plugin discovers
 its location automatically; `REL_APP_PATH` can select an explicit app bundle.
+The plugin requires REL 0.1.156 or later and the `rel-project-sessions-v1`
+adapter contract. Restart the MCP connection after updating REL or the plugin.
 REL.app owns Chromium; the standalone `rel-mcp` adapter only forwards supported calls through the
 local versioned API.
 
@@ -17,14 +19,17 @@ local versioned API.
 1. Call `rel_status` only when the user asks for diagnostics or a browser tool
    reports a readiness failure. Operational tools already start REL lazily and
    surface supported-path errors, so a routine status call is redundant.
-2. When the user names a session, preserve its canonical `Session<number>` ID.
-   Otherwise call `rel_list_sessions` before reusing browser state. Do not omit
-   `session_id` merely to inspect existing state because omission can create a
-   persistent session. Profiles are templates: sessions created from the same
-   Profile are independent unless shared state was explicitly chosen. Preserve
-   Project ownership and explicit Session selection; never infer scope from
-   the frontmost native window or a Profile name. Use the discovered tool schema;
-   do not supply legacy `group` labels or assume matching names share state.
+2. Preserve an explicitly named `session_id`. Otherwise call `rel_list_projects`
+   and `rel_list_sessions` (optionally filtered by `project_id`) to choose scope.
+   A Profile is a template, not a live login. Reuse a Session belonging to the
+   requested Project when existing state is needed. To create independent state,
+   call `rel_create_session` with the required `project_id` and optional `profile`,
+   then reuse its returned `session_id`. Browser URL tools also accept `project_id`
+   for creation. Current-page reads, observations and screenshots require a
+   `session_id` or `project_id`; never infer scope from the frontmost window.
+   Independent Sessions omit `group_id`. Only supply `group_id:"new"` or a
+   returned group ID when the user deliberately requests shared state in the
+   same Project. Use `rel_close_session` with one exact Session ID for cleanup.
 3. Use `rel_read` for reading or research when bounded semantic Markdown and
    links are sufficient. Supply `query` to rank relevant sections. Use
    `rel_observe` when action refs are needed, and request hybrid or visual mode
@@ -112,7 +117,11 @@ different target when an action fails.
 - `rel_status`: inspect app, agent, Browser Proxy, and Chromium readiness.
 - `rel_notifications`: list notifications the user opted in to share as
   untrusted website content.
-- `rel_list_sessions`: list persistent sessions and canonical IDs.
+- `rel_list_projects`: list Projects and their Session membership.
+- `rel_list_sessions`: list Sessions, Project ownership and configuration; optionally filter by Project.
+- `rel_create_session`: create a Session with required `project_id` and optional Profile, explicit sharing and lifetime.
+- `rel_close_session`: close one explicit Session.
+- `rel_ping_session`: refresh the chosen Session’s inactivity timer.
 - `rel_list_proxies`: list proxy aliases and non-secret configuration.
 - `rel_capture`: load a URL, optionally act, and save rendered HTML.
 - `rel_page_attach`: attach an automation page to a persistent session.
@@ -133,5 +142,6 @@ different target when an action fails.
 - `rel_debug_bundle`: export retained diagnostics, with HTML/screenshots only on
   explicit opt-in; report artifact capture errors separately.
 
-Tool discovery is authoritative for the installed adapter. If diagnostics are
-missing, report the capability gap; updating this skill alone cannot upgrade REL.
+If version or API-contract validation fails, update REL and restart the MCP
+connection. Preserve the error; do not work around it with private storage or
+unsupported tools.

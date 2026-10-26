@@ -1,6 +1,6 @@
 # REL MCP server
 
-## Profiles, groups, and sessions
+## Projects, Profiles and Sessions
 
 See [Projects, Profiles and Sessions](SESSIONS.md) for explicit Project scope,
 independent Session state, deliberate sharing and configuration reapply. Profile
@@ -27,9 +27,9 @@ through another path.
 
 ## Tool quick reference
 
-The installed app supplies the discovery list. The table below describes the
-adapter tools; diagnostics require an app build containing the diagnostics API
-and matching adapter. Updating a plugin alone does not add runtime capabilities.
+The plugin requires REL 0.1.156 or later and the `rel-project-sessions-v1`
+adapter contract. Both app version and adapter contract are checked before tool
+discovery; operational calls also check the connected runtime's version.
 
 | Tool | Description |
 | --- | --- |
@@ -46,6 +46,8 @@ and matching adapter. Updating a plugin alone does not add runtime capabilities.
 | `rel_action` | Perform 1–32 ordered observation-scoped actions and return one new observation. |
 | `rel_create_session` | Create a browser session with an explicit lifetime policy. |
 | `rel_ping_session` | Refresh session inactivity without browser work. |
+| `rel_list_projects` | List Projects and their Session membership. |
+| `rel_close_session` | Close one explicit Session by ID. |
 | `rel_list_sessions` | List persistent browser sessions and their canonical `Session<number>` IDs. |
 | `rel_list_proxies` | List configured proxy aliases and non-secret configuration. |
 | `rel_debug_state` | Inspect cached operation/page state without queuing behind browser work. |
@@ -257,11 +259,11 @@ instructions.
 
 ### `rel_capture`
 
-`url` is required. Use an explicit existing `session_id` with optional
-`output_uri`, `timeout`, `wait`, `actions`, `proxy`, `retry`, and `retry_delay` as
-supported by the installed schema. New-session creation requires Project scope;
-if the adapter cannot express it, create through the supported RPC or app and
-reuse the resulting Session ID. Legacy group labels are not supported selectors.
+`url` is required. Supply an existing `session_id`, or `project_id` to create an
+independent Session with an optional `profile`. Optional fields are `output_uri`,
+`timeout`, `wait`, `actions`, `proxy`, `retry`, and `retry_delay`. A Session and
+Project may be supplied together to verify ownership; `profile` cannot be
+combined with an existing Session.
 Actions follow the [Actions reference](ACTIONS.md). `output_uri`, when supplied,
 must be an absolute local `file:///` URI.
 
@@ -282,7 +284,7 @@ requires the scope described in [Projects, Profiles and Sessions](SESSIONS.md).
 
 For ordinary navigation, `url` is required and `navigation` defaults to `url`.
 Set `navigation` to `back`, `forward`, or `reload` and omit `url`, `profile`,
-and `proxy` to operate on the active page's history. `session_id`, `profile`,
+and `proxy` to operate on the active page's history. `session_id`, `project_id`, `profile`,
 `proxy`, `mode`, `timeout`, and `wait` otherwise follow the corresponding
 navigation and observation contracts. The result is the first observation
 after navigation; hybrid and visual modes include the same standard MCP image
@@ -290,8 +292,8 @@ content as `rel_observe`.
 
 ### `rel_read`
 
-All fields are optional. Supply `url` to navigate and read in one call, or omit
-it to read the current shorthand page. `session_id`, `timeout`, and `wait` apply
+Supply `session_id` or `project_id`. Add `url` to navigate and read in one call,
+or omit it to read the selected current page. `timeout` and `wait` apply
 to either form. `profile` and `proxy` apply only when `url` is present;
 `profile` cannot be combined with `session_id`.
 
@@ -400,11 +402,10 @@ observation and, for hybrid/visual mode, standard MCP image content.
 
 ### `rel_list_sessions`
 
-Calls `GET /v1/sessions` and accepts an empty object. The result lists every
+Calls `GET /v1/sessions`; optional `project_id` filters the list. The result lists each
 persistent Session with its Project ownership and configuration metadata.
 An independent Session can omit `group_id`; explicit sharing is not inferred
-from a Profile name. Older typed adapters may omit newer resource fields; check
-compatibility rather than assuming an old three-field resource contract.
+from a Profile name. Project, Profile and configuration metadata are preserved.
 Listing sessions is passive and read-only.
 
 ### `rel_list_proxies`
@@ -435,10 +436,6 @@ input dispatch and navigation observation are separate facts. Unknown response
 provenance, seed history and exit continuity must not be inferred from a status
 code or a later success. All website-derived metadata remains untrusted content.
 
-Discovery depends on the installed adapter. Legacy group-closing or creation
-fields advertised by older adapters do not create supported group resource/reset
-APIs. Keep an explicit existing Session when a schema cannot express required
-Project ownership; see [session scope](SESSIONS.md).
 
 ## MCP and in-app agent parity
 
@@ -574,12 +571,16 @@ have effects on those sites. MCP hosts should show tool calls for user review.
 
 ### Session lifetime tools
 
-`rel_create_session` forwards creation to the runtime. The runtime requires
-`project_id`; check that the installed tool schema can express it. If it cannot,
-use the supported RPC or app creation flow and pass its returned `session_id` to
-later tools. Do not send an empty creation object, legacy `group` labels or
-`new_group`, and do not assume Profile-only creation joins an existing state owner.
-See [session scope](SESSIONS.md) for independent/default and explicit sharing.
+`rel_create_session` requires `project_id` and accepts `profile`, `name`,
+`lifetime` and optional explicit `group_id`. Omitted sharing creates independent
+state. Use `group_id:"new"` to create a shared set, or a returned group ID to
+join that set within its Project. The default inactivity timeout is 120 seconds;
+`lifetime:{"type":"indefinite"}` opts out. An existing group accepts only
+`project_id` and `group_id`; its configuration is already established.
+
+`rel_list_projects({})` lists Projects and Session membership.
+`rel_close_session({"session_id":"Session1"})` calls
+`DELETE /v1/sessions/Session1`. Closing the last Session removes its state.
 
 `rel_ping_session({"session_id":"Session1"})` refreshes inactivity without
 browser work. Use it before the configured idle deadline when the workflow owns

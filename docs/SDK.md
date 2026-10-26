@@ -1,6 +1,6 @@
 # REL Rust SDK
 
-## Profiles, groups, and sessions
+## Projects, Profiles and Sessions
 
 See [Projects, Profiles and Sessions](SESSIONS.md) for explicit Project scope,
 independent Session state, deliberate sharing and configuration reapply. Profile
@@ -510,10 +510,9 @@ update.
 
 Session ownership and configuration follow the [current runtime contract](SESSIONS.md):
 creation requires a Project and each new Session is independent unless sharing
-was explicitly selected. Do not rely on legacy group labels, implicit Profile
-reuse or reset helpers. When an installed SDK request type cannot express the
-required Project/group selector, use an existing Session ID or the supported
-RPC request rather than sending an empty creation object.
+was explicitly selected. Use `project_id` for creation and current-page scope,
+or `session_id` for existing browser state. `group_id` is an explicit sharing
+choice at creation; configuration reapply preserves existing Session state.
 
 Diagnostic methods return `RpcResponse<serde_json::Value>` so additive metadata
 is preserved. `debug_state` reads cached state during long operations;
@@ -540,13 +539,13 @@ the default compatibility template, `Change::Clear` for native Chromium, and
 settings but generates a fresh seed whenever it creates a session from the
 profile. New configurations use Private; explicit native identity stays native.
 
-`Session::group_id` identifies the group that owns its shared configuration.
-The group resource exposes the source Profile name and browser-data template copied
-at creation, when any. `CaptureRequest`, `NavigateRequest`, and
-`PageAttachRequest` accept `profile` only when `session_id` is absent.
-`CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
-created session can join a group. Group matching is case-insensitive; closing
-an empty group succeeds with an empty `deleted_ids` vector.
+`Session::project_id` identifies the owning Project. `Session::group_id` is
+optional and present only for deliberately shared state. `profile_id` may be
+null for Custom Sessions. Configuration metadata round-trips with the resource.
+Use `list_projects()` and `list_sessions_in_project(Some(project_id))` to select
+scope. `SessionCreateRequest` accepts `project_id` and optional `group_id` for
+explicit sharing. `CaptureRequest`, `NavigateRequest` and `PageAttachRequest`
+accept `project_id`; `profile` is valid only when `session_id` is absent.
 
 `ProxyCreateRequest.locale: Option<String>` configures an optional BCP-47 locale
 for the proxy. `ProxyUpdateRequest.locale: Change<String>` supports set, clear,
