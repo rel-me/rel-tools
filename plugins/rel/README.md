@@ -18,13 +18,21 @@ adapter does not launch REL.app; validated operational tools start it lazily.
 
 ## Browser diagnostics
 
-With an app containing the diagnostics API and adapter, the plugin exposes
-`rel_debug_state`, `rel_session_trace`, and `rel_debug_bundle`. State/trace reads
-inspect a specific Session without waiting behind or cancelling its active
-operation. The skills explain cached snapshot age, request/action correlation,
-redaction and optional exports. Updating plugin instructions alone does not add
-tools to an older installed app. If discovery lacks a tool, report the missing
-capability and use a matching app build; do not inspect internal storage.
+REL 0.1.156 or later and a bundled adapter advertising
+`rel-project-sessions-v1` are required. The launcher checks both before starting
+MCP; an old adapter fails with an update instruction instead of exposing obsolete
+tools. Operational calls also validate the connected runtime's version, so a
+new adapter cannot silently use an older running service.
+
+Use `rel_list_projects` and `rel_list_sessions` to select scope. Create with
+`rel_create_session({"project_id":"ProjectDefault","profile":"Reddit"})`, then
+use the returned `session_id` for browser work. Sessions are independent unless
+sharing is explicitly selected with `group_id`. Close one Session with
+`rel_close_session`; there is no group-wide close tool.
+
+`rel_debug_state`, `rel_session_trace`, and `rel_debug_bundle` inspect an exact
+Session. State/trace reads do not wait behind its active browser operation.
+HTML and screenshots require explicit opt-in for bundle export.
 
 ## App discovery
 
@@ -34,7 +42,8 @@ supports renamed app bundles and custom locations. Discovery does not open REL.
 Set `REL_APP_PATH` in the MCP host's environment to choose an explicit app bundle,
 for example `/Volumes/Apps/REL.app`. An invalid override reports an error rather
 than selecting another installation. The launcher executes the selected app's
-`Contents/Resources/rel-mcp` directly and preserves its stdio and exit status.
+`Contents/Resources/rel-mcp` after version and contract validation, sets `REL_APP_PATH` to the selected
+bundle for lazy startup, and preserves its stdio and exit status.
 
 ## Branding
 

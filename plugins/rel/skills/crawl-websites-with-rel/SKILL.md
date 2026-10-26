@@ -44,12 +44,12 @@ has not exposed and cannot be made compatible by changing its browser plugin.
    Use named persistent queues and `purge_on_start=False` when resume is required,
    following the guide. Write HTML and capture metadata explicitly when requested;
    Crawlee does not automatically supply `rel-crawler`'s sidecars or checkpoints.
-4. Use an existing named REL Profile when needed. Each attempt uses a fresh REL
-   session by default. Opt into `session_pool_size` only when reuse is appropriate;
-   pool slots retain separate cookies/storage and have no URL/account affinity.
-   Use a caller-owned `session_id` for one specific live login; it runs serially
-   and cannot be combined with a Profile or pool. Never automatically close that
-   caller-owned session. Queue resume does not restore an earlier pool.
+4. Create or choose the exact Session using the current MCP Project/Session
+   tools first. Pass its `session_id` to the crawler. It runs serially on that
+   Session; do not combine it with a Profile or session pool. The Python adapters'
+   automatic session creation does not implement the current Project contract.
+   Keep the supplied Session alive with `rel_ping_session` when needed. Never
+   automatically close caller-owned browser state.
 5. Set request/retry and concurrency limits appropriate for the local Mac. Start
    with a small crawl, verify output and queue resume, then scale. Keep browser
    work inside the awaited handler lifecycle; do not retain pages in background
@@ -67,17 +67,15 @@ has not exposed and cannot be made compatible by changing its browser plugin.
    anchors with usable bounds, including off-viewport links that native input
    can scroll to. Use a custom `extract_links` callback only when the crawl
    intentionally needs to parse captured HTML.
-3. Use the requested Project and an existing REL Profile name. Sessions from a
-   Profile are independent unless grouping is explicit; names do not establish
-   shared browser state. Preserve a deliberately supplied caller-owned Session.
-   Never create, edit, or infer a proxy alias.
+3. Select the requested Project and create or reuse its Session with MCP. Pass
+   that explicit `session_id` to the crawl. Preserve caller-owned state and do
+   not infer a login from a Profile name. Never create, edit, or infer a proxy.
 4. Preserve the navigation invariant for each target: exact native link click,
    target readiness, capture, browser-history Back, source readiness. Do not
    replace the click or Back with direct navigation during normal execution.
 5. Make every target bounded and restartable. Charge an attempt before clicking,
    checkpoint every transition atomically, skip existing captures by default,
-   terminally record exhausted links, and continue. Replace only crawler-owned
-   sessions only within the configured recovery policy. Before discarding a
+   terminally record exhausted links, and continue. Caller-owned Sessions cannot be replaced automatically. Before discarding a
    failed Session, preserve its debug state, trace and any requested bundle;
    then close it when possible and reload the source before continuing.
 6. Write one metadata sidecar per capture. Include a UTC capture timestamp,
