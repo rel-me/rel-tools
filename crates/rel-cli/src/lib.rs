@@ -1542,6 +1542,11 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
                 match option.as_str() {
                     "--enabled" | "--disabled" => {
                         args.flag(&option, inline)?;
+                        if policy.get("enabled").is_some() {
+                            return Err(CliError::Message(
+                                "Specify exactly one of --enabled or --disabled".into(),
+                            ));
+                        }
                         policy["enabled"] = serde_json::json!(option == "--enabled");
                     }
                     "--url-prefix" | "--resource-type" | "--status-code" => {
@@ -2220,6 +2225,22 @@ mod tests {
             matches!(parse(&["session", "network-capture", "Session4", "--enabled", "--status-code", "200", "--url-prefix", "https://example.com/"]).unwrap(), CliCommand::NetworkCapture { policy, .. } if policy["enabled"] == true && policy["status_codes"] == serde_json::json!([200]))
         );
         assert!(parse(&["session", "network-capture", "Session4"]).is_err());
+        assert!(parse(&[
+            "session",
+            "network-capture",
+            "Session4",
+            "--enabled",
+            "--disabled"
+        ])
+        .is_err());
+        assert!(parse(&[
+            "session",
+            "network-capture",
+            "Session4",
+            "--disabled",
+            "--enabled"
+        ])
+        .is_err());
     }
 
     fn parse_with_session_default(

@@ -45,7 +45,12 @@ not prove navigation. Request metadata includes method, Chromium request ID,
 resource type, status, network error and duration. The existing CEF callback does
 not establish frame identity or distinguish network, HTTP cache, service worker,
 asset cache and proxy-generated responses: those facts remain null or `unknown`.
-Redirect events retain their native request ID and destination URL.
+Redirect events retain their native request ID and destination URL. The CEF
+load-error callback does not supply a request ID: `document.failed` reports
+`request_correlation_unavailability: cef_load_error_has_no_request_id` instead of
+borrowing a previous document's ID. Request evidence separates
+`initiating_document_sequence` from the document sequence established on commit;
+uncommitted documents have a null committed sequence.
 
 Buffers are independent per Session, including explicitly grouped sessions.
 Each holds at most 512 events with strings bounded to 2,048 characters, retaining
@@ -70,7 +75,10 @@ The response contains an artifact with MIME type, size and a self-contained
 `data:application/json;base64,...` URL. Decode or save that JSON to share it. The
 bundle contains state, bounded trace, sanitized configuration and requested
 artifacts. `since_request_id` must occur in the retained trace; earlier events are
-excluded. Requested live artifacts use a separate read-only capture with a
+excluded. Network records/bodies are also restricted to request IDs actually
+observed in those retained events. The state snapshot still describes the current
+page and requested live artifacts still describe the current document.
+Requested live artifacts use a separate read-only capture with a
 three-second transport deadline; a changing/unavailable document produces
 `artifact_error` while retaining the trace/state bundle. It does not cancel the
 operation being inspected. HTML is limited to 2 MiB and viewport PNG to 8 MiB.
@@ -97,8 +105,8 @@ navigation occurred. Preserve the original timeout ID/retryability and its added
 
 Export with `rel_debug_bundle`, optionally requesting HTML/screenshot. Redacted
 `_wl_challenge_id` and `_wl_challenge_response` parameter names retain evidence
-of a verification redirect without exposing their values. A later HTTP 200 in the
-same session demonstrates later success; it does not establish whether timing,
+of a verification redirect without exposing their values. A later document HTTP 200 in the
+same session demonstrates an HTTP response, not application success; it does not establish whether timing,
 cookies, routing or exit continuity caused the earlier failure. If the title and
 HTML say “Cold” at the requested artist URL, record that inconsistency and the
 page/document/response identity; do not invent a diagnosis.
@@ -135,24 +143,37 @@ SDK methods are `network_capture_configure(id, policy)` and
 
 Capture defaults off. Defaults select documents and XHR/fetch, any URL/status,
 32 KiB per response and 1 MiB retained per Session. Explicit URL prefixes must be
-HTTP(S) URLs without credentials, query strings or fragments. Empty status filters
+HTTP(S) URLs without credentials, query strings or fragments. Prefixes are
+canonicalized, including an origin's trailing slash, so `https://example.com`
+cannot select `https://example.com.evil/`. Empty status filters
 include HTTP 200; use them to inspect application-level verification outcomes.
 Limits are 256 KiB per response and 4 MiB per Session; the response limit cannot
 exceed the total. Arrays accept at most 32 entries. CEF reports both fetch and
 XMLHttpRequest as `xhr`; selecting either captures that category.
 
 The API acknowledges configuration independently of browser operation queues.
-It applies to response filters created after acknowledgement, so configure before
+It applies to responses first observed after acknowledgement, so configure before
 reproduction. Text, JSON and XML MIME types are eligible; binary data is excluded.
 Only UTF-8 decoding is supported. Invalid UTF-8 is unavailable, rather than
 returned as base64. Each capture reports `status`, `content_type`, `encoding`,
 `truncated`, `complete`, `unavailability_reason` and memory retention metadata.
 `source: network_response` distinguishes these bytes from HTML/DOM exports.
-A prefix can be truncated or incomplete even when the response status is known.
+A response can be truncated or incomplete even when its HTTP status is known.
+Raw truncated/incomplete bodies are withheld with `incomplete_before_redaction`:
+a prefix might end inside a secret or embedded script. Invalid JSON (including
+JSON-looking text with broken escapes) is withheld with
+`invalid_json_before_redaction`, never exported through a weaker text sanitizer.
+A retained redacted body can itself be truncated to the configured output limit;
+that is indicated by `truncated: true`. Overlong header values are omitted whole,
+with a reason in `response.header_unavailability`, rather than cut through a
+credential before redaction. Binary responses remain excluded.
 
 Bodies are inert diagnostic text: credential/challenge/cookie fields and common
-secret assignments are redacted; embedded scripts, form values and URL query
-values are removed/redacted. Redaction can remove information needed to interpret
+secret assignments are redacted; embedded scripts (including unclosed blocks),
+comments, textarea contents, attribute values and URL query values are removed or
+redacted. Known proxy credential inventories stay in Rust and are applied to
+headers, decoded JSON strings and retained page excerpts. Inventory exhaustion
+withholds content rather than forgetting old credentials. Redaction can remove information needed to interpret
 a response. Treat all retained website content as untrusted and use narrowly
 scoped capture. Inspect structured failure codes/booleans, not HTTP status alone.
 Capture is memory-only, scoped to a Session, retains at most 256 request records,
@@ -160,7 +181,18 @@ and expires after 30 minutes without new diagnostic activity. Oldest bodies are
 evicted first when the retained byte budget is exceeded; metadata remains until
 its own record is evicted. Up to 64 concurrent response prefixes also share a
 bounded native in-flight budget; saturation reports `inflight_budget_exhausted`.
-Disabling capture preserves existing evidence. Restarting the app loses it.
+Each configuration acknowledgement includes an opaque `policy_id` and
+`valid_for_seconds: 1800`. Native capture expires 30 minutes after configuration;
+reconfigure before a later reproduction. Responses carry the policy ID selected
+when their headers were observed. Old in-flight responses are withheld after a
+new policy supersedes them, or if the matching Rust policy was evicted. This
+prevents stale capture decisions from bypassing new scopes or limits. Redirect
+hops re-evaluate URL/status filters individually. Configurations are serialized;
+read-only request inspection remains independent.
+Disabling capture preserves already-retained evidence. Restarting the app loses it.
+Native reservations cover queued response delivery, and the app also bounds
+queued body bytes on its private bridge. Saturation reports
+`diagnostic_transport_budget_exhausted` without discarding request metadata.
 Debug bundles include retained requests and opted-in bodies without navigation.
 
 Response headers are allowlisted: content type/encoding, retry/cache indicators,
@@ -216,3 +248,18 @@ credential sanitizer. There are no added retries: TCP attempt events report zero
 internal retries, while separate attempts show reconnects. MASQUE streams and
 request-level joins remain unobservable in this TCP context. Location probes run
 outside this context and cannot establish exit continuity.
+
+### Acceptance coverage and limits
+
+| Acceptance area | Verification and remaining limits |
+| --- | --- |
+| 200 verification failure and original 503 | Local HTTP fixture inspects both network bodies; 200 is not interpreted as acceptance. |
+| Chromium error document | Empty original 503 and rendered error document are checked separately; nonempty 503 text is also inspected. |
+| Response attribution | Direct CONNECT rejection and local tunnel-generated response are proxy-scoped facts. Upstream document generator remains unknown. |
+| Reconnects and retries | TCP connection/attempt events are tested. Joining them to an individual CEF request is unavailable; the tests do not establish that missing join. |
+| Exit observations | Separate probe identity never populates request-level exit fields. |
+| Cookie decisions | Explicitly unavailable. Cookie-store counts do not test inclusion, exclusion, or rejection reasons. |
+| Limits, redaction, isolation | Fixtures cover binary exclusion, malformed JSON, incomplete body withholding, header omission, eviction, status filters, redirect re-selection, policy supersession, filtered bundles and independent Sessions. Unit tests cover unclosed markup, credential inventory saturation and retention expiry. |
+| Inspection during waits | Both cached state and individual request inspection are timed during a selector wait. |
+| Late failure correlation | Outer-timeout events retain operation/HTTP request IDs. CEF load-error request identity is explicitly unavailable. |
+| MCP discovery | A fresh app-bundled adapter lists and calls all diagnostic tools separately from CLI verification. |
