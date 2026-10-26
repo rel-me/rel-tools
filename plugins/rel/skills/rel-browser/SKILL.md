@@ -142,6 +142,12 @@ different target when an action fails.
 - `rel_debug_bundle`: export retained diagnostics, with HTML/screenshots only on
   explicit opt-in; report artifact capture errors separately.
 
+- `rel_network_request`: inspect a retained request and opted-in network body.
+- `rel_network_capture_configure`: enable bounded text capture before reproduction; default off.
+
+Tool discovery is authoritative for the installed adapter. If diagnostics are
+missing, report the capability gap; updating this skill alone cannot upgrade REL.
+
 If version or API-contract validation fails, update REL and restart the MCP
 connection. Preserve the error; do not work around it with private storage or
 unsupported tools.

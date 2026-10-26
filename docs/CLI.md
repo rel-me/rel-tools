@@ -839,3 +839,7 @@ for limits, redaction and optional-capture errors.
 Session configuration changes use the supported [reapply operation](SESSIONS.md).
 There is no public reset API. Older clients may still contain a `reset` command;
 it is not a supported operation on the current runtime.
+
+Use `rel session network-capture SESSION_ID --enabled [--resource-type document|xhr|fetch] [--url-prefix URL] [--status-code CODE] [--max-bytes-per-response N] [--max-total-bytes N]` before reproduction. Repeat filter flags to add values. Disable with `--disabled`; inspect with `rel session network-request SESSION_ID REQUEST_ID`. See [network diagnostics](BROWSER_DIAGNOSTICS.md#inspect-original-network-responses).
+
+Network capture requires exactly one of `--enabled` or `--disabled`; conflicting or repeated enablement flags are rejected before contacting REL. Capture policy acknowledgements expire after 30 minutes; see the diagnostic guide for fail-closed truncation, policy IDs and unavailable-body reasons.

@@ -552,6 +552,36 @@ impl RelClient {
         )
     }
 
+    /// Inspect retained network evidence without navigating or waiting for browser work.
+    pub fn network_request(
+        &self,
+        id: &str,
+        request: &str,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        self.request::<Value, Value>(
+            "GET",
+            &format!(
+                "/sessions/{}/network-requests/{}",
+                encode_path_segment(id),
+                encode_path_segment(request)
+            ),
+            None,
+        )
+    }
+
+    /// Enable bounded capture before reproduction. Bodies are off by default.
+    pub fn network_capture_configure(
+        &self,
+        id: &str,
+        policy: &Value,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        self.request(
+            "PUT",
+            &format!("/sessions/{}/network-capture", encode_path_segment(id)),
+            Some(policy),
+        )
+    }
+
     pub fn debug_bundle(
         &self,
         id: &str,
@@ -3612,7 +3642,7 @@ mod tests {
 
     #[test]
     fn diagnostics_use_scoped_routes_and_preserve_additive_fields() {
-        let (base, server) = start_test_server(3, |_, _| {
+        let (base, server) = start_test_server(5, |_, _| {
             http_json(
                 200,
                 "req_test",
@@ -3634,6 +3664,15 @@ mod tests {
         client
             .debug_bundle("Session1", Some("req_previous"), false, true)
             .unwrap();
+        client
+            .network_request("Session1", "2:18446744073709551584")
+            .unwrap();
+        client
+            .network_capture_configure(
+                "Session1",
+                &json!({"enabled":true,"status_codes":[200,503]}),
+            )
+            .unwrap();
         let requests = server.join().unwrap();
         assert_eq!(
             requests[0].path,
@@ -3645,6 +3684,16 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<Value>(&requests[2].body).unwrap(),
             json!({"since_request_id":"req_previous","include_html":false,"include_screenshot":true})
+        );
+        assert_eq!(
+            requests[3].path,
+            "/v1/sessions/Session1/network-requests/2%3A18446744073709551584"
+        );
+        assert_eq!(requests[4].method, "PUT");
+        assert_eq!(requests[4].path, "/v1/sessions/Session1/network-capture");
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[4].body).unwrap(),
+            json!({"enabled":true,"status_codes":[200,503]})
         );
     }
 

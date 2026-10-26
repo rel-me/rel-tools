@@ -661,3 +661,5 @@ managed in the app. See the [CLI guide](CLI.md#license-activation) for stdin usa
 Use `RelClient::update_app()` to request the owning app's native update flow.
 The returned `AppUpdateData` acknowledges the request and reports the selected
 channel and required user interaction. It does not report installation completion.
+
+`network_request(id, network_request_id)` inspects network evidence; `network_capture_configure(id, &policy)` sets capture before reproduction. See [capture policy and retention](BROWSER_DIAGNOSTICS.md#inspect-original-network-responses).
