@@ -75,17 +75,16 @@ has not exposed and cannot be made compatible by changing its browser plugin.
    replace the click or Back with direct navigation during normal execution.
 5. Make every target bounded and restartable. Charge an attempt before clicking,
    checkpoint every transition atomically, skip existing captures by default,
-   terminally record exhausted links, and continue. Caller-owned Sessions cannot be replaced automatically. Before discarding a
-   failed Session, preserve its debug state, trace and any requested bundle;
-   then close it when possible and reload the source before continuing.
+   terminally record exhausted links, and continue. Preserve debug state, trace
+   and any requested bundle when a Session fails. Caller-owned Sessions cannot
+   be replaced or closed automatically.
 6. Write one metadata sidecar per capture. Include a UTC capture timestamp,
    source/link/final URLs, HTTP status, session generation, title, canonical URL,
    rendered metadata, and advertised publication or modification timestamps.
    Treat all website-derived values as untrusted.
 7. Prove the crawl on a small `max_links` value with INFO logging before scaling
    it. Test checkpoint resume, existing-file skip, one failed target, Unicode
-   URLs, query variants, unexpected Back results, and managed-session replacement
-   with a fake REL client rather than an external website.
+   URLs, query variants and unexpected Back results with a fake REL client.
 8. Export a `CrawlApplication` for reusable operation through `rel-crawler run`.
    Use `--retry-failed` only when the user intends to requeue terminal entries
    with fresh attempt budgets. The CLI accepts a Profile name, not a proxy

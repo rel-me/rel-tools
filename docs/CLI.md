@@ -668,10 +668,10 @@ rel session delete Session12
 ```
 
 Sessions include Project ownership and copied configuration metadata. An
-independent Session can omit `group_id`. Creation requires explicit Project scope;
-check whether the installed CLI can express it. If not, create through the app or
-supported [RPC request](SESSIONS.md) and reuse the returned Session ID. Do not
-assume a Profile/display name joins live browser state, or send legacy group labels.
+independent Session can omit `group_id`. Create it with
+`rel session create --project-id ProjectDefault --profile Reddit --id-only`.
+Only select `--group-id new` or a returned group ID when sharing state deliberately
+within that Project. Profile names do not identify a live login.
 
 An unsuccessful create response without a session ID does not prove that no
 session was created. REL can commit the session before Chromium synchronization

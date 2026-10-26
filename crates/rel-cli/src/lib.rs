@@ -1056,9 +1056,9 @@ fn parse_observe(mut args: Arguments) -> Result<CliCommand, CliError> {
             _ => return Err(args.unknown_option(&option, "observe")),
         }
     }
-    if page_id.is_some() && request.session_id.is_some() {
+    if page_id.is_some() && (request.session_id.is_some() || request.project_id.is_some()) {
         return Err(CliError::Message(
-            "observe --page-id cannot be combined with --session-id".to_string(),
+            "observe --page-id cannot be combined with --session-id or --project-id".to_string(),
         ));
     }
     Ok(CliCommand::Observe { page_id, request })

@@ -3263,7 +3263,7 @@ pub enum ViewportPreset {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HttpRuleAction {
-    Reset,
+    Notification,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
