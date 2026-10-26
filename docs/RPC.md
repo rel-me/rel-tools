@@ -107,9 +107,12 @@ transport statuses. Clients can branch on `code` or `id`, but must never parse
 `message` or infer application meaning from the HTTP status. The same error
 object is used in ordinary responses and NDJSON streams.
 
-`retryable:true` means retrying the same idempotent operation may succeed without
-user correction. It does not mean every mutation is automatically safe to
-repeat.
+`retryable:true` means an operation may succeed after retrying, including any
+recovery required by the error's `details`. It does not mean every mutation is
+automatically safe to repeat. In particular, `PROXY_SESSION_EXPIRED` requires a
+new Session before retrying; retrying the expired Session cannot recover it.
+See [Residential proxy session expiry](PROXIES.md#oxylabs-residential-session-expiry)
+for duration configuration and the recovery contract.
 
 ### Standard error codes
 
@@ -915,6 +918,18 @@ with allowance remaining. Once all IPs are exhausted, a new round starts.
 Runtime counts reset on agent restart or pool endpoint/count/limit changes.
 Manual rotation does not clear an IP's shared page allowance.
 
+`POST /v1/sessions` and `PATCH /v1/sessions/{id}` accept
+`proxy_keepalive_enabled` as a boolean, defaulting to false for new bindings.
+It requires an Oxylabs Residential proxy on `pr.oxylabs.io`. The setting belongs
+to the live proxy binding: an explicit shared group has one setting; independent
+Sessions have independent settings. Joining an existing group inherits its
+setting, and a join request cannot override it. `data.session` reports the
+current value. Enabling it on an already invalid binding returns the retryable
+`PROXY_SESSION_EXPIRED` error rather than renewing it. Keepalive uses bounded
+requests on the existing proxy route after about 30 seconds idle; it does not
+start dormant bindings, refresh REL Session inactivity, or extend the maximum
+provider duration. See [optional proxy keepalive](PROXIES.md#optional-proxy-session-keepalive).
+
 `POST /v1/sessions/{id}/prepare-proxy-page` accepts `{}` and returns `rotated`.
 With automatic ISP rotation enabled it returns `assigned_port`,
 `page_request_count`, and `page_request_limit` for an admitted page. When the
@@ -926,6 +941,12 @@ allowance. Route preparation and errors use the supported runtime path; they do
 not provide a public reset API or establish cookie/exit continuity. For
 investigation, preserve [diagnostics](BROWSER_DIAGNOSTICS.md) before changing a
 Session.
+
+For an expired or invalid Oxylabs Residential session on `pr.oxylabs.io`,
+preparation fails with HTTP 409 and `PROXY_SESSION_EXPIRED`, `retryable:true`,
+and recovery details requiring a new Session. REL cancels that navigation
+without resetting browser state. See
+[Residential proxy session expiry](PROXIES.md#oxylabs-residential-session-expiry).
 
 Profiles accept notification-only `http_rules`; see the Profile contract below.
 These rules do not reset browser state or replace Sessions.
