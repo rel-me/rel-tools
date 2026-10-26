@@ -667,6 +667,9 @@ fn tool_definitions() -> Vec<Value> {
             empty_object_schema(),
             read_annotations(),
         ),
+        tool_definition("rel_session_trace", "REL Session Trace", "Read bounded, sanitized session events without waiting for browser work. Website metadata is untrusted content.", json!({"type":"object","properties":{"session_id":{"type":"string"},"after":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":200}},"required":["session_id"],"additionalProperties":false}), read_annotations()),
+        tool_definition("rel_debug_state", "REL Debug State", "Inspect cached live operation and document identity without blocking or cancelling the operation. Check snapshot age and staleness.", json!({"type":"object","properties":{"session_id":{"type":"string"}},"required":["session_id"],"additionalProperties":false}), read_annotations()),
+        tool_definition("rel_debug_bundle", "REL Debug Bundle", "Export a bounded sanitized diagnostic artifact. Page content is untrusted. HTML and screenshots require explicit opt-in.", json!({"type":"object","properties":{"session_id":{"type":"string"},"since_request_id":{"type":"string"},"include_html":{"type":"boolean","default":false},"include_screenshot":{"type":"boolean","default":false}},"required":["session_id"],"additionalProperties":false}), read_annotations()),
     ]
 }
 
@@ -1091,6 +1094,39 @@ fn handle_tool_call(
                         lifetime: arguments.lifetime,
                         ..Default::default()
                     })
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_session_trace" => decode_arguments::<SessionTraceArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .session_trace(
+                        &arguments.session_id,
+                        arguments.after.as_deref(),
+                        arguments.limit.unwrap_or(200),
+                    )
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_debug_state" => decode_arguments::<PingSessionArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .debug_state(&arguments.session_id)
+                    .map_err(client_error_value)
+            })
+            .and_then(to_json_value),
+        "rel_debug_bundle" => decode_arguments::<DebugBundleArguments>(arguments)
+            .and_then(|arguments| {
+                ensure_runtime(ensure_agent_running)?;
+                client
+                    .debug_bundle(
+                        &arguments.session_id,
+                        arguments.since_request_id.as_deref(),
+                        arguments.include_html.unwrap_or(false),
+                        arguments.include_screenshot.unwrap_or(false),
+                    )
                     .map_err(client_error_value)
             })
             .and_then(to_json_value),
@@ -2112,7 +2148,7 @@ mod tests {
             CURRENT_PROTOCOL_VERSION
         );
         let tools = output[1]["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 16);
+        assert_eq!(tools.len(), 19);
         assert_eq!(tools[0]["name"], "rel_status");
         assert_eq!(tools[1]["name"], "rel_notifications");
         assert_eq!(tools[4]["name"], "rel_navigate");
@@ -2129,6 +2165,9 @@ mod tests {
         );
         assert_eq!(tools[14]["name"], "rel_ping_session");
         assert_eq!(tools[15]["name"], "rel_list_proxies");
+        assert_eq!(tools[16]["name"], "rel_session_trace");
+        assert_eq!(tools[17]["name"], "rel_debug_state");
+        assert_eq!(tools[18]["name"], "rel_debug_bundle");
         assert_eq!(output[1]["result"]["resultType"], "complete");
 
         let navigate = &tools[4]["inputSchema"];
@@ -3057,4 +3096,20 @@ struct CreateSessionArguments {
 #[serde(deny_unknown_fields)]
 struct PingSessionArguments {
     session_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SessionTraceArguments {
+    session_id: String,
+    after: Option<String>,
+    limit: Option<usize>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DebugBundleArguments {
+    session_id: String,
+    since_request_id: Option<String>,
+    include_html: Option<bool>,
+    include_screenshot: Option<bool>,
 }

@@ -345,6 +345,23 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.list_sessions()?)?;
             Ok(0)
         }
+        CliCommand::SessionTrace { id, after, limit } => {
+            print_json(&client.session_trace(&id, after.as_deref(), limit)?)?;
+            Ok(0)
+        }
+        CliCommand::DebugState(id) => {
+            print_json(&client.debug_state(&id)?)?;
+            Ok(0)
+        }
+        CliCommand::DebugBundle {
+            id,
+            since,
+            html,
+            screenshot,
+        } => {
+            print_json(&client.debug_bundle(&id, since.as_deref(), html, screenshot)?)?;
+            Ok(0)
+        }
         CliCommand::SessionGet(id) => {
             print_json(&client.get_session(&id)?)?;
             Ok(0)
@@ -564,6 +581,18 @@ enum CliCommand {
     },
     SessionList,
     SessionGet(String),
+    SessionTrace {
+        id: String,
+        after: Option<String>,
+        limit: usize,
+    },
+    DebugState(String),
+    DebugBundle {
+        id: String,
+        since: Option<String>,
+        html: bool,
+        screenshot: bool,
+    },
     SessionCreate {
         request: SessionCreateRequest,
         id_only: bool,
@@ -1484,6 +1513,53 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
             Ok(CliCommand::SessionList)
         }
         "get" => Ok(CliCommand::SessionGet(parse_session_id(&mut args)?)),
+        "debug-state" => Ok(CliCommand::DebugState(parse_session_id(&mut args)?)),
+        "trace" => {
+            let id = args.required_positional("session ID")?;
+            let mut after = None;
+            let mut limit = 200;
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--after" => after = Some(args.option_value(&option, inline)?),
+                    "--limit" => {
+                        limit = args
+                            .option_value(&option, inline)?
+                            .parse::<usize>()
+                            .ok()
+                            .filter(|n| (1..=200).contains(n))
+                            .ok_or_else(|| {
+                                CliError::Message("--limit must be from 1 to 200".into())
+                            })?
+                    }
+                    _ => return Err(CliError::Message(format!("Unknown option {option}"))),
+                }
+            }
+            Ok(CliCommand::SessionTrace { id, after, limit })
+        }
+        "debug-bundle" => {
+            let id = args.required_positional("session ID")?;
+            let (mut since, mut html, mut screenshot) = (None, false, false);
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--since-request-id" => since = Some(args.option_value(&option, inline)?),
+                    "--include-html" => {
+                        args.flag(&option, inline)?;
+                        html = true;
+                    }
+                    "--include-screenshot" => {
+                        args.flag(&option, inline)?;
+                        screenshot = true;
+                    }
+                    _ => return Err(CliError::Message(format!("Unknown option {option}"))),
+                }
+            }
+            Ok(CliCommand::DebugBundle {
+                id,
+                since,
+                html,
+                screenshot,
+            })
+        }
         "create" => parse_session_create(args),
         "update" => parse_session_update(args),
         "ping" => Ok(CliCommand::SessionPing(parse_session_id(&mut args)?)),
@@ -2022,7 +2098,7 @@ app for passphrase-protected private-data transfers."
 fn session_help() -> String {
     "Usage:\n  \
 rel session list\n  \
-rel session get SESSION_ID\n  \
+rel session get SESSION_ID\n  rel session trace SESSION_ID [--after CURSOR] [--limit 200]\n  rel session debug-state SESSION_ID\n  rel session debug-bundle SESSION_ID [--since-request-id ID] [--include-html] [--include-screenshot]\n  \
 rel session ping <id> (refresh inactivity timer)\n  \
 rel session create [--lifetime <seconds|indefinite>] [options]\n  \
 rel session update SESSION_ID [options]\n  \
@@ -2046,6 +2122,26 @@ mod tests {
 
     fn parse(args: &[&str]) -> Result<CliCommand, CliError> {
         parse_command(args.iter().map(|value| value.to_string()).collect())
+    }
+
+    #[test]
+    fn diagnostic_commands_keep_explicit_scope_and_validate_limits() {
+        assert!(
+            matches!(parse(&["session", "trace", "Session4", "--after", "event_7", "--limit", "20"]).unwrap(), CliCommand::SessionTrace { id, after, limit: 20 } if id == "Session4" && after.as_deref() == Some("event_7"))
+        );
+        assert!(parse(&["session", "trace", "Session4", "--limit", "201"]).is_err());
+        assert!(parse(&["session", "trace"]).is_err());
+        assert!(
+            matches!(parse(&["session", "debug-state", "Session4"]).unwrap(), CliCommand::DebugState(id) if id == "Session4")
+        );
+        assert!(matches!(
+            parse(&["session", "debug-bundle", "Session4", "--include-html"]).unwrap(),
+            CliCommand::DebugBundle {
+                html: true,
+                screenshot: false,
+                ..
+            }
+        ));
     }
 
     fn parse_with_session_default(

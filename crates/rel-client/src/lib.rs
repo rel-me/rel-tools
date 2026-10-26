@@ -528,6 +528,50 @@ impl RelClient {
         self.request::<SessionListData, Value>("GET", "/sessions", None)
     }
 
+    /// Read bounded diagnostics without joining the session's browser queue.
+    pub fn session_trace(
+        &self,
+        id: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        let mut query = format!("limit={limit}");
+        if let Some(after) = after {
+            query.push_str(&format!("&after={}", encode_path_segment(after)));
+        }
+        self.request::<Value, Value>(
+            "GET",
+            &format!("/sessions/{}/trace?{}", encode_path_segment(id), query),
+            None,
+        )
+    }
+
+    pub fn debug_state(&self, id: &str) -> Result<RpcResponse<Value>, ClientError> {
+        self.request::<Value, Value>(
+            "GET",
+            &format!("/sessions/{}/debug-state", encode_path_segment(id)),
+            None,
+        )
+    }
+
+    pub fn debug_bundle(
+        &self,
+        id: &str,
+        since_request_id: Option<&str>,
+        include_html: bool,
+        include_screenshot: bool,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        let mut body = serde_json::json!({"include_html":include_html,"include_screenshot":include_screenshot});
+        if let Some(since) = since_request_id {
+            body["since_request_id"] = serde_json::json!(since);
+        }
+        self.request(
+            "POST",
+            &format!("/sessions/{}/debug-bundle", encode_path_segment(id)),
+            Some(&body),
+        )
+    }
+
     pub fn get_session(&self, id: &str) -> Result<RpcResponse<SessionData>, ClientError> {
         self.request::<SessionData, Value>(
             "GET",
@@ -3582,6 +3626,44 @@ mod tests {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{TcpListener, TcpStream};
     use std::thread::{self, JoinHandle};
+
+    #[test]
+    fn diagnostics_use_scoped_routes_and_preserve_additive_fields() {
+        let (base, server) = start_test_server(3, |_, _| {
+            http_json(
+                200,
+                "req_test",
+                json!({"status":"ok","request_id":"req_test","data":{"future_field":true,"page":{"target_http_status":503}}}),
+            )
+        });
+        let client = RelClient::new(base);
+        assert_eq!(
+            client
+                .session_trace("Session1", Some("event_42"), 7)
+                .unwrap()
+                .data["future_field"],
+            true
+        );
+        assert_eq!(
+            client.debug_state("Session1").unwrap().data["page"]["target_http_status"],
+            503
+        );
+        client
+            .debug_bundle("Session1", Some("req_previous"), false, true)
+            .unwrap();
+        let requests = server.join().unwrap();
+        assert_eq!(
+            requests[0].path,
+            "/v1/sessions/Session1/trace?limit=7&after=event_42"
+        );
+        assert_eq!(requests[1].method, "GET");
+        assert_eq!(requests[1].path, "/v1/sessions/Session1/debug-state");
+        assert_eq!(requests[2].method, "POST");
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[2].body).unwrap(),
+            json!({"since_request_id":"req_previous","include_html":false,"include_screenshot":true})
+        );
+    }
 
     #[test]
     fn reset_results_preserve_replacement_group_and_session_ids() {
