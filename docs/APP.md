@@ -54,6 +54,51 @@ Closing one member of a shared set leaves its siblings and their data intact;
 closing the final member removes the shared state owner. Quitting REL preserves
 its supported persistent workspace state.
 
+## Content archive
+
+Open **REL → Settings… → Cache** to browse the permanent content archive.
+Expand a website and its URL path folders, then select a content file or its
+`.metadata` sidecar. **Content** and **Metadata** switch between the paired
+files; **Show in Finder** reveals the selected file. Use **Refresh** to discover
+new captures. Previews display inert text and are limited to 512 KB; the full
+saved file remains on disk.
+
+REL observes complete HTTP GET responses already delivered to browser documents,
+frames, and JSON/text API requests. It makes no additional archival requests and
+never serves archived content to the browser. HTTP and HTTPS captures, query
+variants, and repeat visits have distinct capture filenames. Session cache
+clearing and closing a Session do not remove archived content.
+
+Supported content includes HTML, plain text, Markdown, CSV, JSON, XML, RSS, and
+Atom. HTML is parsed into a content-only representation: structural elements and
+text remain, while all attributes, scripts, styles, forms, embedded frames, and
+media are removed. It preserves the response content rather than a rendered
+page or a full website replica. Text added later by JavaScript is only preserved
+when it also arrives in an eligible response. Other text formats retain the
+response bytes after Chromium decodes HTTP transport/content compression.
+
+Each capture has a JSON sidecar recording its original URL, method, status,
+ordered response headers (including duplicates), capture dates, request timing
+and identifiers, internal browser-state provenance, MIME type and charset,
+source/stored byte counts, SHA-256 hashes, representation, transformation, and
+fields unavailable from the capture source. Cookie and authentication response
+headers are omitted; request headers and bodies are never archived.
+
+The archive is local to this app runtime under its Application Support
+`Data/HTTPArchive` directory. Website/path folders contain uniquely named files
+and `{filename}.metadata` pairs. Captures have no expiry or automatic pruning;
+remove unwanted files and their sidecars in Finder. Content can include private
+pages you visit. The archive does not share cookies, credentials, or browser
+storage between Sessions.
+
+Media, JavaScript, CSS, fonts, binary downloads, POST bodies, partial responses,
+and unsuccessful network transfers are excluded. Individual responses over
+32 MiB, paths with more than 64 directory components, and captures beyond the
+128 MiB global in-flight reservation are skipped. Empty responses without a
+response-filter callback are not captured. A 304 response does not create a new
+body capture. This is a content archive, not a complete network log or an exact
+wire-format record.
+
 ## Notifications
 
 Open **REL → Settings… → Notifications** to enable or disable REL's macOS
