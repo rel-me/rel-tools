@@ -84,6 +84,22 @@ proxy failure. Preserve evidence before changing configuration or replacing a
 workflow-owned Session. Configuration reapply preserves browser data; there is
 no public group reset API.
 
+### Oxylabs Residential session expiry
+
+Oxylabs Residential bindings on `pr.oxylabs.io` have a default maximum duration
+of ten minutes. An explicit `sesstime` in the provider username sets that maximum.
+REL also applies a conservative sixty-second idle limit based on confirmed
+upstream requests. Traffic within an existing encrypted tunnel does not extend
+that local idle window. The clock begins on the first upstream connection;
+closing and reopening REL does not renew the binding.
+
+Restoring an expired binding can show **Session Action Failed** immediately
+after opening REL. Close that Session and create a new one before retrying.
+The expiry monitor reports a binding's invalidation once per agent run after
+delivery succeeds; its five-second checks do not add more occurrences of the
+same unresolved expiry. Dismissing the issue does not renew the binding or reset
+browser data. A new agent run can report the unresolved expiry again.
+
 ## Test a saved proxy
 
 Select a proxy in **Settings → Proxies**, then choose **Test**, or right-click
