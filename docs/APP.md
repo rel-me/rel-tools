@@ -75,7 +75,8 @@ text remain, while all attributes, scripts, styles, forms, embedded frames, and
 media are removed. It preserves the response content rather than a rendered
 page or a full website replica. Text added later by JavaScript is only preserved
 when it also arrives in an eligible response. Other text formats retain the
-response bytes after Chromium decodes HTTP transport/content compression.
+response bytes after Chromium decodes HTTP transport/content compression. Archive
+content and metadata are stored uncompressed.
 
 Each capture has a JSON sidecar recording its original URL, method, status,
 ordered response headers (including duplicates), capture dates, request timing
@@ -86,8 +87,13 @@ headers are omitted; request headers and bodies are never archived.
 
 The archive is local to this app runtime under its Application Support
 `Data/HTTPArchive` directory. Website/path folders contain uniquely named files
-and `{filename}.metadata` pairs. Captures have no expiry or automatic pruning;
-remove unwanted files and their sidecars in Finder. Content can include private
+and `{filename}.metadata` pairs. The default cap is 1 GB (decimal), counting both
+content and metadata bytes. When a save would exceed the cap, REL prunes the
+oldest captures and their sidecars in a batch until the retained data, including
+the new capture, fits within 800 MB. Existing over-limit archives are also
+pruned when the browser runtime initializes. Viewing files does not refresh
+their age. A size and age index avoids rescanning the tree on ordinary saves.
+You can also remove unwanted files and their sidecars in Finder. Content can include private
 pages you visit. The archive does not share cookies, credentials, or browser
 storage between Sessions.
 
