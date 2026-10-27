@@ -233,6 +233,7 @@ available.
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 | `POST` | `/v1/sessions/{id}/reapply` | Reapply configuration while preserving identity and data |
 | `GET` | `/v1/sessions/{id}/proxy-status` | Read session proxy status |
+| `POST` | `/v1/sessions/{id}/reset-proxy-session` | Rotate the selected Session’s proxy binding |
 | `GET` | `/v1/sessions/{id}/debug-state` | Read non-blocking cached diagnostics |
 | `GET` | `/v1/sessions/{id}/trace` | Read bounded cursor-paginated events |
 | `POST` | `/v1/sessions/{id}/debug-bundle` | Export retained diagnostics and opt-in artifacts |
@@ -926,6 +927,17 @@ allowance. Route preparation and errors use the supported runtime path; they do
 not provide a public reset API or establish cookie/exit continuity. For
 investigation, preserve [diagnostics](BROWSER_DIAGNOSTICS.md) before changing a
 Session.
+
+`POST /v1/sessions/{id}/reset-proxy-session` accepts `{}` and returns
+`data.rotated`. It selects a new sticky-session ID, or advances a multi-IP ISP
+pool to its next port. It returns `false` for direct connections, fixed custom
+proxies, and single-IP ISP pools. Rotation applies to the selected Session's
+explicit shared state owner, closes its old proxy transports, and resets its
+usage counters. It preserves browser data, Session IDs, tab membership, and
+shared IP page allowances. Unknown Session IDs fail; expired provider bindings
+return `PROXY_SESSION_EXPIRED`. The route does not retry website requests or
+reload pages. See [automatic HTTP 429 reset](PROXIES.md#automatic-reset-on-http-429)
+for REL's enabled-by-default app setting and its 30-second coalescing window.
 
 Profiles accept notification-only `http_rules`; see the Profile contract below.
 These rules do not reset browser state or replace Sessions.
