@@ -56,7 +56,7 @@ its supported persistent workspace state.
 
 ## Content archive
 
-Open **REL → Settings… → Cache** to browse the permanent content archive.
+Open **REL → Settings… → Cache** to browse the content archive.
 Expand a website and its URL path folders, then select a content file or its
 `.metadata` sidecar. **Content** and **Metadata** switch between the paired
 files; **Show in Finder** reveals the selected file. Use **Refresh** to discover
@@ -86,7 +86,14 @@ headers are omitted; request headers and bodies are never archived.
 
 The archive is local to this app runtime under its Application Support
 `Data/HTTPArchive` directory. Website/path folders contain uniquely named files
-and `{filename}.metadata` pairs. Captures have no expiry or automatic pruning;
+and `{filename}.metadata` pairs. The archive has a 10 GB size cap, counting both
+content and metadata file bytes. When a save would exceed that cap, REL removes
+the oldest captures and their sidecars in one batch until the retained data,
+including the new capture, fits within 8 GB. This leaves space for subsequent
+saves without pruning after each one. Existing over-limit archives are also
+pruned when the browser runtime initializes. Age follows file creation time;
+viewing a capture does not extend its retention. REL keeps an in-memory size
+and age index, so ordinary saves do not scan the archive tree. You can also
 remove unwanted files and their sidecars in Finder. Content can include private
 pages you visit. The archive does not share cookies, credentials, or browser
 storage between Sessions.
