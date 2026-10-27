@@ -64,8 +64,10 @@ new captures. Previews display inert text and are limited to 512 KB; the full
 saved file remains on disk. Switch to **Captures** to search URL, MIME type,
 HTTP status, and capture date (all entered terms must match). Sort by newest,
 oldest, largest, smallest, URL, content type, or HTTP status. Size sorting counts
-the actual content and sidecar file bytes. The capture list reads only metadata,
-never all compressed bodies; **Refresh** rebuilds the list from disk. The detail
+the actual content and sidecar file bytes. The capture list uses a persistent
+SQLite index and shows up to 200 results per page. **Previous** and **Next**
+navigate matching results; **Refresh** queries the latest saved/pruned captures
+without rescanning the metadata files. The detail
 pane shows the selected capture’s URL, status, type, date, and sizes.
 
 REL observes complete HTTP GET responses already delivered to browser documents,
@@ -105,6 +107,22 @@ metadata with ordinary JSON tools without decompressing content. Unknown,
 missing, or corrupt compression metadata produces a preview error rather than
 showing compressed bytes as text. Damaged/orphaned sidecars remain accessible
 in **Folders** but are omitted from the capture list.
+
+The derived index is stored under `Data/HTTPArchive/.index/catalog.sqlite3`,
+separate from the app’s main database. Saves and batch pruning update the index
+alongside file changes. Indexed columns support date, size, URL, content type,
+HTTP status, and host queries; a SQLite trigram index accelerates substring
+filters of at least three characters. Short terms still work but require a scan
+of the indexed search text. No body decompression is needed for these queries.
+
+Use **Rebuild Index** after editing, adding, or removing archive files in Finder,
+or to recover a damaged index. Rebuilding uses the uncompressed metadata and
+actual companion file sizes, skips malformed/orphaned/symlinked captures, and
+never rewrites the preserved files. Missing indexes initialize automatically;
+interrupted save/prune operations mark the index for automatic reconstruction.
+The 1 GB retention cap applies to gzip content and plain sidecars; the derived
+SQLite catalog and its temporary journal are additional local storage. Index
+pages freed by pruning are reused.
 
 The archive is local to this app runtime under its Application Support
 `Data/HTTPArchive` directory. Website/path folders contain uniquely named files
