@@ -94,7 +94,7 @@ storage between Sessions.
 Media, JavaScript, CSS, fonts, binary downloads, POST bodies, partial responses,
 and unsuccessful network transfers are excluded. Individual responses over
 32 MiB, paths with more than 64 directory components, and captures beyond the
-128 MiB global in-flight reservation are skipped. Empty responses without a
+128 MiB global in-flight body budget or 128 concurrent captures are skipped. Empty responses without a
 response-filter callback are not captured. A 304 response does not create a new
 body capture. This is a content archive, not a complete network log or an exact
 wire-format record.
