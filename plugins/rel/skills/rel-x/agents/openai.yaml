@@ -1,0 +1,4 @@
+interface:
+  display_name: "REL X"
+  short_description: "Browse X with domain-specific REL guidance"
+  default_prompt: "Use $rel-x to read the requested X resources in the selected REL Project."

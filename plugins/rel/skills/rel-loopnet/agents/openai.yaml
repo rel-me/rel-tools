@@ -1,0 +1,4 @@
+interface:
+  display_name: "REL LoopNet"
+  short_description: "Browse LoopNet with domain-specific REL guidance"
+  default_prompt: "Use $rel-loopnet to read the requested LoopNet resources in the selected REL Project."

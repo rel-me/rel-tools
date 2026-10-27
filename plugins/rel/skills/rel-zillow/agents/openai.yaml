@@ -1,0 +1,4 @@
+interface:
+  display_name: "REL Zillow"
+  short_description: "Browse Zillow with domain-specific REL guidance"
+  default_prompt: "Use $rel-zillow to read the requested Zillow resources in the selected REL Project."
