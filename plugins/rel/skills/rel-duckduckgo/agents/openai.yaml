@@ -1,0 +1,4 @@
+interface:
+  display_name: "REL DuckDuckGo"
+  short_description: "Browse DuckDuckGo with domain-specific REL guidance"
+  default_prompt: "Use $rel-duckduckgo to read the requested DuckDuckGo resources in the selected REL Project."

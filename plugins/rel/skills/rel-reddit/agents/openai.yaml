@@ -1,0 +1,4 @@
+interface:
+  display_name: "REL Reddit"
+  short_description: "Browse Reddit with domain-specific REL guidance"
+  default_prompt: "Use $rel-reddit to read the requested Reddit resources in the selected REL Project."
