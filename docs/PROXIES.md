@@ -70,6 +70,25 @@ Sessions receive their own persistent provider session IDs.
 Credentials stay in REL's secure credential storage. MCP's proxy-list tool
 returns aliases and non-secret metadata, not stored passwords.
 
+## Automatic reset on HTTP 429
+
+In **Settings → General → Proxy Session**, **Automatically Reset on HTTP 429**
+is enabled by default, including for existing installations. When a website
+request returns HTTP 429 (Too Many Requests), REL rotates the affected Session's
+provider binding. Sticky-session providers receive a new session ID; Oxylabs ISP
+pools with multiple IPs advance to the next port. Direct connections, custom
+fixed proxies, and single-IP ISP pools keep their current route.
+
+Explicitly grouped tabs share the new route. Independent Sessions are unchanged.
+Cookies, browser data, Session IDs, and tab membership are preserved. Existing
+proxy connections close, and subsequent requests use the new binding. REL does
+not reload the page or replay the failed request. Resets are coalesced across
+shared tabs and limited to once every 30 seconds. Errors appear in REL's Session
+feedback. An expired provider session still requires creating a new Session.
+Turn the setting off to keep the current binding when a website returns 429.
+A reset requests a new provider binding; it does not guarantee a different exit
+IP or that the website will accept subsequent requests.
+
 ## Proxy session continuity
 
 A provider session ID requests routing behavior; it does not prove that an exit
