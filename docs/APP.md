@@ -61,7 +61,14 @@ Expand a website and its URL path folders, then select a content file or its
 `.metadata` sidecar. **Content** and **Metadata** switch between the paired
 files; **Show in Finder** reveals the selected file. Use **Refresh** to discover
 new captures. Previews display inert text and are limited to 512 KB; the full
-saved file remains on disk.
+saved file remains on disk. Switch to **Captures** to search URL, MIME type,
+HTTP status, and capture date (all entered terms must match). Sort by newest,
+oldest, largest, smallest, URL, content type, or HTTP status. Size sorting counts
+the actual content and sidecar file bytes. The capture list uses a persistent
+SQLite index and shows up to 200 results per page. **Previous** and **Next**
+navigate matching results; **Refresh** queries the latest saved/pruned captures
+without rescanning the metadata files. The detail
+pane shows the selected capture’s URL, status, type, date, and sizes.
 
 REL observes complete HTTP GET responses already delivered to browser documents,
 frames, and JSON/text API requests. It makes no additional archival requests and
@@ -75,7 +82,10 @@ text remain, while all attributes, scripts, styles, forms, embedded frames, and
 media are removed. It preserves the response content rather than a rendered
 page or a full website replica. Text added later by JavaScript is only preserved
 when it also arrives in an eligible response. Other text formats retain the
-response bytes after Chromium decodes HTTP transport/content compression.
+response bytes after Chromium decodes HTTP transport/content compression. Archive
+content is stored in standard gzip (`.gz`) files; `.metadata` sidecars stay
+uncompressed JSON. The viewer decompresses content automatically. Existing
+uncompressed captures remain readable and count at their actual file size.
 
 Each capture has a JSON sidecar recording its original URL, method, status,
 ordered response headers (including duplicates), capture dates, request timing
@@ -84,10 +94,45 @@ source/stored byte counts, SHA-256 hashes, representation, transformation, and
 fields unavailable from the capture source. Cookie and authentication response
 headers are omitted; request headers and bodies are never archived.
 
+New sidecars use `schema_version: 2`, with flat, typed fields for external tools:
+`host`, `scheme`, `port` (when explicit), `url_path`, `url_query`, `mime_type`,
+`status_code`, and UTC `archived_at` timestamps. `content_encoding: "gzip"`
+describes archival storage, independently of the original HTTP headers.
+`source_bytes`/`source_sha256` describe the Chromium-decoded response;
+`content_bytes`/`content_sha256` describe the preserved representation before
+compression; `stored_bytes`/`stored_sha256` describe the actual gzip file. Each
+`file` is a sibling filename, such as `article~<capture-id>.html.gz`, with its
+plain JSON sidecar at `article~<capture-id>.html.gz.metadata`. You can query the
+metadata with ordinary JSON tools without decompressing content. Unknown,
+missing, or corrupt compression metadata produces a preview error rather than
+showing compressed bytes as text. Damaged/orphaned sidecars remain accessible
+in **Folders** but are omitted from the capture list.
+
+The derived index is stored under `Data/HTTPArchive/.index/catalog.sqlite3`,
+separate from the app’s main database. Saves and batch pruning update the index
+alongside file changes. Indexed columns support date, size, URL, content type,
+HTTP status, and host queries; a SQLite trigram index accelerates substring
+filters of at least three characters. Short terms still work but require a scan
+of the indexed search text. No body decompression is needed for these queries.
+
+Use **Rebuild Index** after editing, adding, or removing archive files in Finder,
+or to recover a damaged index. Rebuilding uses the uncompressed metadata and
+actual companion file sizes, skips malformed/orphaned/symlinked captures, and
+never rewrites the preserved files. Missing indexes initialize automatically;
+interrupted save/prune operations mark the index for automatic reconstruction.
+The 1 GB retention cap applies to gzip content and plain sidecars; the derived
+SQLite catalog and its temporary journal are additional local storage. Index
+pages freed by pruning are reused.
+
 The archive is local to this app runtime under its Application Support
 `Data/HTTPArchive` directory. Website/path folders contain uniquely named files
-and `{filename}.metadata` pairs. Captures have no expiry or automatic pruning;
-remove unwanted files and their sidecars in Finder. Content can include private
+and `{filename}.metadata` pairs. The default cap is 1 GB (decimal), counting both
+compressed content and uncompressed metadata bytes. When a save would exceed
+the cap, REL prunes the oldest captures and their sidecars in a batch until the retained data, including
+the new capture, fits within 800 MB. Existing over-limit archives are also
+pruned when the browser runtime initializes. Viewing files does not refresh
+their age. A size and age index avoids rescanning the tree on ordinary saves.
+You can also remove unwanted files and their sidecars in Finder. Content can include private
 pages you visit. The archive does not share cookies, credentials, or browser
 storage between Sessions.
 
