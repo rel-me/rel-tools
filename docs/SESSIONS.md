@@ -29,6 +29,17 @@ Session IDs, navigation and browser data. It does not reset cookies or reseed
 Profile data. Closing the final Session removes its private state owner without
 creating a replacement blank tab.
 
+Browser fingerprint controls are scoped to that Session's state owner. Selecting
+the `graphics` override without `device_surfaces` preserves native device memory
+and storage-quota reporting in workers while applying the graphics policy.
+With graphics selected, `canvas_noise_mode: "native"` preserves native 2D canvas
+readbacks in windows and workers, including OffscreenCanvas. It does not disable
+the WebGL profile, WebGL readback policy, or WebGPU policy. Use
+`canvas_noise_mode: "deterministic"` to enable the Session's stable canvas noise.
+These settings do not guarantee that a fingerprinting service assigns a new
+visitor identity: other device signals can remain equal across independent
+Sessions and proxy exits.
+
 CLI, SDK and MCP adapters must be able to express the required scope. Inspect
 the installed adapter's schema and use an explicit existing `session_id` when
 appropriate. Do not send legacy group labels, infer membership from Profile
