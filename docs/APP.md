@@ -710,7 +710,8 @@ brand list and client hints; these are not editable. High-entropy client hints
 can still expose the engine’s full version when requested by a site.
 
 Graphics protection changes Canvas and WebGL readbacks together with the graphics identity and
-makes WebGPU unavailable. Text geometry, native input, and other unlisted
+makes WebGPU unavailable. A `graphics_profile` of `native` preserves native
+WebGL and WebGPU while allowing independent canvas noise. Text geometry, native input, and other unlisted
 surfaces remain native.
 
 Native Chromium uses the same patched privacy layer. Its WebRTC default also

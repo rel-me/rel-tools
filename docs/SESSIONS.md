@@ -36,6 +36,14 @@ With graphics selected, `canvas_noise_mode: "native"` preserves native 2D canvas
 readbacks in windows and workers, including OffscreenCanvas. It does not disable
 the WebGL profile, WebGL readback policy, or WebGPU policy. Use
 `canvas_noise_mode: "deterministic"` to enable the Session's stable canvas noise.
+To apply canvas noise while keeping WebGL and WebGPU native, select `graphics`,
+set `graphics_profile: "native"`, and use `canvas_noise_mode: "deterministic"`.
+The native graphics profile leaves WebGL identity, extensions, and readbacks
+unchanged, including PNG exports from WebGL-rendered canvases, and preserves
+native WebGPU adapter exposure. Canvas noise in this mode applies to 2D contexts. It is valid on every
+supported platform. `canvas_noise_mode: "native"` with this profile leaves both
+canvas and WebGL native.
+
 These settings do not guarantee that a fingerprinting service assigns a new
 visitor identity: other device signals can remain equal across independent
 Sessions and proxy exits.
