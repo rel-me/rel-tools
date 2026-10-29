@@ -1353,7 +1353,7 @@ for later editing, but are not sent as browser overrides.
 | `hardware_concurrency` | Page CPU thread count; workers retain native values in this engine |
 | `network` | Network information profile |
 | `device_surfaces` | Linked memory, touch, screen/pixel ratio, PDF plugin fallback, and storage quota controls |
-| `graphics` | Linked Canvas/WebGL readbacks, WebGL identity/extensions, and unavailable WebGPU adapters |
+| `graphics` | Canvas noise and the selected graphics profile. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions/readbacks and make WebGPU unavailable. |
 | `audio` | Audio readbacks using the profile's audio mode |
 
 With `device_surfaces` enabled, `device_memory_gib` supplies both JavaScript
