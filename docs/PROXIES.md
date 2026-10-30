@@ -27,6 +27,9 @@ credentials appropriate to your provider account and product.
 
 | Type | Default host | Default port |
 | --- | --- | --- |
+| Webshare Proxy Server | `p.webshare.io` | `80` |
+| Webshare Static Residential | `p.webshare.io` | `80` |
+| Webshare Rotating Residential | `p.webshare.io` | `80` |
 | Oxylabs Residential | `pr.oxylabs.io` | `7777` |
 | Oxylabs Datacenter | `dc.oxylabs.io` | `8000` |
 | Oxylabs ISP | `disp.oxylabs.io` | `8001` |
@@ -34,6 +37,23 @@ credentials appropriate to your provider account and product.
 | Decodo Residential | `gate.decodo.com` | `7000` |
 | IPRoyal Residential | `geo.iproyal.com` | `12321` |
 | Custom | Enter your provider's HTTP proxy host | Enter its port |
+
+For **Webshare Proxy Server**, enter the username and password exactly as supplied
+by Webshare. REL adds no country or session suffix and offers no country or
+session-rotation control for this product. The rotating gateway selects exits
+automatically. You can also enter a direct IP and port from your Webshare list.
+
+For **Webshare Static Residential** and **Rotating Residential**, use the base
+proxy credentials and choose an optional **Country**. REL adds a numeric sticky
+binding per independent Session; grouped Sessions share that binding. REL does
+not append `rotate`. Provider sticky duration controls route lifetime, and a
+new binding does not guarantee a new IP. Product selection records your plan;
+it does not change your subscription.
+
+For clean fixed-IP comparisons, use independently allocated direct endpoints
+and verify observed exit stability and uniqueness. An automatically rotating
+gateway does not meet that requirement. See
+[Webshare connection rules](https://apidocs.webshare.io/proxy-connection).
 
 For **Oxylabs ISP**, enter **Available IPs** and the first assigned upstream
 port. For example, 5 IPs starting at port 8001 use ports 8001 through 8005.
@@ -359,3 +379,22 @@ CONNECT versus CONNECT-UDP routing, upstream response statuses, elapsed times,
 and redacted provider rejection details. Search for `MASQUE` to trace a tunnel
 by its connection/stream ID. Oxylabs `X-Error-Description` diagnostics are retained;
 credentials, cookies, arbitrary response headers, and page contents are excluded.
+
+To import a saved Webshare Direct Connection list, choose **Import Proxy**, then
+**Choose File…**, select its UTF-8 `.txt` or `.json` file, and click **Import**.
+Text lists use one `IP:port:username:password` entry per line; complete Webshare
+Direct Proxy API JSON exports are also accepted. Each endpoint becomes a
+separate Webshare Proxy Server entry with a new alias. Existing proxies are
+preserved, credentials are passed unchanged, and no country/session suffix is
+added. Invalid or duplicate endpoints reject the whole list. Lists are limited
+to 2 MiB and 5,000 entries; account proxy limits still apply. Credentials use
+REL's existing Rust/Keychain storage.
+
+Webshare curl examples import as **Webshare Proxy Server**, because the shared
+gateway cannot identify the subscription product. Select Static Residential or
+Rotating Residential when appropriate. Proxy Server import preserves the complete
+username, including any hyphens or digits; it does not infer country or session
+parameters from the credential.
+City targeting is not supported by these presets. Native proxy/Profile transfers
+preserve the selected product and country. Transfer format 20 requires a REL
+version supporting Webshare; earlier transfer formats remain readable.

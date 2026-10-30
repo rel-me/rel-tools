@@ -213,6 +213,7 @@ available.
 | `GET` | `/v1/model-providers` | Read shared Models connection metadata and default selection |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
+| `POST` | `/v1/proxy-list-imports/webshare` | Import a saved Webshare direct proxy list |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
@@ -818,7 +819,7 @@ session configuration. Open pages apply it when the user chooses Reload.
   write fields are `username`, `password`, `oxylabs_enabled`, `oxylabs_masque_enabled`,
   `oxylabs_location_parameter`, `oxylabs_location_value`, `oxylabs_isp_ip_count`,
   `oxylabs_isp_page_limit`,
-  `bright_data`, `locale`, and `detect_exit_locale`.
+  `bright_data`, `webshare`, `locale`, and `detect_exit_locale`.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
   `username:null`, `password:null`, or `locale:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns
@@ -1027,6 +1028,31 @@ Select Bright Data in the app's proxy editor to configure a country and optional
 state, city, or ASN. REL shows the resulting masked connection string and gives
 each browser session its own persistent `-session-<id>` suffix.
 
+The proxy create and update routes accept an optional `webshare` object:
+
+```json
+{
+  "upstream_host": "p.webshare.io",
+  "upstream_port": 80,
+  "webshare": {"product": "proxy_server"}
+}
+```
+
+`product` is `proxy_server`, `static_residential`, or `rotating_residential`.
+`country` is an optional two-letter code for the residential products; Proxy
+Server rejects a non-null country. Supply Proxy Server username/password unchanged:
+no country, session, or rotation suffix is added. Static and Rotating Residential
+use base credentials and numeric sticky Session bindings.
+Only one provider may be active: Webshare conflicts with enabled Oxylabs or
+Bright Data. Omission on update preserves Webshare; `"webshare": null` clears it.
+Responses include `webshare` or null. Proxy Server accepts `p.webshare.io` on ports
+80, 1080, 3128, or 9999–29999, or a direct IP with its assigned port. The other
+products use Backbone ports 80, 1080, 3128, or 9999–19999. TLS keeps normal system
+trust. A new binding is not proof of a new IP; verify actual routing when
+uniqueness matters.
+These fields are available through the HTTP API and native editor; use a custom
+HTTP request if your typed client does not expose them yet.
+
 The proxy create and update routes accept a `bright_data` object:
 
 ```json
@@ -1066,6 +1092,16 @@ unavailable peer. Location changes can also change the peer.
 
 Version 4 proxy and profile transfer archives preserve Bright Data configuration.
 Older versions remain importable with managed Bright Data settings disabled.
+
+`POST /v1/proxy-list-imports/webshare` accepts `contents`, a UTF-8 Webshare
+Direct Connection text list (`IP:port:username:password` per line) or a complete
+Direct Proxy API JSON export. It creates separate Proxy Server configurations
+with generated unique aliases and returns `imported_count` and `aliases`.
+Credentials remain unchanged and use the existing Rust/Keychain path. Parsing,
+endpoint validation, duplicate checks, and account limits apply; a failed batch
+rolls back newly created records and credentials. Existing proxies are preserved.
+The list is limited to 2 MiB and 5,000 entries. No proxy or target is contacted
+by importing. This route is available through HTTP and the native editor.
 
 `POST /v1/proxy-transfers/export` accepts `alias`, `include_credentials`, and
 an optional `passphrase`. It returns `data.filename` and `data.contents_base64`,
@@ -1350,11 +1386,11 @@ for later editing, but are not sent as browser overrides.
 | --- | --- |
 | `locale` | Language preferences and locale, applied only when resolved values differ from native |
 | `timezone` | IANA timezone |
-| `hardware_concurrency` | Page CPU thread count; workers retain native values in this engine |
+| `hardware_concurrency` | CPU thread count shared by windows, frames, and all worker types |
 | `network` | Network information profile |
 | `device_surfaces` | Linked memory, touch, screen/pixel ratio, PDF plugin fallback, and storage quota controls |
-| `graphics` | Canvas noise and the selected graphics profile. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions/readbacks and make WebGPU unavailable. |
-| `audio` | Audio readbacks using the profile's audio mode |
+| `graphics` | Canvas typography/eligible opaque-text coverage and the selected graphics profile. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions and make WebGPU unavailable. All profiles preserve actual WebGL pixel reads and exports. |
+| `audio` | Shared 48 kHz default for real-time audio in `deterministic` mode; explicit rates, offline rendering, signals, buffers, and analysers stay native |
 
 With `device_surfaces` enabled, `device_memory_gib` supplies both JavaScript
 device memory and the `Device-Memory` / `Sec-CH-Device-Memory` HTTP hints.

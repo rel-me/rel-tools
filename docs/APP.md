@@ -696,7 +696,7 @@ country or null) and `proxy_detect_exit_locale`. With detection enabled,
 no proxy, or the lookup fails. This lookup does not write a language to the proxy.
 
 Privacy controls cover graphics, audio, device surfaces, language and locale,
-time zone, network information, and the CPU thread count reported to pages.
+time zone, network information, and the CPU thread count reported consistently to windows and workers.
 When Network Information protection is enabled, JavaScript RTT/downlink and
 opted-in HTTP RTT/Downlink hints use the same rounded session values.
 Network measurements are not exposed through those hints. Disabling the control
@@ -709,14 +709,23 @@ to `MAJOR.0.0.0`, using the bundled engine's current major. The engine supplies 
 brand list and client hints; these are not editable. High-entropy client hints
 can still expose the engine’s full version when requested by a site.
 
-Graphics protection changes Canvas and WebGL readbacks together with the graphics identity and
-makes WebGPU unavailable. A `graphics_profile` of `native` preserves native
-WebGL and WebGPU while allowing independent canvas noise. Text geometry, native input, and other unlisted
-surfaces remain native.
+Graphics protection applies the canvas policy and selected WebGL identity.
+WebGL pixel reads and exports preserve actual rendered values in every identity;
+curated profiles do not add per-seed WebGL pixel noise. Curated graphics profiles
+make WebGPU unavailable. A `graphics_profile` of
+`native` preserves native WebGL and WebGPU while allowing independent,
+Session-stable canvas text geometry and antialias coverage for eligible opaque
+text. Fully covered colors and transparent pixels remain exact; transparent,
+gradient, stroke, effect and wide-gamut coverage stays native. Pixel reads expose
+actual rendered values.
+Native input and unlisted surfaces retain their native behavior.
 
-Native Chromium uses the same patched privacy layer. Its WebRTC default also
-restricts non-proxied UDP connections. Audio protection makes small changes to
-AudioBuffer's live sample arrays, which can also affect later playback.
+The engine's WebRTC default restricts non-proxied UDP connections. Audio
+protection's **Standardized (48 kHz)** setting uses 48 kHz for real-time contexts
+that omit a sample rate. Explicit rates, offline rendering, oscillator signals,
+buffers, silence, and analyser reads remain native. **Native audio** retains
+device-preferred default rates. Audio and CPU thread-count controls operate
+independently of graphics and device surfaces.
 
 An identity profile is a compatibility tool, not an anonymity guarantee. Its
 seed is stable across sites in that Session, so sites may still correlate
@@ -1865,3 +1874,18 @@ Zero repeats triggers on the first match; N repeats on match N + 1. Profile edit
 apply to future Sessions; explicitly reapply configuration to update existing
 Sessions. Use [browser diagnostics](BROWSER_DIAGNOSTICS.md) to investigate a
 failure before deciding whether recovery is needed.
+
+### Webshare proxy products
+
+The proxy editor offers Webshare Proxy Server, Static Residential, and Rotating
+Residential presets. Proxy Server passes the supplied username/password unchanged
+and has no country or session parameters. Its gateway rotates exits automatically;
+direct IP endpoints are also supported. The other two products use base credentials,
+optional country targeting, and Session-scoped sticky bindings. Grouped Sessions
+share their routing. See [Proxies](PROXIES.md).
+
+To import a Webshare export, open **Proxies → Import Proxy → Choose File…**.
+Choose a Direct Connection text or JSON list and click **Import**. REL adds each
+endpoint separately with new aliases; credentials remain unchanged. Invalid
+lists do not partially import. See [Proxies](PROXIES.md) for supported formats
+and limits.

@@ -35,7 +35,20 @@ and storage-quota reporting in workers while applying the graphics policy.
 With graphics selected, `canvas_noise_mode: "native"` preserves native 2D canvas
 readbacks in windows and workers, including OffscreenCanvas. It does not disable
 the WebGL profile, WebGL readback policy, or WebGPU policy. Use
-`canvas_noise_mode: "deterministic"` to enable the Session's stable canvas noise.
+`canvas_noise_mode: "deterministic"` to enable a bounded horizontal scale for
+2D canvas text, stable within the Session and shared by windows and workers.
+Text drawing and horizontal measurements use the same tiny scale (at most
+three parts per million). Eligible opaque, solid, unfiltered text also varies
+antialias coverage during painting through a glyph layer, bounded to one
+eight-bit alpha step with transparency and complete coverage preserved. Fully covered colors and transparent pixels
+remain exact. Transparency, gradients, strokes, effects, printing, wide-gamut
+float16 and out-of-gamut paint coverage retain native behavior. The extra glyph
+layer can add rendering cost. Clear pixels,
+caller-supplied ImageData, and PNG readbacks retain their actual rendered values;
+REL does not add noise while reading pixels. WebGL reads and exports also
+preserve actual framebuffer values, including clear colors and rectangle/packing
+variants. Curated WebGL profiles standardize identity and capabilities; they no
+longer add per-seed pixel noise.
 To apply canvas noise while keeping WebGL and WebGPU native, select `graphics`,
 set `graphics_profile: "native"`, and use `canvas_noise_mode: "deterministic"`.
 The native graphics profile leaves WebGL identity, extensions, and readbacks
@@ -43,6 +56,20 @@ unchanged, including PNG exports from WebGL-rendered canvases, and preserves
 native WebGPU adapter exposure. Canvas noise in this mode applies to 2D contexts. It is valid on every
 supported platform. `canvas_noise_mode: "native"` with this profile leaves both
 canvas and WebGL native.
+
+The `hardware_concurrency` override reports the same selected CPU thread count
+in windows, frames, dedicated workers, nested workers, shared workers, and service
+workers. It operates independently of graphics and device surfaces. Selected
+User-Agent client-hint metadata also follows the Session into worker identity
+and request preferences.
+
+With `audio` selected, `audio_noise_mode: "deterministic"` standardizes omitted
+real-time AudioContext sample rates to 48 kHz. The UI calls this **Standardized
+(48 kHz)**; the stored mode name is retained for compatibility. Explicit rates
+and their validation, offline rendering, oscillator signals, buffers, silence,
+and analyser reads stay native. This is a shared rate cohort, not per-seed PCM
+variation. `audio_noise_mode: "native"` retains device-preferred default rates.
+Audio operates independently of graphics and device surfaces.
 
 These settings do not guarantee that a fingerprinting service assigns a new
 visitor identity: other device signals can remain equal across independent
