@@ -716,10 +716,11 @@ Session-stable canvas text geometry. Pixel reads expose actual rendered values.
 Native input and unlisted surfaces retain their native behavior.
 
 The engine's WebRTC default restricts non-proxied UDP connections. Audio
-protection applies a small, Session-stable gain to generated oscillator signals
-before downstream graph processing. AudioBuffer writes and reads, silence, and
-analyser reads preserve actual values. The audio and CPU thread-count controls
-operate independently of graphics and device surfaces.
+protection's **Standardized (48 kHz)** setting uses 48 kHz for real-time contexts
+that omit a sample rate. Explicit rates, offline rendering, oscillator signals,
+buffers, silence, and analyser reads remain native. **Native audio** retains
+device-preferred default rates. Audio and CPU thread-count controls operate
+independently of graphics and device surfaces.
 
 An identity profile is a compatibility tool, not an anonymity guarantee. Its
 seed is stable across sites in that Session, so sites may still correlate

@@ -1390,7 +1390,7 @@ for later editing, but are not sent as browser overrides.
 | `network` | Network information profile |
 | `device_surfaces` | Linked memory, touch, screen/pixel ratio, PDF plugin fallback, and storage quota controls |
 | `graphics` | Canvas noise and the selected graphics profile. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions/readbacks and make WebGPU unavailable. |
-| `audio` | Generated oscillator signal variation using the profile's audio mode; buffer and analyser reads preserve actual values |
+| `audio` | Shared 48 kHz default for real-time audio in `deterministic` mode; explicit rates, offline rendering, signals, buffers, and analysers stay native |
 
 With `device_surfaces` enabled, `device_memory_gib` supplies both JavaScript
 device memory and the `Device-Memory` / `Sec-CH-Device-Memory` HTTP hints.

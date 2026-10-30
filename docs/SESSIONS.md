@@ -54,12 +54,13 @@ workers. It operates independently of graphics and device surfaces. Selected
 User-Agent client-hint metadata also follows the Session into worker identity
 and request preferences.
 
-With `audio` selected, `audio_noise_mode: "deterministic"` applies a bounded,
-Session-stable gain to generated oscillator signals before downstream graph
-processing. Buffers and analysers expose the actual signal: caller-written
-samples, silence, repeated reads, and unused destination-array tails are not
-changed by readback noise. `audio_noise_mode: "native"` preserves native signal
-generation. Audio operates independently of graphics and device surfaces.
+With `audio` selected, `audio_noise_mode: "deterministic"` standardizes omitted
+real-time AudioContext sample rates to 48 kHz. The UI calls this **Standardized
+(48 kHz)**; the stored mode name is retained for compatibility. Explicit rates
+and their validation, offline rendering, oscillator signals, buffers, silence,
+and analyser reads stay native. This is a shared rate cohort, not per-seed PCM
+variation. `audio_noise_mode: "native"` retains device-preferred default rates.
+Audio operates independently of graphics and device surfaces.
 
 These settings do not guarantee that a fingerprinting service assigns a new
 visitor identity: other device signals can remain equal across independent
