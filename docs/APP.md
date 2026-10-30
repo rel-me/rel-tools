@@ -710,7 +710,9 @@ brand list and client hints; these are not editable. High-entropy client hints
 can still expose the engine’s full version when requested by a site.
 
 Graphics protection applies the canvas policy and selected WebGL identity.
-Curated graphics profiles make WebGPU unavailable. A `graphics_profile` of
+WebGL pixel reads and exports preserve actual rendered values in every identity;
+curated profiles do not add per-seed WebGL pixel noise. Curated graphics profiles
+make WebGPU unavailable. A `graphics_profile` of
 `native` preserves native WebGL and WebGPU while allowing independent,
 Session-stable canvas text geometry. Pixel reads expose actual rendered values.
 Native input and unlisted surfaces retain their native behavior.

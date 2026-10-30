@@ -39,7 +39,10 @@ the WebGL profile, WebGL readback policy, or WebGPU policy. Use
 2D canvas text, stable within the Session and shared by windows and workers.
 Text drawing and horizontal measurements use the same scale. Clear pixels,
 caller-supplied ImageData, and PNG readbacks retain their actual rendered values;
-REL does not add noise while reading 2D pixels.
+REL does not add noise while reading pixels. WebGL reads and exports also
+preserve actual framebuffer values, including clear colors and rectangle/packing
+variants. Curated WebGL profiles standardize identity and capabilities; they no
+longer add per-seed pixel noise.
 To apply canvas noise while keeping WebGL and WebGPU native, select `graphics`,
 set `graphics_profile: "native"`, and use `canvas_noise_mode: "deterministic"`.
 The native graphics profile leaves WebGL identity, extensions, and readbacks
