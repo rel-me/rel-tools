@@ -818,7 +818,7 @@ session configuration. Open pages apply it when the user chooses Reload.
   write fields are `username`, `password`, `oxylabs_enabled`, `oxylabs_masque_enabled`,
   `oxylabs_location_parameter`, `oxylabs_location_value`, `oxylabs_isp_ip_count`,
   `oxylabs_isp_page_limit`,
-  `bright_data`, `locale`, and `detect_exit_locale`.
+  `bright_data`, `webshare`, `locale`, and `detect_exit_locale`.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
   `username:null`, `password:null`, or `locale:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns
@@ -1026,6 +1026,28 @@ settings still apply.
 Select Bright Data in the app's proxy editor to configure a country and optional
 state, city, or ASN. REL shows the resulting masked connection string and gives
 each browser session its own persistent `-session-<id>` suffix.
+
+The proxy create and update routes accept an optional `webshare` object:
+
+```json
+{
+  "upstream_host": "p.webshare.io",
+  "upstream_port": 80,
+  "webshare": {"product": "proxy_server", "country": "us"}
+}
+```
+
+`product` is `proxy_server`, `static_residential`, or `rotating_residential`.
+`country` is an optional two-letter code. Supply the base username/password via
+the existing credential path; the runtime adds a numeric sticky Session binding.
+Do not include an existing session or `rotate` suffix in the base username.
+Only one provider may be active: Webshare conflicts with enabled Oxylabs or
+Bright Data. Omission on update preserves Webshare; `"webshare": null` clears it.
+Responses include `webshare` or null. The Backbone host is `p.webshare.io`, with
+ports 80, 1080, 3128, or 9999–19999. TLS keeps normal system trust. A new binding
+is not proof of a new IP; verify actual routing when uniqueness matters.
+These fields are available through the HTTP API and native editor; use a custom
+HTTP request if your typed client does not expose them yet.
 
 The proxy create and update routes accept a `bright_data` object:
 

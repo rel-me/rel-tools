@@ -1868,3 +1868,11 @@ Zero repeats triggers on the first match; N repeats on match N + 1. Profile edit
 apply to future Sessions; explicitly reapply configuration to update existing
 Sessions. Use [browser diagnostics](BROWSER_DIAGNOSTICS.md) to investigate a
 failure before deciding whether recovery is needed.
+
+### Webshare proxy products
+
+The proxy editor offers Webshare Proxy Server, Static Residential, and Rotating
+Residential presets. Use the corresponding dashboard's base proxy credentials.
+All three use Backbone sticky bindings scoped to independent Sessions, with an
+optional country. Grouped Sessions share their routing. Review provider sticky
+duration and observed exit uniqueness for clean tests. See [Proxies](PROXIES.md).

@@ -27,6 +27,9 @@ credentials appropriate to your provider account and product.
 
 | Type | Default host | Default port |
 | --- | --- | --- |
+| Webshare Proxy Server | `p.webshare.io` | `80` |
+| Webshare Static Residential | `p.webshare.io` | `80` |
+| Webshare Rotating Residential | `p.webshare.io` | `80` |
 | Oxylabs Residential | `pr.oxylabs.io` | `7777` |
 | Oxylabs Datacenter | `dc.oxylabs.io` | `8000` |
 | Oxylabs ISP | `disp.oxylabs.io` | `8001` |
@@ -34,6 +37,23 @@ credentials appropriate to your provider account and product.
 | Decodo Residential | `gate.decodo.com` | `7000` |
 | IPRoyal Residential | `geo.iproyal.com` | `12321` |
 | Custom | Enter your provider's HTTP proxy host | Enter its port |
+
+For **Webshare**, use the base proxy username and password from the selected
+product in your Webshare dashboard. Product selection records the plan type; it
+does not change your Webshare subscription. Choose an optional **Country**.
+REL appends a numeric sticky binding for each independent Session. It does not
+append `rotate`, even for the Rotating Residential product. Explicitly grouped
+Sessions share their binding along with their browser state.
+
+Set a sticky duration in Webshare long enough for the Session's work. A binding
+requests a stable route for that provider-defined duration; it does not guarantee
+a never-reused IP. For clean comparisons, verify the observed exit and reject
+previously used or changing IPs before loading the target page. When a finite
+Proxy Server allocation is exhausted, obtain additional IPs rather than silently
+reusing one. The evaluator applies this policy separately from ordinary browsing.
+Direct endpoints from a Webshare proxy list can still be configured as **Custom**;
+the three Webshare presets use its Backbone connection. See
+[Webshare connection rules](https://apidocs.webshare.io/proxy-connection).
 
 For **Oxylabs ISP**, enter **Available IPs** and the first assigned upstream
 port. For example, 5 IPs starting at port 8001 use ports 8001 through 8005.
@@ -359,3 +379,11 @@ CONNECT versus CONNECT-UDP routing, upstream response statuses, elapsed times,
 and redacted provider rejection details. Search for `MASQUE` to trace a tunnel
 by its connection/stream ID. Oxylabs `X-Error-Description` diagnostics are retained;
 credentials, cookies, arbitrary response headers, and page contents are excluded.
+
+Webshare curl examples import as **Webshare Proxy Server**, because the shared
+gateway cannot identify the subscription product. Select Static Residential or
+Rotating Residential when appropriate. Import removes an example's sticky ID or
+`rotate` suffix so REL can assign its own binding; optional country is preserved.
+City targeting is not supported by these presets. Native proxy/Profile transfers
+preserve the selected product and country. Transfer format 20 requires a REL
+version supporting Webshare; earlier transfer formats remain readable.
