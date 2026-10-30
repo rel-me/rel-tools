@@ -35,7 +35,11 @@ and storage-quota reporting in workers while applying the graphics policy.
 With graphics selected, `canvas_noise_mode: "native"` preserves native 2D canvas
 readbacks in windows and workers, including OffscreenCanvas. It does not disable
 the WebGL profile, WebGL readback policy, or WebGPU policy. Use
-`canvas_noise_mode: "deterministic"` to enable the Session's stable canvas noise.
+`canvas_noise_mode: "deterministic"` to enable a bounded horizontal scale for
+2D canvas text, stable within the Session and shared by windows and workers.
+Text drawing and horizontal measurements use the same scale. Clear pixels,
+caller-supplied ImageData, and PNG readbacks retain their actual rendered values;
+REL does not add noise while reading 2D pixels.
 To apply canvas noise while keeping WebGL and WebGPU native, select `graphics`,
 set `graphics_profile: "native"`, and use `canvas_noise_mode: "deterministic"`.
 The native graphics profile leaves WebGL identity, extensions, and readbacks
