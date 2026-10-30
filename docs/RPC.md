@@ -1350,11 +1350,11 @@ for later editing, but are not sent as browser overrides.
 | --- | --- |
 | `locale` | Language preferences and locale, applied only when resolved values differ from native |
 | `timezone` | IANA timezone |
-| `hardware_concurrency` | Page CPU thread count; workers retain native values in this engine |
+| `hardware_concurrency` | CPU thread count shared by windows, frames, and all worker types |
 | `network` | Network information profile |
 | `device_surfaces` | Linked memory, touch, screen/pixel ratio, PDF plugin fallback, and storage quota controls |
 | `graphics` | Canvas noise and the selected graphics profile. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions/readbacks and make WebGPU unavailable. |
-| `audio` | Audio readbacks using the profile's audio mode |
+| `audio` | Generated oscillator signal variation using the profile's audio mode; buffer and analyser reads preserve actual values |
 
 With `device_surfaces` enabled, `device_memory_gib` supplies both JavaScript
 device memory and the `Device-Memory` / `Sec-CH-Device-Memory` HTTP hints.

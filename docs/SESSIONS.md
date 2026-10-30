@@ -48,6 +48,19 @@ native WebGPU adapter exposure. Canvas noise in this mode applies to 2D contexts
 supported platform. `canvas_noise_mode: "native"` with this profile leaves both
 canvas and WebGL native.
 
+The `hardware_concurrency` override reports the same selected CPU thread count
+in windows, frames, dedicated workers, nested workers, shared workers, and service
+workers. It operates independently of graphics and device surfaces. Selected
+User-Agent client-hint metadata also follows the Session into worker identity
+and request preferences.
+
+With `audio` selected, `audio_noise_mode: "deterministic"` applies a bounded,
+Session-stable gain to generated oscillator signals before downstream graph
+processing. Buffers and analysers expose the actual signal: caller-written
+samples, silence, repeated reads, and unused destination-array tails are not
+changed by readback noise. `audio_noise_mode: "native"` preserves native signal
+generation. Audio operates independently of graphics and device surfaces.
+
 These settings do not guarantee that a fingerprinting service assigns a new
 visitor identity: other device signals can remain equal across independent
 Sessions and proxy exits.

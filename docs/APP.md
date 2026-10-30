@@ -696,7 +696,7 @@ country or null) and `proxy_detect_exit_locale`. With detection enabled,
 no proxy, or the lookup fails. This lookup does not write a language to the proxy.
 
 Privacy controls cover graphics, audio, device surfaces, language and locale,
-time zone, network information, and the CPU thread count reported to pages.
+time zone, network information, and the CPU thread count reported consistently to windows and workers.
 When Network Information protection is enabled, JavaScript RTT/downlink and
 opted-in HTTP RTT/Downlink hints use the same rounded session values.
 Network measurements are not exposed through those hints. Disabling the control
@@ -709,14 +709,17 @@ to `MAJOR.0.0.0`, using the bundled engine's current major. The engine supplies 
 brand list and client hints; these are not editable. High-entropy client hints
 can still expose the engine’s full version when requested by a site.
 
-Graphics protection changes Canvas and WebGL readbacks together with the graphics identity and
-makes WebGPU unavailable. A `graphics_profile` of `native` preserves native
-WebGL and WebGPU while allowing independent canvas noise. Text geometry, native input, and other unlisted
-surfaces remain native.
+Graphics protection applies the canvas policy and selected WebGL identity.
+Curated graphics profiles make WebGPU unavailable. A `graphics_profile` of
+`native` preserves native WebGL and WebGPU while allowing independent,
+Session-stable canvas text geometry. Pixel reads expose actual rendered values.
+Native input and unlisted surfaces retain their native behavior.
 
-Native Chromium uses the same patched privacy layer. Its WebRTC default also
-restricts non-proxied UDP connections. Audio protection makes small changes to
-AudioBuffer's live sample arrays, which can also affect later playback.
+The engine's WebRTC default restricts non-proxied UDP connections. Audio
+protection applies a small, Session-stable gain to generated oscillator signals
+before downstream graph processing. AudioBuffer writes and reads, silence, and
+analyser reads preserve actual values. The audio and CPU thread-count controls
+operate independently of graphics and device surfaces.
 
 An identity profile is a compatibility tool, not an anonymity guarantee. Its
 seed is stable across sites in that Session, so sites may still correlate
