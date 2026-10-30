@@ -714,7 +714,10 @@ WebGL pixel reads and exports preserve actual rendered values in every identity;
 curated profiles do not add per-seed WebGL pixel noise. Curated graphics profiles
 make WebGPU unavailable. A `graphics_profile` of
 `native` preserves native WebGL and WebGPU while allowing independent,
-Session-stable canvas text geometry. Pixel reads expose actual rendered values.
+Session-stable canvas text geometry and antialias coverage for eligible opaque
+text. Fully covered colors and transparent pixels remain exact; transparent,
+gradient, stroke, effect and wide-gamut coverage stays native. Pixel reads expose
+actual rendered values.
 Native input and unlisted surfaces retain their native behavior.
 
 The engine's WebRTC default restricts non-proxied UDP connections. Audio

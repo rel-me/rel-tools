@@ -37,7 +37,13 @@ readbacks in windows and workers, including OffscreenCanvas. It does not disable
 the WebGL profile, WebGL readback policy, or WebGPU policy. Use
 `canvas_noise_mode: "deterministic"` to enable a bounded horizontal scale for
 2D canvas text, stable within the Session and shared by windows and workers.
-Text drawing and horizontal measurements use the same scale. Clear pixels,
+Text drawing and horizontal measurements use the same tiny scale (at most
+three parts per million). Eligible opaque, solid, unfiltered text also varies
+antialias coverage during painting through a glyph layer, bounded to one
+eight-bit alpha step with transparency and complete coverage preserved. Fully covered colors and transparent pixels
+remain exact. Transparency, gradients, strokes, effects, printing, wide-gamut
+float16 and out-of-gamut paint coverage retain native behavior. The extra glyph
+layer can add rendering cost. Clear pixels,
 caller-supplied ImageData, and PNG readbacks retain their actual rendered values;
 REL does not add noise while reading pixels. WebGL reads and exports also
 preserve actual framebuffer values, including clear colors and rectangle/packing
