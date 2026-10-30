@@ -1872,7 +1872,8 @@ failure before deciding whether recovery is needed.
 ### Webshare proxy products
 
 The proxy editor offers Webshare Proxy Server, Static Residential, and Rotating
-Residential presets. Use the corresponding dashboard's base proxy credentials.
-All three use Backbone sticky bindings scoped to independent Sessions, with an
-optional country. Grouped Sessions share their routing. Review provider sticky
-duration and observed exit uniqueness for clean tests. See [Proxies](PROXIES.md).
+Residential presets. Proxy Server passes the supplied username/password unchanged
+and has no country or session parameters. Its gateway rotates exits automatically;
+direct IP endpoints are also supported. The other two products use base credentials,
+optional country targeting, and Session-scoped sticky bindings. Grouped Sessions
+share their routing. See [Proxies](PROXIES.md).

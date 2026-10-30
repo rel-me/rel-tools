@@ -1033,19 +1033,22 @@ The proxy create and update routes accept an optional `webshare` object:
 {
   "upstream_host": "p.webshare.io",
   "upstream_port": 80,
-  "webshare": {"product": "proxy_server", "country": "us"}
+  "webshare": {"product": "proxy_server"}
 }
 ```
 
 `product` is `proxy_server`, `static_residential`, or `rotating_residential`.
-`country` is an optional two-letter code. Supply the base username/password via
-the existing credential path; the runtime adds a numeric sticky Session binding.
-Do not include an existing session or `rotate` suffix in the base username.
+`country` is an optional two-letter code for the residential products; Proxy
+Server rejects a non-null country. Supply Proxy Server username/password unchanged:
+no country, session, or rotation suffix is added. Static and Rotating Residential
+use base credentials and numeric sticky Session bindings.
 Only one provider may be active: Webshare conflicts with enabled Oxylabs or
 Bright Data. Omission on update preserves Webshare; `"webshare": null` clears it.
-Responses include `webshare` or null. The Backbone host is `p.webshare.io`, with
-ports 80, 1080, 3128, or 9999–19999. TLS keeps normal system trust. A new binding
-is not proof of a new IP; verify actual routing when uniqueness matters.
+Responses include `webshare` or null. Proxy Server accepts `p.webshare.io` on ports
+80, 1080, 3128, or 9999–29999, or a direct IP with its assigned port. The other
+products use Backbone ports 80, 1080, 3128, or 9999–19999. TLS keeps normal system
+trust. A new binding is not proof of a new IP; verify actual routing when
+uniqueness matters.
 These fields are available through the HTTP API and native editor; use a custom
 HTTP request if your typed client does not expose them yet.
 
