@@ -380,6 +380,16 @@ and redacted provider rejection details. Search for `MASQUE` to trace a tunnel
 by its connection/stream ID. Oxylabs `X-Error-Description` diagnostics are retained;
 credentials, cookies, arbitrary response headers, and page contents are excluded.
 
+To import a saved Webshare Direct Connection list, choose **Import Proxy**, then
+**Choose File…**, select its UTF-8 `.txt` or `.json` file, and click **Import**.
+Text lists use one `IP:port:username:password` entry per line; complete Webshare
+Direct Proxy API JSON exports are also accepted. Each endpoint becomes a
+separate Webshare Proxy Server entry with a new alias. Existing proxies are
+preserved, credentials are passed unchanged, and no country/session suffix is
+added. Invalid or duplicate endpoints reject the whole list. Lists are limited
+to 2 MiB and 5,000 entries; account proxy limits still apply. Credentials use
+REL's existing Rust/Keychain storage.
+
 Webshare curl examples import as **Webshare Proxy Server**, because the shared
 gateway cannot identify the subscription product. Select Static Residential or
 Rotating Residential when appropriate. Proxy Server import preserves the complete

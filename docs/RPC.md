@@ -213,6 +213,7 @@ available.
 | `GET` | `/v1/model-providers` | Read shared Models connection metadata and default selection |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
+| `POST` | `/v1/proxy-list-imports/webshare` | Import a saved Webshare direct proxy list |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
@@ -1091,6 +1092,16 @@ unavailable peer. Location changes can also change the peer.
 
 Version 4 proxy and profile transfer archives preserve Bright Data configuration.
 Older versions remain importable with managed Bright Data settings disabled.
+
+`POST /v1/proxy-list-imports/webshare` accepts `contents`, a UTF-8 Webshare
+Direct Connection text list (`IP:port:username:password` per line) or a complete
+Direct Proxy API JSON export. It creates separate Proxy Server configurations
+with generated unique aliases and returns `imported_count` and `aliases`.
+Credentials remain unchanged and use the existing Rust/Keychain path. Parsing,
+endpoint validation, duplicate checks, and account limits apply; a failed batch
+rolls back newly created records and credentials. Existing proxies are preserved.
+The list is limited to 2 MiB and 5,000 entries. No proxy or target is contacted
+by importing. This route is available through HTTP and the native editor.
 
 `POST /v1/proxy-transfers/export` accepts `alias`, `include_credentials`, and
 an optional `passphrase`. It returns `data.filename` and `data.contents_base64`,

@@ -1877,3 +1877,9 @@ and has no country or session parameters. Its gateway rotates exits automaticall
 direct IP endpoints are also supported. The other two products use base credentials,
 optional country targeting, and Session-scoped sticky bindings. Grouped Sessions
 share their routing. See [Proxies](PROXIES.md).
+
+To import a Webshare export, open **Proxies → Import Proxy → Choose File…**.
+Choose a Direct Connection text or JSON list and click **Import**. REL adds each
+endpoint separately with new aliases; credentials remain unchanged. Invalid
+lists do not partially import. See [Proxies](PROXIES.md) for supported formats
+and limits.
