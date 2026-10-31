@@ -57,8 +57,8 @@ its supported persistent workspace state.
 ## Content archive
 
 Open **REL → Settings… → Archive** to browse the permanent content archive.
-Expand a website and its URL path folders, then select a content file or its
-`.metadata` sidecar. **Content** and **Metadata** switch between the paired
+Selecting a folder shows guidance for browsing its contents. Expand a website
+and its URL path folders, then select a content file or its `.metadata` sidecar. **Content** and **Metadata** switch between the paired
 files; **Show in Finder** reveals the selected file. Use **Refresh** to discover
 new captures. Previews display inert text and are limited to 512 KB; the full
 saved file remains on disk. Switch to **Captures** to search URL, MIME type,
