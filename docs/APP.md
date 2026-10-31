@@ -56,7 +56,7 @@ its supported persistent workspace state.
 
 ## Content archive
 
-Open **REL → Settings… → Cache** to browse the permanent content archive.
+Open **REL → Settings… → Archive** to browse the permanent content archive.
 Expand a website and its URL path folders, then select a content file or its
 `.metadata` sidecar. **Content** and **Metadata** switch between the paired
 files; **Show in Finder** reveals the selected file. Use **Refresh** to discover
@@ -766,11 +766,11 @@ expose this entry. Create a new tab group to use a different identity.
 ## Profile asset caches
 
 Caching assets across resets is currently disabled. Its controls and statistics
-are hidden in Profiles and Cache settings. Saved Profiles and imported archives
+are hidden in Profiles and Archive settings. Saved Profiles and imported archives
 still load, but an enabled cache setting has no effect.
 
 Ordinary Chromium HTTP caches remain scoped to the owning independent Session
-or explicit shared set. **REL → Settings… → Cache → Clear Session Caches**
+or explicit shared set. **REL → Settings… → Archive → Clear Session Caches**
 clears these HTTP caches without deleting cookies or site storage.
 
 ## Navigation feedback, errors, and retry
