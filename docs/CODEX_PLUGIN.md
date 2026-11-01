@@ -96,3 +96,14 @@ codex plugin add rel@rel
 ```
 
 Start another new task after updating so it uses the refreshed plugin cache.
+
+The Codex and Claude Code packages share a plugin version, independent of the
+REL app version. Regular app promotion checks the plugin directory and both
+marketplace manifests. When their contents have changed since the last plugin
+version bump, promotion tests the launcher and publishes a synchronized patch
+bump on this repository's `main`. Unchanged plugin contents keep their version;
+app-bundled MCP updates alone do not require a plugin release. Staging and Beta
+releases do not update the shared marketplaces.
+
+Marketplace publication does not refresh an already installed plugin cache.
+Use the update commands above and restart or reload the client as directed.
