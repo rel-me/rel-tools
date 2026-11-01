@@ -152,13 +152,15 @@ choices are preserved while the global switch is off:
 
 - Matching HTTP response rules can notify; they do not reset Sessions.
 - **User input required** alerts for detected reCAPTCHA, hCaptcha, Turnstile,
-  verification-code fields, and website permission requests. Open the affected
+  DuckDuckGo image challenges, verification-code fields, and website permission requests. Open the affected
   group to respond. REL waits briefly for automatic browser checks to resolve
   and avoids repeated input alerts on the same page.
 
 Detection is heuristic. Loading a provider's script alone does not trigger an
 alert, and some custom or dynamically inserted prompts may go undetected. REL
-does not solve challenges automatically.
+does not solve challenges automatically. DuckDuckGo alerts require its challenge
+form and a visible image-challenge modal; ordinary search results and background
+challenge resources do not trigger an alert.
 
 macOS asks for notification permission when REL first needs to alert you. You can
 also choose **Allow macOS Notifications…** on this Settings page. If permission
