@@ -1389,7 +1389,7 @@ for later editing, but are not sent as browser overrides.
 | `hardware_concurrency` | CPU thread count shared by windows, frames, and all worker types |
 | `network` | Network information profile |
 | `device_surfaces` | Linked memory, touch, screen/pixel ratio, PDF plugin fallback, and storage quota controls |
-| `graphics` | Canvas typography/eligible opaque-text coverage and the selected graphics profile. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions and make WebGPU unavailable. All profiles preserve actual WebGL pixel reads and exports. |
+| `graphics` | Canvas typography/eligible solid-text coverage, including translucent fills, and the selected graphics profile. Full glyph coverage retains requested opacity. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions and make WebGPU unavailable. All profiles preserve actual WebGL pixel reads and exports. |
 | `audio` | Shared 48 kHz default for real-time audio in `deterministic` mode; explicit rates, offline rendering, signals, buffers, and analysers stay native |
 
 With `device_surfaces` enabled, `device_memory_gib` supplies both JavaScript
@@ -1399,7 +1399,9 @@ CSS device-width and device-height queries use the profile's screen dimensions,
 and resolution queries use its device scale factor;
 color queries report 8 bits per component, sRGB, and standard dynamic range,
 matching the profile's 24-bit screen surface. These settings do not resize the
-page viewport. Native sessions and profiles with `device_surfaces` disabled
+page viewport. Outer window dimensions retain Chromium's actual host-window
+geometry independently of the configured display dimensions.
+Native sessions and profiles with `device_surfaces` disabled
 retain the engine's native values.
 
 `locale_mode` accepts `automatic` or `custom`. Private defaults to

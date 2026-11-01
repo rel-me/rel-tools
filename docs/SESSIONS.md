@@ -38,10 +38,11 @@ the WebGL profile, WebGL readback policy, or WebGPU policy. Use
 `canvas_noise_mode: "deterministic"` to enable a bounded horizontal scale for
 2D canvas text, stable within the Session and shared by windows and workers.
 Text drawing and horizontal measurements use the same tiny scale (at most
-three parts per million). Eligible opaque, solid, unfiltered text also varies
+three parts per million). Eligible solid, unfiltered text, including translucent
+fills, also varies
 antialias coverage during painting through a glyph layer, bounded to one
-eight-bit alpha step with transparency and complete coverage preserved. Fully covered colors and transparent pixels
-remain exact. Transparency, gradients, strokes, effects, printing, wide-gamut
+eight-bit alpha step. Fully covered glyphs preserve the requested paint opacity,
+and transparent pixels remain exact. Gradients, strokes, effects, printing, wide-gamut
 float16 and out-of-gamut paint coverage retain native behavior. The extra glyph
 layer can add rendering cost. Clear pixels,
 caller-supplied ImageData, and PNG readbacks retain their actual rendered values;
@@ -49,6 +50,9 @@ REL does not add noise while reading pixels. WebGL reads and exports also
 preserve actual framebuffer values, including clear colors and rectangle/packing
 variants. Curated WebGL profiles standardize identity and capabilities; they no
 longer add per-seed pixel noise.
+Configured screen dimensions describe the display, while outer window dimensions
+retain Chromium's actual host-window geometry. Neither control resizes the page
+viewport.
 To apply canvas noise while keeping WebGL and WebGPU native, select `graphics`,
 set `graphics_profile: "native"`, and use `canvas_noise_mode: "deterministic"`.
 The native graphics profile leaves WebGL identity, extensions, and readbacks
