@@ -710,6 +710,9 @@ brand list and client hints; these are not editable. High-entropy client hints
 can still expose the engine’s full version when requested by a site.
 
 Graphics protection applies the canvas policy and selected WebGL identity.
+Configured unmasked vendor and renderer strings preserve Chromium’s native GPU
+query before applying the selected identity; extension gating and context-loss
+behavior remain native.
 WebGL pixel reads and exports preserve actual rendered values in every identity;
 curated profiles do not add per-seed WebGL pixel noise. Curated graphics profiles
 make WebGPU unavailable. A `graphics_profile` of

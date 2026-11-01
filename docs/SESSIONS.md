@@ -49,7 +49,9 @@ caller-supplied ImageData, and PNG readbacks retain their actual rendered values
 REL does not add noise while reading pixels. WebGL reads and exports also
 preserve actual framebuffer values, including clear colors and rectangle/packing
 variants. Curated WebGL profiles standardize identity and capabilities; they no
-longer add per-seed pixel noise.
+longer add per-seed pixel noise. Configured unmasked vendor and renderer strings
+retain the underlying native GPU query, with the existing extension and
+context-loss behavior.
 Configured screen dimensions describe the display, while outer window dimensions
 retain Chromium's actual host-window geometry. Neither control resizes the page
 viewport.
