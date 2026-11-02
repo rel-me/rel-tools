@@ -1,5 +1,12 @@
 # REL Rust SDK
 
+## Projects, Profiles and Sessions
+
+See [Projects, Profiles and Sessions](SESSIONS.md) for explicit Project scope,
+independent Session state, deliberate sharing and configuration reapply. Profile
+names do not imply shared state. Public management uses Session IDs; group
+resource and reset APIs are not supported.
+
 `rel-client` is the typed Rust client for every public REL RPC v1 operation.
 The `rel` CLI uses this crate rather than maintaining a separate transport or
 request model.
@@ -78,11 +85,13 @@ without navigating.
 | `create_proxy(&ProxyCreateRequest)` | `POST /v1/proxies` |
 | `update_proxy(alias, &ProxyUpdateRequest)` | `PATCH /v1/proxies/{alias}` |
 | `delete_proxy(alias)` | `DELETE /v1/proxies/{alias}` |
-| `reset_profile(name)` | `POST /v1/reset` |
 | `export_proxy_transfer(&ProxyTransferExportRequest)` | `POST /v1/proxy-transfers/export` |
 | `import_proxy_transfer(&ProxyTransferImportRequest)` | `POST /v1/proxy-transfers/import` |
 | `list_sessions()` | `GET /v1/sessions` |
 | `get_session(id)` | `GET /v1/sessions/{id}` |
+| `debug_state(id)` | `GET /v1/sessions/{id}/debug-state` |
+| `session_trace(id, after, limit)` | `GET /v1/sessions/{id}/trace` |
+| `debug_bundle(id, since_request_id, include_html, include_screenshot)` | `POST /v1/sessions/{id}/debug-bundle` |
 | `create_session(&SessionCreateRequest)` | `POST /v1/sessions` |
 | `list_profiles()` | `GET /v1/profiles` |
 | `create_profile(&ProfileCreateRequest)` | `POST /v1/profiles` |
@@ -94,7 +103,6 @@ without navigating.
 | `pause_session(id)` | `POST /v1/sessions/{id}/pause` |
 | `play_session(id)` | `POST /v1/sessions/{id}/play` |
 | `delete_session(id)` | `DELETE /v1/sessions/{id}` |
-| `close_session_group(group)` | `POST /v1/sessions/close` |
 
 Ordinary methods return `RpcResponse<T>`, preserving `status`, `request_id`,
 and the typed `data` resource. Resources include `Health`, `StatusReport`,
@@ -121,10 +129,10 @@ with the installed bundle's ID, configuration, worktree, branch, commit, and
 dirty state. The field is `None` when the agent was not launched by a
 metadata-bearing app bundle.
 
-The bundled [MCP adapter](MCP.md) uses this same client for all fourteen tools. It
+The bundled [MCP adapter](MCP.md) uses this same client for its discovered tools. It
 calls `status`, `list_notifications`, `capture`, `attach_page`,
 `read_page`, `perform_page_action`, both screenshot methods, all observation methods,
-`list_sessions`, `close_session_group`, and `list_proxies`; it does not maintain
+`list_sessions`, `list_proxies`, and the diagnostics methods; it does not maintain
 alternate request types or bypass the RPC transport. For capture, it exhausts
 and validates `CaptureStream` before returning one aggregated MCP result.
 
@@ -260,6 +268,23 @@ background loading does not hold the request open. Its `wait` value is a
 bounded settling delay after final main-frame readiness. Use `Action::Wait`
 when a workflow needs additional settling time.
 
+Set `NavigateRequest.wait_for` to combine navigation with a tolerant native
+selector wait on the same page and session:
+
+```rust
+let mut request = rel_client::NavigateRequest::new("https://example.com");
+request.wait_for = Some("#content".into());
+request.timeout = Some(60.0);
+rel_client::RelClient::local().navigate(&request)?;
+# Ok::<(), rel_client::ClientError>(())
+```
+
+Intermediate HTTP-error documents may redirect while waiting. REL validates the
+final main-frame HTTP status after the selector matches. The `timeout` is one
+overall navigation and readiness budget. Cancellation covers the combined
+operation and preserves page/session ownership. Leaving `wait_for` as `None`
+preserves existing navigation behavior.
+
 Take a visual capture from the same current page with `ScreenshotRequest`, or
 use `PageScreenshotRequest` with an explicit attached page ID:
 
@@ -349,7 +374,7 @@ snapshot for reading until the 32-observation registry evicts it, the session
 closes, or the agent exits. Retained snapshots are evidence, not actionable page
 state.
 
-`navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
+Without `wait_for`, `navigate` returns `ClientError::Rpc` with ID `UPSTREAM_UNAVAILABLE` when the
 main frame finishes an HTTP 4xx or 5xx document and inspection finds no active
 challenge. By default, detected Cloudflare Turnstile and managed challenge
 documents with HTTP error statuses receive the remaining request timeout to
@@ -483,44 +508,17 @@ update.
 
 ## Session profiles
 
-When creating a session from a saved profile without configuration overrides,
-REL adds a page tab to the oldest existing group for that profile. It preserves
-that group's current settings and storage, including groups created in the app
-without copying saved cookies or passwords. Editing the saved profile does not
-force a new group. Explicit name, group label, and lifetime constraints still apply.
+Session ownership and configuration follow the [current runtime contract](SESSIONS.md):
+creation requires a Project and each new Session is independent unless sharing
+was explicitly selected. Use `project_id` for creation and current-page scope,
+or `session_id` for existing browser state. `group_id` is an explicit sharing
+choice at creation; configuration reapply preserves existing Session state.
 
-Requests with configuration overrides or no saved profile open a page tab in
-the oldest compatible existing tab group.
-Compatibility includes the selected profile and browser-data source, proxy,
-fingerprint configuration, image/ad blocking, model, and viewport settings.
-The existing group's identity, storage, fingerprint seed, and lifetime are preserved.
-An explicit name or group label must match to reuse a group; an explicit lifetime
-must also match. If no compatible group exists, REL creates one.
-The response's session ID identifies the reused group, so repeated creation can
-return the same ID. `reused_group` reports whether a group was reused.
-Set `SessionCreateRequest::new_group` to `Some(true)` to force a separate group.
-
-`SessionCreateRequest::default()` serializes to `{}`, so the agent uses the
-configured **Default Profile**, or **Custom** when the preference is unset.
-Custom uses direct networking, AdBlock on, all images allowed, and Private.
-Set `profile` to a case-insensitively unique saved configuration name. Explicit proxy
-and filtering fields override the selected profile; use
-`Change::Set("alias".into())` for a proxy or `Change::Clear` for direct
-networking:
-
-```rust
-use rel_client::{Change, RelClient, SessionCreateRequest};
-
-let request = SessionCreateRequest {
-    group: Some("pgm".into()),
-    adblock_enabled: Some(true),
-    proxy_alias: Change::Clear,
-    ..SessionCreateRequest::default()
-};
-RelClient::local().create_session(&request)?;
-RelClient::local().close_session_group("pgm")?;
-# Ok::<(), rel_client::ClientError>(())
-```
+Diagnostic methods return `RpcResponse<serde_json::Value>` so additive metadata
+is preserved. `debug_state` reads cached state during long operations;
+`session_trace` takes an optional cursor and bounded limit; `debug_bundle` defaults
+artifacts off when its two flags are false. See [browser diagnostics](BROWSER_DIAGNOSTICS.md)
+for example workflows and interpretation.
 
 `Profile` contains its public `id`, unique `name`, proxy and filtering policy,
 browser-data inclusion flags, optional fingerprint identity template, built-in
@@ -531,8 +529,9 @@ flags after REL.app stages an import; no cookie or password values cross RPC.
 Re-importing a selected category replaces that category in the template.
 There are no built-in profiles. `ImageBlockingMode::None` allows every
 image without disabling AdBlock. Existing sessions retain copied settings and
-data after their source profile is changed or deleted. REL Free can create one
-persistent Session and one custom Profile; REL Pro removes those limits.
+data after their source profile is changed or deleted. REL Free can create up to
+two tab groups with two Sessions each (four Sessions total) and one custom Profile; REL Pro removes those plan limits. A third group
+or a third Session within a group is rejected. Close resources to free capacity.
 
 `ProfileCreateRequest::fingerprint_profile` uses `Change::Unchanged` to select
 the default compatibility template, `Change::Clear` for native Chromium, and
@@ -540,13 +539,13 @@ the default compatibility template, `Change::Clear` for native Chromium, and
 settings but generates a fresh seed whenever it creates a session from the
 profile. New configurations use Private; explicit native identity stays native.
 
-`Session::profile` exposes the source profile name and
-`Session::profile_data_id` identifies the custom browser-data template copied
-at creation, when any. `CaptureRequest`, `NavigateRequest`, and
-`PageAttachRequest` accept `profile` only when `session_id` is absent.
-`CaptureRequest` and `PageAttachRequest` also accept `group`, so an implicitly
-created session can join a group. Group matching is case-insensitive; closing
-an empty group succeeds with an empty `deleted_ids` vector.
+`Session::project_id` identifies the owning Project. `Session::group_id` is
+optional and present only for deliberately shared state. `profile_id` may be
+null for Custom Sessions. Configuration metadata round-trips with the resource.
+Use `list_projects()` and `list_sessions_in_project(Some(project_id))` to select
+scope. `SessionCreateRequest` accepts `project_id` and optional `group_id` for
+explicit sharing. `CaptureRequest`, `NavigateRequest` and `PageAttachRequest`
+accept `project_id`; `profile` is valid only when `session_id` is absent.
 
 `ProxyCreateRequest.locale: Option<String>` configures an optional BCP-47 locale
 for the proxy. `ProxyUpdateRequest.locale: Change<String>` supports set, clear,
@@ -662,3 +661,5 @@ managed in the app. See the [CLI guide](CLI.md#license-activation) for stdin usa
 Use `RelClient::update_app()` to request the owning app's native update flow.
 The returned `AppUpdateData` acknowledges the request and reports the selected
 channel and required user interaction. It does not report installation completion.
+
+`network_request(id, network_request_id)` inspects network evidence; `network_capture_configure(id, &policy)` sets capture before reproduction. See [capture policy and retention](BROWSER_DIAGNOSTICS.md#inspect-original-network-responses).

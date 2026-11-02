@@ -7,6 +7,18 @@ const contentRoot = resolve(docsRoot, "src/content/docs");
 
 const pages = [
   {
+    source: "BROWSER_DIAGNOSTICS.md",
+    output: "browser-diagnostics.md",
+    title: "Browser diagnostics",
+    description: "Inspect running operations, follow bounded session traces and export redacted diagnostics.",
+  },
+  {
+    source: "SESSIONS.md",
+    output: "sessions.md",
+    title: "Projects, Profiles and Sessions",
+    description: "Select explicit Project and Session scope and understand independent or shared browser state.",
+  },
+  {
     source: "PROXIES.md",
     output: "proxies.md",
     title: "Configure proxies",
@@ -87,6 +99,8 @@ const pages = [
 ];
 
 const siteLinks = new Map([
+  ["BROWSER_DIAGNOSTICS.md", "/browser-diagnostics/"],
+  ["SESSIONS.md", "/sessions/"],
   ["PROXIES.md", "/proxies/"],
   ["CRAWLEE.md", "/crawlee/"],
   ["APP.md", "/app/"],
@@ -104,7 +118,7 @@ const siteLinks = new Map([
 
 function rewriteLinks(markdown) {
   return markdown.replace(
-    /\((ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|CRAWLEE|MCP|PLAYWRIGHT|PROXIES|RPC|RUBY|SDK)\.md(#[^)]+)?\)/g,
+    /\((BROWSER_DIAGNOSTICS|SESSIONS|ACTIONS|APP|CLAUDE_CODE_PLUGIN|CLI|CODEX_PLUGIN|CRAWLER|CRAWLEE|MCP|PLAYWRIGHT|PROXIES|RPC|RUBY|SDK)\.md(#[^)]+)?\)/g,
     (_, name, hash = "") => `(${siteLinks.get(`${name}.md`)}${hash})`,
   );
 }

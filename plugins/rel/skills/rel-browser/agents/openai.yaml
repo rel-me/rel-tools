@@ -1,4 +1,4 @@
 interface:
   display_name: "REL Browser"
-  short_description: "Browse through persistent local REL sessions"
-  default_prompt: "Use $rel-browser to inspect the active REL browser session."
+  short_description: "Browse and diagnose persistent local REL sessions"
+  default_prompt: "Use $rel-browser to inspect the specified REL Session and diagnose any navigation failure."

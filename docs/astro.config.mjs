@@ -45,6 +45,7 @@ export default defineConfig({
           label: "Start here",
           items: [
             { label: "Overview", slug: "index" },
+            { label: "Sessions and scope", slug: "sessions" },
             { label: "macOS app", slug: "app" },
             { label: "Configure proxies", slug: "proxies" },
             { label: "Actions", slug: "actions" },
@@ -55,6 +56,7 @@ export default defineConfig({
           items: [
             { label: "CLI", slug: "cli" },
             { label: "MCP server", slug: "mcp" },
+            { label: "Browser diagnostics", slug: "browser-diagnostics" },
             { label: "RPC v1", slug: "rpc" },
             { label: "Rust SDK", slug: "sdk" },
             { label: "Ruby SDK", slug: "ruby" },

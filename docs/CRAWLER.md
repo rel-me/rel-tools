@@ -37,7 +37,7 @@ RELDebug normally uses port `27319`.
 ## Run the example
 
 The public example crawls discussion links from the Hacker News front page. It
-uses the configured Default Profile (`Private` when unset):
+uses the configured Default Profile (the saved Default profile when unset):
 
 ```sh
 cd crawler

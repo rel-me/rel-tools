@@ -38,21 +38,33 @@ bundled, matching CLI into a writable directory already in `PATH`. To build the
 public client independently:
 
 ```sh
-cargo install --git https://github.com/rel-me/rel-tools \
-  --tag v0.1.1 \
-  --package rel-cli
+# From a rel-tools checkout matching the app's API:
+cargo install --path crates/rel-cli
 ```
 
-Then try:
+Then choose an existing Session in the intended Project and use its ID:
 
 ```sh
 rel health
-rel https://rel.me
+rel https://rel.me --session-id Session123
 ```
 
-Capture writes page data to standard output and events to standard error. Use
-`rel navigate`, `rel perform`, and argument-free `rel capture` for a stateful
-page workflow. Use `rel session` to manage persistent browser sessions.
+Capture writes page data to standard output and events to standard error. Use `rel navigate`, `rel perform`, and `rel capture` with an explicit Session
+selector for a stateful page workflow. Use `rel session` to manage persistent browser sessions.
+For pages that load their content after navigation, wait for a CSS selector
+before continuing:
+
+```sh
+rel navigate https://example.com --session-id Session123 --wait-for '#content' --timeout 60
+rel capture --session-id Session123 > page.html
+```
+
+REL keeps navigation and the content wait on the same page and session within
+one timeout. Intermediate HTTP error pages can redirect while it waits; REL
+checks the final HTTP status after the selector appears. The versioned API and
+typed clients expose this option as `wait_for`. See the
+[CLI navigation guide](docs/CLI.md#shorthand-page-workflow) for details.
+
 See the [Actions reference](docs/ACTIONS.md) for every supported browser
 interaction and its JSON shape.
 
@@ -190,3 +202,6 @@ npm run check
 
 The source code in this repository is MIT licensed. REL.app and the REL brand
 are not covered by that license.
+
+For navigation failures and non-blocking inspection, see
+[Browser diagnostics](docs/BROWSER_DIAGNOSTICS.md).
