@@ -261,6 +261,11 @@ in System Settings. Registration errors appear below the Startup controls.
 
 ## Update channels
 
+After registration validation, REL opens normally while checking for updates
+in the background. A slow or unavailable update server does not block startup.
+An applicable mandatory update can still require an update after it is
+discovered. Registration and paid update-coverage rules continue to apply.
+
 Choose **Settings → General → Updates → Update Channel** to select which
 releases REL offers:
 
