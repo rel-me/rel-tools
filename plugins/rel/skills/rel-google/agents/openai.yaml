@@ -1,0 +1,4 @@
+interface:
+  display_name: "REL Google"
+  short_description: "Browse Google with domain-specific REL guidance"
+  default_prompt: "Use $rel-google to read the requested Google resources in the selected REL Project."

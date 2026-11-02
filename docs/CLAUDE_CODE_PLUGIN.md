@@ -8,6 +8,33 @@ the namespaced `/rel:rel-browser` skill for interactive browser work plus
 Related documents: [MCP server](MCP.md), [browser diagnostics](BROWSER_DIAGNOSTICS.md),
 [session scope](SESSIONS.md) and [CLI](CLI.md).
 
+## Domain skills
+
+The plugin bundles a site-specific skills collection in `plugins/rel/skills/`:
+
+| Skill | Domain | Guidance |
+| --- | --- | --- |
+| `rel-reddit` | reddit.com | Login, private cookie export, fresh-cookie Session creation, bounded 429 recovery, and configured rotating routes |
+| `rel-zillow` | zillow.com | Profile settings, geographic filters, maps, and property details |
+| `rel-craigslist` | craigslist.org | Regional searches, category scope, postings, and expiry |
+| `rel-google` | google.com Search | Native identity, direct routing, query scope, and source verification |
+| `rel-x` | x.com, twitter.com | Login snapshots, search tabs, timelines, and thread coverage |
+| `rel-duckduckgo` | duckduckgo.com | Regional search, result expansion, and source links |
+| `rel-loopnet` | loopnet.com | Commercial-property filters, units, and gated details |
+
+These skills load for their own domains and are available to both plugin hosts.
+Their setup guidance comes from local REL.app Profiles inspected on 2026-10-27;
+the plugin does not install those Profiles or ship proxy aliases, credentials,
+or cookie files. Discover current Profiles before creating a Session.
+RYM, AOTY, Metacritic, and Discogs are excluded from this collection.
+
+Reddit's fresh-cookie and rotating-route workflow is specific to Reddit. It
+honors rate-limit waits and bounds replacement attempts; it cannot guarantee
+access. Cookie-file selection is currently an app workflow, not a CLI/MCP
+creation option, and REL has no public Session reset API. See
+[cookie files](https://docs.rel.me/app/#cookie-files) and
+[Session scope](https://docs.rel.me/sessions/).
+
 ## Requirements
 
 - macOS 15 or later;

@@ -1,0 +1,4 @@
+interface:
+  display_name: "REL Craigslist"
+  short_description: "Browse Craigslist with domain-specific REL guidance"
+  default_prompt: "Use $rel-craigslist to read the requested Craigslist resources in the selected REL Project."
