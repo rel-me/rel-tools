@@ -78,3 +78,13 @@ bundle for lazy startup, and preserves its stdio and exit status.
 the app repository's generated `website/zed-theme/public/rel-logo.png` export.
 Use that export when updating the plugin artwork; do not redraw or simplify it.
 Both Codex's marketplace logo and composer icon use this PNG.
+
+## Publication
+
+Codex and Claude Code use synchronized plugin versions, independently of the
+REL app version. Regular app promotion checks this directory and both root
+marketplace manifests against the last synchronized version bump. Changed
+contents trigger launcher fixture tests and a patch bump committed to `main`;
+unchanged contents keep their version. Staging and Beta releases do not publish
+plugin updates. Existing installations still need their documented marketplace
+update and client restart or reload.

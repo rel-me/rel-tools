@@ -3,6 +3,7 @@
   "displayName": "REL",
   "version": "0.6.0",
   "description": "Browse with REL's persistent Chromium sessions, domain-specific skills, diagnostics, and restartable crawlers.",
+
   "author": {
     "name": "REL",
     "url": "https://rel.me"
