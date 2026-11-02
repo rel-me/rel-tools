@@ -11,8 +11,13 @@ Related documents: [MCP server](MCP.md), [browser diagnostics](BROWSER_DIAGNOSTI
 ## Requirements
 
 - macOS 15 or later;
-- REL installed on the Mac;
+- REL 0.1.156 or later installed on the Mac, with the Project/Session MCP adapter;
 - a current Claude Code release with plugin marketplace support.
+
+The launcher requires adapter version 0.1.156 or later and the
+`rel-project-sessions-v1` API contract. An unsupported adapter stops with an
+update instruction before exposing tools. Operational calls reject older local
+runtimes as well. Restart the MCP connection after updating the plugin or app.
 
 REL.app must be installed so Claude Code can start its bundled
 `Contents/Resources/rel-mcp` adapter. The app does not need to be running for
@@ -76,10 +81,11 @@ and `rel_session_trace` with its exact ID. Preserve the original error details
 and snapshot age before retrying or replacing the Session. Use `rel_debug_bundle`
 for a bounded shareable artifact; HTML and screenshots default to off.
 
-These tools are discovered from the installed app's bundled `rel-mcp`. A plugin
-update changes its instructions and packaging, not the app's API. If diagnostics
-are missing from discovery, use a matching REL app build and restart the MCP
-connection; do not inspect internal storage to fill the gap.
+Select a Project with `rel_list_projects`, then inspect its Sessions with
+`rel_list_sessions({"project_id":"ProjectDefault"})`. To create independent
+browser state, use `rel_create_session` with `project_id` and optional `profile`;
+reuse the returned `session_id`. A Profile name never identifies a live login.
+Use `rel_close_session` for one exact Session when the workflow owns cleanup.
 
 ## Update
 
@@ -88,3 +94,14 @@ Update the installed plugin, then restart Claude Code to apply it:
 ```sh
 claude plugin update rel@rel
 ```
+
+The Codex and Claude Code packages share a plugin version, independent of the
+REL app version. Regular app promotion checks the plugin directory and both
+marketplace manifests. When their contents have changed since the last plugin
+version bump, promotion tests the launcher and publishes a synchronized patch
+bump on this repository's `main`. Unchanged plugin contents keep their version;
+app-bundled MCP updates alone do not require a plugin release. Staging and Beta
+releases do not update the shared marketplaces.
+
+Marketplace publication does not refresh an already installed plugin cache.
+Use the update commands above and restart or reload the client as directed.

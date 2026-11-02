@@ -27,6 +27,9 @@ credentials appropriate to your provider account and product.
 
 | Type | Default host | Default port |
 | --- | --- | --- |
+| Webshare Proxy Server | `p.webshare.io` | `80` |
+| Webshare Static Residential | `p.webshare.io` | `80` |
+| Webshare Rotating Residential | `p.webshare.io` | `80` |
 | Oxylabs Residential | `pr.oxylabs.io` | `7777` |
 | Oxylabs Datacenter | `dc.oxylabs.io` | `8000` |
 | Oxylabs ISP | `disp.oxylabs.io` | `8001` |
@@ -34,6 +37,23 @@ credentials appropriate to your provider account and product.
 | Decodo Residential | `gate.decodo.com` | `7000` |
 | IPRoyal Residential | `geo.iproyal.com` | `12321` |
 | Custom | Enter your provider's HTTP proxy host | Enter its port |
+
+For **Webshare Proxy Server**, enter the username and password exactly as supplied
+by Webshare. REL adds no country or session suffix and offers no country or
+session-rotation control for this product. The rotating gateway selects exits
+automatically. You can also enter a direct IP and port from your Webshare list.
+
+For **Webshare Static Residential** and **Rotating Residential**, use the base
+proxy credentials and choose an optional **Country**. REL adds a numeric sticky
+binding per independent Session; grouped Sessions share that binding. REL does
+not append `rotate`. Provider sticky duration controls route lifetime, and a
+new binding does not guarantee a new IP. Product selection records your plan;
+it does not change your subscription.
+
+For clean fixed-IP comparisons, use independently allocated direct endpoints
+and verify observed exit stability and uniqueness. An automatically rotating
+gateway does not meet that requirement. See
+[Webshare connection rules](https://apidocs.webshare.io/proxy-connection).
 
 For **Oxylabs ISP**, enter **Available IPs** and the first assigned upstream
 port. For example, 5 IPs starting at port 8001 use ports 8001 through 8005.
@@ -69,6 +89,25 @@ Sessions receive their own persistent provider session IDs.
 
 Credentials stay in REL's secure credential storage. MCP's proxy-list tool
 returns aliases and non-secret metadata, not stored passwords.
+
+## Automatic reset on HTTP 429
+
+In **Settings → General → Proxy Session**, **Automatically Reset on HTTP 429**
+is enabled by default, including for existing installations. When a website
+request returns HTTP 429 (Too Many Requests), REL rotates the affected Session's
+provider binding. Sticky-session providers receive a new session ID; Oxylabs ISP
+pools with multiple IPs advance to the next port. Direct connections, custom
+fixed proxies, and single-IP ISP pools keep their current route.
+
+Explicitly grouped tabs share the new route. Independent Sessions are unchanged.
+Cookies, browser data, Session IDs, and tab membership are preserved. Existing
+proxy connections close, and subsequent requests use the new binding. REL does
+not reload the page or replay the failed request. Resets are coalesced across
+shared tabs and limited to once every 30 seconds. Errors appear in REL's Session
+feedback. An expired provider session still requires creating a new Session.
+Turn the setting off to keep the current binding when a website returns 429.
+A reset requests a new provider binding; it does not guarantee a different exit
+IP or that the website will accept subsequent requests.
 
 ## Proxy session continuity
 
@@ -169,6 +208,14 @@ Dedicated ISP port assignments do not use this expiry policy. Authentication
 failures and errors returned by destination websites do not invalidate the
 proxy session.
 
+Restoring an expired binding can show **Session Action Failed** immediately
+after opening REL. Close that Session and create a new one before retrying.
+The expiry monitor reports a binding's invalidation once per agent run after
+delivery succeeds; its five-second checks do not add more occurrences of the
+same unresolved expiry. Dismissing the issue does not renew the binding or reset
+browser data. A new agent run can report the unresolved expiry again.
+
+
 ## Test a saved proxy
 
 Select a proxy in **Settings → Proxies**, then choose **Test**, or right-click
@@ -196,10 +243,18 @@ browser-session verification and are explicitly marked untested by this suite.
 
 ## Assign a proxy to a Session
 
-Open a browser Session and use the toolbar's **Proxy** menu to select the saved
-alias. Choose **None** for a direct connection. Repeat in another Session to
-assign a different proxy. Adding a proxy in Settings does not assign it to every
+Open a browser Session, open its bottom panel, and select the **Proxy** tab.
+Choose a saved proxy alias, or **None** for a direct connection. New Sessions
+copy their Profile’s proxy at creation; changing it in the bottom panel updates
+that Session without changing its Profile or other independent Sessions.
+Sessions in an explicit shared group share the updated route. **Add Proxy…**
+opens the proxy editor. Adding a proxy in Settings does not assign it to every
 Session.
+
+A neutral adjustment icon beside a value means **Differs from profile**. It
+appears beside changed proxy and filter settings, and saved configuration values
+in Overview. The marker compares the Session with its current source Profile;
+it disappears when the values match again.
 
 When REL shows **Browser configuration changed. Reload to apply.**, choose
 **Reload** when ready. Session cookies and storage are preserved. Existing
@@ -267,8 +322,9 @@ reported by browser JavaScript are separate settings.
 1. Open **REL → Settings… → Proxies**, edit the proxy, and enable
    **Detect Exit Locale**. Existing detection choices are preserved; new proxies
    start with detection off.
-2. Assign the proxy to the Session. Detection applies to every browser identity,
-   including **Chrome**, **Native**, **Private**, and **Custom Privacy**.
+2. Assign the proxy to the Session. Private and Chrome use the detected timezone
+   when their timezone override is enabled. Custom can disable that override;
+   Native keeps the system timezone and does not apply identity emulation.
 3. Save the proxy, then open a page in that Session.
 
 Detection is lazy. Starting REL, restoring or creating a blank Session, renaming
@@ -286,13 +342,11 @@ Lookup failures stop the pending page request and show a page error. Saved
 Sessions stay available. Retry the page once the proxy connection works; REL
 retries detection instead of silently using a different location.
 
-Timezone detection works independently of language and identity privacy controls:
-**Custom** language keeps its explicit locale, and the detected exit timezone
-applies even when the identity's **Timezone** control is off. Other privacy
-controls stay unchanged. Detection changes the effective browser identity without
-overwriting the saved manual timezone or your Mac's system timezone. With
-**Detect Exit Locale** off and **Timezone** disabled, Chromium uses its native
-timezone.
+Timezone detection is independent of language selection, but applying it requires
+an enabled **Timezone** identity control. Custom language keeps its explicit
+locale; a disabled timezone control remains native. Native never gains an identity
+profile merely because a proxy exit is known. Detection does not overwrite the
+saved manual timezone or your Mac's system timezone.
 
 ### Set a timezone manually
 
@@ -303,9 +357,9 @@ To align it with the proxy location:
    Use the exit location rather than assuming the provider's requested country
    determines a single timezone.
 2. Open the Session's tab menu and edit its **Browser Identity**. Choose
-   **New Browser Identity…** to customize it, or **Edit** beside **Custom Privacy**
+   **New Browser Identity…** to customize it, or **Edit** beside **Custom**
    in a Profile or Session draft.
-3. In **Custom Privacy**, enable **Timezone** and enter an IANA timezone name,
+3. In **Custom**, enable **Timezone** and enter an IANA timezone name,
    such as `America/New_York` or `Europe/Berlin`.
 4. Choose **Use Identity**, save the configuration, and apply any pending
    **Reload** banner.
@@ -409,3 +463,22 @@ CONNECT versus CONNECT-UDP routing, upstream response statuses, elapsed times,
 and redacted provider rejection details. Search for `MASQUE` to trace a tunnel
 by its connection/stream ID. Oxylabs `X-Error-Description` diagnostics are retained;
 credentials, cookies, arbitrary response headers, and page contents are excluded.
+
+To import a saved Webshare Direct Connection list, choose **Import Proxy**, then
+**Choose File…**, select its UTF-8 `.txt` or `.json` file, and click **Import**.
+Text lists use one `IP:port:username:password` entry per line; complete Webshare
+Direct Proxy API JSON exports are also accepted. Each endpoint becomes a
+separate Webshare Proxy Server entry with a new alias. Existing proxies are
+preserved, credentials are passed unchanged, and no country/session suffix is
+added. Invalid or duplicate endpoints reject the whole list. Lists are limited
+to 2 MiB and 5,000 entries; account proxy limits still apply. Credentials use
+REL's existing Rust/Keychain storage.
+
+Webshare curl examples import as **Webshare Proxy Server**, because the shared
+gateway cannot identify the subscription product. Select Static Residential or
+Rotating Residential when appropriate. Proxy Server import preserves the complete
+username, including any hyphens or digits; it does not infer country or session
+parameters from the credential.
+City targeting is not supported by these presets. Native proxy/Profile transfers
+preserve the selected product and country. Transfer format 20 requires a REL
+version supporting Webshare; earlier transfer formats remain readable.

@@ -216,6 +216,7 @@ available.
 | `GET` | `/v1/model-providers` | Read shared Models connection metadata and default selection |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
+| `POST` | `/v1/proxy-list-imports/webshare` | Import a saved Webshare direct proxy list |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
@@ -236,6 +237,7 @@ available.
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
 | `POST` | `/v1/sessions/{id}/reapply` | Reapply configuration while preserving identity and data |
 | `GET` | `/v1/sessions/{id}/proxy-status` | Read session proxy status |
+| `POST` | `/v1/sessions/{id}/reset-proxy-session` | Rotate the selected Session’s proxy binding |
 | `GET` | `/v1/sessions/{id}/debug-state` | Read non-blocking cached diagnostics |
 | `GET` | `/v1/sessions/{id}/trace` | Read bounded cursor-paginated events |
 | `POST` | `/v1/sessions/{id}/debug-bundle` | Export retained diagnostics and opt-in artifacts |
@@ -820,7 +822,7 @@ session configuration. Open pages apply it when the user chooses Reload.
   write fields are `username`, `password`, `oxylabs_enabled`, `oxylabs_masque_enabled`,
   `oxylabs_location_parameter`, `oxylabs_location_value`, `oxylabs_isp_ip_count`,
   `oxylabs_isp_page_limit`,
-  `bright_data`, `locale`, and `detect_exit_locale`.
+  `bright_data`, `webshare`, `locale`, and `detect_exit_locale`.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
   `username:null`, `password:null`, or `locale:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns
@@ -851,11 +853,10 @@ they instead resolve the exit country through the session's agent-owned proxy
 using `https://ipwho.is/`. Country-to-language selection uses macOS locale data.
 No configured country means the user's preferred language when detection is off.
 Custom fingerprint locales take precedence and disabled language controls stay native.
-Detection also applies the exit timezone independently of the identity's timezone
-and language privacy controls, including Chrome and Native identities. It enables
-only the effective timezone control needed for detection; the saved fingerprint
-and other privacy controls are unchanged. With detection off, disabled timezone
-controls stay native.
+Detection applies the exit timezone only when the identity's timezone override
+is enabled. Private and Private-derived Chrome enable it by default. Custom's
+disabled timezone control stays off, and Native remains unprofiled even when the
+proxy's location is known. Saved manual timezone values remain unchanged.
 
 Proxy responses include `detect_exit_locale`; session responses include
 `proxy_country` (configured ISO country or null) and `proxy_detect_exit_locale`.
@@ -948,6 +949,18 @@ and recovery details requiring a new Session. REL cancels that navigation
 without resetting browser state. See
 [Residential proxy session expiry](PROXIES.md#oxylabs-residential-session-expiry).
 
+`POST /v1/sessions/{id}/reset-proxy-session` accepts `{}` and returns
+`data.rotated`. It selects a new sticky-session ID, or advances a multi-IP ISP
+pool to its next port. It returns `false` for direct connections, fixed custom
+proxies, and single-IP ISP pools. Rotation applies to the selected Session's
+explicit shared state owner, closes its old proxy transports, and resets its
+usage counters. It preserves browser data, Session IDs, tab membership, and
+shared IP page allowances. Unknown Session IDs fail; expired provider bindings
+return `PROXY_SESSION_EXPIRED`. The route does not retry website requests or
+reload pages. See [automatic HTTP 429 reset](PROXIES.md#automatic-reset-on-http-429)
+for REL's enabled-by-default app setting and its 30-second coalescing window.
+
+
 Profiles accept notification-only `http_rules`; see the Profile contract below.
 These rules do not reset browser state or replace Sessions.
 
@@ -1036,6 +1049,31 @@ Select Bright Data in the app's proxy editor to configure a country and optional
 state, city, or ASN. REL shows the resulting masked connection string and gives
 each browser session its own persistent `-session-<id>` suffix.
 
+The proxy create and update routes accept an optional `webshare` object:
+
+```json
+{
+  "upstream_host": "p.webshare.io",
+  "upstream_port": 80,
+  "webshare": {"product": "proxy_server"}
+}
+```
+
+`product` is `proxy_server`, `static_residential`, or `rotating_residential`.
+`country` is an optional two-letter code for the residential products; Proxy
+Server rejects a non-null country. Supply Proxy Server username/password unchanged:
+no country, session, or rotation suffix is added. Static and Rotating Residential
+use base credentials and numeric sticky Session bindings.
+Only one provider may be active: Webshare conflicts with enabled Oxylabs or
+Bright Data. Omission on update preserves Webshare; `"webshare": null` clears it.
+Responses include `webshare` or null. Proxy Server accepts `p.webshare.io` on ports
+80, 1080, 3128, or 9999–29999, or a direct IP with its assigned port. The other
+products use Backbone ports 80, 1080, 3128, or 9999–19999. TLS keeps normal system
+trust. A new binding is not proof of a new IP; verify actual routing when
+uniqueness matters.
+These fields are available through the HTTP API and native editor; use a custom
+HTTP request if your typed client does not expose them yet.
+
 The proxy create and update routes accept a `bright_data` object:
 
 ```json
@@ -1075,6 +1113,16 @@ unavailable peer. Location changes can also change the peer.
 
 Version 4 proxy and profile transfer archives preserve Bright Data configuration.
 Older versions remain importable with managed Bright Data settings disabled.
+
+`POST /v1/proxy-list-imports/webshare` accepts `contents`, a UTF-8 Webshare
+Direct Connection text list (`IP:port:username:password` per line) or a complete
+Direct Proxy API JSON export. It creates separate Proxy Server configurations
+with generated unique aliases and returns `imported_count` and `aliases`.
+Credentials remain unchanged and use the existing Rust/Keychain path. Parsing,
+endpoint validation, duplicate checks, and account limits apply; a failed batch
+rolls back newly created records and credentials. Existing proxies are preserved.
+The list is limited to 2 MiB and 5,000 entries. No proxy or target is contacted
+by importing. This route is available through HTTP and the native editor.
 
 `POST /v1/proxy-transfers/export` accepts `alias`, `include_credentials`, and
 an optional `passphrase`. It returns `data.filename` and `data.contents_base64`,
@@ -1174,6 +1222,9 @@ A profile resource is:
 ```
 
 - `GET /v1/profiles` returns saved profiles sorted by name in `data.profiles`.
+  Profiles do not expose a `color` field. Creation and updates reject `color`;
+  the app no longer assigns or edits profile colors. Reserved database and
+  archive columns remain for schema compatibility.
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
   the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
@@ -1356,11 +1407,11 @@ for later editing, but are not sent as browser overrides.
 | --- | --- |
 | `locale` | Language preferences and locale, applied only when resolved values differ from native |
 | `timezone` | IANA timezone |
-| `hardware_concurrency` | Page CPU thread count; workers retain native values in this engine |
+| `hardware_concurrency` | CPU thread count shared by windows, frames, and all worker types |
 | `network` | Network information profile |
 | `device_surfaces` | Linked memory, touch, screen/pixel ratio, PDF plugin fallback, and storage quota controls |
-| `graphics` | Linked Canvas/WebGL readbacks, WebGL identity/extensions, and unavailable WebGPU adapters |
-| `audio` | Audio readbacks using the profile's audio mode |
+| `graphics` | Canvas typography/eligible solid-text coverage, including translucent fills, and the selected graphics profile. Full glyph coverage retains requested opacity. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions and make WebGPU unavailable. All profiles preserve actual WebGL pixel reads and exports. |
+| `audio` | Shared 48 kHz default for real-time audio in `deterministic` mode; explicit rates, offline rendering, signals, buffers, and analysers stay native |
 
 With `device_surfaces` enabled, `device_memory_gib` supplies both JavaScript
 device memory and the `Device-Memory` / `Sec-CH-Device-Memory` HTTP hints.
@@ -1369,7 +1420,9 @@ CSS device-width and device-height queries use the profile's screen dimensions,
 and resolution queries use its device scale factor;
 color queries report 8 bits per component, sRGB, and standard dynamic range,
 matching the profile's 24-bit screen surface. These settings do not resize the
-page viewport. Native sessions and profiles with `device_surfaces` disabled
+page viewport. Outer window dimensions retain Chromium's actual host-window
+geometry independently of the configured display dimensions.
+Native sessions and profiles with `device_surfaces` disabled
 retain the engine's native values.
 
 `locale_mode` accepts `automatic` or `custom`. Private defaults to
@@ -1397,30 +1450,28 @@ For example, add `"overrides": ["timezone"]` to a valid profile with
 non-array values are rejected. Saving the profile preserves this list through
 export/import. Missing lists in older profiles enable the remaining supported overrides.
 
-New profile drafts and Custom session defaults use **Private**,
-with all seven supported controls enabled. Its read-only details are hidden
-by default in profiles, identity editors, and session information. Choose
-**Show** to the left of the mode value to open a popover without expanding the parent
-layout. The **Browser Identity** row belongs to the main Profile section.
-Choose **Custom Privacy** to edit individual values and toggles in compact rows.
-Profile forms open those settings in a separate editor; **New Browser Identity…**
-starts from the current identity and **Use Identity** applies the custom settings
-to the Profile draft.
-The shared device preset appears once, info buttons explain linked settings,
-and the readback seed is in an expandable section. **Native** turns off all
-controls. Chromium generates the User-Agent with the product version reduced to
-`MAJOR.0.0.0` in every mode. Native branding and client hints remain engine-owned
-and are not editable. High-entropy client hints can still expose the full engine
-version when requested by a site.
+On the Private engine, new profile drafts and Custom session defaults use
+**Private**, enabling all seven supported controls. **Chrome** inherits those
+protections and adds Chrome branding. Choose **Custom** to edit supported values
+and toggles; the editor also exposes accepted device, seed and Chrome-version
+values. Profile forms open a separate editor; **Use Identity** applies the draft.
+See the [app guide](APP.md#browser-identity) for the controls and engine build
+selection commands.
 
-Custom Privacy saves an explicit `overrides` list, including when all seven
-controls are enabled or all are disabled. It therefore reopens as Custom.
-Private uses the omitted-list representation; selecting it resets custom
-values to the standard full preset while retaining the session seed. Native
-saves a null fingerprint. Existing explicit choices and saved session-creation
-preferences are preserved. Saving recreates only the session's Chromium context.
-Device surfaces and graphics remain linked groups in the pinned engine.
-Individual fields within those groups cannot independently remain native.
+Custom saves an explicit `overrides` list, including when all controls are on or
+off, and therefore reopens as Custom. Private and Chrome use the omitted-list full
+preset; selecting either resets custom values while retaining the Session seed.
+Native saves a null fingerprint and requires the verified upstream CEF engine.
+It does not merely disable controls on the patched engine. Engine selection is a
+build/restart choice; incompatible identity/engine combinations fail explicitly.
+A compatible identity change recreates the Session's context, not the engine.
+
+REL's patched engine reduces its UA product version. Native leaves that setting
+to upstream CEF. Platform metadata stays host-native; Custom can choose supported
+Chrome branding/version values but cannot supply arbitrary identity internals.
+High-entropy hints can expose the engine version. Device and graphics surfaces
+remain linked groups; build-time removals and fixed integration are explicit
+exceptions, not per-Session switches.
 
 On every supported database startup, REL refreshes engine-linked fingerprint
 versions and matching user agents in Sessions and named Profiles before loading
@@ -1872,3 +1923,5 @@ and up to 20 seconds for sending. Success data contains `message_id` and
 Failures use the standard error envelope. REL does not automatically retry;
 a send timeout leaves delivery uncertain. Settings changes serialize with
 sending, so disabling cannot recall an in-flight message.
+
+Request inspection: `GET /v1/sessions/{id}/network-requests/{request_id}`. Opt-in capture: `PUT /v1/sessions/{id}/network-capture`. Both use the normal response envelope. See [capture policy, retention, redaction and attribution](BROWSER_DIAGNOSTICS.md#inspect-original-network-responses).

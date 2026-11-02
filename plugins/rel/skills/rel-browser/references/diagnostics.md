@@ -57,3 +57,5 @@ identity; do not invent the layer responsible.
 
 See the maintained [diagnostics API guide](https://docs.rel.me/browser-diagnostics/)
 for schemas, retention and export limits.
+
+For verification continuation failures, configure `rel_network_capture_configure` before reproduction, including the verification endpoint and document URL prefixes. Inspect each `network_request_id` using `rel_network_request`. Read application outcomes in HTTP 200 bodies; status alone is insufficient. Original network responses are separate from rendered browser errors. Unknown cookie/proxy observations are not evidence of continuity. Reconnect MCP after an app update to refresh discovery. See the canonical [network diagnostics guide](https://github.com/rel-me/rel-tools/blob/main/docs/BROWSER_DIAGNOSTICS.md#inspect-original-network-responses).
