@@ -850,11 +850,10 @@ they instead resolve the exit country through the session's agent-owned proxy
 using `https://ipwho.is/`. Country-to-language selection uses macOS locale data.
 No configured country means the user's preferred language when detection is off.
 Custom fingerprint locales take precedence and disabled language controls stay native.
-Detection also applies the exit timezone independently of the identity's timezone
-and language privacy controls, including Chrome and Native identities. It enables
-only the effective timezone control needed for detection; the saved fingerprint
-and other privacy controls are unchanged. With detection off, disabled timezone
-controls stay native.
+Detection applies the exit timezone only when the identity's timezone override
+is enabled. Private and Private-derived Chrome enable it by default. Custom's
+disabled timezone control stays off, and Native remains unprofiled even when the
+proxy's location is known. Saved manual timezone values remain unchanged.
 
 Proxy responses include `detect_exit_locale`; session responses include
 `proxy_country` (configured ISO country or null) and `proxy_detect_exit_locale`.
@@ -1429,30 +1428,28 @@ For example, add `"overrides": ["timezone"]` to a valid profile with
 non-array values are rejected. Saving the profile preserves this list through
 export/import. Missing lists in older profiles enable the remaining supported overrides.
 
-New profile drafts and Custom session defaults use **Private**,
-with all seven supported controls enabled. Its read-only details are hidden
-by default in profiles, identity editors, and session information. Choose
-**Show** to the left of the mode value to open a popover without expanding the parent
-layout. The **Browser Identity** row belongs to the main Profile section.
-Choose **Custom Privacy** to edit individual values and toggles in compact rows.
-Profile forms open those settings in a separate editor; **New Browser Identity…**
-starts from the current identity and **Use Identity** applies the custom settings
-to the Profile draft.
-The shared device preset appears once, info buttons explain linked settings,
-and the readback seed is in an expandable section. **Native** turns off all
-controls. Chromium generates the User-Agent with the product version reduced to
-`MAJOR.0.0.0` in every mode. Native branding and client hints remain engine-owned
-and are not editable. High-entropy client hints can still expose the full engine
-version when requested by a site.
+On the Private engine, new profile drafts and Custom session defaults use
+**Private**, enabling all seven supported controls. **Chrome** inherits those
+protections and adds Chrome branding. Choose **Custom** to edit supported values
+and toggles; the editor also exposes accepted device, seed and Chrome-version
+values. Profile forms open a separate editor; **Use Identity** applies the draft.
+See the [app guide](APP.md#browser-identity) for the controls and engine build
+selection commands.
 
-Custom Privacy saves an explicit `overrides` list, including when all seven
-controls are enabled or all are disabled. It therefore reopens as Custom.
-Private uses the omitted-list representation; selecting it resets custom
-values to the standard full preset while retaining the session seed. Native
-saves a null fingerprint. Existing explicit choices and saved session-creation
-preferences are preserved. Saving recreates only the session's Chromium context.
-Device surfaces and graphics remain linked groups in the pinned engine.
-Individual fields within those groups cannot independently remain native.
+Custom saves an explicit `overrides` list, including when all controls are on or
+off, and therefore reopens as Custom. Private and Chrome use the omitted-list full
+preset; selecting either resets custom values while retaining the Session seed.
+Native saves a null fingerprint and requires the verified upstream CEF engine.
+It does not merely disable controls on the patched engine. Engine selection is a
+build/restart choice; incompatible identity/engine combinations fail explicitly.
+A compatible identity change recreates the Session's context, not the engine.
+
+REL's patched engine reduces its UA product version. Native leaves that setting
+to upstream CEF. Platform metadata stays host-native; Custom can choose supported
+Chrome branding/version values but cannot supply arbitrary identity internals.
+High-entropy hints can expose the engine version. Device and graphics surfaces
+remain linked groups; build-time removals and fixed integration are explicit
+exceptions, not per-Session switches.
 
 On every supported database startup, REL refreshes engine-linked fingerprint
 versions and matching user agents in Sessions and named Profiles before loading

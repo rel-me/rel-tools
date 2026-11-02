@@ -496,7 +496,7 @@ if it is missing. An existing **REL** profile becomes Default with the same ID a
 settings. Edit Default's configuration in the profiles list; its name is fixed
 and it cannot be deleted. Default does not use the custom-profile allowance.
 Profiles can use a configured proxy and imported cookies or passwords. The Profiles
-list includes a **Browser Identity** column showing Private, Custom Privacy,
+list includes a **Browser Identity** column showing Private, Chrome, Custom,
 or Native.
 
 In the Profile editor, **Starting URL** optionally names the HTTP or HTTPS page
@@ -590,7 +590,7 @@ when saved Profiles exist. Selecting a Profile with an existing group shows
 New-group settings and setup inputs are hidden for that selection. When no matching
 group exists, its configuration loads into the form and can be edited before creation. AdBlock,
 Browser Identity, Proxy, Image Blocking, and Browser Data share one section
-with equal-height setting rows. Choosing **Custom Privacy** in Create Session
+with equal-height setting rows. Choosing **Custom** in Create Session
 opens a separate editor; **Use Identity** applies it to the draft and **Cancel**
 preserves the previous identity. **Edit** reopens a custom identity.
 **Show Config** below the section opens a read-only popover with the session
@@ -613,49 +613,78 @@ requiring a saved Profile.
 
 ## Browser identity
 
-New Sessions use the form’s **Browser Identity**. New Custom configurations
-and Profile drafts use **Private**, which enables all
-seven supported privacy controls. In Profile forms, **Show** to the left of its
-value opens a read-only popover without expanding the form. Create Session uses
-**Show Config** below the main section instead. In Profile forms, Browser Identity is in the
-main section. Choose **New Browser Identity…** in its dropdown to customize the
-current settings in a separate editor. **Use Identity** applies them to the draft
-as **Custom Privacy**; **Cancel** leaves the previous identity unchanged. These
-settings are saved with the Profile. Use **Edit** beside Custom Privacy to change
-them later. Starting from **Native** leaves every override off, so you can enable
-only the controls you need. **Native** uses Chromium's native values.
+**Private** enables the full privacy preset. **Chrome** starts from Private and
+adds a Chrome-like browser identity while retaining its protections. **Native**
+is the separate upstream CEF baseline, without REL's Chromium source patches.
+CEF's own upstream embedding integration and required REL host integration remain;
+it is not a standalone Google Chrome installation. Passing every applicable
+fingerprinting goal is the Private identity's objective, not a universal guarantee.
 
-**Chrome** applies Chrome branding while using the device's native hardware and
-rendering values. CPU threads, reported memory, GPU, screen, storage estimates,
-canvas and audio are supplied by Chromium on the user's computer. Chrome mode
-keeps fingerprint privacy overrides off; it does not substitute a device preset
-or add rendering noise. **Private** continues to enable the full privacy preset.
-To combine Chrome branding with selected fingerprint modifications, start from
-Chrome and choose **New Browser Identity…** or **Custom Privacy**, then enable
-only the desired controls. The Chrome brand is retained.
+**Custom** lets you modify a copy of an identity. Choose **Custom** or
+**New Browser Identity…**, change supported controls, then choose **Use Identity**.
+Cancel preserves the previous identity. **Edit** reopens Custom settings.
+Starting from Native leaves the privacy controls off; starting from Chrome keeps
+Private's controls and Chrome branding. Existing explicit privacy-off Chrome
+configurations remain Custom; selecting Chrome restores the full privacy preset.
 
-Native hardware and rendering details can contribute to fingerprinting when
-combined with other signals, even when each component is common. Chrome mode
-prioritizes native behavior and compatibility; it does not guarantee anonymity.
-Use Private or Custom Privacy when reducing those signals is more important.
-Browser versions, permissions, build options, and installed extensions can still
-make REL differ from another Chrome installation on the same computer.
+Custom offers language/locale, timezone, CPU-thread, network, device, graphics and
+audio controls. You can edit the accepted memory, screen width/height/available
+height, scale, storage quota and coherent graphics adapter values rather than
+using only a preset. Blank values inherit the device preset. Switching device
+preset clears those explicit device values. The editor validates accepted ranges
+before saving. Graphics/device controls remain linked where required for coherent
+page and worker behavior; their **Linked and fixed controls** disclosure explains
+those dependencies.
 
-Saved Chrome configurations that already enable privacy controls keep those
-controls and appear as **Custom Privacy**. Select **Chrome** again to use native
-surfaces for that configuration. Existing Sessions retain their settings until
-their identity is explicitly changed.
+The numeric seed is editable in Custom for the configured Session and remains
+stable there. Opening Custom generates a fresh draft seed; every new Session
+receives a fresh seed, including Sessions created from a saved Profile. Cancel
+preserves the existing identity. Custom can retain or remove Chrome branding and
+choose an explicit accepted Chrome version or follow the bundled engine version.
 
-For identities with overrides, every creation path generates a fresh numeric
-readback seed for the Session, then keeps it stable for that Session. Profile edits apply to future Sessions.
+### Engine builds and restart requirements
 
-Opening **Custom Privacy** generates a fresh random seed in the editor draft.
-**Use Identity** applies that seed with the selected settings; **Cancel** leaves
-the original identity unchanged. The seed is managed automatically and has no
-editable field in this panel.
+CEF loads once per app process. Native and Private-derived identities therefore
+require separate engine builds and an app restart in this implementation.
+Private, Chrome and Custom run on the patched engine. Native runs on the exact
+upstream CEF engine. Unsupported combinations fail explicitly before browser
+creation; disabling all Custom controls does not turn the patched engine into an
+unpatched baseline.
 
-Use a Session's tab menu to change its identity; saving recreates only that
-Session's Chromium context and returns it to the same page.
+Upstream Native preserves the current page, cookies and browser storage, but does
+not restore the saved Back/Forward stack across app restarts. That restoration
+requires REL’s navigation-history source patch. A startup blank entry is not the
+previous saved page. Private, Chrome and Custom retain the patched restoration.
+
+For development, select the engine through the supported app build entry point:
+
+```sh
+REL_CEF_VARIANT=private make dev-agent-open
+REL_CEF_VARIANT=native REL_ENABLE_DEBUG_NOTIFICATIONS=1 make dev-agent-open
+```
+
+These commands require the REL source checkout and its documented Debug build
+setup. The Native build verifies an exact upstream artifact and does not replace
+the patched artifact. Its browser files are separate from the patched engine's
+files. Native uses Chromium's default Safe Storage Keychain item, so macOS may
+request authorization. No browser-profile data is imported by switching engines.
+When the last Native Session closes, logical ownership ends immediately; orphaned
+Native storage is physically removed on the next Native startup after Chromium
+has released its handles. Switching engines does not clear retained Session data.
+
+Custom cannot restore code removed at build time, change fixed security/embedding
+integration, or enable arbitrary independent patch mixtures. Those are explicit
+build-only/fixed exceptions. The editor exposes supported behavioral values and
+lists linked/fixed constraints; engine changes require a reviewed build/restart.
+Site permissions remain real stored grants, rather than emulated fingerprint
+values. Routing, content filters and other existing Profile settings still apply
+and should be recorded when comparing identities.
+
+Within a compatible engine, use a Session's tab menu to change its identity;
+saving recreates that Session's browser context and returns it to the same page.
+An identity change does not replace the already loaded engine. Native, Private
+and Chrome all have different evaluation expectations; branding and privacy
+controls do not guarantee anonymity or a passing vendor decision.
 
 Built-in Chrome identities follow REL's bundled Chromium version automatically,
 including after future engine upgrades. Custom privacy identities derived from
@@ -688,10 +717,9 @@ error rather than using a different locale or timezone. The option is preserved
 in proxy and profile transfers; older transfers import with detection off.
 Existing saved proxies keep their current setting, including an explicit off choice.
 
-A country does not identify every resident's preferred language. In Custom
-Privacy, choose **Custom** in the Language row to set an explicit locale such as
+A country does not identify every resident's preferred language. In Custom, choose **Custom** in the Language row to set an explicit locale such as
 `fr-CA`. Custom takes precedence over automatic language selection. The timezone
-control can still use the detected timezone independently.
+control uses the detected timezone only when enabled. Native does not emulate a proxy timezone.
 Disabling the language control keeps native Chromium language and locale.
 The former proxy-level manual locale is retained in storage and API responses,
 but Automatic now uses country targeting or exit detection.
@@ -713,10 +741,12 @@ retains native estimates. Sites must still opt in to receive the hints, and
 Permissions Policy can suppress them. These reported values do not change actual
 connection speed or route traffic through a proxy.
 
-Chromium generates the User-Agent in every mode with its product version reduced
-to `MAJOR.0.0.0`, using the bundled engine's current major. The engine supplies its native
-brand list and client hints; these are not editable. High-entropy client hints
-can still expose the engine’s full version when requested by a site.
+On the patched engine, Chromium generates the User-Agent with its product version
+reduced to `MAJOR.0.0.0`, using the bundled engine's current major. Native retains
+upstream CEF's default User-Agent without REL's product override. The engine owns
+the base brand list and client hints; Chrome branding uses the supported identity
+controls described above. High-entropy client hints can expose the engine's full
+version when requested by a site.
 
 Graphics protection applies the canvas policy and selected WebGL identity.
 Configured unmasked vendor and renderer strings preserve Chromium’s native GPU
@@ -737,7 +767,7 @@ Configured screen dimensions describe the display. Outer window dimensions
 continue to describe Chromium's actual host window, independently of the screen
 configuration; these controls do not resize the page viewport.
 
-The engine's WebRTC default restricts non-proxied UDP connections. Audio
+The patched engine's WebRTC default restricts non-proxied UDP connections. Audio
 protection's **Standardized (48 kHz)** setting uses 48 kHz for real-time contexts
 that omit a sample rate. Explicit rates, offline rendering, oscillator signals,
 buffers, silence, and analyser reads remain native. **Native audio** retains
@@ -845,7 +875,7 @@ Back and Forward also work with history entries created within the same page.
 Submitting an address that only changes its `#fragment` also keeps the current
 document available without waiting for a full page reload.
 
-Each Session also preserves its root-page HTTP(S) Back/Forward history and
+On the Private engine, each Session also preserves its root-page HTTP(S) Back/Forward history and
 current position across restarts. Opening the saved page restores that history
 without loading its earlier or later pages. Visiting a new page after going Back
 discards the forward branch. Clearing the Session’s browsing data removes its

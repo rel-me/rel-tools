@@ -245,8 +245,9 @@ reported by browser JavaScript are separate settings.
 1. Open **REL → Settings… → Proxies**, edit the proxy, and enable
    **Detect Exit Locale**. Existing detection choices are preserved; new proxies
    start with detection off.
-2. Assign the proxy to the Session. Detection applies to every browser identity,
-   including **Chrome**, **Native**, **Private**, and **Custom Privacy**.
+2. Assign the proxy to the Session. Private and Chrome use the detected timezone
+   when their timezone override is enabled. Custom can disable that override;
+   Native keeps the system timezone and does not apply identity emulation.
 3. Save the proxy, then open a page in that Session.
 
 Detection is lazy. Starting REL, restoring or creating a blank Session, renaming
@@ -264,13 +265,11 @@ Lookup failures stop the pending page request and show a page error. Saved
 Sessions stay available. Retry the page once the proxy connection works; REL
 retries detection instead of silently using a different location.
 
-Timezone detection works independently of language and identity privacy controls:
-**Custom** language keeps its explicit locale, and the detected exit timezone
-applies even when the identity's **Timezone** control is off. Other privacy
-controls stay unchanged. Detection changes the effective browser identity without
-overwriting the saved manual timezone or your Mac's system timezone. With
-**Detect Exit Locale** off and **Timezone** disabled, Chromium uses its native
-timezone.
+Timezone detection is independent of language selection, but applying it requires
+an enabled **Timezone** identity control. Custom language keeps its explicit
+locale; a disabled timezone control remains native. Native never gains an identity
+profile merely because a proxy exit is known. Detection does not overwrite the
+saved manual timezone or your Mac's system timezone.
 
 ### Set a timezone manually
 
@@ -281,9 +280,9 @@ To align it with the proxy location:
    Use the exit location rather than assuming the provider's requested country
    determines a single timezone.
 2. Open the Session's tab menu and edit its **Browser Identity**. Choose
-   **New Browser Identity…** to customize it, or **Edit** beside **Custom Privacy**
+   **New Browser Identity…** to customize it, or **Edit** beside **Custom**
    in a Profile or Session draft.
-3. In **Custom Privacy**, enable **Timezone** and enter an IANA timezone name,
+3. In **Custom**, enable **Timezone** and enter an IANA timezone name,
    such as `America/New_York` or `Europe/Berlin`.
 4. Choose **Use Identity**, save the configuration, and apply any pending
    **Reload** banner.
