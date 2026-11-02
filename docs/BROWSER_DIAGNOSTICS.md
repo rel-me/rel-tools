@@ -60,6 +60,22 @@ last state under the same bounds. A session without retained observations return
 `SESSION_NOT_FOUND`. Observation of an existing session is not proof of creation
 or replacement; replacement sessions have their own IDs and traces.
 
+### Session creation waits
+
+Session creation waits for a local `session_sync` acknowledgement, including
+when Proxy is None. New REL builds emit `session.preparation` events with a
+`data.step` of `workspace`, `register_browser`, `seed_data`, `publish_browser`,
+`configure_proxy`, or `ready`. These are local preparation steps;
+`configure_proxy` alone does not establish a proxy connection or location lookup.
+The last recorded step narrows the wait but does not prove its cause. Older
+builds do not emit these events.
+
+A fatal bridge transport failure disconnects the agent and requests supervised
+agent recovery. Capture available diagnostics before restarting manually: an
+agent restart clears volatile traces. Session creation can persist a Session
+before its acknowledgement fails, so list Sessions before retrying to avoid
+creating duplicates. A timeout alone does not establish a proxy problem.
+
 ## Export
 
 `POST /v1/sessions/{session_id}/debug-bundle` accepts `since_request_id`,
