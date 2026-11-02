@@ -519,6 +519,8 @@ template. Saving edits updates the template for future Sessions. Explicitly
 reapply configuration to existing Sessions when needed; reapply preserves their
 IDs, navigation and browser data. Profile edits do not reseed running Sessions.
 
+In **Edit Profile**, **Save** updates the template for future Sessions. **Save & Apply** also reapplies the configuration to every existing Session using that Profile, including shared Sessions. Session IDs, navigation, and browser data are preserved. Saved Profile cookies replace matching cookies; other cookies remain, and pages reload after cookies are applied. Hover over the help icon beside **Save & Apply** for this explanation. Starting URL and Session Viewport apply only to new Sessions.
+
 In the profile editor, **Session Viewport** selects the initial viewport for a new
 Session: **App Default**, **Fit Window**, **Desktop 1440w**, **Wide Laptop 1280w**,
 **Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Fixed widths follow the
