@@ -30,78 +30,119 @@ For provider setup and per-Session assignment, see [Configure proxies](PROXIES.m
 
 ## Tab groups
 
-A **Profile** is a reusable configuration template, optionally with initial
-browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
-configuration (or standalone Custom settings). Each **Session** is a tab in one
-group and receives a separate `Session<ID>`, with its own URL, navigation history,
-browser view, and automation target.
+A Project owns its Sessions, chat, actions, model preference and tab order.
+Each new Session is independent by default, including Sessions created from the
+same Profile. Shared cookies, site data, browser identity, configuration and
+routing require an explicit group choice. Browser state cannot span Projects.
+See [Projects, Profiles and Sessions](SESSIONS.md).
 
-Sessions in a group share cookies, site storage, private HTTP cache, configuration,
-browser identity, and proxy routing. Different groups remain isolated even when
-created from the same Profile. Create a session in an existing group to use its
-current configuration and live browser state, or create a new group and its first
-session. Joining an existing group does not reread or reseed the Profile.
+Profile edits affect future Sessions. Use **Reapply Profile Configuration**, or
+**Reapply Profile to Shared Sessions** for an explicit shared set, to update an
+existing Session. Reapply preserves Session IDs, navigation and browser data;
+it does not clear cookies or copy new startup cookies into the running Session.
+Closing the final Session removes its state owner and does not open a blank tab.
 
-Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
-rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
-configuration when available; otherwise it copies configuration without data.
-It imports only explicitly configured Profile cookies, never saved passwords,
-cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
+Proxy observations do not guarantee exit continuity. The current alias, observed
+exit identity and snapshot age are available through the supported
+[browser diagnostics](BROWSER_DIAGNOSTICS.md) API when observed; credentials are
+never part of a diagnostic export.
 
-The info popover beside a tab group shows its proxy's sticky session ID. For
-fixed-IP ISP pools it shows the detected exit IP and assigned port instead.
-It refreshes while open; loading and unavailable states are explicit. All tabs
-in a group share the proxy assignment and reset together. Other groups keep
-their assignments.
+Select the intended Project before creating or operating on its resources.
+Project chat and Actions belong to that Project. API calls continue to require
+explicit Project/Session scope regardless of the selected native window or tab.
+Closing one member of a shared set leaves its siblings and their data intact;
+closing the final member removes the shared state owner. Quitting REL preserves
+its supported persistent workspace state.
 
-Use **Reset Sessions** in the group's info popover or context menu to stop all its sessions,
-apply the latest saved Profile configuration, clear their shared browser state
-and navigation history, import only the Profile's explicitly configured cookies,
-and recreate sessions with fresh IDs and their saved URLs left unloaded. Profile changes saved with
-**Save Without Resetting** take effect on the next reset, including the proxy,
-identity, network filters, model, Session Viewport, and HTTP rules. If the Profile
-was deleted, the group keeps its copied configuration.
-For supported proxies, reset also rotates the sticky session ID or advances the
-ISP pool port; a new exit IP depends on the provider and pool. Reset also works
-without a proxy. Other groups keep their state. The button shows **Resetting…**
-until the reset finishes. If a step fails, REL reports the error and leaves the
-group stopped so you can retry the reset.
+## Content archive
 
-The sidebar lists Groups. Each group owns shared cookies, site storage, saved
-logins, proxy configuration, identity, and settings. Its Sessions are individual
-tabs with separate IDs and navigation history. Groups display their source
-Profile name, or `REL` for Custom configuration. Session tabs use globally unique
-`Session<ID>` labels.
+Open **REL → Settings… → Archive** to browse the permanent content archive.
+Selecting a folder shows guidance for browsing its contents. Expand a website
+and its URL path folders, then select a content file or its `.metadata` sidecar. **Content** and **Metadata** switch between the paired
+files; **Show in Finder** reveals the selected file. Use **Refresh** to discover
+new captures. Previews display inert text and are limited to 512 KB; the full
+saved file remains on disk. Switch to **Captures** to search URL, MIME type,
+HTTP status, and capture date (all entered terms must match). Sort by newest,
+oldest, largest, smallest, URL, content type, or HTTP status. Size sorting counts
+the actual content and sidecar file bytes. The capture list uses a persistent
+SQLite index and shows up to 200 results per page. **Previous** and **Next**
+navigate matching results; **Refresh** queries the latest saved/pruned captures
+without rescanning the metadata files. The detail
+pane shows the selected capture’s URL, status, type, date, and sizes.
 
-Create a group for isolated browser state, or press **⌘T** or the tab strip's
-**+** button to add a session to the selected group. Links opened in a new tab
-stay in that group. Tabs appear both in the top strip and beneath their sidebar
-group; there is no tab-placement setting.
+REL observes complete HTTP GET responses already delivered to browser documents,
+frames, and JSON/text API requests. It makes no additional archival requests and
+never serves archived content to the browser. HTTP and HTTPS captures, query
+variants, and repeat visits have distinct capture filenames. Session cache
+clearing and closing a Session do not remove archived content.
 
-The top tab strip uses REL's standard tabs, including selection, close controls,
-and drag reordering. Chat lives beside the browser content in the window and is
-shared by all tabs in the selected group. Switching browser tabs keeps the same
-conversation and draft; selecting another group switches its chat content too.
-Use the window toolbar's chat bubble to show or hide chat, and its info icon to
-show or hide the bottom panel. These controls follow the selected group and stay
-outside the browser tab's address toolbar. Chat uses a softly shaded background
-in both light and dark appearance to separate it from the surrounding window.
+Supported content includes HTML, plain text, Markdown, CSV, JSON, XML, RSS, and
+Atom. HTML is parsed into a content-only representation: structural elements and
+text remain, while all attributes, scripts, styles, forms, embedded frames, and
+media are removed. It preserves the response content rather than a rendered
+page or a full website replica. Text added later by JavaScript is only preserved
+when it also arrives in an eligible response. Other text formats retain the
+response bytes after Chromium decodes HTTP transport/content compression. Archive
+content is stored in standard gzip (`.gz`) files; `.metadata` sidecars stay
+uncompressed JSON. The viewer decompresses content automatically. Existing
+uncompressed captures remain readable and count at their actual file size.
 
-**⌘W**, the tab strip's close button, and the sidebar's close button close a
-session. Closing the last session in a group also removes the group and its
-shared browser data. Closing a session with siblings leaves those sessions and
-their shared data intact. **Delete Tab Group…** requests confirmation before
-removing an entire group. Quitting REL preserves groups, saved URLs, and selection.
+Each capture has a JSON sidecar recording its original URL, method, status,
+ordered response headers (including duplicates), capture dates, request timing
+and identifiers, internal browser-state provenance, MIME type and charset,
+source/stored byte counts, SHA-256 hashes, representation, transformation, and
+fields unavailable from the capture source. Cookie and authentication response
+headers are omitted; request headers and bodies are never archived.
 
-CLI, SDK, and MCP browser operations target a specific `Session<ID>`, independent
-of the selected UI tab. `Group<ID>` identifies shared configuration and storage.
-Closing a session leaves siblings open; deleting a group closes all its sessions.
-Chat and Actions remain associated with the group, and each submitted chat turn
-captures its selected Session ID.
+New sidecars use `schema_version: 2`, with flat, typed fields for external tools:
+`host`, `scheme`, `port` (when explicit), `url_path`, `url_query`, `mime_type`,
+`status_code`, and UTC `archived_at` timestamps. `content_encoding: "gzip"`
+describes archival storage, independently of the original HTTP headers.
+`source_bytes`/`source_sha256` describe the Chromium-decoded response;
+`content_bytes`/`content_sha256` describe the preserved representation before
+compression; `stored_bytes`/`stored_sha256` describe the actual gzip file. Each
+`file` is a sibling filename, such as `article~<capture-id>.html.gz`, with its
+plain JSON sidecar at `article~<capture-id>.html.gz.metadata`. You can query the
+metadata with ordinary JSON tools without decompressing content. Unknown,
+missing, or corrupt compression metadata produces a preview error rather than
+showing compressed bytes as text. Damaged/orphaned sidecars remain accessible
+in **Folders** but are omitted from the capture list.
+
+The derived index is stored under `Data/HTTPArchive/.index/catalog.sqlite3`,
+separate from the app’s main database. Saves and batch pruning update the index
+alongside file changes. Indexed columns support date, size, URL, content type,
+HTTP status, and host queries; a SQLite trigram index accelerates substring
+filters of at least three characters. Short terms still work but require a scan
+of the indexed search text. No body decompression is needed for these queries.
+
+Use **Rebuild Index** after editing, adding, or removing archive files in Finder,
+or to recover a damaged index. Rebuilding uses the uncompressed metadata and
+actual companion file sizes, skips malformed/orphaned/symlinked captures, and
+never rewrites the preserved files. Missing indexes initialize automatically;
+interrupted save/prune operations mark the index for automatic reconstruction.
+The 1 GB retention cap applies to gzip content and plain sidecars; the derived
+SQLite catalog and its temporary journal are additional local storage. Index
+pages freed by pruning are reused.
+
+The archive is local to this app runtime under its Application Support
+`Data/HTTPArchive` directory. Website/path folders contain uniquely named files
+and `{filename}.metadata` pairs. The default cap is 1 GB (decimal), counting both
+compressed content and uncompressed metadata bytes. When a save would exceed
+the cap, REL prunes the oldest captures and their sidecars in a batch until the retained data, including
+the new capture, fits within 800 MB. Existing over-limit archives are also
+pruned when the browser runtime initializes. Viewing files does not refresh
+their age. A size and age index avoids rescanning the tree on ordinary saves.
+You can also remove unwanted files and their sidecars in Finder. Content can include private
+pages you visit. The archive does not share cookies, credentials, or browser
+storage between Sessions.
+
+Media, JavaScript, CSS, fonts, binary downloads, POST bodies, partial responses,
+and unsuccessful network transfers are excluded. Individual responses over
+32 MiB, paths with more than 64 directory components, and captures beyond the
+128 MiB global in-flight body budget or 128 concurrent captures are skipped. Empty responses without a
+response-filter callback are not captured. A 304 response does not create a new
+body capture. This is a content archive, not a complete network log or an exact
+wire-format record.
 
 ## Notifications
 
@@ -109,16 +150,17 @@ Open **REL → Settings… → Notifications** to enable or disable REL's macOS
 alerts. **Enable notifications** controls app alerts globally. The individual
 choices are preserved while the global switch is off:
 
-- **Tab group reset** alerts after a successful reset, including resets triggered
-  by HTTP response rules. Failed resets report an error instead.
+- Matching HTTP response rules can notify; they do not reset Sessions.
 - **User input required** alerts for detected reCAPTCHA, hCaptcha, Turnstile,
-  verification-code fields, and website permission requests. Open the affected
+  DuckDuckGo image challenges, verification-code fields, and website permission requests. Open the affected
   group to respond. REL waits briefly for automatic browser checks to resolve
   and avoids repeated input alerts on the same page.
 
 Detection is heuristic. Loading a provider's script alone does not trigger an
 alert, and some custom or dynamically inserted prompts may go undetected. REL
-does not solve challenges automatically.
+does not solve challenges automatically. DuckDuckGo alerts require its challenge
+form and a visible image-challenge modal; ordinary search results and background
+challenge resources do not trigger an alert.
 
 macOS asks for notification permission when REL first needs to alert you. You can
 also choose **Allow macOS Notifications…** on this Settings page. If permission
@@ -126,7 +168,7 @@ is blocked, open macOS Notification Settings and allow notifications for REL.
 macOS notification and Focus preferences also affect delivery.
 
 The **Website Notifications** section separately controls forwarding allowed
-website notifications to the agent. App reset and input alerts do not require
+website notifications to the agent. HTTP-rule and input alerts do not require
 website permission or agent forwarding.
 
 ## Session viewport presets
@@ -143,8 +185,22 @@ Choose **Fit Window** to use the available space, or **App Default** to inherit
 the viewport configured in Settings. Background Sessions retain their selected
 width and last visible height.
 
+The group has one bottom panel shared by all of its sessions. Switching tabs
+preserves its visibility, expansion, selected tool, and log filters. Its tabs are
+**Overview**, **Site Data**, **Proxy**, **Filters**, **Logs**, and **Terminal**. Actions are
+managed outside the bottom panel.
+
+The **Proxy** tab changes the Session’s saved proxy or selects **None** for a
+direct connection. New Sessions inherit their Profile’s proxy at creation.
+Explicitly grouped Sessions share route changes. A neutral adjustment icon
+beside a setting means it differs from the current source Profile; hover over
+the icon for **Differs from profile**. The same marker appears beside changed
+filter and saved Overview configuration values.
+
 The bottom panel floats over the page. Opening, resizing, and expanding it leave
-the page viewport unchanged.
+the page viewport unchanged. Changes in **Filters** apply immediately to all
+sessions in the group without resetting them. They affect subsequent requests;
+already loaded page content stays in place.
 
 ## Quitting REL
 
@@ -204,6 +260,11 @@ The setting refreshes from macOS when you return to REL, including changes made
 in System Settings. Registration errors appear below the Startup controls.
 
 ## Update channels
+
+After registration validation, REL opens normally while checking for updates
+in the background. A slow or unavailable update server does not block startup.
+An applicable mandatory update can still require an update after it is
+discovered. Registration and paid update-coverage rules continue to apply.
 
 Choose **Settings → General → Updates → Update Channel** to select which
 releases REL offers:
@@ -289,11 +350,8 @@ revision has changed, REL blocks further writes until you restart. The button
 cannot bypass that protection. **Report a Bug** opens the
 report form for further help.
 
-Workspace saves support **Actions** as the selected bottom panel, including
-restoring that selection on the next launch. If an older build reports
-**Unknown workspace bottom tool** after selecting Actions, select **Logs** in
-each affected session and use **Save Current Workspace** before quitting. The
-rejected save leaves the previously saved workspace unchanged.
+Workspace saves retain the selected bottom-panel tool for each group. A saved
+selection of the removed **Actions** tab opens **Overview** instead.
 
 **Debug → Error Recovery** can trigger a session error, a workspace error, or
 both. These simulated errors appear in the same notices and Recent Issues
@@ -439,44 +497,41 @@ and configuration under the Free plan limits described above.
 A **Profile** is a reusable template for a new Session. Profiles select the
 connection, Session Viewport, network filters, and any browser data that should be copied when a
 Session is created. A **Session** is the persistent browser created from that
-template. When saving Profile changes with open Sessions, REL asks how to apply
-them. **Save and Reset Sessions** is the default: it applies the new configuration,
-clears and restores browser data from the Profile, and reloads the open pages.
-Session IDs and tab URLs are preserved. Choose **Save Without Resetting** to keep
-open Sessions on their current configuration until their next reset, or
-**Cancel** to keep editing.
-Profiles without open Sessions save immediately.
+template. Saving edits updates the template for future Sessions. Explicitly
+reapply configuration to existing Sessions when needed; reapply preserves their
+IDs, navigation and browser data. Profile edits do not reseed running Sessions.
 
 In the profile editor, **Session Viewport** selects the initial viewport for a new
 Session: **App Default**, **Fit Window**, **Desktop 1440w**, **Wide Laptop 1280w**,
 **Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Fixed widths follow the
 available window height. Each Session can change its viewport independently using
 **Session Viewport**, immediately to the right of **Browser Identity** in its toolbar.
-Resetting Sessions when saving also applies the Profile’s Session Viewport.
-Saving without resetting preserves each Session’s current viewport.
+Profile edits affect the initial viewport of future Sessions. Explicit
+configuration reapply updates existing Sessions without resetting browser data.
 
-Manage saved configurations in **Profiles**. There are no built-in Profiles.
+Manage saved configurations in **Profiles**. REL creates **Default** at startup
+if it is missing. An existing **REL** profile becomes Default with the same ID and
+settings. Edit Default's configuration in the profiles list; its name is fixed
+and it cannot be deleted. Default does not use the custom-profile allowance.
 Profiles can use a configured proxy and imported cookies or passwords. The Profiles
-list includes a **Browser Identity** column showing Private, Custom Privacy,
+list includes a **Browser Identity** column showing Private, Chrome, Custom,
 or Native.
 
 In the Profile editor, **Starting URL** optionally names the HTTP or HTTPS page
 to open when REL creates a Session from that Profile. Leave it empty to create
-without navigation. Reusing an existing Profile tab group opens a tab in that
-group rather than replacing its settings. When editing a Profile with open
-Sessions, choose whether to [save and reset them](#profiles-and-sessions).
+without navigation. Reusing a Profile does not join its existing browser state.
+For existing Sessions, use explicit [configuration reapply](#profiles-and-sessions).
 
 In **New Profile**, choose **Proxy → New Proxy…** to add a proxy without leaving
 the profile draft. Saving selects the new proxy automatically. Cancelling returns
 to the draft without changing its proxy selection. A saved proxy remains available
 in Proxies even if you later cancel the profile.
 
-**Create Session**, **New Session** (Command-T), and the session tab bar’s plus
-button open a tab in the matching default Profile group, creating the group when absent.
-Tabs in a group share its settings, cookies, and logins. Proxy and Browser Identity
-are fixed when the group is created. Create a new group to use a different proxy or
-identity. AdBlock and image blocking remain editable for the group.
-Browser data is copied or imported rather than switched as a setting.
+Creating a Session copies the chosen Profile configuration into independent
+browser state by default. Sharing requires an explicit group choice; matching
+Profile names do not join state. Configuration reapply preserves existing IDs,
+navigation and browser data. Browser data is copied or imported during supported
+creation/import flows, not switched or reset by changing a template.
 
 Cookies and saved passwords can be imported while Chrome or another supported
 Chromium browser is running. REL reads temporary copies of the database and its
@@ -487,7 +542,10 @@ files keep changing during capture, REL asks you to retry the import.
 
 ### Cookie files
 
-Open a Session’s **Overview → Options → Site Data** to import or export cookies.
+Open the group's **Site Data** tab to import or export cookies. Cookies belong
+to the shared group storage. When cookies span more than one domain, use the
+domain selector to show one domain or **All Domains**. The cookie search applies
+within the selected domain.
 **Export…** saves all cookies in that Session, including cookies hidden by the
 search filter, with a suggested filename such as `Session123.cookies`.
 **Import…** reads a REL `.cookies` file and adds its cookies to the current Session,
@@ -505,15 +563,14 @@ An invalid or unreadable file stops creation with an error.
 **Advanced**. Saving imports a snapshot of the file into the Profile’s encrypted browser storage. Each new
 Session created from that Profile starts with those cookies; you can move or
 delete the original file afterward. Choosing a new file when editing replaces the
-Profile’s startup cookies and preserves saved passwords. Open Sessions receive
-the new startup data if you choose **Save and Reset Sessions**; saving without
-resetting leaves their browser data unchanged. In a new Profile, the cookie file
+Profile’s startup cookies and preserves saved passwords. Existing Sessions retain their browser data. Startup cookie changes apply to
+new Sessions, not configuration reapply. In a new Profile, the cookie file
 takes the place of another browser data source. Removing a selected file before saving cancels that selection.
 
 When editing a Profile with active Sessions, **Copy Cookies from** appears below
 **Starting cookies**. Choose one of that Profile’s Sessions to save all its cookies
-as the Profile’s starting cookies when saving. REL captures them before resetting
-Sessions. Choosing a Session clears the file selection, and choosing a file clears
+as the Profile’s starting cookies when saving. REL captures a snapshot for future Sessions without resetting the source
+Session. Choosing a Session clears the file selection, and choosing a file clears
 the Session selection. A Session that closes before saving produces an error.
 Both sources are copied into REL’s Application Support data directory as encrypted
 Chromium profile storage, using the runtime’s Keychain safe-storage key. REL keeps
@@ -551,7 +608,7 @@ when saved Profiles exist. Selecting a Profile with an existing group shows
 New-group settings and setup inputs are hidden for that selection. When no matching
 group exists, its configuration loads into the form and can be edited before creation. AdBlock,
 Browser Identity, Proxy, Image Blocking, and Browser Data share one section
-with equal-height setting rows. Choosing **Custom Privacy** in Create Session
+with equal-height setting rows. Choosing **Custom** in Create Session
 opens a separate editor; **Use Identity** applies it to the draft and **Cancel**
 preserves the previous identity. **Edit** reopens a custom identity.
 **Show Config** below the section opens a read-only popover with the session
@@ -561,11 +618,11 @@ New Custom drafts start with **Allow all images**. **Proxy → New Proxy…** cr
 and selects a proxy without losing the draft. Cancelling keeps the current selection.
 
 **Settings → General → Default Profile** controls immediate session creation
-in the app and clients that omit a profile, including CLI, SDK, MCP, and Python. With no saved default, they use Custom:
-direct networking, AdBlock on, all images allowed, and Private. The creation
+in the app and clients that omit a profile, including CLI, SDK, MCP, and Python. With no preference, they use the saved Default profile. The creation
 form uses its explicit settings and browser-data choice instead. **None** does
 not inherit another Profile’s browser data. Renaming a saved default preserves
-its selection; deleting it requires choosing another default or Custom.
+its selection; deleting a custom default requires choosing another profile.
+The saved Default profile cannot be deleted.
 Changing this preference restarts the local agent and preserves existing Sessions.
 
 Schedules that referenced former built-in Profiles keep their settings as explicit
@@ -574,49 +631,78 @@ requiring a saved Profile.
 
 ## Browser identity
 
-New Sessions use the form’s **Browser Identity**. New Custom configurations
-and Profile drafts use **Private**, which enables all
-seven supported privacy controls. In Profile forms, **Show** to the left of its
-value opens a read-only popover without expanding the form. Create Session uses
-**Show Config** below the main section instead. In Profile forms, Browser Identity is in the
-main section. Choose **New Browser Identity…** in its dropdown to customize the
-current settings in a separate editor. **Use Identity** applies them to the draft
-as **Custom Privacy**; **Cancel** leaves the previous identity unchanged. These
-settings are saved with the Profile. Use **Edit** beside Custom Privacy to change
-them later. Starting from **Native** leaves every override off, so you can enable
-only the controls you need. **Native** uses Chromium's native values.
+**Private** enables the full privacy preset. **Chrome** starts from Private and
+adds a Chrome-like browser identity while retaining its protections. **Native**
+is the separate upstream CEF baseline, without REL's Chromium source patches.
+CEF's own upstream embedding integration and required REL host integration remain;
+it is not a standalone Google Chrome installation. Passing every applicable
+fingerprinting goal is the Private identity's objective, not a universal guarantee.
 
-**Chrome** applies Chrome branding while using the device's native hardware and
-rendering values. CPU threads, reported memory, GPU, screen, storage estimates,
-canvas and audio are supplied by Chromium on the user's computer. Chrome mode
-keeps fingerprint privacy overrides off; it does not substitute a device preset
-or add rendering noise. **Private** continues to enable the full privacy preset.
-To combine Chrome branding with selected fingerprint modifications, start from
-Chrome and choose **New Browser Identity…** or **Custom Privacy**, then enable
-only the desired controls. The Chrome brand is retained.
+**Custom** lets you modify a copy of an identity. Choose **Custom** or
+**New Browser Identity…**, change supported controls, then choose **Use Identity**.
+Cancel preserves the previous identity. **Edit** reopens Custom settings.
+Starting from Native leaves the privacy controls off; starting from Chrome keeps
+Private's controls and Chrome branding. Existing explicit privacy-off Chrome
+configurations remain Custom; selecting Chrome restores the full privacy preset.
 
-Native hardware and rendering details can contribute to fingerprinting when
-combined with other signals, even when each component is common. Chrome mode
-prioritizes native behavior and compatibility; it does not guarantee anonymity.
-Use Private or Custom Privacy when reducing those signals is more important.
-Browser versions, permissions, build options, and installed extensions can still
-make REL differ from another Chrome installation on the same computer.
+Custom offers language/locale, timezone, CPU-thread, network, device, graphics and
+audio controls. You can edit the accepted memory, screen width/height/available
+height, scale, storage quota and coherent graphics adapter values rather than
+using only a preset. Blank values inherit the device preset. Switching device
+preset clears those explicit device values. The editor validates accepted ranges
+before saving. Graphics/device controls remain linked where required for coherent
+page and worker behavior; their **Linked and fixed controls** disclosure explains
+those dependencies.
 
-Saved Chrome configurations that already enable privacy controls keep those
-controls and appear as **Custom Privacy**. Select **Chrome** again to use native
-surfaces for that configuration. Existing Sessions retain their settings until
-their identity is explicitly changed.
+The numeric seed is editable in Custom for the configured Session and remains
+stable there. Opening Custom generates a fresh draft seed; every new Session
+receives a fresh seed, including Sessions created from a saved Profile. Cancel
+preserves the existing identity. Custom can retain or remove Chrome branding and
+choose an explicit accepted Chrome version or follow the bundled engine version.
 
-For identities with overrides, every creation path generates a fresh numeric
-readback seed for the Session, then keeps it stable for that Session. Profile edits apply to future Sessions.
+### Engine builds and restart requirements
 
-Opening **Custom Privacy** generates a fresh random seed in the editor draft.
-**Use Identity** applies that seed with the selected settings; **Cancel** leaves
-the original identity unchanged. The seed is managed automatically and has no
-editable field in this panel.
+CEF loads once per app process. Native and Private-derived identities therefore
+require separate engine builds and an app restart in this implementation.
+Private, Chrome and Custom run on the patched engine. Native runs on the exact
+upstream CEF engine. Unsupported combinations fail explicitly before browser
+creation; disabling all Custom controls does not turn the patched engine into an
+unpatched baseline.
 
-Use a Session's tab menu to change its identity; saving recreates only that
-Session's Chromium context and returns it to the same page.
+Upstream Native preserves the current page, cookies and browser storage, but does
+not restore the saved Back/Forward stack across app restarts. That restoration
+requires REL’s navigation-history source patch. A startup blank entry is not the
+previous saved page. Private, Chrome and Custom retain the patched restoration.
+
+For development, select the engine through the supported app build entry point:
+
+```sh
+REL_CEF_VARIANT=private make dev-agent-open
+REL_CEF_VARIANT=native REL_ENABLE_DEBUG_NOTIFICATIONS=1 make dev-agent-open
+```
+
+These commands require the REL source checkout and its documented Debug build
+setup. The Native build verifies an exact upstream artifact and does not replace
+the patched artifact. Its browser files are separate from the patched engine's
+files. Native uses Chromium's default Safe Storage Keychain item, so macOS may
+request authorization. No browser-profile data is imported by switching engines.
+When the last Native Session closes, logical ownership ends immediately; orphaned
+Native storage is physically removed on the next Native startup after Chromium
+has released its handles. Switching engines does not clear retained Session data.
+
+Custom cannot restore code removed at build time, change fixed security/embedding
+integration, or enable arbitrary independent patch mixtures. Those are explicit
+build-only/fixed exceptions. The editor exposes supported behavioral values and
+lists linked/fixed constraints; engine changes require a reviewed build/restart.
+Site permissions remain real stored grants, rather than emulated fingerprint
+values. Routing, content filters and other existing Profile settings still apply
+and should be recorded when comparing identities.
+
+Within a compatible engine, use a Session's tab menu to change its identity;
+saving recreates that Session's browser context and returns it to the same page.
+An identity change does not replace the already loaded engine. Native, Private
+and Chrome all have different evaluation expectations; branding and privacy
+controls do not guarantee anonymity or a passing vendor decision.
 
 Built-in Chrome identities follow REL's bundled Chromium version automatically,
 including after future engine upgrades. Custom privacy identities derived from
@@ -644,15 +730,14 @@ off, the saved timezone applies; with the control disabled, Chromium stays nativ
 For Automatic language or an enabled Timezone control, REL requests
 `https://ipwho.is/` through the browser session's agent-owned proxy before preparing
 the browser. IPWHOIS.io sees the proxy's exit IP. Successful results are cached for up to 30 minutes per session and upstream
-route; a a reset changes that route. A failed lookup reports an
+route. A route change invalidates that observation. A failed lookup reports an
 error rather than using a different locale or timezone. The option is preserved
 in proxy and profile transfers; older transfers import with detection off.
 Existing saved proxies keep their current setting, including an explicit off choice.
 
-A country does not identify every resident's preferred language. In Custom
-Privacy, choose **Custom** in the Language row to set an explicit locale such as
+A country does not identify every resident's preferred language. In Custom, choose **Custom** in the Language row to set an explicit locale such as
 `fr-CA`. Custom takes precedence over automatic language selection. The timezone
-control can still use the detected timezone independently.
+control uses the detected timezone only when enabled. Native does not emulate a proxy timezone.
 Disabling the language control keeps native Chromium language and locale.
 The former proxy-level manual locale is retained in storage and API responses,
 but Automatic now uses country targeting or exit detection.
@@ -666,7 +751,7 @@ country or null) and `proxy_detect_exit_locale`. With detection enabled,
 no proxy, or the lookup fails. This lookup does not write a language to the proxy.
 
 Privacy controls cover graphics, audio, device surfaces, language and locale,
-time zone, network information, and the CPU thread count reported to pages.
+time zone, network information, and the CPU thread count reported consistently to windows and workers.
 When Network Information protection is enabled, JavaScript RTT/downlink and
 opted-in HTTP RTT/Downlink hints use the same rounded session values.
 Network measurements are not exposed through those hints. Disabling the control
@@ -674,18 +759,38 @@ retains native estimates. Sites must still opt in to receive the hints, and
 Permissions Policy can suppress them. These reported values do not change actual
 connection speed or route traffic through a proxy.
 
-Chromium generates the User-Agent in every mode with its product version reduced
-to `MAJOR.0.0.0`, using the bundled engine's current major. The engine supplies its native
-brand list and client hints; these are not editable. High-entropy client hints
-can still expose the engine’s full version when requested by a site.
+On the patched engine, Chromium generates the User-Agent with its product version
+reduced to `MAJOR.0.0.0`, using the bundled engine's current major. Native retains
+upstream CEF's default User-Agent without REL's product override. The engine owns
+the base brand list and client hints; Chrome branding uses the supported identity
+controls described above. High-entropy client hints can expose the engine's full
+version when requested by a site.
 
-Graphics protection changes Canvas and WebGL readbacks together with the graphics identity and
-makes WebGPU unavailable. Text geometry, native input, and other unlisted
-surfaces remain native.
+Graphics protection applies the canvas policy and selected WebGL identity.
+Configured unmasked vendor and renderer strings preserve Chromium’s native GPU
+query before applying the selected identity; extension gating and context-loss
+behavior remain native.
+WebGL pixel reads and exports preserve actual rendered values in every identity;
+curated profiles do not add per-seed WebGL pixel noise. Curated graphics profiles
+make WebGPU unavailable. A `graphics_profile` of
+`native` preserves native WebGL and WebGPU while allowing independent,
+Session-stable canvas text geometry and antialias coverage for eligible solid
+text, including translucent fills. Fully covered glyphs preserve the requested
+opacity, and transparent pixels remain exact; gradient, stroke, effect and
+wide-gamut coverage stays native. Pixel reads expose
+actual rendered values.
+Native input and unlisted surfaces retain their native behavior.
 
-Native Chromium uses the same patched privacy layer. Its WebRTC default also
-restricts non-proxied UDP connections. Audio protection makes small changes to
-AudioBuffer's live sample arrays, which can also affect later playback.
+Configured screen dimensions describe the display. Outer window dimensions
+continue to describe Chromium's actual host window, independently of the screen
+configuration; these controls do not resize the page viewport.
+
+The patched engine's WebRTC default restricts non-proxied UDP connections. Audio
+protection's **Standardized (48 kHz)** setting uses 48 kHz for real-time contexts
+that omit a sample rate. Explicit rates, offline rendering, oscillator signals,
+buffers, silence, and analyser reads remain native. **Native audio** retains
+device-preferred default rates. Audio and CPU thread-count controls operate
+independently of graphics and device surfaces.
 
 An identity profile is a compatibility tool, not an anonymity guarantee. Its
 seed is stable across sites in that Session, so sites may still correlate
@@ -725,31 +830,13 @@ expose this entry. Create a new tab group to use a different identity.
 
 ## Profile asset caches
 
-**Cache assets across resets** is enabled by default in every Profile, including
-existing Profiles. Edit a Profile in **REL → Settings… → Profiles** to disable it
-or change its **Maximum Asset Cache Size** (128 MiB, 256 MiB, 512 MiB, or 1 GiB;
-512 MiB by default).
+Caching assets across resets is currently disabled. Its controls and statistics
+are hidden in Profiles and Archive settings. Saved Profiles and imported archives
+still load, but an enabled cache setting has no effect.
 
-Each Profile has its own asset cache. Assets can be reused by its Groups and
-Sessions after a reset, while cookies, site storage, permissions, and private
-HTTP caches are reset normally. Assets are never reused across Profiles. Proxy
-aliases also have separate cache partitions within each Profile.
-
-Only read-only images, stylesheets, scripts, fonts, and favicons qualify.
-Documents and fetched data are excluded. Responses need an explicit fresh
-`max-age`, `s-maxage`, or `Expires` lifetime; `Cache-Control: public` is optional.
-REL respects `private`, `no-store`, and `no-cache`. Requests carrying cookies or
-authorization, responses setting cookies, partial responses, downloads with
-Content-Disposition, and decoded bodies larger than 32 MiB are excluded.
-Expired assets return to the network; this cache does not perform conditional
-ETag revalidation.
-
-Profiles settings lists Profiles alphabetically, with each cache's used space,
-maximum size, reused bytes, and request count. **Clear Cache** beside a Profile
-clears only its assets. **Clear All Cache** clears all Profile asset caches.
-**Clear Session Caches** clears private HTTP caches. These actions preserve
-cookies and site storage. Asset cache statistics and clearing are available even
-when no Sessions are open.
+Ordinary Chromium HTTP caches remain scoped to the owning independent Session
+or explicit shared set. **REL → Settings… → Archive → Clear Session Caches**
+clears these HTTP caches without deleting cookies or site storage.
 
 ## Navigation feedback, errors, and retry
 
@@ -806,7 +893,7 @@ Back and Forward also work with history entries created within the same page.
 Submitting an address that only changes its `#fragment` also keeps the current
 document available without waiting for a full page reload.
 
-Each Session also preserves its root-page HTTP(S) Back/Forward history and
+On the Private engine, each Session also preserves its root-page HTTP(S) Back/Forward history and
 current position across restarts. Opening the saved page restores that history
 without loading its earlier or later pages. Visiting a new page after going Back
 discards the forward branch. Clearing the Session’s browsing data removes its
@@ -854,9 +941,11 @@ automatically; new provider domains need to be added to that list.
 
 ## Session logs
 
-Open **Logs** in a Session's bottom panel to follow its activity. Logging runs
-while the Session is active, even when the panel is closed, and works with both
-direct and proxied connections.
+Open **Logs** in the group's bottom panel to follow all of its sessions in one
+chronological stream. Choose **All Sessions** or an individual Session ID to
+filter the stream. Switching browser tabs preserves that selection, the search,
+and category and level filters. Logging runs while each Session is active,
+even when the panel is closed, and works with direct and proxied connections.
 
 - **Network → Requests** shows Chromium HTTP and HTTPS request results for pages,
   scripts, stylesheets, images, frames, and fetch/XHR traffic. Entries include
@@ -875,8 +964,9 @@ visible with their values replaced by `REDACTED`. Proxy transport diagnostics
 remain separate from Chromium request results, so a proxied request can have
 both a transport entry and a browser result.
 
-Use the category menu to filter the stream. **Clear Logs** clears only the
-selected Session and live logging continues. Logs remain local to this app's
+Use the category menu to filter the stream. **Clear Logs** clears all sessions
+in the current group, including when the view is filtered to one session, and
+live logging continues. Logs remain local to this app's
 data directory.
 
 ### Log record schema
@@ -1003,8 +1093,7 @@ Choose **Use Action**, edit inputs, and select a destination:
 - A new session uses the Action's chosen default profile, its included portable
   profile configuration, or REL's default profile, in that order. You can select
   another profile for this use. A missing selected profile is an error.
-- An existing session keeps its current browser configuration. Its Actions panel
-  also offers **Add Action from Library**.
+- An existing session keeps its current browser configuration.
 - Profiles selected under **Edit Action → Attached Profiles** receive the same
   definition in future app-created sessions, using that profile's configuration.
   Attachments reference one library definition; they do not duplicate it.
@@ -1292,6 +1381,19 @@ and [cache accounting](https://developers.openai.com/api/docs/guides/prompt-cach
 Provider-reported cost takes precedence. Restored logs containing only aggregate
 usage cannot resolve per-call thresholds and show no GPT-6 estimate.
 
+## Choosing a browser Profile in chat
+
+In Project chat, name the browser Profile when asking REL to open a site. For
+example: “Use Reddit profile to tell me the latest fresh albums in
+/r/indieheads.” REL passes `Reddit` as the Profile selector when starting the
+browser task, creating an independent Session from that template. It preserves
+the requested Profile instead of substituting Default. A missing Profile is an
+error; it does not fall back to Default.
+
+A Profile selector applies to a new Session. It cannot be combined with an
+existing Session ID or used to change the Profile of a Session-pinned chat.
+Continue in Project chat to create a Session with another Profile.
+
 ## Streaming responses and tool activity
 
 Chat displays answer text as the model generates it. Self-contained requests,
@@ -1403,22 +1505,23 @@ Session once per run, before executing its prompt steps. Later steps continue
 from the page reached by the preceding step. Navigation failures use the Action's
 **On Error** setting.
 
-Open the session's **Actions** panel to edit, run, or delete installed work.
-Each session Action owns its prompt steps, trigger, completion behavior, and run
-history. **Settings → Actions** manages reusable definitions and their profile
+Use the sidebar's **Actions** section to edit, run, or delete saved work.
+Each app Action owns its prompt steps, trigger, completion behavior, and run
+history and runs in Default. Session-installed work also remains available in
+the session's Actions panel. **Settings → Actions** manages reusable definitions and their profile
 attachments. See [reusable Actions](#case-studies-and-reusable-actions) for imports
 and destination selection.
 
 Schedules, incoming webhooks, and built-in browser events execute the same saved
-session Action. Editing it updates the work performed by its triggers. REL runs
-at most one execution per session Action at a time, including manual runs.
-Existing session Actions retain their IDs and webhook routing.
+app Action. Editing it updates the work performed by its triggers. REL runs
+at most one execution per Action at a time, including manual runs.
+Existing Actions retain their IDs and webhook routing.
 
-### Editing a session Action
+### Editing an Action
 
-Use **Add Action** in the selected Session's Actions panel to create work, or
-right-click an installed Action to edit, run, or delete it. The editor saves a
-complete Session-owned record; library definitions remain separate.
+Use **New → Add Action** to create work, including when no session is selected.
+The editor saves an app-owned record using Default; library definitions remain
+separate.
 
 Start with the prompt steps and use **Add Step** for additional prompts. Steps
 run in order in the same Session. Set the **Name** and **Enabled** state.
@@ -1437,7 +1540,7 @@ Cancellation and spending-budget limits still stop the run.
 
 ### Built-in events
 
-In the session Action editor, choose **When → Event**, then **Page Changed**,
+In the Action editor, choose **When → Event**, then **Page Changed**,
 **Notification Received**, or both. Switching a new Action to Event initially
 selects Page Changed. Events use the Action's own Session. Page Changed fires
 when its URL changes, including same-document URL changes. It does
@@ -1730,7 +1833,7 @@ replies. Choose a private group for sensitive tasks.
 | `/rel new-session` | Create a session using REL's defaults |
 | `/rel open SESSION_ID https://example.com` | Navigate an existing session |
 | `/rel close-session SESSION_ID` | Close that session |
-| `/rel actions` | List saved session Actions and their UUIDs |
+| `/rel actions` | List saved Actions and their UUIDs |
 | `/rel run ACTION_UUID` | Run an Action once and reply with its final result |
 | `/rel new` | Reset the remote AI conversation |
 | `/rel cancel` | Cancel current remote work and clear queued commands |
@@ -1840,15 +1943,27 @@ read, observation fails explicitly rather than substituting initial HTML attribu
 Semantic scroll offsets and document dimensions use CSS pixels, including on
 Retina displays. Native input continues to use observation-scoped references.
 
-## HTTP rules and automatic reset
+## HTTP rules
 
-In the Profile editor, add an **HTTP Rule**, choose a status code and repeat
-allowance, and select **Reset** as the action. Reset is the only action currently
-available. Rules work with every proxy type and without a proxy. Matching
-responses from all tabs and resources share the group's counters. Zero repeats
-resets on the first response; N repeats resets on response N + 1. Reset clears
-browser state, recreates the group and sessions with fresh IDs, imports only
-configured Profile cookies, and retains saved URLs without loading them. Counts clear after a reset
-or restarting REL. Profile edits apply to newly created groups and to existing
-groups on their next manual or automatic reset, including when you choose
-**Save and Reset Sessions**.
+In the Profile editor, add an **HTTP Rule**, choose its status code and repeat
+allowance, and use **Notify**. Matching response counters can trigger a
+notification; they do not clear site data, rotate proxies or replace Sessions.
+Zero repeats triggers on the first match; N repeats on match N + 1. Profile edits
+apply to future Sessions; explicitly reapply configuration to update existing
+Sessions. Use [browser diagnostics](BROWSER_DIAGNOSTICS.md) to investigate a
+failure before deciding whether recovery is needed.
+
+### Webshare proxy products
+
+The proxy editor offers Webshare Proxy Server, Static Residential, and Rotating
+Residential presets. Proxy Server passes the supplied username/password unchanged
+and has no country or session parameters. Its gateway rotates exits automatically;
+direct IP endpoints are also supported. The other two products use base credentials,
+optional country targeting, and Session-scoped sticky bindings. Grouped Sessions
+share their routing. See [Proxies](PROXIES.md).
+
+To import a Webshare export, open **Proxies → Import Proxy → Choose File…**.
+Choose a Direct Connection text or JSON list and click **Import**. REL adds each
+endpoint separately with new aliases; credentials remain unchanged. Invalid
+lists do not partially import. See [Proxies](PROXIES.md) for supported formats
+and limits.

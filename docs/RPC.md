@@ -2,52 +2,10 @@
 
 ## Profiles, groups, and sessions
 
-A **Profile** is a reusable configuration template, optionally with initial
-browser data. A **Group** receives a `Group<ID>` and copies the selected Profile
-configuration (or standalone Custom settings). Each **Session** is a tab in one
-group and receives a separate `Session<ID>`, with its own URL, navigation history,
-browser view, and automation target.
-
-Sessions in a group share cookies, site storage, private HTTP cache, configuration,
-browser identity, and proxy routing. Different groups remain isolated even when
-created from the same Profile. Create a session in an existing group to use its
-current configuration and live browser state, or create a new group and its first
-session. Joining an existing group does not reread or reseed the Profile.
-
-Editing or deleting a Profile leaves existing groups unchanged until reset.
-**Reset Sessions** deletes and recreates the group and all its sessions with
-fresh Group and Session IDs and clean browser state. Manual actions, HTTP reset
-rules, CLI, and RPC share this behavior. Reset applies the latest saved Profile
-configuration when available; otherwise it copies configuration without data.
-It imports only explicitly configured Profile cookies, never saved passwords,
-cache, history, site storage, permissions, or previous chat state. Each session
-retains its last URL without loading it. Old IDs, page attachments, and
-observations expire. Responses provide new IDs and old-to-new identity mappings.
-
-`POST /v1/sessions` with `{"group_id":"Group1"}` joins that existing group.
-With only a saved `profile` and optional `name`, it selects the oldest matching
-Profile group, creating one if absent. A name constrains selection
-case-insensitively. Other configuration options create a new group and its first
-session. `POST /v1/groups` explicitly creates a new group. Group labels and
-`new_group` are rejected. Browser operations with an explicit saved `profile`
-can also select that Profile's oldest group and add a new session.
-
-Use `Session<ID>` for browser operations and `Group<ID>` for group configuration.
-`POST /v1/groups/{id}/reset` resets one group; `POST /v1/reset` with a Profile
-selection resets its existing groups and returns `data.reset_group_ids`.
-`DELETE /v1/sessions/{id}` closes one session; `DELETE /v1/groups/{id}` removes
-all its sessions and shared browser data. Reset also replaces resource IDs.
-`reset_group_ids` lists the new Groups; `replacements` contains each
-`{old_group_id, group_id, session_ids}` mapping. `session_ids` maps old Session IDs
-to replacement Session IDs. Clients must switch to the returned IDs.
-Older client versions exposing group labels or `new_group` need client updates;
-those fields do not describe the current runtime creation contract.
-
-REL exposes a local, versioned JSON API for browser and app operations. This
-document is its supported wire contract. Native model inference is owned by Fritz.
-
-Related documents: [CLI](CLI.md), [MCP](MCP.md), [Rust SDK](SDK.md), and
-[Ruby SDK](RUBY.md).
+See [Projects, Profiles and Sessions](SESSIONS.md) for explicit Project scope,
+independent Session state, deliberate sharing and configuration reapply. Profile
+names do not imply shared state. Public management uses Session IDs; group
+resource and reset APIs are not supported.
 
 ## Transport
 
@@ -255,15 +213,14 @@ available.
 | `GET` | `/v1/model-providers` | Read shared Models connection metadata and default selection |
 | `GET` | `/v1/proxies` | List proxies |
 | `POST` | `/v1/proxies` | Create a proxy |
+| `POST` | `/v1/proxy-list-imports/webshare` | Import a saved Webshare direct proxy list |
 | `GET` | `/v1/proxies/{alias}` | Read one proxy |
 | `PATCH` | `/v1/proxies/{alias}` | Partially update a proxy |
 | `DELETE` | `/v1/proxies/{alias}` | Delete and detach a proxy |
-| `POST` | `/v1/reset` | Reset groups created from a profile |
 | `POST` | `/v1/proxy-transfers/export` | Export a versioned proxy transfer |
 | `POST` | `/v1/proxy-transfers/import` | Import a versioned proxy transfer |
 | `GET` | `/v1/sessions` | List persistent browser sessions |
 | `POST` | `/v1/sessions` | Create a browser session |
-| `POST` | `/v1/sessions/close` | Close every browser session in a group |
 | `GET` | `/v1/profiles` | List saved session configurations |
 | `POST` | `/v1/profiles` | Create a custom session profile |
 | `PATCH` | `/v1/profiles/{id}` | Update custom-profile browser-data availability |
@@ -274,24 +231,26 @@ available.
 | `POST` | `/v1/sessions/{id}/ping` | Refresh session inactivity without browser work |
 | `POST` | `/v1/sessions/{id}/pause` | Pause session network activity |
 | `POST` | `/v1/sessions/{id}/play` | Resume session network activity |
-| `GET` | `/v1/groups/{id}/proxy-status` | Read current proxy session ID and usage |
-| `POST` | `/v1/groups/{id}/reset` | Reset this group and restore initial Profile data |
-| `GET` | `/v1/groups` | List shared browser groups |
-| `POST` | `/v1/groups` | Create a group and its initial session |
-| `GET` | `/v1/groups/{id}` | Read one group |
-| `PATCH` | `/v1/groups/{id}` | Update mutable group configuration |
-| `DELETE` | `/v1/groups/{id}` | Delete the group and its sessions |
 | `DELETE` | `/v1/sessions/{id}` | Delete a browser session |
+| `POST` | `/v1/sessions/{id}/reapply` | Reapply configuration while preserving identity and data |
+| `GET` | `/v1/sessions/{id}/proxy-status` | Read session proxy status |
+| `POST` | `/v1/sessions/{id}/reset-proxy-session` | Rotate the selected Session’s proxy binding |
+| `GET` | `/v1/sessions/{id}/debug-state` | Read non-blocking cached diagnostics |
+| `GET` | `/v1/sessions/{id}/trace` | Read bounded cursor-paginated events |
+| `POST` | `/v1/sessions/{id}/debug-bundle` | Export retained diagnostics and opt-in artifacts |
+| `GET` | `/v1/projects` | List Projects |
+| `POST` | `/v1/projects` | Create a Project |
 
 There are deliberately no log read, clear, or ingestion routes.
 
-The [`rel-client`](SDK.md) Rust crate exposes one typed method for every route
-in this table. The bundled CLI is built on that crate and uses resource commands
+The [`rel-client`](SDK.md) Rust crate exposes typed methods for supported
+operations. Check its installed version and schema for newer runtime routes.
+The bundled CLI is built on that crate and uses resource commands
 such as `rel capture`, `rel page`, `rel proxy`, and `rel session`; it has no
 direct database or log-file command path.
 
 The bundled `rel-mcp` adapter also calls this API only through `rel-client`. It
-maps fourteen MCP tools to status, opt-in website notifications, bounded
+maps its discovered MCP tools to status, opt-in website notifications, bounded
 semantic reading, HTML and image
 capture, page attachment and actions, observations, session-group closing, and
 session and proxy listing.
@@ -451,7 +410,7 @@ page and session IDs. Navigate it with `POST /v1/navigate`:
 ```
 
 Only `url` is required. The first request without `session_id` reuses the first
-persisted session, creating one from the configured default (Custom when unset) only when none exists. Later
+persisted session, creating one from the configured default (Default when unset) only when none exists. Later
 requests without it reuse the current page and session. An explicit `profile`
 instead creates a new session from that named template; it cannot be combined
 with `session_id`. An explicit session selects that session as the new current
@@ -489,6 +448,11 @@ Perform one or more canonical actions with `POST /v1/perform`:
 ```
 
 `actions` must be a non-empty array. REL runs the actions in array order.
+
+Configuration reapply preserves Session IDs, navigation and browser data; it
+does not reset or reseed the browser. Closing the final Session removes its state
+owner without creating a replacement. Preserve [diagnostics](BROWSER_DIAGNOSTICS.md)
+before any workflow-owned session replacement. See [session scope](SESSIONS.md).
 
 Capture HTML without another action with `POST /v1/capture`:
 
@@ -721,7 +685,7 @@ semantic content remains readable. The process-local registry retains at most
 | `wait` | Finite settling seconds after final main-frame readiness; default 1. Background loading does not restart it. |
 | `actions` | Optional array of canonical [action objects](ACTIONS.md). |
 | `session_id` | Optional existing canonical `Session<number>` ID. Omission creates a persistent session and returns its ID in capture events. |
-| `profile` | Optional saved profile name for the newly created session. It cannot be combined with `session_id`; omission uses the configured default or Custom. |
+| `profile` | Optional saved profile name for the newly created session. It cannot be combined with `session_id`; omission uses the configured default or Default. |
 | `group` | Optional 1–128 character group for the newly created session. It cannot be combined with `session_id`; matching and bulk close are case-insensitive. |
 | `proxy` | Optional unique proxy alias string, assigned to the created session or applied to the existing session. |
 | `retry` | Integer 0 through 100; default 1. |
@@ -783,7 +747,7 @@ code 1; it is not an API error.
 ```
 
 Omitting `session_id` creates a session from the named `profile`, or from
-the configured default (Custom when unset) when it is absent, and navigates it to `url`. `profile` and `group`
+the configured default (Default when unset) when it is absent, and navigates it to `url`. `profile` and `group`
 cannot be combined with `session_id`. Providing an
 existing session attaches its current page without navigating; its final
 normalized browser URL must equal the requested URL. Success data:
@@ -855,7 +819,7 @@ session configuration. Open pages apply it when the user chooses Reload.
   write fields are `username`, `password`, `oxylabs_enabled`, `oxylabs_masque_enabled`,
   `oxylabs_location_parameter`, `oxylabs_location_value`, `oxylabs_isp_ip_count`,
   `oxylabs_isp_page_limit`,
-  `bright_data`, `locale`, and `detect_exit_locale`.
+  `bright_data`, `webshare`, `locale`, and `detect_exit_locale`.
 - `PATCH /v1/proxies/{alias}` is a true partial update. Missing fields are retained.
   `username:null`, `password:null`, or `locale:null` clears that value.
 - `DELETE /v1/proxies/{alias}` detaches it from all sessions, then returns
@@ -886,11 +850,10 @@ they instead resolve the exit country through the session's agent-owned proxy
 using `https://ipwho.is/`. Country-to-language selection uses macOS locale data.
 No configured country means the user's preferred language when detection is off.
 Custom fingerprint locales take precedence and disabled language controls stay native.
-Detection also applies the exit timezone independently of the identity's timezone
-and language privacy controls, including Chrome and Native identities. It enables
-only the effective timezone control needed for detection; the saved fingerprint
-and other privacy controls are unchanged. With detection off, disabled timezone
-controls stay native.
+Detection applies the exit timezone only when the identity's timezone override
+is enabled. Private and Private-derived Chrome enable it by default. Custom's
+disabled timezone control stays off, and Native remains unprofiled even when the
+proxy's location is known. Saved manual timezone values remain unchanged.
 
 Proxy responses include `detect_exit_locale`; session responses include
 `proxy_country` (configured ISO country or null) and `proxy_detect_exit_locale`.
@@ -958,40 +921,28 @@ With automatic ISP rotation enabled it returns `assigned_port`,
 `page_request_count`, and `page_request_limit` for an admitted page. When the
 current allowance is exhausted, it returns `rotation_required:true` and
 `expected_proxy_session_id` without changing the route or consuming a page.
-REL cancels that document request first, then runs the group-reset transaction.
-This independent admission lane never waits on browser automation or the app
-bridge. Embedders should not call it again for a navigation already handled by
-REL, because that would consume an extra allowance. Other proxy types return
-`rotated:false` without changing routing or counters. For an expired or invalid
-Oxylabs Residential session on `pr.oxylabs.io`, the response instead includes
-`reset_required:true` and an `invalid_reason`. REL cancels that navigation and
-automatically resets the shared tab group before allowing further requests.
-A preparation failure
-cancels the document request and surfaces the error.
+This admission lane is separate from browser automation. Do not call it again
+for a navigation already handled by REL, because doing so can consume another
+allowance. Route preparation and errors use the supported runtime path; they do
+not provide a public reset API or establish cookie/exit continuity. For
+investigation, preserve [diagnostics](BROWSER_DIAGNOSTICS.md) before changing a
+Session.
 
-`POST /v1/reset` accepts `{"profile":"Research"}` and resets every existing
-tab group created from that Profile. An unknown Profile is an error; a Profile
-with no existing groups returns an empty list. `POST /v1/groups/{id}/reset`
-resets one group. Both return `data.reset_group_ids`.
+`POST /v1/sessions/{id}/reset-proxy-session` accepts `{}` and returns
+`data.rotated`. It selects a new sticky-session ID, or advances a multi-IP ISP
+pool to its next port. It returns `false` for direct connections, fixed custom
+proxies, and single-IP ISP pools. Rotation applies to the selected Session's
+explicit shared state owner, closes its old proxy transports, and resets its
+usage counters. It preserves browser data, Session IDs, tab membership, and
+shared IP page allowances. Unknown Session IDs fail; expired provider bindings
+return `PROXY_SESSION_EXPIRED`. The route does not retry website requests or
+reload pages. See [automatic HTTP 429 reset](PROXIES.md#automatic-reset-on-http-429)
+for REL's enabled-by-default app setting and its 30-second coalescing window.
 
-Reset works with every proxy type and without a proxy. It retires the old group
-and sessions, creates fresh IDs and storage, applies the current Profile, and
-imports only explicitly configured cookies. Last URLs remain unloaded. The
-response returns new `reset_group_ids` and `replacements`, mapping old Group
-and Session IDs to their replacements. Switch subsequent commands to those IDs.
-Old IDs return not-found errors. Database transaction failure preserves the old
-group; failure after commit leaves the replacement stopped for a retry.
+Profiles accept notification-only `http_rules`; see the Profile contract below.
+These rules do not reset browser state or replace Sessions.
 
-Profiles accept `http_rules`, an array of up to 100 rules such as
-`[{"status_code":403,"repeats":0,"action":"reset"}]`. Status codes must be unique
-integers from 100 through 599; repeats must be integers from 0 through 1,000,000.
-The action is required and currently only `reset` is supported. Unknown actions
-and fields are rejected. Groups copy rules when created, and Profile transfers
-preserve them. Each group counts matching responses across all tabs/resources;
-zero repeats triggers immediately, N repeats triggers on match N + 1. Counts
-clear after reset or app restart. Rules work for direct and proxied sessions.
-
-`GET /v1/groups/{id}/proxy-status` returns these fields under `data`:
+`GET /v1/sessions/{id}/proxy-status` returns these fields under `data`:
 
 ```json
 {
@@ -1027,8 +978,7 @@ proxy host. Exit detection uses the current route and can be unavailable.
 
 `navigation_request_count` counts main-document HTTP(S) requests admitted by
 the navigation preparation lane for this session, including redirects and
-attempts that subsequently fail or are cancelled. Reset, route rotation, or
-agent restart clears it. It is separate from the shared per-IP
+attempts that subsequently fail or are cancelled. Route rotation or agent restart clears it. It is separate from the shared per-IP
 `page_request_count` budget, which resets each pool round or agent restart.
 Overview displays both counts, connections, and proxy upload/download totals.
 
@@ -1077,6 +1027,31 @@ Select Bright Data in the app's proxy editor to configure a country and optional
 state, city, or ASN. REL shows the resulting masked connection string and gives
 each browser session its own persistent `-session-<id>` suffix.
 
+The proxy create and update routes accept an optional `webshare` object:
+
+```json
+{
+  "upstream_host": "p.webshare.io",
+  "upstream_port": 80,
+  "webshare": {"product": "proxy_server"}
+}
+```
+
+`product` is `proxy_server`, `static_residential`, or `rotating_residential`.
+`country` is an optional two-letter code for the residential products; Proxy
+Server rejects a non-null country. Supply Proxy Server username/password unchanged:
+no country, session, or rotation suffix is added. Static and Rotating Residential
+use base credentials and numeric sticky Session bindings.
+Only one provider may be active: Webshare conflicts with enabled Oxylabs or
+Bright Data. Omission on update preserves Webshare; `"webshare": null` clears it.
+Responses include `webshare` or null. Proxy Server accepts `p.webshare.io` on ports
+80, 1080, 3128, or 9999–29999, or a direct IP with its assigned port. The other
+products use Backbone ports 80, 1080, 3128, or 9999–19999. TLS keeps normal system
+trust. A new binding is not proof of a new IP; verify actual routing when
+uniqueness matters.
+These fields are available through the HTTP API and native editor; use a custom
+HTTP request if your typed client does not expose them yet.
+
 The proxy create and update routes accept a `bright_data` object:
 
 ```json
@@ -1110,12 +1085,22 @@ to disable managed suffixes. Bright Data and Oxylabs cannot both be enabled.
 Responses include `bright_data`; passwords and generated sticky IDs are excluded.
 
 IDs survive reopening a session and editing its proxy location. Assigning a
-different proxy, re-enabling managed sessions, or calling `reset`
-generates new IDs. A sticky ID requests the same peer; Bright Data may replace an
+different proxy, re-enabling managed sessions, or creating a new independent Session
+generates its own routing identity. A sticky ID requests the same peer; Bright Data may replace an
 unavailable peer. Location changes can also change the peer.
 
 Version 4 proxy and profile transfer archives preserve Bright Data configuration.
 Older versions remain importable with managed Bright Data settings disabled.
+
+`POST /v1/proxy-list-imports/webshare` accepts `contents`, a UTF-8 Webshare
+Direct Connection text list (`IP:port:username:password` per line) or a complete
+Direct Proxy API JSON export. It creates separate Proxy Server configurations
+with generated unique aliases and returns `imported_count` and `aliases`.
+Credentials remain unchanged and use the existing Rust/Keychain path. Parsing,
+endpoint validation, duplicate checks, and account limits apply; a failed batch
+rolls back newly created records and credentials. Existing proxies are preserved.
+The list is limited to 2 MiB and 5,000 entries. No proxy or target is contacted
+by importing. This route is available through HTTP and the native editor.
 
 `POST /v1/proxy-transfers/export` accepts `alias`, `include_credentials`, and
 an optional `passphrase`. It returns `data.filename` and `data.contents_base64`,
@@ -1131,61 +1116,35 @@ Transfers are limited to 12 MiB and never overwrite an existing alias.
 
 ## Sessions
 
-Session creation returns the tab ID and its owning group ID together in
-`data.session`, including when created from a saved profile:
+Use the [Project and Session contract](SESSIONS.md) for creation, deliberate
+sharing, scope, reapply and closure. Every creation request requires `project_id`;
+it does not implicitly join state based on a Profile or display name.
 
 ```json
-{"session":{"id":"Session12","group_id":"Group7","created_at":1785860000}}
+{"project_id":"Research","profile":"Research"}
 ```
 
-Use `session.id` for navigation and history operations. `session.group_id`
-identifies the shared browser context and can be used to create sibling tabs.
-The normal `rel session create` JSON output includes both fields; `--id-only`
-prints only the session ID.
+An independent Session resource includes its `id`, `project_id`, `name`, Profile
+identity, filtering/connection settings and creation time. `group_id` is optional
+and identifies only an explicit shared set. Use the Session ID for browser work;
+there are no public group resources. Deleting the final Session does not create
+another tab.
 
-A session resource identifies one persistent browser tab and its owning group:
+### Browser diagnostics
 
-```json
-{
-  "id": "Session12",
-  "group_id": "Group4",
-  "created_at": 1785860000
-}
-```
-
-Session resources do not contain `name`, `profile`, or filtering settings.
-Those belong to the shared tab group, available from `GET /v1/groups` or
-`GET /v1/groups/{group_id}`. Clients must decode the session resource itself
-rather than requiring group fields. Listing or reusing a group preserves existing
-Session IDs and storage; reset replaces them as described above.
-
-- `GET /v1/sessions` returns `data.sessions`.
-- `GET /v1/sessions/{id}` and `POST /v1/sessions/{id}/ping` return `data.session`.
-- `POST /v1/sessions` returns `data.session` in the same shape. With only a saved
-  `profile` (and optionally `name`), creation adds a session to the oldest group
-  for that profile matching the supplied name, case-insensitively. Reuse preserves
-  current settings, storage, cookies, fingerprint seed, and lifetime, even if the
-  profile template has since changed. If no group matches, a new group is created.
-- `POST /v1/sessions` with `group_id` adds a session to that existing group;
-  `group_id` cannot be combined with other creation options.
-- Other creation options (`name`, `name_prefix`, `source_profile`, `profile`,
-  `proxy_alias`, `lifetime`, image/ad blocking, fingerprint, and model settings)
-  configure a new group. Explicit names must be unique.
-- `POST /v1/sessions/{id}/pause` and `/play` return `session_id`, `group_id`,
-  and `network_paused`.
-- `DELETE /v1/sessions/{id}` returns `deleted_id`, `group_id`, and remaining
-  `sessions`. Closing the final session leaves a fresh blank session in its group.
-  Delete `/v1/groups/{group_id}` to remove the group and its shared data.
-
-Session IDs use `Session<number>`; group IDs use `Group<number>`. Treat IDs as
-opaque strings and pass the complete session ID to browser commands. A missing
-session returns `SESSION_NOT_FOUND` without falling back to another tab.
-Group reset and inactivity expiry apply to every tab in that group.
+`GET /v1/sessions/{id}/debug-state` and `/trace?after={cursor}&limit=200` bypass
+browser operation queues. `POST /v1/sessions/{id}/debug-bundle` exports bounded
+state and trace with explicitly requested artifacts. Responses use the normal
+RPC envelope; errors retain IDs/retryability with additive diagnostic details.
+See [browser diagnostics](BROWSER_DIAGNOSTICS.md) for complete fields, privacy,
+retention and an RYM 503 example.
 
 ## Profiles
 
-Profiles are user-created session configurations. There are no generated
-built-ins, and the list is empty until a Profile is saved.
+Profiles are saved session configurations. REL ensures an editable **Default**
+profile at startup. If a saved **REL** profile exists and Default is missing, REL
+renames it in place, preserving its ID and configuration. Default cannot be
+renamed or deleted, and it does not count toward the custom-profile limit.
 
 Fingerprint `browser_version` and its matching `Chrome/` User-Agent token resolve
 to REL's bundled Chromium version when read or imported. An optional
@@ -1241,6 +1200,9 @@ A profile resource is:
 ```
 
 - `GET /v1/profiles` returns saved profiles sorted by name in `data.profiles`.
+  Profiles do not expose a `color` field. Creation and updates reject `color`;
+  the app no longer assigns or edits profile colors. Reserved database and
+  archive columns remain for schema compatibility.
 - `POST /v1/profiles` requires a case-insensitively unique `name`; it accepts
   the proxy, filtering, browser-data inclusion, and `fingerprint_profile`
   fields above and returns `data.profile`. Omitting `fingerprint_profile` uses
@@ -1254,37 +1216,25 @@ A profile resource is:
   selections take precedence, and later Profile changes leave existing sessions
   unchanged. Profile archive and settings-text transfers
   preserve this field.
-- `asset_cache` defaults to `{"is_enabled":true,"maximum_size_bytes":536870912}`.
-  Both fields are required when this object is supplied. `is_enabled` is boolean;
-  `maximum_size_bytes` must be 134217728, 268435456, 536870912, or 1073741824.
-  `POST /v1/profiles` and `PATCH /v1/profiles/{id}` accept the object; omission
-  on update preserves the existing setting. Profile responses and transfers
-  include it. Existing Profiles default to enabled with a 512 MiB limit.
-  Read-only asset caches survive Group resets within the same Profile; cookies,
-  site data and private browser state follow the normal reset path. Profiles
-  never share asset caches. Group responses include `asset_cache_profile_id`
-  (the saved Profile UUID, or null for a Custom Group) and effective `asset_cache`
-  settings. Renaming or deleting a Profile preserves its cache identity in
-  existing Groups; a new Profile with the same name gets a separate cache.
-  See [Profile asset caches](APP.md#profile-asset-caches)
-  for eligibility, freshness and the per-Profile clearing controls.
-- `http_rules` defaults to `[]` (disabled). Each entry requires `action:"reset"`,
+- `asset_cache` defaults to `{"is_enabled":false,"maximum_size_bytes":536870912}`.
+  Cross-reset asset caching is currently disabled. `POST /v1/profiles` and
+  `PATCH /v1/profiles/{id}` reject `is_enabled:true` with a usage error.
+  Both fields remain required when this object is supplied; `is_enabled` must
+  be false, and `maximum_size_bytes` must be 134217728, 268435456, 536870912,
+  or 1073741824. Omission on update preserves size metadata. Profile and Group
+  responses report caching disabled, including for saved or imported settings
+  that previously enabled it. Existing transfer schemas and
+  `asset_cache_profile_id` remain readable. The app does not read or write the
+  cross-reset asset cache while disabled. See
+  [Profile asset caches](APP.md#profile-asset-caches).
+- `http_rules` defaults to `[]`. Each entry requires `action:"notification"`,
   a unique integer `status_code` (100–599), and integer `repeats` (0–1,000,000).
   Up to 100 rules are accepted. For example:
-  `[{"action":"reset","status_code":403,"repeats":0},{"action":"reset","status_code":429,"repeats":2}]`.
-  Reset is the only action. Zero repeats resets on the first matching response;
-  N repeats resets on response N + 1. Counts are separate per status, include
-  responses from all tabs and subresources in the group, and are not cleared by
-  other status codes. Canceled requests do not count. Reset and app restart
-  clear the counts. Rules work with any proxy type and without a proxy.
-  Reset recreates the group and sessions with fresh IDs and clean state, imports
-  only configured Profile cookies, and retains last URLs without loading them.
-  Browser automation during reset returns retryable `BROWSER_BUSY`; retry after
-  reset finishes. Failures leave the group stopped with a visible error so the
-  reset can be retried. New Groups copy the rules; Profile edits apply to existing
-  Groups on the next reset, including **Save and Reset Sessions**. On update, omission
-  preserves rules and `[]` disables them. Profile archives and settings-text
-  transfers preserve rules. Configure them with **HTTP Rule** in the Profile editor.
+  `[{"action":"notification","status_code":503,"repeats":0}]`.
+  A matching rule notifies; it does not reset, rotate or replace Sessions.
+  Zero repeats triggers on the first matching response; N repeats on match N + 1.
+  New Sessions copy rules from their Profile; existing Sessions require explicit
+  configuration reapply. On update, omission preserves rules and `[]` disables them.
 - `PATCH /v1/profiles/{id}` accepts any editable profile setting and returns
   the updated custom profile in `data.profile`. REL.app uses the browser-data
   flags only after it has safely staged imported browser data; cookie and
@@ -1402,10 +1352,10 @@ original data-preserving rename behavior.
 
 Profile names contain 1–128 non-control characters after trimming and are the
 selector used during session creation. On `POST /v1/sessions`, omission selects
-the **Default Profile** configured in **Settings → General**, or direct **Custom** settings
-when no preference is set (AdBlock on, all images allowed, Private). This applies to clients that omit the field. Create Session in the app
-starts with Custom and sends explicit settings. `profile:null` explicitly selects Custom without inheriting any saved profile
-or browser data. An explicit saved profile always takes precedence. The preference
+the **Default Profile** configured in **Settings → General**, or the saved **Default**
+profile when no preference is set. This applies to clients that omit the field.
+Create Session in the app can send explicit settings. `profile:null` keeps
+standalone Custom configuration without inheriting a saved profile or browser data. An explicit saved profile always takes precedence. The preference
 uses the stable profile ID, so renaming a custom profile preserves its selection.
 If that profile is deleted, creation without an explicit profile reports an error
 until another default is selected. Explicit session settings override the selected profile. A present
@@ -1435,11 +1385,11 @@ for later editing, but are not sent as browser overrides.
 | --- | --- |
 | `locale` | Language preferences and locale, applied only when resolved values differ from native |
 | `timezone` | IANA timezone |
-| `hardware_concurrency` | Page CPU thread count; workers retain native values in this engine |
+| `hardware_concurrency` | CPU thread count shared by windows, frames, and all worker types |
 | `network` | Network information profile |
 | `device_surfaces` | Linked memory, touch, screen/pixel ratio, PDF plugin fallback, and storage quota controls |
-| `graphics` | Linked Canvas/WebGL readbacks, WebGL identity/extensions, and unavailable WebGPU adapters |
-| `audio` | Audio readbacks using the profile's audio mode |
+| `graphics` | Canvas typography/eligible solid-text coverage, including translucent fills, and the selected graphics profile. Full glyph coverage retains requested opacity. `graphics_profile: "native"` preserves native WebGL/WebGPU; curated GPU profiles apply WebGL identity/extensions and make WebGPU unavailable. All profiles preserve actual WebGL pixel reads and exports. |
+| `audio` | Shared 48 kHz default for real-time audio in `deterministic` mode; explicit rates, offline rendering, signals, buffers, and analysers stay native |
 
 With `device_surfaces` enabled, `device_memory_gib` supplies both JavaScript
 device memory and the `Device-Memory` / `Sec-CH-Device-Memory` HTTP hints.
@@ -1448,7 +1398,9 @@ CSS device-width and device-height queries use the profile's screen dimensions,
 and resolution queries use its device scale factor;
 color queries report 8 bits per component, sRGB, and standard dynamic range,
 matching the profile's 24-bit screen surface. These settings do not resize the
-page viewport. Native sessions and profiles with `device_surfaces` disabled
+page viewport. Outer window dimensions retain Chromium's actual host-window
+geometry independently of the configured display dimensions.
+Native sessions and profiles with `device_surfaces` disabled
 retain the engine's native values.
 
 `locale_mode` accepts `automatic` or `custom`. Private defaults to
@@ -1476,30 +1428,28 @@ For example, add `"overrides": ["timezone"]` to a valid profile with
 non-array values are rejected. Saving the profile preserves this list through
 export/import. Missing lists in older profiles enable the remaining supported overrides.
 
-New profile drafts and Custom session defaults use **Private**,
-with all seven supported controls enabled. Its read-only details are hidden
-by default in profiles, identity editors, and session information. Choose
-**Show** to the left of the mode value to open a popover without expanding the parent
-layout. The **Browser Identity** row belongs to the main Profile section.
-Choose **Custom Privacy** to edit individual values and toggles in compact rows.
-Profile forms open those settings in a separate editor; **New Browser Identity…**
-starts from the current identity and **Use Identity** applies the custom settings
-to the Profile draft.
-The shared device preset appears once, info buttons explain linked settings,
-and the readback seed is in an expandable section. **Native** turns off all
-controls. Chromium generates the User-Agent with the product version reduced to
-`MAJOR.0.0.0` in every mode. Native branding and client hints remain engine-owned
-and are not editable. High-entropy client hints can still expose the full engine
-version when requested by a site.
+On the Private engine, new profile drafts and Custom session defaults use
+**Private**, enabling all seven supported controls. **Chrome** inherits those
+protections and adds Chrome branding. Choose **Custom** to edit supported values
+and toggles; the editor also exposes accepted device, seed and Chrome-version
+values. Profile forms open a separate editor; **Use Identity** applies the draft.
+See the [app guide](APP.md#browser-identity) for the controls and engine build
+selection commands.
 
-Custom Privacy saves an explicit `overrides` list, including when all seven
-controls are enabled or all are disabled. It therefore reopens as Custom.
-Private uses the omitted-list representation; selecting it resets custom
-values to the standard full preset while retaining the session seed. Native
-saves a null fingerprint. Existing explicit choices and saved session-creation
-preferences are preserved. Saving recreates only the session's Chromium context.
-Device surfaces and graphics remain linked groups in the pinned engine.
-Individual fields within those groups cannot independently remain native.
+Custom saves an explicit `overrides` list, including when all controls are on or
+off, and therefore reopens as Custom. Private and Chrome use the omitted-list full
+preset; selecting either resets custom values while retaining the Session seed.
+Native saves a null fingerprint and requires the verified upstream CEF engine.
+It does not merely disable controls on the patched engine. Engine selection is a
+build/restart choice; incompatible identity/engine combinations fail explicitly.
+A compatible identity change recreates the Session's context, not the engine.
+
+REL's patched engine reduces its UA product version. Native leaves that setting
+to upstream CEF. Platform metadata stays host-native; Custom can choose supported
+Chrome branding/version values but cannot supply arbitrary identity internals.
+High-entropy hints can expose the engine version. Device and graphics surfaces
+remain linked groups; build-time removals and fixed integration are explicit
+exceptions, not per-Session switches.
 
 On every supported database startup, REL refreshes engine-linked fingerprint
 versions and matching user agents in Sessions and named Profiles before loading
@@ -1951,3 +1901,5 @@ and up to 20 seconds for sending. Success data contains `message_id` and
 Failures use the standard error envelope. REL does not automatically retry;
 a send timeout leaves delivery uncertain. Settings changes serialize with
 sending, so disabling cannot recall an in-flight message.
+
+Request inspection: `GET /v1/sessions/{id}/network-requests/{request_id}`. Opt-in capture: `PUT /v1/sessions/{id}/network-capture`. Both use the normal response envelope. See [capture policy, retention, redaction and attribution](BROWSER_DIAGNOSTICS.md#inspect-original-network-responses).

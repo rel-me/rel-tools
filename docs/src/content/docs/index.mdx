@@ -16,8 +16,10 @@ Claude Code, MCP, the CLI, a local API, or the Rust and Ruby clients.
 
 The bundled `rel` CLI is the quickest way to capture a rendered page and the best place to learn REL’s model.
 
+Choose an existing Session in the intended Project and use its returned ID:
+
 ```sh
-rel https://rel.me
+rel https://rel.me --session-id Session123
 ```
 
 REL keeps Chromium inside the installed macOS app. Like curl, the CLI writes
@@ -27,8 +29,8 @@ be piped or redirected independently.
 To continue only when page content is ready, navigate with a CSS selector:
 
 ```sh
-rel navigate https://example.com --wait-for '#content' --timeout 60
-rel capture > page.html
+rel navigate https://example.com --session-id Session123 --wait-for '#content' --timeout 60
+rel capture --session-id Session123 > page.html
 ```
 
 REL waits for `#content` to appear on the same page and session, with one
@@ -43,7 +45,9 @@ same capability.
 
 Give each browser Session a separate proxy assignment. Add an Oxylabs, Bright
 Data, Decodo, IPRoyal, or custom HTTP proxy in REL, then select its alias in the
-Session or use it from Codex and the CLI. Proxy use requires REL Pro.
+Session or use it from Codex and the CLI. Explicitly grouped Sessions share
+routing; using the same Profile alone does not share browser state. Proxy use
+requires REL Pro.
 
 [Configure proxies →](/proxies/)
 
@@ -64,6 +68,18 @@ Session or use it from Codex and the CLI. Proxy use requires REL Pro.
     Add the shared REL plugin to load its MCP server and browser workflow guidance automatically.
 
     [Install for Codex →](/codex-plugin/) · [Install for Claude Code →](/claude-code-plugin/)
+  </Card>
+  <Card title="Diagnose navigation failures">
+    Inspect a running operation without blocking it, follow bounded session traces,
+    and export redacted diagnostics before retrying or replacing a Session.
+
+    [Open the diagnostics guide →](/browser-diagnostics/)
+  </Card>
+  <Card title="Understand Session scope">
+    Select a Project and Session explicitly and distinguish independent browser
+    state from deliberate sharing.
+
+    [Open the Session guide →](/sessions/)
   </Card>
   <Card title="Connect an MCP client">
     Launch the bundled stdio adapter for focused status, capture, page automation, session-list, and proxy-list tools.

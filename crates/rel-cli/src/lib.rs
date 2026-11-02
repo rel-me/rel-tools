@@ -50,6 +50,10 @@ pub fn mcp_main_exit_code_with_version(args: Vec<OsString>, product_version: &st
             println!("{}", mcp_help());
             0
         }
+        [argument] if argument == "--api-contract" => {
+            println!("rel-project-sessions-v1");
+            0
+        }
         [argument] if argument == "--version" => {
             println!("rel-mcp {product_version}");
             0
@@ -95,9 +99,6 @@ pub fn main_exit_code_with_version(args: Vec<OsString>, product_version: &str) -
     }
 
     let client = RelClient::local();
-    if let Err(error) = apply_latest_session_default(&client, &mut command) {
-        return print_cli_error(error);
-    }
 
     match run_command(client, command) {
         Ok(exit_code) => exit_code,
@@ -266,10 +267,7 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.delete_proxy(&alias)?)?;
             Ok(0)
         }
-        CliCommand::ResetProfile(profile) => {
-            print_json(&client.reset_profile(&profile)?)?;
-            Ok(0)
-        }
+
         CliCommand::ProxyExport { alias, output } => {
             let transfer = client
                 .export_proxy_transfer(&ProxyTransferExportRequest {
@@ -345,6 +343,31 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
             print_json(&client.list_sessions()?)?;
             Ok(0)
         }
+        CliCommand::SessionTrace { id, after, limit } => {
+            print_json(&client.session_trace(&id, after.as_deref(), limit)?)?;
+            Ok(0)
+        }
+        CliCommand::NetworkRequest { id, request } => {
+            print_json(&client.network_request(&id, &request)?)?;
+            Ok(0)
+        }
+        CliCommand::NetworkCapture { id, policy } => {
+            print_json(&client.network_capture_configure(&id, &policy)?)?;
+            Ok(0)
+        }
+        CliCommand::DebugState(id) => {
+            print_json(&client.debug_state(&id)?)?;
+            Ok(0)
+        }
+        CliCommand::DebugBundle {
+            id,
+            since,
+            html,
+            screenshot,
+        } => {
+            print_json(&client.debug_bundle(&id, since.as_deref(), html, screenshot)?)?;
+            Ok(0)
+        }
         CliCommand::SessionGet(id) => {
             print_json(&client.get_session(&id)?)?;
             Ok(0)
@@ -371,10 +394,6 @@ fn run_command(client: RelClient, command: CliCommand) -> Result<i32, CliError> 
         }
         CliCommand::SessionDelete(id) => {
             print_json(&client.delete_session(&id)?)?;
-            Ok(0)
-        }
-        CliCommand::SessionCloseGroup(group) => {
-            print_json(&client.close_session_group(&group)?)?;
             Ok(0)
         }
     }
@@ -543,7 +562,6 @@ enum CliCommand {
         request: ProxyUpdateRequest,
     },
     ProxyDelete(String),
-    ResetProfile(String),
     ProxyExport {
         alias: String,
         output: Option<PathBuf>,
@@ -564,6 +582,26 @@ enum CliCommand {
     },
     SessionList,
     SessionGet(String),
+    SessionTrace {
+        id: String,
+        after: Option<String>,
+        limit: usize,
+    },
+    DebugState(String),
+    NetworkRequest {
+        id: String,
+        request: String,
+    },
+    NetworkCapture {
+        id: String,
+        policy: serde_json::Value,
+    },
+    DebugBundle {
+        id: String,
+        since: Option<String>,
+        html: bool,
+        screenshot: bool,
+    },
     SessionCreate {
         request: SessionCreateRequest,
         id_only: bool,
@@ -576,7 +614,6 @@ enum CliCommand {
     SessionPause(String),
     SessionPlay(String),
     SessionDelete(String),
-    SessionCloseGroup(String),
 }
 
 impl CliCommand {
@@ -614,20 +651,9 @@ fn parse_command(args: Vec<String>) -> Result<CliCommand, CliError> {
             parse_no_options(&mut args, "status", root_help())?;
             Ok(CliCommand::Status)
         }
-        "reset" => {
-            let mut profile = None;
-            while let Some((option, inline)) = args.pop_option()? {
-                match option.as_str() {
-                    "--profile" => { let value = args.option_value(&option, inline)?; set_once(&mut profile, value, &option)?; }
-                    "--help" | "-h" => return Err(CliError::Help("rel reset --profile NAME\nReset every existing tab group created from the profile, including initial cookies.".into())),
-                    _ => return Err(CliError::Message(format!("unknown reset option {option:?}"))),
-                }
-            }
-            let profile = profile
-                .filter(|name| !name.trim().is_empty())
-                .ok_or_else(|| CliError::Message("reset requires --profile NAME".into()))?;
-            Ok(CliCommand::ResetProfile(profile))
-        }
+        "reset" => Err(CliError::Message(
+            "reset is not supported; configuration reapply preserves Session state".into(),
+        )),
         "navigate" => parse_navigate(args),
         "read" => parse_read(args),
         "perform" => parse_perform(args),
@@ -741,62 +767,38 @@ fn apply_session_id_environment_default(
     Ok(())
 }
 
-fn apply_latest_session_default(
-    client: &RelClient,
-    command: &mut CliCommand,
-) -> Result<(), CliError> {
-    if !needs_session_id_default(command) {
-        return Ok(());
-    }
-    let sessions = client.list_sessions()?.data.sessions;
-    apply_latest_session_id(command, sessions.iter().map(|session| session.id.as_str()));
-    Ok(())
-}
-
-fn needs_session_id_default(command: &mut CliCommand) -> bool {
-    session_id_default_target(command).is_some_and(|session_id| session_id.is_none())
-}
-
-fn apply_latest_session_id<'a>(
-    command: &mut CliCommand,
-    session_ids: impl IntoIterator<Item = &'a str>,
-) {
-    let Some(session_id) = session_id_default_target(command) else {
-        return;
-    };
-    if session_id.is_none() {
-        *session_id = latest_session_id(session_ids).map(str::to_string);
-    }
-}
-
 fn session_id_default_target(command: &mut CliCommand) -> Option<&mut Option<String>> {
     match command {
-        CliCommand::Navigate(request) if request.profile.is_none() => Some(&mut request.session_id),
-        CliCommand::Read(request) if request.profile.is_none() => Some(&mut request.session_id),
-        CliCommand::Capture(request) if request.group.is_none() && request.profile.is_none() => {
+        CliCommand::Navigate(request)
+            if request.project_id.is_none() && request.profile.is_none() =>
+        {
             Some(&mut request.session_id)
         }
-        CliCommand::CaptureCurrent(request) => Some(&mut request.session_id),
-        CliCommand::Perform(request) => Some(&mut request.session_id),
-        CliCommand::PageAttach(request) if request.group.is_none() && request.profile.is_none() => {
+        CliCommand::Read(request) if request.project_id.is_none() && request.profile.is_none() => {
+            Some(&mut request.session_id)
+        }
+        CliCommand::Capture(request)
+            if request.project_id.is_none() && request.profile.is_none() =>
+        {
+            Some(&mut request.session_id)
+        }
+        CliCommand::CaptureCurrent(request) if request.project_id.is_none() => {
+            Some(&mut request.session_id)
+        }
+        CliCommand::Perform(request) if request.project_id.is_none() => {
+            Some(&mut request.session_id)
+        }
+        CliCommand::PageAttach(request)
+            if request.project_id.is_none() && request.profile.is_none() =>
+        {
             Some(&mut request.session_id)
         }
         CliCommand::Observe {
             page_id: None,
             request,
-        } => Some(&mut request.session_id),
+        } if request.project_id.is_none() => Some(&mut request.session_id),
         _ => None,
     }
-}
-
-fn latest_session_id<'a>(session_ids: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
-    session_ids
-        .into_iter()
-        .max_by_key(|session_id| canonical_session_number(session_id))
-}
-
-fn canonical_session_number(session_id: &str) -> Option<u64> {
-    session_id.strip_prefix("Session")?.parse().ok()
 }
 
 fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -821,8 +823,8 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
         };
         match option.as_str() {
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
-            "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
@@ -847,9 +849,9 @@ fn parse_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
         });
     };
     request.url = url;
-    if request.session_id.is_some() && (request.group.is_some() || request.profile.is_some()) {
+    if request.session_id.is_some() && request.profile.is_some() {
         return Err(CliError::Message(
-            "--group and --profile cannot be combined with --session-id".to_string(),
+            "--profile cannot be combined with --session-id".to_string(),
         ));
     }
     Ok(CliCommand::Capture(request))
@@ -860,6 +862,7 @@ fn parse_current_capture(mut args: Arguments) -> Result<CliCommand, CliError> {
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
@@ -883,6 +886,7 @@ fn parse_navigate(mut args: Arguments) -> Result<CliCommand, CliError> {
             "--wait-for" => request.wait_for = Some(args.option_value(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
             "--proxy" => {
                 request.proxy = Some(parse_proxy_selector(&args.option_value(&option, inline)?))
@@ -919,6 +923,7 @@ fn parse_read(mut args: Arguments) -> Result<CliCommand, CliError> {
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
             "--proxy" => {
                 request.proxy = Some(parse_proxy_selector(&args.option_value(&option, inline)?))
@@ -957,6 +962,7 @@ fn parse_perform(mut args: Arguments) -> Result<CliCommand, CliError> {
     while let Some((option, inline)) = args.pop_option()? {
         match option.as_str() {
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--output" => request.output = Some(args.option_value(&option, inline)?),
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
@@ -992,8 +998,8 @@ fn parse_page_attach(mut args: Arguments) -> Result<CliCommand, CliError> {
             "--timeout" => request.timeout = Some(args.number(&option, inline)?),
             "--wait" => request.wait = Some(args.number(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
-            "--group" => request.group = Some(args.option_value(&option, inline)?),
             "--proxy" => {
                 request.proxy = Some(parse_proxy_selector(&args.option_value(&option, inline)?))
             }
@@ -1001,9 +1007,9 @@ fn parse_page_attach(mut args: Arguments) -> Result<CliCommand, CliError> {
             _ => return Err(args.unknown_option(&option, "page attach")),
         }
     }
-    if request.session_id.is_some() && (request.group.is_some() || request.profile.is_some()) {
+    if request.session_id.is_some() && request.profile.is_some() {
         return Err(CliError::Message(
-            "--group and --profile cannot be combined with --session-id".to_string(),
+            "--profile cannot be combined with --session-id".to_string(),
         ));
     }
     Ok(CliCommand::PageAttach(request))
@@ -1054,6 +1060,7 @@ fn parse_observe(mut args: Arguments) -> Result<CliCommand, CliError> {
         match option.as_str() {
             "--page-id" => page_id = Some(args.option_value(&option, inline)?),
             "--session-id" => request.session_id = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--mode" => {
                 request.mode = Some(parse_observation_mode(
                     &args.option_value(&option, inline)?,
@@ -1065,9 +1072,9 @@ fn parse_observe(mut args: Arguments) -> Result<CliCommand, CliError> {
             _ => return Err(args.unknown_option(&option, "observe")),
         }
     }
-    if page_id.is_some() && request.session_id.is_some() {
+    if page_id.is_some() && (request.session_id.is_some() || request.project_id.is_some()) {
         return Err(CliError::Message(
-            "observe --page-id cannot be combined with --session-id".to_string(),
+            "observe --page-id cannot be combined with --session-id or --project-id".to_string(),
         ));
     }
     Ok(CliCommand::Observe { page_id, request })
@@ -1484,13 +1491,119 @@ fn parse_session(mut args: Arguments) -> Result<CliCommand, CliError> {
             Ok(CliCommand::SessionList)
         }
         "get" => Ok(CliCommand::SessionGet(parse_session_id(&mut args)?)),
+        "network-request" => {
+            let id = args.required_positional("session ID")?;
+            let request = args.required_positional("network request ID")?;
+            parse_no_options(&mut args, "session network-request", session_help())?;
+            Ok(CliCommand::NetworkRequest { id, request })
+        }
+        "network-capture" => {
+            let id = args.required_positional("session ID")?;
+            let mut policy = serde_json::json!({});
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--enabled" | "--disabled" => {
+                        args.flag(&option, inline)?;
+                        if policy.get("enabled").is_some() {
+                            return Err(CliError::Message(
+                                "Specify exactly one of --enabled or --disabled".into(),
+                            ));
+                        }
+                        policy["enabled"] = serde_json::json!(option == "--enabled");
+                    }
+                    "--url-prefix" | "--resource-type" | "--status-code" => {
+                        let value = args.option_value(&option, inline)?;
+                        let (key, value) = match option.as_str() {
+                            "--url-prefix" => ("url_prefixes", serde_json::json!(value)),
+                            "--resource-type" => ("resource_types", serde_json::json!(value)),
+                            _ => (
+                                "status_codes",
+                                serde_json::json!(value.parse::<u16>().map_err(|_| {
+                                    CliError::Message("Invalid status code".into())
+                                })?),
+                            ),
+                        };
+                        if policy.get(key).is_none() {
+                            policy[key] = serde_json::json!([]);
+                        }
+                        policy[key].as_array_mut().unwrap().push(value);
+                    }
+                    "--max-bytes-per-response" | "--max-total-bytes" => {
+                        let number =
+                            args.option_value(&option, inline)?
+                                .parse::<u64>()
+                                .map_err(|_| {
+                                    CliError::Message(
+                                        "Capture limit must be a positive integer".into(),
+                                    )
+                                })?;
+                        policy[if option == "--max-total-bytes" {
+                            "max_total_bytes"
+                        } else {
+                            "max_bytes_per_response"
+                        }] = serde_json::json!(number);
+                    }
+                    _ => return Err(CliError::Message(format!("Unknown option {option}"))),
+                }
+            }
+            if policy.get("enabled").is_none() {
+                return Err(CliError::Message("Specify --enabled or --disabled".into()));
+            }
+            Ok(CliCommand::NetworkCapture { id, policy })
+        }
+        "debug-state" => Ok(CliCommand::DebugState(parse_session_id(&mut args)?)),
+        "trace" => {
+            let id = args.required_positional("session ID")?;
+            let mut after = None;
+            let mut limit = 200;
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--after" => after = Some(args.option_value(&option, inline)?),
+                    "--limit" => {
+                        limit = args
+                            .option_value(&option, inline)?
+                            .parse::<usize>()
+                            .ok()
+                            .filter(|n| (1..=200).contains(n))
+                            .ok_or_else(|| {
+                                CliError::Message("--limit must be from 1 to 200".into())
+                            })?
+                    }
+                    _ => return Err(CliError::Message(format!("Unknown option {option}"))),
+                }
+            }
+            Ok(CliCommand::SessionTrace { id, after, limit })
+        }
+        "debug-bundle" => {
+            let id = args.required_positional("session ID")?;
+            let (mut since, mut html, mut screenshot) = (None, false, false);
+            while let Some((option, inline)) = args.pop_option()? {
+                match option.as_str() {
+                    "--since-request-id" => since = Some(args.option_value(&option, inline)?),
+                    "--include-html" => {
+                        args.flag(&option, inline)?;
+                        html = true;
+                    }
+                    "--include-screenshot" => {
+                        args.flag(&option, inline)?;
+                        screenshot = true;
+                    }
+                    _ => return Err(CliError::Message(format!("Unknown option {option}"))),
+                }
+            }
+            Ok(CliCommand::DebugBundle {
+                id,
+                since,
+                html,
+                screenshot,
+            })
+        }
         "create" => parse_session_create(args),
         "update" => parse_session_update(args),
         "ping" => Ok(CliCommand::SessionPing(parse_session_id(&mut args)?)),
         "pause" => Ok(CliCommand::SessionPause(parse_session_id(&mut args)?)),
         "play" => Ok(CliCommand::SessionPlay(parse_session_id(&mut args)?)),
         "delete" => Ok(CliCommand::SessionDelete(parse_session_id(&mut args)?)),
-        "close" => parse_session_close_group(args),
         subcommand => Err(CliError::Message(format!(
             "unknown session subcommand {subcommand:?}; run `rel session --help`"
         ))),
@@ -1525,12 +1638,9 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
                     SessionLifetime::Inactivity { timeout_seconds }
                 });
             }
-            "--new-group" => {
-                args.flag(&option, inline)?;
-                request.new_group = Some(true);
-            }
+            "--group-id" => request.group_id = Some(args.option_value(&option, inline)?),
             "--name" => request.name = Some(args.option_value(&option, inline)?),
-            "--group" => request.group = Some(args.option_value(&option, inline)?),
+            "--project-id" => request.project_id = Some(args.option_value(&option, inline)?),
             "--profile" => request.profile = Some(args.option_value(&option, inline)?),
             "--proxy" => set_change(
                 &mut request.proxy_alias,
@@ -1558,25 +1668,6 @@ fn parse_session_create(mut args: Arguments) -> Result<CliCommand, CliError> {
         }
     }
     Ok(CliCommand::SessionCreate { request, id_only })
-}
-
-fn parse_session_close_group(mut args: Arguments) -> Result<CliCommand, CliError> {
-    let mut group = None;
-    while let Some((option, inline)) = args.pop_option()? {
-        match option.as_str() {
-            "--group" => set_once(&mut group, args.option_value(&option, inline)?, &option)?,
-            "-h" | "--help" => return Err(CliError::Help(session_help())),
-            _ => return Err(args.unknown_option(&option, "session close")),
-        }
-    }
-    let group = group
-        .ok_or_else(|| CliError::Message("session close requires --group GROUP".to_string()))?;
-    if group.trim().is_empty() {
-        return Err(CliError::Message(
-            "session group must not be empty".to_string(),
-        ));
-    }
-    Ok(CliCommand::SessionCloseGroup(group))
 }
 
 fn parse_session_update(mut args: Arguments) -> Result<CliCommand, CliError> {
@@ -1846,10 +1937,9 @@ rel page attach [URL] [options]\n  \
 rel page action PAGE_ID --action JSON [options]\n  \
 rel observe [--page-id ID] [--mode semantic|hybrid|visual] [options]\n  \
 rel observation action OBSERVATION_ID --request JSON\n  \
-rel reset --profile NAME\n  \
 rel proxy <list|get|create|update|delete|export|import> ...\n  \
 rel profile <list|export|import> ...\n  \
-rel session <list|get|create|update|ping|pause|play|delete|close> ...\n  \
+rel session <list|get|create|update|ping|pause|play|delete> ...\n  \
 rel --help\n  \
 rel --version\n\n\
 Ordinary commands print an RPC v1 JSON envelope. Capture writes rendered HTML to\n\
@@ -1859,7 +1949,7 @@ Run `rel navigate --help`, `rel read --help`, `rel perform --help`, `rel capture
 `rel page --help`, `rel observe --help`, `rel observation --help`,\n\
 `rel proxy --help`, `rel profile --help`, or\n\
 `rel session --help` for resource options. Commands that accept --session-id
-use $REL_SESSION_ID when set, then the newest existing session; an explicit
+use $REL_SESSION_ID when set; an explicit
 option wins. Required URL arguments use $REL_SESSION_URL when omitted, and an
 explicit URL wins."
         .to_string()
@@ -1870,7 +1960,8 @@ fn mcp_help() -> String {
 Usage:\n  \
 rel-mcp\n  \
 rel-mcp --help\n  \
-rel-mcp --version\n\n\
+rel-mcp --version\n  \
+rel-mcp --api-contract\n\n\
 The adapter reads newline-delimited MCP JSON-RPC from stdin and writes protocol\n\
 responses to stdout. Startup and discovery do not launch REL.app; validated\n\
 operational tools start it lazily when its local agent is unavailable."
@@ -1888,9 +1979,9 @@ Options:\n  \
 --wait SECONDS\n  \
 --action JSON                 Repeat for multiple canonical action objects\n  \
 --actions JSON                Canonical action object array\n  \
---session-id ID              Default: $REL_SESSION_ID, then newest session\n  \
+--session-id ID              Default: $REL_SESSION_ID; otherwise supply Project scope\n  \
 --profile NAME               Create the session from this named profile\n  \
---group GROUP                Group a new URL-capture session; conflicts with --session-id\n  \
+--project-id ID              Required when creating a new Session\n  \
 --proxy ALIAS\n  \
 --retry COUNT\n  \
 --retry-delay SECONDS\n\n\
@@ -1902,11 +1993,9 @@ to stderr."
 
 fn navigate_help() -> String {
     "Usage:\n  \
-rel navigate [URL] [--session-id ID | --profile NAME] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S] [--wait-for SELECTOR]\n\n\
-Navigates the current shorthand page. The first call reuses the newest existing\n\
-session, creating one only when none exists; later calls reuse that page and
-session. --session-id defaults to $REL_SESSION_ID when set, then the newest
-session; --profile creates a session from a named profile and suppresses that
+rel navigate [URL] [--session-id ID | --profile NAME] [--project-id ID] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S] [--wait-for SELECTOR]\n\n\
+Navigates the current shorthand page. Supply --session-id or --project-id for explicit scope. Later calls reuse that page and
+session. --session-id defaults to $REL_SESSION_ID when set; --profile creates a session from a named profile and suppresses that
 default. URL defaults to $REL_SESSION_URL when omitted; an explicit URL wins.\n\n\
 --wait-for SELECTOR waits for readiness on the same page, allowing intermediate\n\
 HTTP errors to redirect. --timeout bounds navigation and readiness together;\n\
@@ -1921,7 +2010,7 @@ Options:\n  \
 --query TEXT\n  \
 --max-chars COUNT           512-32768; default 12000\n  \
 --max-sections COUNT        1-100; default 24\n  \
---session-id ID             Default: $REL_SESSION_ID, then newest session\n  \
+--session-id ID             Default: $REL_SESSION_ID; otherwise supply Project scope\n  \
 --profile NAME              Create the session from this named profile\n  \
 --proxy ALIAS\n  \
 --timeout SECONDS\n  \
@@ -1935,21 +2024,20 @@ and --proxy require URL."
 
 fn perform_help() -> String {
     "Usage:\n  \
-rel perform ACTIONS [--session-id ID] [--output PATH] [--timeout S] [--wait S]\n\n\
+rel perform ACTIONS [--session-id ID] [--project-id ID] [--output PATH] [--timeout S] [--wait S]\n\n\
 ACTIONS is a non-empty JSON array of canonical action objects. Actions run in\n\
 array order. Run `rel navigate URL` first. --session-id defaults to
 \
-$REL_SESSION_ID when set, then the newest existing session; an explicit value wins."
+$REL_SESSION_ID when set; an explicit value wins."
         .to_string()
 }
 
 fn page_help() -> String {
     "Usage:\n  \
-rel page attach [URL] [--session-id ID | --profile NAME] [--group GROUP] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
+rel page attach [URL] [--session-id ID | --profile NAME] [--project-id ID] [--proxy ALIAS] [--output PATH] [--timeout S] [--wait S]\n  \
 rel page action PAGE_ID --action JSON [--output PATH] [--timeout S] [--wait S]\n\n\
-For page attach, --session-id defaults to $REL_SESSION_ID when set, then the
-newest existing session. --profile creates a session from a named profile;
---group labels a newly created session. Either creation option suppresses that
+For page attach, --session-id defaults to $REL_SESSION_ID when set. --profile creates a session from a named profile;
+--project-id selects the owning Project. Either creation option suppresses that
 default. URL defaults to $REL_SESSION_URL when omitted; an explicit URL or
 session ID wins."
         .to_string()
@@ -1957,10 +2045,10 @@ session ID wins."
 
 fn observe_help() -> String {
     "Usage:\n  \
-rel observe [--page-id ID] [--session-id ID] [--mode semantic|hybrid|visual] [--timeout S] [--wait S]\n\n\
+rel observe [--page-id ID] [--session-id ID] [--project-id ID] [--mode semantic|hybrid|visual] [--timeout S] [--wait S]\n\n\
 Observe the current shorthand page or one attached page. Hybrid and visual modes\n\
 include a synchronized current-viewport PNG resource. --session-id defaults to\n\
-$REL_SESSION_ID when set, then the newest session, and cannot be combined with
+$REL_SESSION_ID when set, and cannot be combined with
 --page-id."
         .to_string()
 }
@@ -2022,17 +2110,16 @@ app for passphrase-protected private-data transfers."
 fn session_help() -> String {
     "Usage:\n  \
 rel session list\n  \
-rel session get SESSION_ID\n  \
+rel session get SESSION_ID\n  rel session trace SESSION_ID [--after CURSOR] [--limit 200]\n  rel session debug-state SESSION_ID\n  rel session network-request SESSION_ID REQUEST_ID\n  rel session network-capture SESSION_ID (--enabled|--disabled) [--resource-type TYPE] [--url-prefix URL] [--status-code CODE] [--max-bytes-per-response N] [--max-total-bytes N]\n  rel session debug-bundle SESSION_ID [--since-request-id ID] [--include-html] [--include-screenshot]\n  \
 rel session ping <id> (refresh inactivity timer)\n  \
 rel session create [--lifetime <seconds|indefinite>] [options]\n  \
 rel session update SESSION_ID [options]\n  \
 rel session pause SESSION_ID\n  \
 rel session play SESSION_ID\n  \
 rel session delete SESSION_ID\n  \
-rel session close --group GROUP\n\n\
 Options:\n  \
---new-group                  Force a separate tab group\n  \
---name NAME --group GROUP --profile NAME --proxy ALIAS --adblock-enabled true|false\n  \
+--project-id ID              Select the owning Project for creation\n  \
+--name NAME --group-id new|GroupID --profile NAME --proxy ALIAS --adblock-enabled true|false\n  \
 --image-blocking-mode none|all|over_limit --image-size-limit-kb KB\n  \
 --direct                       Override the profile with a direct connection\n  \
 --id-only                     For create, print only the new session ID"
@@ -2046,6 +2133,49 @@ mod tests {
 
     fn parse(args: &[&str]) -> Result<CliCommand, CliError> {
         parse_command(args.iter().map(|value| value.to_string()).collect())
+    }
+
+    #[test]
+    fn diagnostic_commands_keep_explicit_scope_and_validate_limits() {
+        assert!(
+            matches!(parse(&["session", "trace", "Session4", "--after", "event_7", "--limit", "20"]).unwrap(), CliCommand::SessionTrace { id, after, limit: 20 } if id == "Session4" && after.as_deref() == Some("event_7"))
+        );
+        assert!(parse(&["session", "trace", "Session4", "--limit", "201"]).is_err());
+        assert!(parse(&["session", "trace"]).is_err());
+        assert!(
+            matches!(parse(&["session", "debug-state", "Session4"]).unwrap(), CliCommand::DebugState(id) if id == "Session4")
+        );
+        assert!(matches!(
+            parse(&["session", "debug-bundle", "Session4", "--include-html"]).unwrap(),
+            CliCommand::DebugBundle {
+                html: true,
+                screenshot: false,
+                ..
+            }
+        ));
+        assert!(
+            matches!(parse(&["session", "network-request", "Session4", "2:42"]).unwrap(), CliCommand::NetworkRequest { id, request } if id == "Session4" && request == "2:42")
+        );
+        assert!(
+            matches!(parse(&["session", "network-capture", "Session4", "--enabled", "--status-code", "200", "--url-prefix", "https://example.com/"]).unwrap(), CliCommand::NetworkCapture { policy, .. } if policy["enabled"] == true && policy["status_codes"] == serde_json::json!([200]))
+        );
+        assert!(parse(&["session", "network-capture", "Session4"]).is_err());
+        assert!(parse(&[
+            "session",
+            "network-capture",
+            "Session4",
+            "--enabled",
+            "--disabled"
+        ])
+        .is_err());
+        assert!(parse(&[
+            "session",
+            "network-capture",
+            "Session4",
+            "--disabled",
+            "--enabled"
+        ])
+        .is_err());
     }
 
     fn parse_with_session_default(
@@ -2080,7 +2210,6 @@ mod tests {
         }
         let mut command = parse(&["--profile=RYM", url]).unwrap();
         apply_session_id_environment_default(&mut command, Some("Session42".into())).unwrap();
-        apply_latest_session_id(&mut command, ["Session43"]);
         let CliCommand::Capture(request) = command else {
             panic!("expected URL capture");
         };
@@ -2273,37 +2402,6 @@ mod tests {
     }
 
     #[test]
-    fn latest_session_defaults_commands_to_the_highest_assigned_id() {
-        let mut command = parse(&["navigate", "https://example.com"]).unwrap();
-        apply_latest_session_id(&mut command, ["Session2", "Session10", "Session9"]);
-        let CliCommand::Navigate(navigate) = command else {
-            panic!("expected navigate");
-        };
-        assert_eq!(navigate.session_id.as_deref(), Some("Session10"));
-
-        assert_eq!(latest_session_id(std::iter::empty::<&str>()), None);
-    }
-
-    #[test]
-    fn latest_session_default_does_not_override_explicit_or_creation_options() {
-        let mut explicit =
-            parse(&["capture", "https://example.com", "--session-id", "Session4"]).unwrap();
-        apply_latest_session_id(&mut explicit, ["Session5"]);
-        let CliCommand::Capture(explicit) = explicit else {
-            panic!("expected capture");
-        };
-        assert_eq!(explicit.session_id.as_deref(), Some("Session4"));
-
-        let mut profile =
-            parse(&["capture", "https://example.com", "--profile", "Research"]).unwrap();
-        apply_latest_session_id(&mut profile, ["Session5"]);
-        let CliCommand::Capture(profile) = profile else {
-            panic!("expected capture");
-        };
-        assert_eq!(profile.session_id, None);
-    }
-
-    #[test]
     fn explicit_session_id_wins_over_environment_default() {
         let CliCommand::Capture(request) = parse_with_session_default(
             &[
@@ -2396,36 +2494,36 @@ mod tests {
     }
 
     #[test]
-    fn session_group_labels_new_capture_and_page_sessions() {
+    fn project_scope_suppresses_implicit_session_defaults() {
         let CliCommand::Capture(capture) = parse_with_session_default(
-            &["capture", "https://example.com", "--group", "pgm"],
+            &["capture", "https://example.com", "--project-id", "pgm"],
             Some("machine-x.Environment"),
         )
         .unwrap() else {
             panic!("expected capture");
         };
         assert_eq!(capture.session_id, None);
-        assert_eq!(capture.group.as_deref(), Some("pgm"));
+        assert_eq!(capture.project_id.as_deref(), Some("pgm"));
 
         let CliCommand::PageAttach(page) = parse_with_session_default(
-            &["page", "attach", "https://example.com", "--group=pgm"],
+            &["page", "attach", "https://example.com", "--project-id=pgm"],
             Some("machine-x.Environment"),
         )
         .unwrap() else {
             panic!("expected page attach");
         };
         assert_eq!(page.session_id, None);
-        assert_eq!(page.group.as_deref(), Some("pgm"));
+        assert_eq!(page.project_id.as_deref(), Some("pgm"));
 
         assert!(parse(&[
             "capture",
             "https://example.com",
-            "--group",
+            "--project-id",
             "pgm",
             "--session-id",
             "machine-x.Session1",
         ])
-        .is_err());
+        .is_ok());
     }
 
     #[test]
@@ -2499,7 +2597,7 @@ mod tests {
             page_help(),
         ] {
             assert!(help.contains("REL_SESSION_ID"));
-            assert!(help.contains("newest"));
+            assert!(!help.contains("newest"));
         }
         for help in [root_help(), navigate_help(), page_help()] {
             assert!(help.contains("REL_SESSION_URL"));
@@ -2633,6 +2731,7 @@ mod tests {
             parse(&["capture", "--output", "page.html"]).unwrap(),
             CliCommand::CaptureCurrent(PageCaptureRequest {
                 session_id: None,
+                project_id: None,
                 output: Some("page.html".to_string()),
                 timeout: None,
                 wait: None,
@@ -2775,7 +2874,7 @@ mod tests {
     }
 
     #[test]
-    fn reset_requires_one_nonempty_profile_and_rejects_proxy_rotation() {
+    fn removed_reset_and_rotation_commands_are_rejected() {
         for args in [
             vec!["reset"],
             vec!["reset", "--profile="],
@@ -2785,10 +2884,7 @@ mod tests {
         ] {
             assert!(parse(&args).is_err(), "{args:?}");
         }
-        assert_eq!(
-            parse(&["reset", "--profile", "Research Team"]).unwrap(),
-            CliCommand::ResetProfile("Research Team".into())
-        );
+        assert!(parse(&["reset", "--profile", "Research"]).is_err());
     }
 
     #[test]
@@ -2804,10 +2900,7 @@ mod tests {
             parse(&["proxy", "delete", "work-proxy"]).unwrap(),
             CliCommand::ProxyDelete("work-proxy".to_string())
         );
-        assert_eq!(
-            parse(&["reset", "--profile=Research"]).unwrap(),
-            CliCommand::ResetProfile("Research".to_string())
-        );
+        assert!(parse(&["reset", "--profile", "Research"]).is_err());
         assert_eq!(
             parse(&[
                 "proxy",
@@ -2880,16 +2973,13 @@ mod tests {
             parse(&["session", "play", "machine-x.Session4"]).unwrap(),
             CliCommand::SessionPlay("machine-x.Session4".to_string())
         );
-        assert_eq!(
-            parse(&["session", "close", "--group", "pgm"]).unwrap(),
-            CliCommand::SessionCloseGroup("pgm".to_string())
-        );
+        assert!(parse(&["session", "close", "--project-id", "pgm"]).is_err());
         assert!(parse(&["session", "close"]).is_err());
         assert!(parse(&["tab", "list"]).is_err());
         let CliCommand::SessionCreate { request, .. } = parse(&[
             "session",
             "create",
-            "--group",
+            "--project-id",
             "pgm",
             "--adblock-enabled",
             "true",
@@ -2900,7 +2990,7 @@ mod tests {
             panic!("expected session create");
         };
         assert_eq!(request.adblock_enabled, Some(true));
-        assert_eq!(request.group.as_deref(), Some("pgm"));
+        assert_eq!(request.project_id.as_deref(), Some("pgm"));
         assert_eq!(request.image_blocking_mode, Some(ImageBlockingMode::None));
     }
 
@@ -3085,13 +3175,13 @@ mod tests {
     }
 
     #[test]
-    fn session_create_can_force_a_new_group() {
+    fn session_creation_supports_explicit_sharing() {
         let CliCommand::SessionCreate { request, .. } =
-            parse(&["session", "create", "--new-group"]).unwrap()
+            parse(&["session", "create", "--group-id", "new"]).unwrap()
         else {
             panic!("expected session create");
         };
-        assert_eq!(request.new_group, Some(true));
+        assert_eq!(request.group_id.as_deref(), Some("new"));
         assert!(parse(&["session", "create", "--new-group=false"]).is_err());
     }
 
@@ -3101,10 +3191,14 @@ mod tests {
             status: "ok".to_string(),
             request_id: "req_session".to_string(),
             data: client::SessionData {
-                reused_group: Some(false),
                 session: client::Session {
                     id: "machine-test.Session12".to_string(),
-                    group_id: "Group7".to_string(),
+                    group_id: Some("Group7".to_string()),
+                    project_id: "Research".into(),
+                    name: "Research1".into(),
+                    profile: "Default".into(),
+                    profile_id: Some("profile-default".into()),
+                    configuration: Default::default(),
                     created_at: 1,
                 },
             },

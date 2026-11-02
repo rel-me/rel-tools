@@ -5,15 +5,21 @@ It configures the MCP server bundled with the installed app and adds the
 `rel-browser` skill for interactive browser work plus the
 `crawl-websites-with-rel` skill for restartable, history-preserving crawls.
 
-Related documents: [MCP server](MCP.md) and [CLI](CLI.md).
+Related documents: [MCP server](MCP.md), [browser diagnostics](BROWSER_DIAGNOSTICS.md),
+[session scope](SESSIONS.md) and [CLI](CLI.md).
 
 For provider setup and per-Session assignment, see [Configure proxies](PROXIES.md).
 
 ## Requirements
 
 - macOS 15 or later;
-- REL installed on the Mac;
+- REL 0.1.156 or later installed on the Mac, with the Project/Session MCP adapter;
 - a Codex release with plugin marketplace support.
+
+The launcher requires adapter version 0.1.156 or later and the
+`rel-project-sessions-v1` API contract. An unsupported adapter stops with an
+update instruction before exposing tools. Operational calls reject older local
+runtimes as well. Restart the MCP connection after updating the plugin or app.
 
 REL.app must be installed so Codex can start its bundled
 `Contents/Resources/rel-mcp` adapter. The app does not need to be running for
@@ -44,8 +50,9 @@ The plugin contains:
 - the `rel-browser` skill for safe session selection and browser workflows;
 - the `crawl-websites-with-rel` skill for rendered-link discovery, readiness,
   checkpoints, capture metadata, bounded retries, and session recovery;
-- all fourteen MCP tools, including bounded semantic reading, opt-in untrusted website notifications,
-  observations, session-group closing, and inline or file-backed screenshots;
+- the app-bundled MCP tools, including bounded semantic reading, opt-in untrusted website notifications,
+  observations, session traces, non-blocking debug state, optional diagnostic
+  bundles, and inline or file-backed screenshots;
 - all eight canonical page actions: `click`, `wait-for`, `type`, `clear`,
   `press`, `select`, `wait`, and `click-link`.
 
@@ -61,10 +68,23 @@ Begin with a read-only check in a new task:
 Use the REL MCP server. Call rel_status, then rel_list_sessions. Do not navigate anywhere.
 ```
 
-Codex should discover fourteen `rel_*` tools without opening REL. If REL is already
+Codex should discover the `rel_*` tools supplied by the installed app without opening REL. If REL is already
 running, `rel_status` reports the app, local agent, Browser Proxy, and embedded
 Chromium bridge. Otherwise it returns the local connection error without
 launching the app; `rel_list_sessions` then starts REL lazily.
+
+## Diagnose navigation
+
+While a selected Session is waiting or after it fails, use `rel_debug_state`
+and `rel_session_trace` with its exact ID. Preserve the original error details
+and snapshot age before retrying or replacing the Session. Use `rel_debug_bundle`
+for a bounded shareable artifact; HTML and screenshots default to off.
+
+Select a Project with `rel_list_projects`, then inspect its Sessions with
+`rel_list_sessions({"project_id":"ProjectDefault"})`. To create independent
+browser state, use `rel_create_session` with `project_id` and optional `profile`;
+reuse the returned `session_id`. A Profile name never identifies a live login.
+Use `rel_close_session` for one exact Session when the workflow owns cleanup.
 
 ## Update
 
@@ -75,18 +95,15 @@ codex plugin marketplace upgrade rel
 codex plugin add rel@rel
 ```
 
-Version `0.4.2` replaces the old lettermark with REL's blue optical-lens logo
-in the marketplace and composer.
-
-Version `0.4.3` names the plugin MCP server `REL` so Codex preserves the brand's
-capitalization in its MCP servers list. The plugin identifier remains `rel@rel`,
-the adapter remains `rel-mcp`, and tool names remain `rel_*`.
-
-Version `0.4.4` instructs both bundled skills to use `REL` in user-facing text.
-The MCP adapter source also gives every tool an explicit `REL` title; those
-titles require a REL app release containing the updated adapter.
-
-Version `0.4.5` discovers REL outside `/Applications` and supports a
-`REL_APP_PATH` override.
-
 Start another new task after updating so it uses the refreshed plugin cache.
+
+The Codex and Claude Code packages share a plugin version, independent of the
+REL app version. Regular app promotion checks the plugin directory and both
+marketplace manifests. When their contents have changed since the last plugin
+version bump, promotion tests the launcher and publishes a synchronized patch
+bump on this repository's `main`. Unchanged plugin contents keep their version;
+app-bundled MCP updates alone do not require a plugin release. Staging and Beta
+releases do not update the shared marketplaces.
+
+Marketplace publication does not refresh an already installed plugin cache.
+Use the update commands above and restart or reload the client as directed.
