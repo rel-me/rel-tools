@@ -46,7 +46,7 @@ Profile edits affect future Sessions. Use **Reapply Profile Configuration**, or
 **Reapply Profile to Shared Sessions** for an explicit shared set, to update an
 existing Session. Reapply preserves Session IDs, navigation and browser data;
 it does not clear cookies or copy new startup cookies into the running Session.
-Closing the final Session removes its state owner and does not open a blank tab.
+Archiving the final active Session hides its state owner and does not open a blank tab.
 
 Proxy observations do not guarantee exit continuity. The current alias, observed
 exit identity and snapshot age are available through the supported
@@ -57,7 +57,7 @@ Select the intended Project before creating or operating on its resources.
 Project chat and Actions belong to that Project. API calls continue to require
 explicit Project/Session scope regardless of the selected native window or tab.
 Closing one member of a shared set leaves its siblings and their data intact;
-closing the final member removes the shared state owner. Quitting REL preserves
+archiving the final active member retains its browser data for restoration. Quitting REL preserves
 its supported persistent workspace state.
 
 ## Content archive
@@ -376,23 +376,35 @@ both. These simulated errors appear in the same notices and Recent Issues
 without changing sessions, files, or permissions.
 Use **Refresh Sessions** and **Save Current Workspace** to exercise recovery.
 
-## Keeping and deleting Sessions
+## Keeping, archiving and deleting Sessions
 
-Close the REL window or quit REL to keep Sessions and their saved logins for
-next time. Session deletion cannot be undone.
+Close the REL window or quit REL to keep active Sessions and saved logins for
+next time. The Session close buttons and **⌘W** archive the targeted Session.
+When a browser popup is open, **⌘W** closes only that popup.
+**Archive Shared Group…** in a group's context menu confirms before archiving
+all of its active Sessions. Archiving the last active member closes its browser
+context without opening a replacement tab.
 
-The close buttons and **⌘W** close a browser session immediately. If it is the
-last session in its group, REL also removes the group and its shared browser
-data. When a browser popup is open, **⌘W** closes only that popup.
+Open **Settings → Archived Sessions** to find archived Sessions by name or ID.
+Use **Restore** to reopen a Session with its original ID, Project, configuration,
+page state and browser data. Select multiple rows to restore or delete a batch;
+**Delete Selected…**, the Delete key and **Empty Archive…** offer permanent
+cleanup with confirmation. Deleted archives cannot be restored.
 
-**Delete Tab Group…** in a group's context menu shows a confirmation before
-removing the entire group and its shared browser data. **Cancel** keeps the
-group intact.
+Archived Sessions expire seven days after archiving. If retained archive data
+exceeds **1 GB (1,000,000,000 bytes)**, REL permanently deletes the oldest archives
+until it fits. Cleanup runs while REL is running and when opening or changing the
+archive. **Prune Now** enforces these limits immediately. A Session larger than
+the entire limit can be deleted immediately after archiving.
+Shared cookies and site data remain available while another Session uses them.
+Their size counts once when all sharing Sessions are archived; deleting one
+archived member preserves browser data still used by its siblings.
+Archived Sessions do not consume the open-session allowance. Restoring them
+requires available capacity under the current Session and plan limits.
 
-**Settings → General → Browser Data → Delete All Sessions…** also requires
-confirmation and warns that all Sessions and their browser data will be deleted.
-These confirmations apply to app controls; API and CLI deletion operations
-remain explicit destructive operations without an interactive confirmation.
+**Settings → General → Browser Data → Delete All Sessions…** permanently deletes
+active Sessions after confirmation. CLI, SDK, MCP and RPC Session deletion also
+remain explicit permanent operations. They do not move Sessions into the archive.
 
 ## Database migration and recovery
 
