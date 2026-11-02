@@ -187,8 +187,15 @@ width and last visible height.
 
 The group has one bottom panel shared by all of its sessions. Switching tabs
 preserves its visibility, expansion, selected tool, and log filters. Its tabs are
-**Overview**, **Site Data**, **Filters**, **Logs**, and **Terminal**. Actions are
+**Overview**, **Site Data**, **Proxy**, **Filters**, **Logs**, and **Terminal**. Actions are
 managed outside the bottom panel.
+
+The **Proxy** tab changes the Session’s saved proxy or selects **None** for a
+direct connection. New Sessions inherit their Profile’s proxy at creation.
+Explicitly grouped Sessions share route changes. A neutral adjustment icon
+beside a setting means it differs from the current source Profile; hover over
+the icon for **Differs from profile**. The same marker appears beside changed
+filter and saved Overview configuration values.
 
 The bottom panel floats over the page. Opening, resizing, and expanding it leave
 the page viewport unchanged. Changes in **Filters** apply immediately to all
