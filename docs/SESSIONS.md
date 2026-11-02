@@ -22,6 +22,13 @@ for explicitly shared state; an independent Session need not have one. Treat all
 IDs as opaque and use the complete Session ID for browser operations. A missing
 Session returns a structured error instead of selecting another tab.
 
+`PATCH /v1/sessions/{id}` accepts `proxy_alias` as a saved alias or `null`
+for a direct connection. This changes the targeted Session’s copied configuration
+without editing its source Profile. Explicitly grouped Sessions share the route;
+independent Sessions remain unchanged. Session IDs and browser data are preserved.
+A loaded browser uses REL’s pending-configuration Reload flow. See
+[assigning a proxy](PROXIES.md#assign-a-proxy-to-a-session) for the bottom-panel UI.
+
 Profile edits apply to future Sessions. Explicit configuration reapply uses
 `POST /v1/sessions/{id}/reapply` with an optional `profile_id` and
 `include_shared_sessions` when applying to an explicit shared set. It preserves

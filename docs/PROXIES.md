@@ -166,10 +166,18 @@ browser-session verification and are explicitly marked untested by this suite.
 
 ## Assign a proxy to a Session
 
-Open a browser Session and use the toolbar's **Proxy** menu to select the saved
-alias. Choose **None** for a direct connection. Repeat in another Session to
-assign a different proxy. Adding a proxy in Settings does not assign it to every
+Open a browser Session, open its bottom panel, and select the **Proxy** tab.
+Choose a saved proxy alias, or **None** for a direct connection. New Sessions
+copy their Profile’s proxy at creation; changing it in the bottom panel updates
+that Session without changing its Profile or other independent Sessions.
+Sessions in an explicit shared group share the updated route. **Add Proxy…**
+opens the proxy editor. Adding a proxy in Settings does not assign it to every
 Session.
+
+A neutral adjustment icon beside a value means **Differs from profile**. It
+appears beside changed proxy and filter settings, and saved configuration values
+in Overview. The marker compares the Session with its current source Profile;
+it disappears when the values match again.
 
 When REL shows **Browser configuration changed. Reload to apply.**, choose
 **Reload** when ready. Session cookies and storage are preserved. Existing
