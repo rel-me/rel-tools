@@ -235,10 +235,12 @@ action, or `make dev-open`. Closing its window leaves it running; quit from the
 app menu or press **⌘Q** when finished. If you started it with `make dev-open`,
 **Ctrl-C** in that terminal also requests a normal quit.
 
-Automated verification can opt into a 15-minute quit timer with
-`make REL_DEBUG_AUTO_QUIT=1 dev-open`. The flag applies only to that launched
-Debug process and is not saved in preferences or the app bundle. Later manual
-launches stay open. Release builds have no automatic quit timer.
+For automated verification, `make dev-agent-open` builds and opens a separate
+agent-owned Debug runtime, returns once ready, and automatically quits that app
+after 15 minutes. It sets `REL_DEBUG_AUTO_QUIT=1` only for the launched process;
+the flag is not saved in preferences or the app bundle. Manual `make dev-open`,
+Finder, Dock, and Run-action launches have no automatic quit timer. Release
+builds have no automatic quit timer.
 
 ### Building locally from source
 
