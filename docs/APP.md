@@ -220,6 +220,18 @@ the page viewport unchanged. Changes in **Filters** apply immediately to all
 sessions in the group without resetting them. They affect subsequent requests;
 already loaded page content stays in place.
 
+## Content archive failures
+
+REL archives eligible page responses in the background. Empty HTML responses are
+saved as empty, inert HTML documents. A capture that cannot be parsed or saved
+appears in **Recent Issues** with the underlying error message. Expand
+**Debugging Details** or use **Copy Details** for the error domain, code, and
+available failure reason and recovery suggestion. HTML parser diagnostics include
+numeric parser codes and input size without including response text.
+
+An HTML parsing error does not indicate that the disk is full. Check storage or
+folder permissions when the reported error identifies those causes.
+
 ## Quitting REL
 
 Closing the main window leaves REL running. Use **REL → Quit REL** or **⌘Q**
