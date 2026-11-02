@@ -33,8 +33,16 @@ Profile edits apply to future Sessions. Explicit configuration reapply uses
 `POST /v1/sessions/{id}/reapply` with an optional `profile_id` and
 `include_shared_sessions` when applying to an explicit shared set. It preserves
 Session IDs, navigation and browser data. It does not reset cookies or reseed
-Profile data. Closing the final Session removes its private state owner without
-creating a replacement blank tab.
+Profile data. Native close actions archive Sessions and hide an owner when its
+last active Session is archived. Restore the same Session IDs and retained browser
+data in **Settings → Archived Sessions**. Archives expire after seven days or
+sooner when retained data exceeds 1 GB; the oldest are deleted first. See
+[archiving and cleanup](APP.md#keeping-archiving-and-deleting-sessions).
+Archived IDs are absent from active Session listings and browser operations;
+restore them in Settings before using them again.
+`DELETE /v1/sessions/{id}` remains permanent and removes its private owner after
+the final registered Session is deleted, without creating a replacement tab.
+Deleting an active member preserves data still used by archived siblings.
 
 Browser fingerprint controls are scoped to that Session's state owner. Selecting
 the `graphics` override without `device_surfaces` preserves native device memory
