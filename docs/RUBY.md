@@ -89,6 +89,9 @@ session = client.create_session(
 session_id = session.data.fetch("session").fetch("id")
 
 client.navigate(url: "https://example.com", session_id: session_id)
+# Optional readiness wait shares the navigation timeout and session.
+client.navigate(url: "https://example.com", session_id: session_id,
+                wait_for: "#content", timeout: 60)
 client.perform(
   session_id: session_id,
   actions: [

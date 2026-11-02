@@ -75,6 +75,9 @@ jobs:
         shell: bash
         working-directory: ruby
     steps:
+      - name: Select Apple Git before checkout
+        working-directory: ${{ runner.temp }}
+        run: echo /usr/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -88,6 +91,7 @@ jobs:
           "$ruby_root/bin/ruby" -rsocket -ropenssl -e 'puts RUBY_VERSION'
           # RubyGems' mise plugin invokes mise by name after gem installation.
           echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+          echo "/usr/bin" >> "$GITHUB_PATH"
           echo "$ruby_root/bin" >> "$GITHUB_PATH"
           echo "BUNDLE_PATH=$RUNNER_TEMP/rel-tools-bundle" >> "$GITHUB_ENV"
       - run: bundle install
@@ -104,6 +108,9 @@ jobs:
         shell: bash
         working-directory: crawler
     steps:
+      - name: Select Apple Git before checkout
+        working-directory: ${{ runner.temp }}
+        run: echo /usr/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
@@ -129,6 +136,9 @@ jobs:
       matrix:
         python: ["3.11", "3.13"]
     steps:
+      - name: Select Apple Git before checkout
+        working-directory: ${{ runner.temp }}
+        run: echo /usr/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@v5
         with:
           persist-credentials: false

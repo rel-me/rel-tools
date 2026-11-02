@@ -284,6 +284,7 @@ impl RelClient {
             self.navigate_and_observe(&NavigateObservationRequest {
                 url: Some(url.to_string()),
                 session_id: request.session_id.clone(),
+                project_id: request.project_id.clone(),
                 profile: request.profile.clone(),
                 proxy: request.proxy.clone(),
                 mode: Some(ObservationMode::Semantic),
@@ -299,6 +300,7 @@ impl RelClient {
             }
             self.observe_current_page(&ObservationRequest {
                 session_id: request.session_id.clone(),
+                project_id: request.project_id.clone(),
                 mode: Some(ObservationMode::Semantic),
                 timeout: request.timeout,
                 wait: request.wait,
@@ -491,25 +493,6 @@ impl RelClient {
         )
     }
 
-    /// Reset all existing tab groups created from a profile and restore its initial data.
-    pub fn reset_profile(&self, profile: &str) -> Result<RpcResponse<ResetData>, ClientError> {
-        self.request_with_timeout(
-            "POST",
-            "/reset",
-            Some(&serde_json::json!({"profile":profile})),
-            Duration::from_secs(300),
-        )
-    }
-
-    pub fn reset_session(&self, id: &str) -> Result<RpcResponse<ResetData>, ClientError> {
-        self.request_with_timeout::<ResetData, Value>(
-            "POST",
-            &format!("/sessions/{}/reset", encode_path_segment(id)),
-            None,
-            Duration::from_secs(90),
-        )
-    }
-
     pub fn export_proxy_transfer(
         &self,
         request: &ProxyTransferExportRequest,
@@ -526,6 +509,95 @@ impl RelClient {
 
     pub fn list_sessions(&self) -> Result<RpcResponse<SessionListData>, ClientError> {
         self.request::<SessionListData, Value>("GET", "/sessions", None)
+    }
+
+    pub fn list_projects(&self) -> Result<RpcResponse<Value>, ClientError> {
+        self.request::<Value, Value>("GET", "/projects", None)
+    }
+
+    pub fn list_sessions_in_project(
+        &self,
+        project_id: Option<&str>,
+    ) -> Result<RpcResponse<SessionListData>, ClientError> {
+        let path = match project_id {
+            Some(id) => format!("/sessions?project_id={}", encode_path_segment(id)),
+            None => "/sessions".into(),
+        };
+        self.request::<SessionListData, Value>("GET", &path, None)
+    }
+
+    /// Read bounded diagnostics without joining the session's browser queue.
+    pub fn session_trace(
+        &self,
+        id: &str,
+        after: Option<&str>,
+        limit: usize,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        let mut query = format!("limit={limit}");
+        if let Some(after) = after {
+            query.push_str(&format!("&after={}", encode_path_segment(after)));
+        }
+        self.request::<Value, Value>(
+            "GET",
+            &format!("/sessions/{}/trace?{}", encode_path_segment(id), query),
+            None,
+        )
+    }
+
+    pub fn debug_state(&self, id: &str) -> Result<RpcResponse<Value>, ClientError> {
+        self.request::<Value, Value>(
+            "GET",
+            &format!("/sessions/{}/debug-state", encode_path_segment(id)),
+            None,
+        )
+    }
+
+    /// Inspect retained network evidence without navigating or waiting for browser work.
+    pub fn network_request(
+        &self,
+        id: &str,
+        request: &str,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        self.request::<Value, Value>(
+            "GET",
+            &format!(
+                "/sessions/{}/network-requests/{}",
+                encode_path_segment(id),
+                encode_path_segment(request)
+            ),
+            None,
+        )
+    }
+
+    /// Enable bounded capture before reproduction. Bodies are off by default.
+    pub fn network_capture_configure(
+        &self,
+        id: &str,
+        policy: &Value,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        self.request(
+            "PUT",
+            &format!("/sessions/{}/network-capture", encode_path_segment(id)),
+            Some(policy),
+        )
+    }
+
+    pub fn debug_bundle(
+        &self,
+        id: &str,
+        since_request_id: Option<&str>,
+        include_html: bool,
+        include_screenshot: bool,
+    ) -> Result<RpcResponse<Value>, ClientError> {
+        let mut body = serde_json::json!({"include_html":include_html,"include_screenshot":include_screenshot});
+        if let Some(since) = since_request_id {
+            body["since_request_id"] = serde_json::json!(since);
+        }
+        self.request(
+            "POST",
+            &format!("/sessions/{}/debug-bundle", encode_path_segment(id)),
+            Some(&body),
+        )
     }
 
     pub fn get_session(&self, id: &str) -> Result<RpcResponse<SessionData>, ClientError> {
@@ -638,17 +710,6 @@ impl RelClient {
             "DELETE",
             &format!("/sessions/{}", encode_path_segment(id)),
             None,
-        )
-    }
-
-    pub fn close_session_group(
-        &self,
-        group: &str,
-    ) -> Result<RpcResponse<ClosedSessionGroupData>, ClientError> {
-        self.request(
-            "POST",
-            "/sessions/close",
-            Some(&SessionGroupCloseRequest { group }),
         )
     }
 
@@ -1034,9 +1095,9 @@ pub struct CaptureRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile: Option<String>,
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1060,6 +1121,8 @@ pub struct NavigateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
@@ -1069,6 +1132,9 @@ pub struct NavigateRequest {
     pub timeout: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait: Option<f64>,
+    /// Readiness selector awaited within the navigation timeout on the same page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait_for: Option<String>,
 }
 
 impl NavigateRequest {
@@ -1154,9 +1220,9 @@ pub struct PageAttachRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile: Option<String>,
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
+    pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1204,6 +1270,8 @@ pub struct PerformRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<f64>,
@@ -1216,6 +1284,7 @@ impl PerformRequest {
         Self {
             actions,
             session_id: None,
+            project_id: None,
             output: None,
             timeout: None,
             wait: None,
@@ -1228,6 +1297,8 @@ pub struct PageCaptureRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<f64>,
@@ -1239,8 +1310,6 @@ pub struct PageCaptureRequest {
 pub struct PageOperationData {
     pub page: Page,
     pub capture: PageCapture,
-    #[serde(default)]
-    pub closed_session_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -1270,6 +1339,8 @@ pub enum ScreenshotFormat {
 pub struct ScreenshotRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1334,6 +1405,8 @@ pub struct ObservationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<ObservationMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<f64>,
@@ -1349,6 +1422,8 @@ pub struct NavigateObservationRequest {
     pub navigation: Option<ObservationNavigation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1378,6 +1453,8 @@ pub struct PageReadRequest {
     pub url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3163,13 +3240,13 @@ pub enum SessionLifetime {
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct SessionCreateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub new_group: Option<bool>,
+    pub project_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lifetime: Option<SessionLifetime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Change::is_unchanged")]
@@ -3216,7 +3293,7 @@ pub enum ViewportPreset {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HttpRuleAction {
-    Reset,
+    Notification,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3348,15 +3425,6 @@ pub struct SessionListData {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionData {
     pub session: Session,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reused_group: Option<bool>,
-    #[serde(default)]
-    pub closed_session_ids: Vec<String>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ResetData {
-    pub reset_session_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3447,38 +3515,21 @@ fn is_false(value: &bool) -> bool {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Session {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lifetime: Option<SessionLifetime>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub last_activity_at: Option<i64>,
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
+    pub project_id: String,
     pub name: String,
     pub profile: String,
-    pub profile_data_id: Option<String>,
-    pub group: Option<String>,
-    pub proxy_alias: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub proxy_locale: Option<String>,
-    pub adblock_enabled: bool,
-    pub image_blocking_mode: ImageBlockingMode,
-    pub image_size_limit_kb: i64,
+    pub profile_id: Option<String>,
     pub created_at: i64,
+    #[serde(flatten)]
+    pub configuration: serde_json::Map<String, Value>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DeletedData {
     pub deleted_id: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct ClosedSessionGroupData {
-    pub group: String,
-    pub deleted_ids: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct SessionGroupCloseRequest<'a> {
-    group: &'a str,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -3588,6 +3639,80 @@ mod tests {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::{TcpListener, TcpStream};
     use std::thread::{self, JoinHandle};
+
+    #[test]
+    fn diagnostics_use_scoped_routes_and_preserve_additive_fields() {
+        let (base, server) = start_test_server(5, |_, _| {
+            http_json(
+                200,
+                "req_test",
+                json!({"status":"ok","request_id":"req_test","data":{"future_field":true,"page":{"target_http_status":503}}}),
+            )
+        });
+        let client = RelClient::new(base);
+        assert_eq!(
+            client
+                .session_trace("Session1", Some("event_42"), 7)
+                .unwrap()
+                .data["future_field"],
+            true
+        );
+        assert_eq!(
+            client.debug_state("Session1").unwrap().data["page"]["target_http_status"],
+            503
+        );
+        client
+            .debug_bundle("Session1", Some("req_previous"), false, true)
+            .unwrap();
+        client
+            .network_request("Session1", "2:18446744073709551584")
+            .unwrap();
+        client
+            .network_capture_configure(
+                "Session1",
+                &json!({"enabled":true,"status_codes":[200,503]}),
+            )
+            .unwrap();
+        let requests = server.join().unwrap();
+        assert_eq!(
+            requests[0].path,
+            "/v1/sessions/Session1/trace?limit=7&after=event_42"
+        );
+        assert_eq!(requests[1].method, "GET");
+        assert_eq!(requests[1].path, "/v1/sessions/Session1/debug-state");
+        assert_eq!(requests[2].method, "POST");
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[2].body).unwrap(),
+            json!({"since_request_id":"req_previous","include_html":false,"include_screenshot":true})
+        );
+        assert_eq!(
+            requests[3].path,
+            "/v1/sessions/Session1/network-requests/2%3A18446744073709551584"
+        );
+        assert_eq!(requests[4].method, "PUT");
+        assert_eq!(requests[4].path, "/v1/sessions/Session1/network-capture");
+        assert_eq!(
+            serde_json::from_str::<Value>(&requests[4].body).unwrap(),
+            json!({"enabled":true,"status_codes":[200,503]})
+        );
+    }
+
+    #[test]
+    fn navigate_serializes_optional_readiness_selector() {
+        let mut request = NavigateRequest::new("https://example.com");
+        assert_eq!(
+            serde_json::to_value(&request).unwrap(),
+            json!({"url":"https://example.com"})
+        );
+        request.wait_for = Some("#content".into());
+        request.timeout = Some(60.0);
+        assert_eq!(
+            serde_json::to_value(&request).unwrap(),
+            json!({
+                "url":"https://example.com", "wait_for":"#content", "timeout":60.0
+            })
+        );
+    }
 
     #[test]
     fn rpc_error_codes_use_a_distinct_high_numeric_namespace() {
@@ -3794,16 +3919,11 @@ mod tests {
     }
 
     fn session_json() -> Value {
+        // Actual tab-session resource: settings and names belong to the group.
         json!({
             "id": "machine-a.Session1",
-            "name": "Session1",
-            "profile": "Default",
-            "profile_data_id": null,
-            "group": "pgm",
-            "proxy_alias": null,
-            "adblock_enabled": true,
-            "image_blocking_mode": "over_limit",
-            "image_size_limit_kb": 100,
+            "group_id": "Group1",
+            "project_id":"Research", "name":"Research1", "profile":"Default", "profile_id":"profile-default",
             "created_at": 1
         })
     }
@@ -4963,11 +5083,11 @@ mod tests {
     fn session_create_serializes_explicit_group_creation() {
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
-                new_group: Some(true),
+                group_id: Some("new".into()),
                 ..Default::default()
             })
             .unwrap(),
-            json!({"new_group":true})
+            json!({"group_id":"new"})
         );
     }
 
@@ -4979,20 +5099,20 @@ mod tests {
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
-                group: Some("pgm".to_string()),
+                project_id: Some("Research".to_string()),
                 profile: Some("BandwidthSaver".to_string()),
                 proxy_alias: Change::Clear,
                 ..SessionCreateRequest::default()
             })
             .unwrap(),
-            json!({"group":"pgm", "profile":"BandwidthSaver", "proxy_alias":null})
+            json!({"project_id":"Research", "profile":"BandwidthSaver", "proxy_alias":null})
         );
         let mut capture = CaptureRequest::new("https://example.com");
-        capture.group = Some("pgm".to_string());
+        capture.project_id = Some("Research".to_string());
         capture.profile = Some("AdBlock".to_string());
         assert_eq!(
             serde_json::to_value(capture).unwrap(),
-            json!({"url":"https://example.com", "profile":"AdBlock", "group":"pgm"})
+            json!({"url":"https://example.com", "profile":"AdBlock", "project_id":"Research"})
         );
         assert_eq!(
             serde_json::to_value(SessionCreateRequest {
@@ -5239,7 +5359,9 @@ mod tests {
                 ("GET", "/v1/proxies/office")
                 | ("POST", "/v1/proxies")
                 | ("PATCH", "/v1/proxies/office") => json!({"proxy":proxy_json()}),
-                ("POST", "/v1/reset") => json!({"reset_session_ids":[]}),
+                ("GET", "/v1/projects") => {
+                    json!({"projects":[{"id":"Research","name":"Research","model":null,"session_ids":["Session1"]}]})
+                }
                 ("DELETE", "/v1/proxies/office") => {
                     json!({"deleted_alias":"office"})
                 }
@@ -5255,9 +5377,6 @@ mod tests {
                 }
                 ("POST", "/v1/sessions/machine-a.Session1/play") => {
                     json!({"session_id":"machine-a.Session1", "network_paused":false})
-                }
-                ("POST", "/v1/sessions/close") => {
-                    json!({"group":"pgm", "deleted_ids":["machine-a.Session1"]})
                 }
                 ("GET", "/v1/sessions") => json!({"sessions":[session_json()]}),
                 ("GET", "/v1/sessions/machine-a.Session1")
@@ -5349,6 +5468,7 @@ mod tests {
         client
             .observe_current_page(&ObservationRequest {
                 session_id: Some("machine-a.Session1".to_string()),
+                project_id: None,
                 mode: Some(ObservationMode::Semantic),
                 timeout: None,
                 wait: None,
@@ -5396,7 +5516,7 @@ mod tests {
             )
             .unwrap();
         client.delete_proxy("office").unwrap();
-        client.reset_profile("Research").unwrap();
+        client.list_projects().unwrap();
         client
             .export_proxy_transfer(&ProxyTransferExportRequest {
                 alias: "office".to_string(),
@@ -5413,7 +5533,10 @@ mod tests {
             .unwrap();
         let sessions = client.list_sessions().unwrap();
         assert_eq!(sessions.data.sessions[0].id, "machine-a.Session1");
-        assert_eq!(sessions.data.sessions[0].group.as_deref(), Some("pgm"));
+        assert_eq!(
+            sessions.data.sessions[0].group_id.as_deref(),
+            Some("Group1")
+        );
         client.get_session("machine-a.Session1").unwrap();
         client
             .create_session(&SessionCreateRequest::default())
@@ -5482,8 +5605,8 @@ mod tests {
         assert!(!playing.data.network_paused);
         let deleted = client.delete_session("machine-a.Session1").unwrap();
         assert_eq!(deleted.data.deleted_id, "machine-a.Session1");
-        let closed = client.close_session_group("pgm").unwrap();
-        assert_eq!(closed.data.deleted_ids, ["machine-a.Session1"]);
+        let closed = client.delete_session("machine-a.Session1").unwrap();
+        assert_eq!(closed.data.deleted_id, "machine-a.Session1");
         let models = client.model_providers().unwrap();
         assert_eq!(
             models.data.model_directories["local-model"],
@@ -5530,7 +5653,7 @@ mod tests {
                 ("POST", "/v1/proxies"),
                 ("PATCH", "/v1/proxies/office"),
                 ("DELETE", "/v1/proxies/office"),
-                ("POST", "/v1/reset"),
+                ("GET", "/v1/projects"),
                 ("POST", "/v1/proxy-transfers/export"),
                 ("POST", "/v1/proxy-transfers/import"),
                 ("GET", "/v1/sessions"),
@@ -5547,14 +5670,11 @@ mod tests {
                 ("POST", "/v1/sessions/machine-a.Session1/pause"),
                 ("POST", "/v1/sessions/machine-a.Session1/play"),
                 ("DELETE", "/v1/sessions/machine-a.Session1"),
-                ("POST", "/v1/sessions/close"),
+                ("DELETE", "/v1/sessions/machine-a.Session1"),
                 ("GET", "/v1/model-providers"),
             ]
         );
-        assert_eq!(
-            serde_json::from_str::<Value>(&requests[37].body).unwrap(),
-            json!({"group":"pgm"})
-        );
+        assert!(requests[37].body.is_empty());
         assert_eq!(
             serde_json::from_str::<Value>(&requests[3].body).unwrap(),
             json!({"url":"example.com"})

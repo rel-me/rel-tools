@@ -151,6 +151,7 @@ class RelClient:
         output: Path,
         timeout: float,
         wait: float,
+        wait_for: str | None = None,
     ) -> PageOperation:
         data = self._request(
             "POST",
@@ -161,6 +162,7 @@ class RelClient:
                 "output": str(output),
                 "timeout": timeout,
                 "wait": wait,
+                **({"wait_for": wait_for} if wait_for is not None else {}),
             },
             timeout=_browser_timeout(timeout, wait),
         )

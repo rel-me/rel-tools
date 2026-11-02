@@ -36,6 +36,9 @@ which is needed on modern Xcode. Setup verifies socket and OpenSSL extensions
 before testing. Ruby setup also adds `/opt/homebrew/bin` to `GITHUB_PATH` because
 the mise RubyGems plugin invokes `mise` by name after installing gems. The service
 starts with only system directories on PATH, unlike an interactive SSH shell.
+Ruby and Python jobs put `/usr/bin` first before checkout and keep Apple Git
+ahead of Homebrew Git during setup. Homebrew Git's gettext library may be
+unreadable by the runner account; selecting Apple Git avoids that dependency.
 The Node setup action installs Node
 24 into the runner's tool cache. Rust setup uses runner-local Cargo and rustup
 homes under `$RUNNER_TOOL_CACHE`; it does not change the host's Rust default or

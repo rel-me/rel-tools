@@ -29,6 +29,7 @@ class CrawlerClient(Protocol):
         output: Path,
         timeout: float,
         wait: float,
+        wait_for: str | None = None,
     ) -> PageOperation: ...
 
     def perform(

@@ -119,7 +119,8 @@ class RelRpcClient:
         )
 
     def navigate(
-        self, *, url: str, session_id: str, timeout: float, wait: float
+        self, *, url: str, session_id: str, timeout: float, wait: float,
+        wait_for: str | None = None,
     ) -> PageResult:
         output = self._temporary_output("html")
         return _page_result(
@@ -132,6 +133,7 @@ class RelRpcClient:
                     "output": str(output),
                     "timeout": timeout,
                     "wait": wait,
+                    **({"wait_for": wait_for} if wait_for is not None else {}),
                 },
                 timeout=_browser_timeout(timeout, wait),
             )

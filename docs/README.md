@@ -10,6 +10,8 @@ and [docs.rel.me](https://docs.rel.me):
 - `CODEX_PLUGIN.md` → `/codex-plugin/`
 - `CLAUDE_CODE_PLUGIN.md` → `/claude-code-plugin/`
 - `MCP.md` → `/mcp/`
+- `BROWSER_DIAGNOSTICS.md` → `/browser-diagnostics/`
+- `SESSIONS.md` → `/sessions/`
 - `RPC.md` → `/rpc/`
 - `SDK.md` → `/sdk/`
 - `RUBY.md` → `/ruby/`
