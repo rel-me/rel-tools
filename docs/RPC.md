@@ -1130,6 +1130,18 @@ and identifies only an explicit shared set. Use the Session ID for browser work;
 there are no public group resources. Deleting the final Session does not create
 another tab.
 
+### Media filtering
+
+The historical `image_blocking_mode` and `image_size_limit_kb` fields control
+images, audio, and video. Mode `none` allows all media, `all` blocks recognized
+media, and `over_limit` blocks responses above the configured decimal kB size.
+AdBlock remains independent, and existing modes and thresholds are preserved.
+Media is recognized by Chromium resource type or response MIME type, including
+HLS/DASH responses fetched by page scripts. Byte-range responses use the complete
+size from Content-Range when available. Streams stop when received bytes exceed
+the limit. The limit applies per response, not to the combined size or duration
+of a segmented stream. Size is 1 through 1,048,576 kB; `block_images` is rejected.
+
 ### Browser diagnostics
 
 `GET /v1/sessions/{id}/debug-state` and `/trace?after={cursor}&limit=200` bypass

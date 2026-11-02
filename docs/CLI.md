@@ -667,6 +667,12 @@ rel session play Session12
 rel session delete Session12
 ```
 
+The historical `--image-blocking-mode` and `--image-size-limit-kb` flags apply to
+images, audio, and video. Mode `none` allows all media, `all` blocks recognized
+media, and `over_limit` blocks responses above the decimal kB threshold without
+changing AdBlock. Page-script media requests use the same limit. See
+[media filtering](RPC.md#media-filtering) for streaming and byte-range behavior.
+
 Sessions include Project ownership and copied configuration metadata. An
 independent Session can omit `group_id`. Create it with
 `rel session create --project-id ProjectDefault --profile Reddit --id-only`.
