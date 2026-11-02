@@ -193,15 +193,27 @@ width and last visible height.
 
 The group has one bottom panel shared by all of its sessions. Switching tabs
 preserves its visibility, expansion, selected tool, and log filters. Its tabs are
-**Overview**, **Site Data**, **Proxy**, **Filters**, **Logs**, and **Terminal**. Actions are
+**Overview**, **Proxy**, **Browser Identity**, **Filters**, **Site Data**, **Logs**, and **Terminal**. Actions are
 managed outside the bottom panel.
 
-The **Proxy** tab changes the Session’s saved proxy or selects **None** for a
-direct connection. New Sessions inherit their Profile’s proxy at creation.
-Explicitly grouped Sessions share route changes. A neutral adjustment icon
-beside a setting means it differs from the current source Profile; hover over
-the icon for **Differs from profile**. The same marker appears beside changed
-filter and saved Overview configuration values.
+The **Proxy** tab has a proxy dropdown and **Add Proxy…**. Choose a saved proxy
+or **None** for a direct connection. New Sessions inherit their Profile’s proxy
+at creation. Explicitly grouped Sessions share route changes.
+
+The **Browser Identity** tab has an identity dropdown, **Add Browser Identity…**,
+and the identity details previously shown in Overview, including User-Agent,
+client hints, and fingerprint details. Select a built-in or saved named identity.
+**Add Browser Identity…** opens the custom editor with a name field and saves an
+identity that any Session can select. Each Session copies the configuration and
+keeps independent browser data and its own seed. Saved identities are also listed
+in **Settings → Browser Identities**; deleting a template leaves existing Session
+configurations intact. Identity changes must match the currently loaded engine; an incompatible Native or Private-derived choice reports the build/restart requirement without changing the Session. See [Engine builds and restart requirements](#engine-builds-and-restart-requirements).
+
+An undo arrow beside a changed value resets that setting to the current source
+Profile default. It asks for confirmation before applying the reset and explains
+when an explicit shared group is affected. Linked identity settings reset together
+where needed to keep the browser configuration coherent. Cancelling preserves the
+value. The arrow disappears when the setting matches its Profile again.
 
 The bottom panel floats over the page. Opening, resizing, and expanding it leave
 the page viewport unchanged. Changes in **Filters** apply immediately to all
@@ -507,6 +519,8 @@ template. Saving edits updates the template for future Sessions. Explicitly
 reapply configuration to existing Sessions when needed; reapply preserves their
 IDs, navigation and browser data. Profile edits do not reseed running Sessions.
 
+In **Edit Profile**, **Save** updates the template for future Sessions. **Save & Apply** also reapplies the configuration to every existing Session using that Profile, including shared Sessions. Session IDs, navigation, and browser data are preserved. Saved Profile cookies replace matching cookies; other cookies remain, and pages reload after cookies are applied. Hover over the help icon beside **Save & Apply** for this explanation. Starting URL and Session Viewport apply only to new Sessions.
+
 In the profile editor, **Session Viewport** selects the initial viewport for a new
 Session: **App Default**, **Fit Window**, **Desktop 1440w**, **Wide Laptop 1280w**,
 **Laptop 1024w**, **Tablet 768w**, or **Mobile 320w**. Fixed widths follow the
@@ -704,7 +718,7 @@ Site permissions remain real stored grants, rather than emulated fingerprint
 values. Routing, content filters and other existing Profile settings still apply
 and should be recorded when comparing identities.
 
-Within a compatible engine, use a Session's tab menu to change its identity;
+Within a compatible engine, use the bottom panel’s **Browser Identity** dropdown to change a Session’s identity;
 saving recreates that Session's browser context and returns it to the same page.
 An identity change does not replace the already loaded engine. Native, Private
 and Chrome all have different evaluation expectations; branding and privacy
@@ -1706,18 +1720,20 @@ RPC `payload` option. See Meta's
 
 ## Browser configuration changes
 
-A tab group's proxy assignment and browser identity are fixed at creation.
-Every tab in that group shares them. In the sidebar, each group header shows its
-tab count and a **Group Info** button. Its popover displays the proxy, Browser
-Identity, and shared cookies/login behavior, with a **New Tab** action for that
-group. **Group Info** is also available in the group's context menu. Proxy and
-identity displays are absent from the page toolbar. Overview's User-Agent is
-read-only and retains its copy action. Existing saved overrides still restore.
-To use a different proxy or
-identity, create a new Custom group with the desired settings.
+A Session copies its Profile’s proxy and browser identity at creation. Change
+them later in the bottom panel’s **Proxy** and **Browser Identity** tabs. These
+edits preserve Session IDs, navigation, cookies, logins, and site data. An explicit
+shared group uses one configuration for all its members. Configuration updates
+preserve the selected Project and Session.
 
-Editing a saved Profile changes the template for future groups. It does not
-replace an existing group's identity or proxy assignment.
+Loaded pages show **Browser configuration changed. Reload to apply.** Choose
+**Reload** when ready to apply the new browser configuration. Identity diagnostics
+and the copyable User-Agent are in **Browser Identity**. Its confirmed reset
+controls can restore Profile values and clear a saved Session User-Agent override.
+
+Editing a saved Profile changes the template for future Sessions. Use explicit
+Profile configuration reapply to copy all its settings to an existing Session,
+or the undo control to reset one setting after confirmation.
 
 A saved proxy cannot be edited or deleted while a group uses it. Create a new
 proxy for different routing, credentials, provider targeting, or certificate
