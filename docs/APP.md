@@ -644,6 +644,11 @@ upstream CEF engine. Unsupported combinations fail explicitly before browser
 creation; disabling all Custom controls does not turn the patched engine into an
 unpatched baseline.
 
+Upstream Native preserves the current page, cookies and browser storage, but does
+not restore the saved Back/Forward stack across app restarts. That restoration
+requires REL’s navigation-history source patch. A startup blank entry is not the
+previous saved page. Private, Chrome and Custom retain the patched restoration.
+
 For development, select the engine through the supported app build entry point:
 
 ```sh
@@ -863,7 +868,7 @@ Back and Forward also work with history entries created within the same page.
 Submitting an address that only changes its `#fragment` also keeps the current
 document available without waiting for a full page reload.
 
-Each Session also preserves its root-page HTTP(S) Back/Forward history and
+On the Private engine, each Session also preserves its root-page HTTP(S) Back/Forward history and
 current position across restarts. Opening the saved page restores that history
 without loading its earlier or later pages. Visiting a new page after going Back
 discards the forward branch. Clearing the Session’s browsing data removes its
