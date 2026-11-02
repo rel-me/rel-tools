@@ -251,10 +251,11 @@ Sessions in an explicit shared group share the updated route. **Add Proxy…**
 opens the proxy editor. Adding a proxy in Settings does not assign it to every
 Session.
 
-A neutral adjustment icon beside a value means **Differs from profile**. It
-appears beside changed proxy and filter settings, and saved configuration values
-in Overview. The marker compares the Session with its current source Profile;
-it disappears when the values match again.
+An undo arrow beside the selected proxy means it differs from the Session’s
+current source Profile. Press it to offer a reset to the Profile default;
+confirm to apply it, or cancel to keep the existing route. Filter and Browser
+Identity values use the same confirmed reset control. A reset for an explicit
+shared group affects all its Sessions.
 
 When REL shows **Browser configuration changed. Reload to apply.**, choose
 **Reload** when ready. Session cookies and storage are preserved. Existing

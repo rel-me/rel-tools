@@ -193,15 +193,27 @@ width and last visible height.
 
 The group has one bottom panel shared by all of its sessions. Switching tabs
 preserves its visibility, expansion, selected tool, and log filters. Its tabs are
-**Overview**, **Site Data**, **Proxy**, **Filters**, **Logs**, and **Terminal**. Actions are
+**Overview**, **Proxy**, **Browser Identity**, **Filters**, **Site Data**, **Logs**, and **Terminal**. Actions are
 managed outside the bottom panel.
 
-The **Proxy** tab changes the Session’s saved proxy or selects **None** for a
-direct connection. New Sessions inherit their Profile’s proxy at creation.
-Explicitly grouped Sessions share route changes. A neutral adjustment icon
-beside a setting means it differs from the current source Profile; hover over
-the icon for **Differs from profile**. The same marker appears beside changed
-filter and saved Overview configuration values.
+The **Proxy** tab has a proxy dropdown and **Add Proxy…**. Choose a saved proxy
+or **None** for a direct connection. New Sessions inherit their Profile’s proxy
+at creation. Explicitly grouped Sessions share route changes.
+
+The **Browser Identity** tab has an identity dropdown, **Add Browser Identity…**,
+and the identity details previously shown in Overview, including User-Agent,
+client hints, and fingerprint details. Select a built-in or saved named identity.
+**Add Browser Identity…** opens the custom editor with a name field and saves an
+identity that any Session can select. Each Session copies the configuration and
+keeps independent browser data and its own seed. Saved identities are also listed
+in **Settings → Browser Identities**; deleting a template leaves existing Session
+configurations intact.
+
+An undo arrow beside a changed value resets that setting to the current source
+Profile default. It asks for confirmation before applying the reset and explains
+when an explicit shared group is affected. Linked identity settings reset together
+where needed to keep the browser configuration coherent. Cancelling preserves the
+value. The arrow disappears when the setting matches its Profile again.
 
 The bottom panel floats over the page. Opening, resizing, and expanding it leave
 the page viewport unchanged. Changes in **Filters** apply immediately to all
@@ -1706,18 +1718,20 @@ RPC `payload` option. See Meta's
 
 ## Browser configuration changes
 
-A tab group's proxy assignment and browser identity are fixed at creation.
-Every tab in that group shares them. In the sidebar, each group header shows its
-tab count and a **Group Info** button. Its popover displays the proxy, Browser
-Identity, and shared cookies/login behavior, with a **New Tab** action for that
-group. **Group Info** is also available in the group's context menu. Proxy and
-identity displays are absent from the page toolbar. Overview's User-Agent is
-read-only and retains its copy action. Existing saved overrides still restore.
-To use a different proxy or
-identity, create a new Custom group with the desired settings.
+A Session copies its Profile’s proxy and browser identity at creation. Change
+them later in the bottom panel’s **Proxy** and **Browser Identity** tabs. These
+edits preserve Session IDs, navigation, cookies, logins, and site data. An explicit
+shared group uses one configuration for all its members. Configuration updates
+preserve the selected Project and Session.
 
-Editing a saved Profile changes the template for future groups. It does not
-replace an existing group's identity or proxy assignment.
+Loaded pages show **Browser configuration changed. Reload to apply.** Choose
+**Reload** when ready to apply the new browser configuration. Identity diagnostics
+and the copyable User-Agent are in **Browser Identity**. Its confirmed reset
+controls can restore Profile values and clear a saved Session User-Agent override.
+
+Editing a saved Profile changes the template for future Sessions. Use explicit
+Profile configuration reapply to copy all its settings to an existing Session,
+or the undo control to reset one setting after confirmation.
 
 A saved proxy cannot be edited or deleted while a group uses it. Create a new
 proxy for different routing, credentials, provider targeting, or certificate
