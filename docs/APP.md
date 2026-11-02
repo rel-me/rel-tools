@@ -207,7 +207,7 @@ client hints, and fingerprint details. Select a built-in or saved named identity
 identity that any Session can select. Each Session copies the configuration and
 keeps independent browser data and its own seed. Saved identities are also listed
 in **Settings → Browser Identities**; deleting a template leaves existing Session
-configurations intact.
+configurations intact. Identity changes must match the currently loaded engine; an incompatible Native or Private-derived choice reports the build/restart requirement without changing the Session. See [Engine builds and restart requirements](#engine-builds-and-restart-requirements).
 
 An undo arrow beside a changed value resets that setting to the current source
 Profile default. It asks for confirmation before applying the reset and explains
@@ -718,7 +718,7 @@ Site permissions remain real stored grants, rather than emulated fingerprint
 values. Routing, content filters and other existing Profile settings still apply
 and should be recorded when comparing identities.
 
-Within a compatible engine, use a Session's tab menu to change its identity;
+Within a compatible engine, use the bottom panel’s **Browser Identity** dropdown to change a Session’s identity;
 saving recreates that Session's browser context and returns it to the same page.
 An identity change does not replace the already loaded engine. Native, Private
 and Chrome all have different evaluation expectations; branding and privacy
