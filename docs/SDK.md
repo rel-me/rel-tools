@@ -529,9 +529,11 @@ flags after REL.app stages an import; no cookie or password values cross RPC.
 Re-importing a selected category replaces that category in the template.
 There are no built-in profiles. `ImageBlockingMode::None` allows every
 image without disabling AdBlock. Existing sessions retain copied settings and
-data after their source profile is changed or deleted. REL Free can create up to
-two tab groups with two Sessions each (four Sessions total) and one custom Profile; REL Pro removes those plan limits. A third group
-or a third Session within a group is rejected. Close resources to free capacity.
+data after their source profile is changed or deleted. REL Free has no plan limit on browser
+Sessions, including explicitly shared Sessions. Maximum Sessions in General
+settings applies to both Free and Pro, with a supported ceiling of 32 open
+Sessions. Free includes one custom Profile; additional saved Profiles require
+Pro. See [Free and Pro](APP.md#free-and-pro).
 
 `ProfileCreateRequest::fingerprint_profile` uses `Change::Unchanged` to select
 the default compatibility template, `Change::Clear` for native Chromium, and
@@ -568,9 +570,11 @@ Only a value different from native Chromium is applied as an override.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy
-resources never expose or accept numeric IDs or UUIDs. Proxy creation, update,
-rotation, assignment, and use require REL Pro. On Free, those calls return a
-non-retryable `PRO_REQUIRED` error with feature and plan details.
+resources never expose or accept numeric IDs or UUIDs. REL Free includes one
+saved proxy. Creating additional proxies requires REL Pro
+and returns a non-retryable `PRO_REQUIRED` error with feature and plan details
+on Free. Updating, rotating, assigning, and using an existing proxy remain
+available on Free.
 
 Sessions similarly expose their immutable canonical `id` (for example,
 `Session12`) as their sole public identifier. The typed session

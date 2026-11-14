@@ -476,11 +476,14 @@ events are not stored for retry.
 
 ## Free and Pro
 
-REL Free does not require registration. It includes up to two tab groups with
-two Sessions each (four Sessions total), one scheduled prompt, one custom Profile,
-one configured AI model provider, and one Proxy. Creating a third tab group or a third Session within a group requires
-REL Pro. Closing a Session or tab group frees its capacity. The same limits apply
-to sessions created through the CLI, MCP, RPC, and Rust SDK.
+REL Free does not require registration. Browser Sessions have no Free plan limit,
+including Sessions that explicitly share browser state. Free includes one
+scheduled prompt, one custom Profile, one configured AI model provider, and one
+Proxy. REL Pro allows more of those saved resources.
+
+Maximum Sessions in General settings applies to both Free and Pro, with a
+supported ceiling of 32 open Sessions. The same limits apply to creation through
+the app, CLI, MCP, RPC, and Rust SDK.
 
 REL Pro costs $20/year or $3.99/month. The recurring subscription pays for app
 updates during each paid period. Register the license in **REL → Settings… → Plan**

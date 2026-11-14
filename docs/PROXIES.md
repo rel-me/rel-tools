@@ -5,7 +5,9 @@ Session on an Oxylabs proxy, another on a Bright Data proxy, and a third on a
 direct connection. Selecting a proxy routes that Session's browser traffic
 through it; other Sessions keep their own assignments.
 
-Proxy creation, configuration, assignment, rotation, and use require **REL Pro**.
+**REL Free** includes one saved proxy. Creating additional proxies requires
+**REL Pro**. Configuring, assigning, rotating, and using an existing proxy remain
+available on Free.
 Have your provider's proxy endpoint, port, username, and password ready. Use the
 proxy credentials from its dashboard, which may differ from your account login.
 
