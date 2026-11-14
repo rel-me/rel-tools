@@ -570,9 +570,11 @@ Only a value different from native Chromium is applied as an override.
 
 `ProxyCreateRequest` requires an immutable, unique `alias`. The typed proxy
 methods and the capture/page `proxy` field accept only that alias; public proxy
-resources never expose or accept numeric IDs or UUIDs. Proxy creation, update,
-rotation, assignment, and use require REL Pro. On Free, those calls return a
-non-retryable `PRO_REQUIRED` error with feature and plan details.
+resources never expose or accept numeric IDs or UUIDs. REL Free includes one
+saved proxy. Creating additional proxies requires REL Pro
+and returns a non-retryable `PRO_REQUIRED` error with feature and plan details
+on Free. Updating, rotating, assigning, and using an existing proxy remain
+available on Free.
 
 Sessions similarly expose their immutable canonical `id` (for example,
 `Session12`) as their sole public identifier. The typed session
