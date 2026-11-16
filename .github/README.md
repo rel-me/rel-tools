@@ -42,7 +42,11 @@ unreadable by the runner account; selecting Apple Git avoids that dependency.
 The Node setup action installs Node
 24 into the runner's tool cache. Rust setup uses runner-local Cargo and rustup
 homes under `$RUNNER_TOOL_CACHE`; it does not change the host's Rust default or
-shell profiles. Each Python job creates a fresh virtual environment under
+shell profiles. The MSRV job selects the installed Xcode 26.6 developer directory
+and resolves its macOS SDK explicitly through `SDKROOT`. Rust 1.71.1's linker
+cannot read the newer architecture entries in the host's macOS 27.2 command-line
+tools SDK. This job-local selection retains Rust 1.71.1 and does not change the
+host's `xcode-select` setting. Each Python job creates a fresh virtual environment under
 `$RUNNER_TEMP`, and Ruby installs its bundle there too. The runner cleans its
 temporary directory between jobs. Downloaded toolchains and normal package
 manager download caches persist locally instead of using Actions cache storage.

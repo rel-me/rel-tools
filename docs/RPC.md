@@ -15,7 +15,10 @@ resource and reset APIs are not supported.
 - RPC JSON request limit: 16 MiB; request line and headers together: 64 KiB.
 - Request headers and body must arrive within two seconds of connection acceptance.
   Sending bytes gradually does not extend this deadline. This read deadline is
-  separate from the browser operation's `timeout`.
+  separate from the browser operation's `timeout`. An expired request-read
+  deadline returns HTTP 504 with `TIMEOUT` and `retryable:true` when the connection
+  is writable, including macOS socket read timeouts. Retry only when the operation
+  is safe to repeat.
 - The agent parses up to 64 incoming connections concurrently. A stalled request
   does not block acceptance of other clients, including health/status checks.
   When all connection readers are occupied, new connections receive a retryable
