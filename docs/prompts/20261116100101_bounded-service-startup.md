@@ -17,3 +17,13 @@ root final-push signal.”
 
 Follow-up: the final documentation head includes this delegated-prompt log;
 recheck that head after its push and report required-check completion.
+
+Follow-up delegated to `monitor_startup_pr`: “Reconsider the docs MSRV blocker:
+if it can be fixed narrowly by explicitly selecting an already installed
+compatible Xcode SDK in that CI job, preserving Rust 1.71.1 and all existing
+coverage, please make that fix in docs PR #262, log this delegated prompt in its
+existing docs/prompts file, validate the workflow, commit/push, and monitor the
+new head again. Do not change global xcode-select, weaken checks, or change
+toolchain versions. If a compatible SDK is unavailable or policy unclear, report
+that exact blocker instead. REL PR #891 source/head must stay unchanged while
+its current checks run.”
