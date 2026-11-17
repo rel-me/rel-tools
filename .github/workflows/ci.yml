@@ -63,7 +63,10 @@ jobs:
           echo "CARGO_HOME=$CARGO_HOME" >> "$GITHUB_ENV"
           echo "RUSTUP_HOME=$RUNNER_TOOL_CACHE/rel-tools-rustup" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@1.71.1
-      - run: cargo check --workspace --all-targets
+      - run: |
+          # Older Rust may discover a newer Command Line Tools SDK than Xcode's linker supports.
+          sdk_root="$(/usr/bin/xcrun --sdk macosx --show-sdk-path)"
+          SDKROOT="$sdk_root" cargo check --workspace --all-targets
 
   ruby:
     needs: msrv
