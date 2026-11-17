@@ -491,6 +491,15 @@ to remove the Free limits. After the subscription expires, keep using covered RE
 Pro builds with their Pro features. New app updates, including Chromium and
 security updates, stop until you renew and verify the license in Plan settings.
 
+Buy Pro through Stripe Managed Payments. After confirmed payment, REL shows a
+`REL-KEY-...` license on the private purchase page. Save the key in your password
+manager and enter it in Plan settings. One key supports two Macs; deactivate a
+Mac in Plan settings before activating a replacement. Keep the purchase page
+private and retain it to recover your key. Contact REL support if you lose both
+the key and purchase reference. **Manage Billing** opens [Link](https://app.link.com)
+for subscription, payment-method, and receipt management. An expired key requires
+renewal before activation on another Mac.
+
 REL saves verified build coverage in macOS Keychain. Previously verified,
 covered builds keep Pro access through temporary connection failures, including
 beyond the update verification grace period. An expired subscription does not
@@ -520,7 +529,7 @@ the last successful validation is at least 24 hours old. Temporary connection
 failures allow up to seven days offline from the last successful validation,
 without extending a timed grant beyond its end date. Permanent grants have no
 expiry date but still require periodic verification and can be revoked.
-Lemon Squeezy does not track these app-managed redemptions.
+Stripe does not track these app-managed redemptions.
 
 At trial expiry, REL automatically returns to Free and keeps existing Sessions
 and configuration under the Free plan limits described above.
