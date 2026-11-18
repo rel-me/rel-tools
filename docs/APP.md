@@ -491,7 +491,9 @@ to remove the Free limits. After the subscription expires, keep using covered RE
 Pro builds with their Pro features. New app updates, including Chromium and
 security updates, stop until you renew and verify the license in Plan settings.
 
-Buy Pro at [rel.me](https://rel.me/rel-pro) through Stripe Managed Payments.
+In **REL → Settings… → Plan**, click **Buy Pro** to open the
+[REL Pro checkout page](https://rel.me/billing/checkout). Choose monthly or
+yearly billing to continue to Stripe Managed Payments.
 After confirmed payment, REL shows a
 `REL-KEY-...` license on the private purchase page. Save the key in your password
 manager and enter it in Plan settings. Paid activation requires a key issued by
