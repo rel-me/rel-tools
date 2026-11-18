@@ -502,8 +502,11 @@ of REL does not recognize the compact key, use **Key for older REL versions**
 on the purchase page. Either form activates the same license. One license
 supports two Macs. Deactivate a
 Mac in Plan settings before activating a replacement. Keep the purchase page
-private and retain it to recover your key. Contact REL support if you lose both
-the key and purchase reference. **Manage Billing** opens [Link](https://app.link.com)
+private and retain it to recover your key. If you lose the purchase page, open
+[Recover a purchased key](https://rel.me/billing/recover) and enter the email
+you used at Stripe Checkout. The emailed link expires in 15 minutes and can be
+used once. Contact REL support for licenses issued outside Stripe.
+**Manage Billing** opens [Link](https://app.link.com)
 for subscription, payment-method, and receipt management. An expired key requires
 renewal before activation on another Mac.
 
