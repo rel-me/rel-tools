@@ -491,13 +491,14 @@ to remove the Free limits. After the subscription expires, keep using covered RE
 Pro builds with their Pro features. New app updates, including Chromium and
 security updates, stop until you renew and verify the license in Plan settings.
 
-In **REL → Settings… → Plan**, click **Buy Pro** to open the
+In **REL → Settings… → Plan**, click **What do I get with REL Pro?** to open
+the [plan comparison](https://rel.me/pro), or click **Buy Pro** to open the
 [REL Pro checkout page](https://rel.me/billing/checkout). Choose monthly or
 yearly billing to continue to Stripe Managed Payments.
 After confirmed payment, REL shows a
 `REL-KEY-...` license on the private purchase page. Save the key in your password
-manager and enter it in Plan settings. Paid activation requires a key issued by
-rel.me. One key supports two Macs. Deactivate a
+manager, enter it in the **License key** field in Plan settings, and click
+**Activate**. Paid activation requires a key issued by rel.me. One key supports two Macs. Deactivate a
 Mac in Plan settings before activating a replacement. Keep the purchase page
 private and retain it to recover your key. Contact REL support if you lose both
 the key and purchase reference. **Manage Billing** opens [Link](https://app.link.com)
@@ -516,8 +517,9 @@ Sessions and configuration remain, including resources above the Free limits;
 Free prevents additional creation beyond those limits. Trial and promo grants
 retain their separate expiry and verification rules below.
 
-You can also enter a `REL-PRO-...` promo code in the same Plan field when one
-has been provided to you. Codes grant one, two, or three calendar months of
+If you have a `REL-PRO-...` promo code, open the activation prompt shown when
+you try to use a Pro feature on the Free plan. Enter the code there. Codes grant
+one, two, or three calendar months of
 REL Pro, or permanent Pro access, without a checkout or payment method.
 Permanent codes can be redeemed exactly once. Campaign codes for timed trials
 stop working after their configured number of redemptions.
