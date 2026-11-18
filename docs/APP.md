@@ -519,6 +519,11 @@ Sessions and configuration remain, including resources above the Free limits;
 Free prevents additional creation beyond those limits. Trial and promo grants
 retain their separate expiry and verification rules below.
 
+Enter a `REL-PROMO-...` code in **Activate Pro** or **Settings → Plan**. REL
+redeems the code for a license key and activates that license on your Mac. Each
+successful redemption uses one of the code's available activations. The app
+shows whether a code is invalid or has no activations left.
+
 If you have a `REL-PRO-...` promo code, open the activation prompt shown when
 you try to use a Pro feature on the Free plan. Enter the code there. Codes grant
 one, two, or three calendar months of
