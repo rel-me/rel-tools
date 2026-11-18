@@ -775,15 +775,16 @@ lifetime). Ping performs no browser action and cannot reopen a closed session.
 
 ## License activation
 
-Activate REL Pro in the local owning app with a license key from stdin:
+Activate REL Pro in the local owning app by passing a `REL-KEY-...` license
+issued by rel.me on stdin:
 
 ```sh
 rel license activate --key-stdin < /path/to/private-license-key
 ```
 
 The key is never a command argument or part of the JSON response. The app uses
-its existing product validation and Keychain persistence. Activation requires
-configured licensing and fails if this Mac already stores a license. Manage
+the rel.me licensing service and stores the activated license in Keychain.
+Activation fails if this Mac already stores a REL license. Manage
 replacement or deactivation in the app. Success returns `activated: true` and
 `plan: "pro"`; the app then restarts its agent to apply Pro access.
 

@@ -491,9 +491,11 @@ to remove the Free limits. After the subscription expires, keep using covered RE
 Pro builds with their Pro features. New app updates, including Chromium and
 security updates, stop until you renew and verify the license in Plan settings.
 
-Buy Pro through Stripe Managed Payments. After confirmed payment, REL shows a
+Buy Pro at [rel.me](https://rel.me/rel-pro) through Stripe Managed Payments.
+After confirmed payment, REL shows a
 `REL-KEY-...` license on the private purchase page. Save the key in your password
-manager and enter it in Plan settings. One key supports two Macs; deactivate a
+manager and enter it in Plan settings. Paid activation requires a key issued by
+rel.me. One key supports two Macs. Deactivate a
 Mac in Plan settings before activating a replacement. Keep the purchase page
 private and retain it to recover your key. Contact REL support if you lose both
 the key and purchase reference. **Manage Billing** opens [Link](https://app.link.com)
@@ -505,8 +507,7 @@ covered builds keep Pro access through temporary connection failures, including
 beyond the update verification grace period. An expired subscription does not
 cover a manually installed build created after its coverage cutoff. Renew and
 verify before using a newer build with Pro. A disabled or revoked license still
-removes Pro access. Historical saved licenses must be verified online by a build
-that supports this policy before they acquire permanent build coverage.
+removes Pro access.
 
 Removing registration returns the app to Free and its normal updates. Existing
 Sessions and configuration remain, including resources above the Free limits;
