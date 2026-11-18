@@ -495,10 +495,12 @@ In **REL → Settings… → Plan**, click **What do I get with REL Pro?** to op
 the [plan comparison](https://rel.me/pro), or click **Buy Pro** to open the
 [REL Pro checkout page](https://rel.me/billing/checkout). Choose monthly or
 yearly billing to continue to Stripe Managed Payments.
-After confirmed payment, REL shows a
-`REL-KEY-...` license on the private purchase page. Save the key in your password
-manager, enter it in the **License key** field in Plan settings, and click
-**Activate**. Paid activation requires a key issued by rel.me. One key supports two Macs. Deactivate a
+After confirmed payment, REL shows a compact `REL-KEY-...` license on the
+private purchase page. Save the key in your password manager, enter it in the
+**License key** field in Plan settings, and click **Activate**. If your version
+of REL does not recognize the compact key, use **Key for older REL versions**
+on the purchase page. Either form activates the same license. One license
+supports two Macs. Deactivate a
 Mac in Plan settings before activating a replacement. Keep the purchase page
 private and retain it to recover your key. Contact REL support if you lose both
 the key and purchase reference. **Manage Billing** opens [Link](https://app.link.com)
