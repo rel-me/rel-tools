@@ -178,14 +178,9 @@ available; the original Chromium error still remains in the message.
 ### Free and Pro access
 
 The running app selects the agent's access plan; RPC callers cannot override it.
-REL Free has no plan limit on browser Sessions, including explicitly shared
-Sessions. Maximum Sessions applies to all open Sessions on both Free and Pro,
-with a supported ceiling of 32. Exceeding that configured limit returns
-`CONFLICT`, rather than `PRO_REQUIRED`. Creating and restoring Sessions use the
-same capacity check. See [Free and Pro](APP.md#free-and-pro).
-Additional custom Profiles or Proxies
-return `PRO_REQUIRED`; existing Proxy use, update, rotation, and assignment remain
-available.
+Requests to create additional custom Profiles or Proxies on Free return
+`PRO_REQUIRED`. Existing Proxy use, update, rotation, and assignment remain
+available. See [Free and Pro](APP.md#free-and-pro).
 
 `PRO_REQUIRED` uses HTTP 403 and includes stable `details.feature` and
 `details.plan` strings. The currently returned feature values are `additional_proxies` and
