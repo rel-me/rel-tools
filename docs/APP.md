@@ -356,9 +356,9 @@ dismissing that notice preserves its resolved status. Background service inciden
 use a quiet **Recent Issues** indicator.
 
 For session errors, use **Refresh Sessions** to reload the session list, then
-retry the failed action. **Open Settings** lets you review session limits and
-the default Profile. Refresh is available while the local agent is running and
-no session refresh or save is in progress.
+retry the failed action. **Open Settings** lets you review the default Profile.
+Refresh is available while the local agent is running and no session refresh or
+save is in progress.
 
 **Save Current Workspace** requests a save of the current tabs and layout for
 the next launch; it does not restore a previous layout. When the agent rejects a
@@ -476,14 +476,9 @@ events are not stored for retry.
 
 ## Free and Pro
 
-REL Free does not require registration. Browser Sessions have no Free plan limit,
-including Sessions that explicitly share browser state. Free includes one
-scheduled prompt, one custom Profile, one configured AI model provider, and one
-Proxy. REL Pro allows more of those saved resources.
-
-Maximum Sessions in General settings applies to both Free and Pro, with a
-supported ceiling of 32 open Sessions. The same limits apply to creation through
-the app, CLI, MCP, RPC, and Rust SDK.
+REL Free does not require registration. It includes one scheduled prompt, one
+custom Profile, one configured AI model provider, and one Proxy. REL Pro allows
+more of those saved resources.
 
 REL Pro costs $20/year or $3.99/month. The recurring subscription pays for app
 updates during each paid period. Register the license in **REL → Settings… → Plan**
