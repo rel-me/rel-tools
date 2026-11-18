@@ -291,6 +291,10 @@ releases REL offers:
 - **Beta** also receives preview releases.
 - **Staging** receives staging releases as well as Beta and regular releases.
 
+Beta and Staging share numbered versions such as `0.1.187-beta.1` and
+`0.1.187-beta.2`. If a preview is promoted to Regular, the same signed
+build keeps its version number and becomes available on the Regular channel.
+
 Existing Dev selections carry forward as Staging. Settings encode this channel as
 `staging`. The Sparkle feed keeps its historical `dev` identifier so installed
 clients continue receiving updates.
